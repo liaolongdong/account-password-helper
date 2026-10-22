@@ -54,12 +54,14 @@ describe('matchesSiteScope 域名匹配语义', () => {
     expect(matchesSiteScope(entry({ url: 'other.com' }), ctx('example.com'), policy())).toBe(false);
   });
 
-  it('本地开发域名按端口过滤，当前页无端口时放行全部', () => {
-    // 当前页无端口（处于协议默认端口 80）：保持既有行为，展示全部
+  it('本地开发域名先过主机门，再按端口过滤', () => {
+    // 当前页无端口（处于协议默认端口 80）：同主机条目保持既有行为，全部展示
     expect(
       matchesSiteScope(entry({ url: 'http://localhost:3000' }), ctx('localhost', 'http://localhost'), policy()),
     ).toBe(true);
-    expect(matchesSiteScope(entry({ url: 'other.com' }), ctx('localhost', 'http://localhost'), policy())).toBe(true);
+    // 外站条目改判为不属于本站：改前这一支只看端口、不看主机，
+    // 于是 `localhost` 页面把 `other.com` 当本站且当可填充（跨 origin 外填）
+    expect(matchesSiteScope(entry({ url: 'other.com' }), ctx('localhost', 'http://localhost'), policy())).toBe(false);
     // 当前页有端口：条目无端口（通用）或端口一致才放行
     expect(
       matchesSiteScope(entry({ url: 'http://localhost:3000' }), ctx('localhost', 'http://localhost:3000'), policy()),

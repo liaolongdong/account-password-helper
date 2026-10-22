@@ -163,11 +163,18 @@ describe('端口范围接线', () => {
   const PASSWORD_SORT_SRC = readFileSync(path.join(ROOT, 'utils/passwordSort.ts'), 'utf8');
   const AUTO_SAVE_SRC = readFileSync(path.join(ROOT, 'utils/storage/autoSaveManager.ts'), 'utf8');
   const POPUP_SRC = readFileSync(path.join(ROOT, 'composables/usePopupInit.ts'), 'utf8');
+  const DOMAIN_SRC = readFileSync(path.join(ROOT, 'utils/domain.ts'), 'utf8');
 
   it('显示判据的两处真源都同时过主机门与端口门', () => {
-    // 少了这一句，strict 档下端口不一致的条目会重新出现在本站列表，并被一键填充取作首条
-    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再调用 matchesPortScope').toContain('matchesPortScope(');
-    expect(PASSWORD_SORT_SRC, 'passwordSort 不再调用 matchesPortScope').toContain('matchesPortScope(');
+    // 两处真源现在共用同一个合成判据：少了它，strict 档下端口不一致的条目会重新出现在本站列表
+    // 并被一键填充取作首条，本地域名也会重新绕开主机门把外站条目当本站可填充
+    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再调用 matchesSiteEndpoint').toContain('matchesSiteEndpoint(');
+    expect(PASSWORD_SORT_SRC, 'passwordSort 不再调用 matchesSiteEndpoint').toContain('matchesSiteEndpoint(');
+    // 合成判据自身必须两道门都在：抽到 domain.ts 之后，这里是唯一能拦住「只抄了一门」的地方
+    const endpointFn = /export function matchesSiteEndpoint\([\s\S]*?\n}/.exec(DOMAIN_SRC)?.[0] ?? '';
+    expect(endpointFn, '未能定位 matchesSiteEndpoint，本用例空跑').not.toBe('');
+    expect(endpointFn, 'matchesSiteEndpoint 不再过主机门').toContain('resolveMatchTier(');
+    expect(endpointFn, 'matchesSiteEndpoint 不再过端口门').toContain('matchesPortScope(');
   });
 
   it('写入侧归属门与显示门同判据，避免「弹窗说新增、实际改写另一端口」', () => {
@@ -176,8 +183,10 @@ describe('端口范围接线', () => {
     );
   });
 
-  it('Popup 的本站计数也感知端口', () => {
-    expect(POPUP_SRC, 'usePopupInit 不再调用 matchesPortScope，计数会比侧边栏列表多').toContain('matchesPortScope(');
+  it('Popup 的本站计数与侧边栏共用同一判据', () => {
+    expect(POPUP_SRC, 'usePopupInit 不再调用 matchesSiteEndpoint，计数会比侧边栏列表多').toContain(
+      'matchesSiteEndpoint(',
+    );
   });
 
   it('侧边栏把端口策略同时用于列表、降级集与空态计数', () => {

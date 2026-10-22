@@ -5,15 +5,7 @@ import { logger } from '@/utils/logger';
 import { useShortcuts } from '@/composables/useShortcuts';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useSessionLock } from '@/composables/useSessionLock';
-import {
-  isExactHostMatch,
-  isLocalDevDomain,
-  matchesPortScope,
-  parsePagePortContext,
-  resolveMatchTier,
-  type PagePortContext,
-  type SitePolicy,
-} from '@/utils/domain';
+import { matchesSiteEndpoint, parsePagePortContext, type PagePortContext, type SitePolicy } from '@/utils/domain';
 import { DEFAULT_DOMAIN_MATCH_MODE, DEFAULT_PORT_SCOPE } from '@/utils/storage/configManager';
 
 /**
@@ -68,9 +60,7 @@ export function usePopupInit() {
     const policy = sitePolicy.value;
     return allPasswords.value.filter(p => {
       if (!p.url?.trim()) return false;
-      if (isLocalDevDomain(domain) && policy.portScope === 'loose') return isExactHostMatch(domain, p.url);
-      if (resolveMatchTier(domain, p.url, policy.mode) < 0) return false;
-      return matchesPortScope(p.url, currentPagePort.value, policy.portScope);
+      return matchesSiteEndpoint(p.url, domain, currentPagePort.value, policy);
     }).length;
   });
 

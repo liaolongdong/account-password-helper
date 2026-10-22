@@ -628,8 +628,9 @@ export async function getMatchingAccounts(
   /**
    * 条目匹配层级（供内容脚本呈现来源标识）
    *
-   * 本地开发域名 loose 档下「无端口时放行全部」会带出与当前 host 不同的条目，该路径不参与档位语义，
-   * 按 0（无来源标识）返回，避免把 -1 透出成第三种状态。
+   * 结果集已按 `matchesSiteEndpoint` 过滤，进入这里的条目 tier 恒 ≥ 0（环回主机同样先过主机门）。
+   * 保留 -1 → 0 的映射只为挡住「过滤判据与层级判据将来分叉」这一种状态，
+   * 不让未知档位透出成第三种呈现。
    */
   const tierOf = (url: string): MatchTier => {
     const tier = resolveMatchTier(domain, url, policy.mode);

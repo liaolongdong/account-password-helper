@@ -152,18 +152,16 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
     expect(result.map(e => e.id)).toEqual(['match', 'noUrl']);
   });
 
-  it('本地开发域名放行全部条目', () => {
+  it('本地域名不再放行外站条目（主机门先于端口门）', () => {
     const list = [
       entry({ id: 'a', url: 'https://a.example.com', lastUsedAt: 1 }),
       entry({ id: 'b', url: 'https://b.example.com', lastUsedAt: 2 }),
     ];
-    const result = filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy());
-    expect(result).toHaveLength(2);
-    // localhost 下两条均不精确匹配（优先级相同），按侧边栏默认 lastUsedAt 降序
-    expect(result.map(e => e.id)).toEqual(['b', 'a']);
+    // 改前取不到页面端口时两条外站条目一律放行，一键填充会把外站凭证填进本地登录框
+    expect(filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy())).toEqual([]);
   });
 
-  it('本地域名仍保持精确匹配优先级，且优先级高于远程收藏和空 URL', () => {
+  it('本地域名精确条目优先于空 URL，外站条目根本不进结果集', () => {
     const list = [
       entry({ id: 'remoteFav', url: 'https://remote.example.com', favorite: true, lastUsedAt: 999 }),
       entry({ id: 'empty', url: '', lastUsedAt: 1000 }),
@@ -172,7 +170,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
 
     expect(
       filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy()).map(item => item.id),
-    ).toEqual(['local', 'remoteFav', 'empty']);
+    ).toEqual(['local', 'empty']);
   });
 
   it('重复 id 不会共享优先级缓存，排序按条目对象语义执行', () => {

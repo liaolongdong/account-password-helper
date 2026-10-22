@@ -1,14 +1,5 @@
 import type { PasswordEntry } from '@/utils/types';
-import {
-  isExactHostMatch,
-  isLocalDevDomain,
-  matchesPortForLocalDev,
-  matchesPortScope,
-  rawPortOf,
-  resolveMatchTier,
-  type PagePortContext,
-  type SitePolicy,
-} from '@/utils/domain';
+import { matchesSiteEndpoint, resolveMatchTier, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
 
 /**
  * 密码列表排序状态接口
@@ -167,25 +158,17 @@ export function filterAndSortEntriesForDomain(
   domain: string,
   sort: SortState = DEFAULT_SIDEPANEL_SORT,
   page: PagePortContext | null,
-  policy: SitePolicy,
+  policy: EffectiveSitePolicy,
 ): PasswordEntry[] {
   const matched = passwords.filter(p => {
-    if (isLocalDevDomain(domain) && policy.portScope === 'loose') {
-      // 本地开发域名（loose 档）：有端口时按端口过滤，无端口时保持原有行为（放行全部）；档位不参与
-      return matchesPortForLocalDev(p.url, rawPortOf(page));
-    }
+    // 无域名（非 http 页面等）：下拉贴在当前页上，展示外站条目没有可填充的目标，只留通用条目
     if (!domain) return !p.url || p.url.trim() === '';
-    if (resolveMatchTier(domain, p.url, policy.mode) < 0) return false;
-    return matchesPortScope(p.url, page, policy.portScope);
+    return matchesSiteEndpoint(p.url, domain, page, policy);
   });
 
   // 域名优先级即匹配层级：off 档下退化为迁移前的 0/1 二值（4=通用条目仍在其后）
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!domain) return 0;
-    if (isLocalDevDomain(domain) && policy.portScope === 'loose') {
-      // 本地开发域名不参与档位：与迁移前一致，精确主机为 0，其余（含空 URL 与外站）同为 1 不区分
-      return !!entry.url?.trim() && isExactHostMatch(domain, entry.url) ? 0 : 1;
-    }
     // 过滤阶段已保证只有匹配（tier ≥ 0）且通过端口门的条目进入此分支
     return resolveMatchTier(domain, entry.url, policy.mode);
   };

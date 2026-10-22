@@ -9,7 +9,7 @@
       <SidepanelHeader
         :current-domain="currentDomain"
         :is-authenticated="isAuthenticated"
-        :show-match-info="isAuthenticated && !!currentDomain && !isLocalDevDomain(currentDomain)"
+        :show-match-info="isAuthenticated && !!currentDomain && !isLoopbackHost(currentDomain)"
         :match-count="domainFilteredPasswords.length"
         :port-label="portChipLabel"
         :port-relaxed="portRelaxedTemporarily"
@@ -173,17 +173,19 @@ import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/us
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import {
-  isLocalDevDomain,
+  isLoopbackHost,
   toNavigableUrl,
   resolveMatchTier,
   isCrossSubdomainTier,
   isDomainMatchMode,
   isPortScope,
-  matchesPortScope,
+  matchesSiteEndpoint,
+  isHiddenByPortOnly,
   rawPortOf,
   countSameMainDomainCandidates,
   countPortHiddenCandidates,
   type DomainMatchMode,
+  type EffectiveSitePolicy,
   type PortScope,
   type SitePolicy,
 } from '@/utils/domain';
@@ -463,18 +465,15 @@ const sitePolicy = computed<SitePolicy>(() => ({
 }));
 
 /**
- * 展示策略：持久化策略在「本站临时放宽」时把端口轴降为 `loose`
+ * 展示策略：持久化策略在「本站临时放宽」时把端口轴降为 `relaxed`
  *
  * 只有列表可见性读它；任何「能不能填到当前页」的判定一律用 `sitePolicy`，
  * 否则放宽一次显示就会顺带放宽填充，把两个语义不同的东西绑在一起。
+ * 刻意不复用 `loose`：环回主机在 `loose` 下仍按端点过滤（那是本地既有的缺省意图），
+ * 用 `loose` 表达放宽会让本地页面上的这个开关点了没反应。
  */
-const displayPolicy = computed<SitePolicy>(() =>
-  portRelaxedTemporarily.value ? { mode: sitePolicy.value.mode, portScope: 'loose' } : sitePolicy.value,
-);
-
-/** 端口芯片是否该出现：持久化 strict + 当前页确实带着非默认端口 + 尚未放宽 */
-const showPortChip = computed(
-  () => portScope.value === 'strict' && !!currentPagePort.value && !currentPagePort.value.atDefaultPort,
+const displayPolicy = computed<EffectiveSitePolicy>(() =>
+  portRelaxedTemporarily.value ? { mode: sitePolicy.value.mode, portScope: 'relaxed' } : sitePolicy.value,
 );
 
 /**
@@ -541,14 +540,17 @@ const OTHER_PORT_PRIORITY = 6;
 const domainPriorityOf = (entry: PasswordEntry): number => {
   const domain = currentDomain.value;
   const policy = sitePolicy.value;
-  if (!domain || (isLocalDevDomain(domain) && policy.portScope === 'loose')) return getDomainPriority(entry);
-  if (policy.mode === DEFAULT_DOMAIN_MATCH_MODE && policy.portScope === DEFAULT_PORT_SCOPE) {
+  if (!domain) return getDomainPriority(entry);
+  // 环回主机在 `loose` 下同样按端点过滤，档位与别名要能分出先后，因此不走下面那条
+  // 「双缺省退化为二值」的历史短路；其余双缺省场景保持迁移前的 0/1 顺序逐条不变
+  const localEndpoint = isLoopbackHost(domain) && policy.portScope === 'loose';
+  if (!localEndpoint && policy.mode === DEFAULT_DOMAIN_MATCH_MODE && policy.portScope === DEFAULT_PORT_SCOPE) {
     return getDomainPriority(entry);
   }
   const tier = resolveMatchTier(domain, entry.url, policy.mode);
   if (tier === -1) return NOT_ON_SITE_PRIORITY;
   // 端口门按持久化策略判：放宽只放宽显示，不改变「这条属不属于当前端点」的事实
-  if (!matchesPortScope(entry.url, scopeContext.value.page, policy.portScope)) {
+  if (!matchesSiteEndpoint(entry.url, domain, scopeContext.value.page, policy)) {
     return OTHER_PORT_PRIORITY;
   }
   return tier;
@@ -603,6 +605,19 @@ const portHiddenHintCount = computed(() => {
 });
 
 /**
+ * 端口芯片是否该出现
+ *
+ * - `strict`：沿用既有判据（当前页确实带着非默认端口），公网场景的呈现逐条不变；
+ * - 环回主机 + `loose`：本地端点同样会按端口把同主机条目挡在站外，那正是「悄悄少了几条
+ *   且无处可问」的高发场景，因此数出有被挡住的条目时才出现；
+ * - 放宽态自身必须继续渲染，否则用户没有收回的入口（此时计数已归零）。
+ */
+const showPortChip = computed(() => {
+  if (portScope.value === 'strict') return !!currentPagePort.value && !currentPagePort.value.atDefaultPort;
+  return portRelaxedTemporarily.value || (isLoopbackHost(currentDomain.value) && portHiddenHintCount.value > 0);
+});
+
+/**
  * 当前可见列表中「非精确层级」（通配条目 / 主域条目 / 同主域其他子域）的条目 ID 集
  *
  * 行内「跨子域」来源徽章的唯一事实来源：档位判定只在 App.vue 做一次，
@@ -612,7 +627,7 @@ const portHiddenHintCount = computed(() => {
 const crossDomainIds = computed<ReadonlySet<string>>(() => {
   const domain = currentDomain.value;
   if (domainMatchMode.value === DEFAULT_DOMAIN_MATCH_MODE) return EMPTY_ID_SET;
-  if (!domain || isLocalDevDomain(domain)) return EMPTY_ID_SET;
+  if (!domain || isLoopbackHost(domain)) return EMPTY_ID_SET;
 
   const mode = domainMatchMode.value;
   const ids = new Set<string>();
@@ -639,8 +654,7 @@ const portMismatchIds = computed<ReadonlySet<string>>(() => {
   const page = currentPagePort.value;
   const ids = new Set<string>();
   for (const entry of filteredPasswords.value) {
-    if (resolveMatchTier(domain, entry.url, policy.mode) < 0) continue;
-    if (!matchesPortScope(entry.url, page, policy.portScope)) ids.add(entry.id);
+    if (isHiddenByPortOnly(entry.url, domain, page, policy)) ids.add(entry.id);
   }
   return ids;
 });
