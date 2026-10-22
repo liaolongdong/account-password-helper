@@ -80,6 +80,33 @@ describe('Options 首屏骨架的视图切换', () => {
     expect(HTML, '标题下的副标题占位又回来了').not.toContain('sk-subtitle');
   });
 
+  it('骨架工具条的按钮占位数与真实头部同形（左 6 / 右 2 / 会话区含锁定）', () => {
+    /**
+     * 骨架是静态 HTML，不会跟着 Vue 组件重排。2026-10-22 头部从「左 4 + 右 5」改成
+     * 「左 6 + 右 2」时，骨架仍画着 9 颗占位——加载瞬间先给一个不存在的工具条形状，
+     * 落地后再收缩，正好是这条判据要防的那类静默回归。
+     * 数字取自 `components/options/HeaderBar.vue`：左组 = 添加密码 / 安全体检 / 个人信息库 /
+     * 数据管理▾ / 安全设置▾ / 偏好设置，右组 = 命令面板 / 帮助▾，第一行右端 = 会话胶囊 + 立即锁定。
+     */
+    const sliceGroup = (opening: string): string => {
+      const at = HTML.indexOf(opening);
+      expect(at, `找不到骨架占位容器 \`${opening}\``).toBeGreaterThanOrEqual(0);
+      const rest = HTML.slice(at + opening.length);
+      // 组的边界 = 下一个组开始，或 `</header>` 收尾（右组是最后一个）
+      const bounds = [rest.indexOf('<div class="sk-action-group'), rest.indexOf('</header>')].filter(i => i >= 0);
+      return rest.slice(0, bounds.length ? Math.min(...bounds) : rest.length);
+    };
+    const countBtns = (block: string): number => [...block.matchAll(/class="sk-block sk-btn/g)].length;
+    expect(countBtns(sliceGroup('<div class="sk-action-group">')), '左组占位数与真实头部不一致').toBe(6);
+    expect(countBtns(sliceGroup('<div class="sk-action-group sk-action-group--right">')), '右组占位数不一致').toBe(2);
+
+    const metaAt = HTML.indexOf('<div class="sk-header-meta">');
+    expect(metaAt, '找不到第一行右端的会话区').toBeGreaterThanOrEqual(0);
+    const meta = HTML.slice(metaAt, HTML.indexOf('<div class="sk-header-row">', metaAt));
+    expect(meta.match(/class="sk-session"/g), '会话胶囊必须只有一个').toHaveLength(1);
+    expect([...meta.matchAll(/class="sk-block sk-btn/g)], '会话徽标旁缺了「立即锁定」占位').toHaveLength(1);
+  });
+
   it('有效期入口与侧边栏 / 悬浮按钮的管理入口都按会话状态预判首屏', () => {
     expect(ROUTER).toContain("openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY, undefined, 'vault')");
     expect(OPTIONS_MANAGER).toContain('OPTIONS_FIRST_VIEW_PARAM');

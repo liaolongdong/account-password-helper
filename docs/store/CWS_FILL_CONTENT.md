@@ -783,7 +783,7 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists, plus a non-blocking inline warning when the password is weak or shared with other accounts.
 
-Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (quick fill — fills and ticks, login only via "Fill and sign in" or "Auto-submit login") / K (inline). All customizable at chrome://extensions/shortcuts — the manager page ("Security Settings → Keyboard Shortcuts") and the side panel Help dialog both list all four bindings with their live status, flag any key that is currently inactive, and link straight to that page. Right-click an input to fill username/password/2FA code or generate a strong password.
+Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (quick fill — fills and ticks, login only via "Fill and sign in" or "Auto-submit login") / K (inline). All customizable at chrome://extensions/shortcuts — the manager page ("Help → Keyboard Shortcuts") and the side panel Help dialog both list all four bindings with their live status, flag any key that is currently inactive, and link straight to that page. Right-click an input to fill username/password/2FA code or generate a strong password.
 ```
 
 **Indicate any other products, platforms, or restricted websites (e.g., Netflix account, Adobe Creative Suite account, banking, intranet domains, etc.) that your extension requires access to in order to fulfill its purpose.（指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。）**

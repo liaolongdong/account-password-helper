@@ -763,7 +763,7 @@ const handleDataCommand = (command: string) => {
     case 'backupImport':
       showBackupImportDialog.value = true;
       break;
-    case 'backup':
+    case 'emailBackup':
       openEmailBackupDialog();
       break;
     case 'removeDuplicates':
@@ -1468,8 +1468,10 @@ const {
  * 清单会在 `useCommandPalette` 里 `watch(filtered)` 的初次求值时跑一遍，
  * 所以引用声明在本清单之后的 handler 必须包一层箭头（`run: () => foo()`），写函数名会撞 TDZ。
  *
- * `entry` 组跟随头部的实际排布：左组的两个核心动作（添加密码 → 安全体检），
- * 再是「帮助」下拉里的四项（新手引导 → 使用指引 → 快捷键 → 关于）；偏好设置在 `preferences` 组。
+ * **分组与组内顺序逐字镜像头部**：`entry` = 左组三颗核心动作（添加密码 → 安全体检 → 个人信息库），
+ * `data` / `security` 与两个下拉同序（`security` 首位是头部的「立即锁定」，它不在下拉里），
+ * `preferences` = 偏好设置按钮，`help` = 「帮助」下拉四项（新手引导 → 使用指引 → 快捷键 → 关于）。
+ * 这条镜像由 `tests/architecture/headerActionInventory.test.ts` 按下拉与分组的同序同集钉住。
  * 增删条目要同轮改 14 个对外文件里的 20 处条数文案；这两条判据都在 `tests/architecture/commandPaletteCopy.test.ts`。
  */
 const buildPaletteActions = () => [
@@ -1488,32 +1490,11 @@ const buildPaletteActions = () => [
     run: () => void openHealthDialog(),
   },
   {
-    id: 'tour',
+    id: 'identityVault',
     group: 'entry',
-    label: t('options.header.tour'),
-    keywords: ['tour', 'onboarding', 'walkthrough', 'replay'],
-    run: () => replayTour(),
-  },
-  {
-    id: 'guide',
-    group: 'entry',
-    label: t('options.header.guide'),
-    keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
-    run: () => openGuide(),
-  },
-  {
-    id: 'shortcuts',
-    group: 'entry',
-    label: t('options.header.shortcuts'),
-    keywords: ['shortcuts', 'shortcut', 'hotkey', 'key'],
-    run: () => (showShortcutDialog.value = true),
-  },
-  {
-    id: 'about',
-    group: 'entry',
-    label: t('options.header.about'),
-    keywords: ['about', 'version', 'info', 'privacy', 'link'],
-    run: () => (showAboutDrawer.value = true),
+    label: t('identity.title'),
+    keywords: ['identity', 'vault', 'pii'],
+    run: () => openIdentityVaultWithVerify(),
   },
   {
     id: 'downloadTemplate',
@@ -1561,7 +1542,7 @@ const buildPaletteActions = () => [
     id: 'emailBackup',
     group: 'data',
     label: t('options.header.emailBackup'),
-    keywords: ['email', 'mail', 'backup'],
+    keywords: ['email', 'mail', 'backup', 'emailBackup'],
     run: openEmailBackupDialog,
   },
   {
@@ -1579,11 +1560,11 @@ const buildPaletteActions = () => [
     run: openTrashWithVerify,
   },
   {
-    id: 'identityVault',
-    group: 'data',
-    label: t('identity.title'),
-    keywords: ['identity', 'vault', 'pii'],
-    run: openIdentityVaultWithVerify,
+    id: 'lockNow',
+    group: 'security',
+    label: t('options.header.lockNow'),
+    keywords: ['locknow', 'lock', 'now', 'clear'],
+    run: handleClearSession,
   },
   {
     id: 'changeMasterPassword',
@@ -1591,17 +1572,6 @@ const buildPaletteActions = () => [
     label: t('options.header.changeMasterPassword'),
     keywords: ['master', 'password', 'change'],
     run: () => (showChangeMasterPasswordDialog.value = true),
-  },
-  {
-    id: 'lockNow',
-    group: 'security',
-    label: t('options.header.lockNow'),
-    // 别名里刻意不写 `session`：那条词已归「有效期设置」，借过来会把 `session` 的首位结果
-    // 从「调有效期」抢给「锁掉会话」。`locknow` 是给 `commandPaletteCopy` 那条抢位守卫用的
-    // ——它拿 id 当检索词，而匹配方向是「输入必须是单个别名的子串」，只写 `lock` + `now`
-    // 会零命中、这条命令被守卫静默跳过；`clear` 兜住从旧文案「清除会话」找来的人。
-    keywords: ['locknow', 'lock', 'now', 'clear'],
-    run: handleClearSession,
   },
   {
     id: 'validity',
@@ -1653,13 +1623,6 @@ const buildPaletteActions = () => [
     run: () => (showClipboardDialog.value = true),
   },
   {
-    id: 'favoriteLimit',
-    group: 'security',
-    label: t('options.header.favoriteLimit'),
-    keywords: ['favorite', 'limit', 'star'],
-    run: () => (showFavoriteLimitDialog.value = true),
-  },
-  {
     id: 'passwordHistory',
     group: 'security',
     label: t('options.historySetting.title'),
@@ -1667,11 +1630,46 @@ const buildPaletteActions = () => [
     run: () => (showPasswordHistoryDialog.value = true),
   },
   {
+    id: 'favoriteLimit',
+    group: 'security',
+    label: t('options.header.favoriteLimit'),
+    keywords: ['favorite', 'limit', 'star'],
+    run: () => (showFavoriteLimitDialog.value = true),
+  },
+  {
     id: 'personalization',
     group: 'preferences',
     label: t('options.header.personalization'),
     keywords: ['preference', 'theme', 'language'],
     run: openPersonalizationDialog,
+  },
+  {
+    id: 'tour',
+    group: 'help',
+    label: t('options.header.tour'),
+    keywords: ['tour', 'onboarding', 'walkthrough', 'replay'],
+    run: () => replayTour(),
+  },
+  {
+    id: 'guide',
+    group: 'help',
+    label: t('options.header.guide'),
+    keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
+    run: () => openGuide(),
+  },
+  {
+    id: 'shortcuts',
+    group: 'help',
+    label: t('options.header.shortcuts'),
+    keywords: ['shortcuts', 'shortcut', 'hotkey', 'key'],
+    run: () => (showShortcutDialog.value = true),
+  },
+  {
+    id: 'about',
+    group: 'help',
+    label: t('options.header.about'),
+    keywords: ['about', 'version', 'info', 'privacy', 'link'],
+    run: () => (showAboutDrawer.value = true),
   },
 ];
 

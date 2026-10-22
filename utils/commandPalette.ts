@@ -9,7 +9,7 @@ import { matchesKeyword } from '@/utils/searchMatch';
  */
 
 /** 命令分组标识（面板内分组标题由 `options.commandPalette.group.${group}` 解析） */
-export type CommandGroup = 'entry' | 'data' | 'security' | 'preferences';
+export type CommandGroup = 'entry' | 'data' | 'security' | 'preferences' | 'help';
 
 /**
  * 命令动作：面板中可被检索并执行的一条命令。

@@ -160,7 +160,7 @@
                 {{ t('options.header.backupImport') }}
               </el-dropdown-item>
               <el-dropdown-item
-                command="backup"
+                command="emailBackup"
                 :icon="Message"
               >
                 {{ t('options.header.emailBackup') }}
@@ -289,6 +289,11 @@
           @click="$emit('openCommandPalette')"
         >
           {{ t('options.header.commandPalette') }}
+          <kbd
+            class="cp-kbd"
+            aria-hidden="true"
+            >{{ t('options.header.commandPaletteKbd') }}</kbd
+          >
         </el-button>
         <el-dropdown
           trigger="click"
@@ -434,6 +439,19 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/**
+ * 命令面板按钮上的快捷键键帽（文案在语言包里，取跨平台写法 `Ctrl/⌘K`）
+ *
+ * 刻意**不做**平台嗅探：`utils/platform.ts` 同时被后台预热与快捷键清单引用，
+ * 让管理页再静态引它一次，Rollup 会把这份共享代码切成独立 chunk，
+ * 于是 popup 首屏的 eager 预加载多出一个文件（被 `sidepanelClosure` 的预算守卫挡下）。
+ * 为一个键帽 glyph 给另一个入口的首屏加一次请求不值得，故与既有 tooltip
+ * 「打开命令面板（Ctrl/Cmd+K）」保持同一口径。
+ *
+ * 键帽 `aria-hidden`：无障碍名仍由按钮的 `aria-label` 承载，避免读屏把「命令面板」
+ * 与快捷键念两遍；可见文字「命令面板」是 aria-label 的子串，满足 WCAG 2.5.3。
+ */
 
 /**
  * 「帮助」下拉的命令分派
@@ -621,6 +639,19 @@ const backupStatusText = computed(() => {
   vertical-align: middle;
   border-radius: 50%;
   box-shadow: 0 0 0 2px rgb(255 255 255 / 35%);
+}
+
+/* 命令面板按钮内的快捷键键帽：与版本徽标同族的「弱化的可点击线索」，
+   不额外抢注意力，但让 Ctrl/Cmd+K 在鼠标悬停之前就能被看见 */
+.cp-kbd {
+  padding: 0 5px;
+  margin-left: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: rgb(255 255 255 / 88%);
+  background: rgb(255 255 255 / 14%);
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 4px;
 }
 
 /* 会话剩余时间徽标：半透明 chip，与头部渐变背景融合；点击直达有效期设置。

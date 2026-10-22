@@ -13,6 +13,9 @@
  *    （漏了这一半，重排时会留下「点不到的 case」，它看着像还有用）；
  * 3. **帮助下拉三段齐**：命令 → 本组件 emit → App.vue 的 kebab-case 监听，缺一整条链就断；
  * 4. **不跨菜单重复**：同一个 command 只属于一个下拉，否则两条 switch 分支会互相遮蔽。
+ * 5. **命令面板是头部的镜像**：`data` / `security` / `help` 三个分组必须与对应下拉
+ *    **同序同集**（`security` 首位额外前置头部第一行的「立即锁定」）。面板是头部的可搜索副本，
+ *    出现第二套分类时，用户按头部顺序记住的位置在面板里全都对不上。
  *
  * 判据全部带变异自证：每根判据都构造一次「故意改坏」的源码并要求被读出来，
  * 免得写成恒真断言（数字写死、正则错但恰好匹配）而静默失效。
@@ -67,6 +70,24 @@ function handlerBody(app: string, handler: string): string {
 /** handler 里的 case 标签（重复出现即被数出来，供「恰好一个」判定） */
 function handlerCases(app: string, handler: string): string[] {
   return [...handlerBody(app, handler).matchAll(/case '([A-Za-z][A-Za-z0-9]*)':/g)].map(m => m[1]!);
+}
+
+/** 取 App.vue 命令面板清单里的 `{ id, group }` 序对（顺序即面板内的展示顺序） */
+function palettePairs(app: string): { id: string; group: string }[] {
+  const start = app.indexOf('const buildPaletteActions = () => [');
+  if (start === -1) throw new Error('找不到 buildPaletteActions');
+  const slice = app.slice(start, app.indexOf('\n];', start));
+  return [...slice.matchAll(/id:\s*'([A-Za-z]\w*)',\s*\n\s*group:\s*'(\w+)'/g)].map(m => ({
+    id: m[1]!,
+    group: m[2]!,
+  }));
+}
+
+/** 取某个分组在面板里的 id 顺序 */
+function paletteGroup(app: string, group: string): string[] {
+  return palettePairs(app)
+    .filter(pair => pair.group === group)
+    .map(pair => pair.id);
 }
 
 /** 「帮助」下拉的分派表：命令 → 本组件透出的事件名 */
@@ -139,6 +160,39 @@ describe('管理页头部的入口与接线清单', () => {
       expect(headerSource, `emits 未声明 \`${event}\``).toMatch(new RegExp(`${event}:\\s*\\[\\s*\\]`));
       expect(appSource, `App.vue 没接 \`${event}\`，点「${command}」不会有任何反应`).toContain(toKebab(event));
     }
+  });
+
+  it('命令面板的三个分组与对应下拉同序同集（面板是头部的镜像，不是第二套分类）', () => {
+    const helpMenu = { name: '帮助', anchor: '@command="handleHelpCommand"', handler: '' };
+
+    expect(paletteGroup(appSource, 'data'), 'data 组必须逐字跟着「数据管理」下拉的顺序').toEqual(
+      menuCommands(headerSource, MENUS[0]!),
+    );
+    expect(paletteGroup(appSource, 'help'), 'help 组必须逐字跟着「帮助」下拉的顺序').toEqual(
+      menuCommands(headerSource, helpMenu),
+    );
+    // 安全设置下拉没有「立即锁定」（它在头部第一行），面板把它放在该组首位
+    expect(paletteGroup(appSource, 'security'), 'security 组顺序与「安全设置」下拉不一致').toEqual([
+      'lockNow',
+      ...menuCommands(headerSource, MENUS[1]!),
+    ]);
+    // 个人信息库已升为一级按钮，因此它属于 entry 组，不该再留在 data 组里
+    expect(paletteGroup(appSource, 'entry')).toContain('identityVault');
+    expect(paletteGroup(appSource, 'data')).not.toContain('identityVault');
+
+    // 牙齿：把「数据管理」下拉里相邻两项真的调换顺序，镜像判据必须立刻读出来
+    const dataBlock = menuBlock(headerSource, MENUS[0]!);
+    const literals = [...dataBlock.matchAll(/(?<!@)command="([A-Za-z0-9]+)"/g)].map(m => m[0]);
+    const swappedBlock = dataBlock
+      .replace(literals[0]!, '@@A@@')
+      .replace(literals[1]!, literals[0]!)
+      .replace('@@A@@', literals[1]!);
+    const swappedHeader = headerSource.replace(dataBlock, swappedBlock);
+    const swappedCommands = menuCommands(swappedHeader, MENUS[0]!);
+    expect(swappedCommands[0], '变异没生效，这条自证是空的').not.toBe(menuCommands(headerSource, MENUS[0]!)[0]);
+    expect(swappedCommands, '下拉顺序变了而面板没跟着变，判据却仍然绿 —— 说明它比的是集合不是顺序').not.toEqual(
+      paletteGroup(appSource, 'data'),
+    );
   });
 
   it('变异自证：删掉一个 case 与多写一个菜单项都必须被读出来', () => {

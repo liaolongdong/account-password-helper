@@ -100,7 +100,7 @@ const { entries, loadShortcuts, openShortcutsPage } = useShortcuts();
  *
  * 措辞与 `public/_locales/*` 的 `commandXxx` 保持一致（用户在浏览器管理页看到同一句话），
  * 但取值走应用自身 i18n —— `chrome.i18n.getMessage()` 跟随浏览器 UI 语言，
- * 会与密码管理页右上角的语言切换器脱钩。
+ * 会与「偏好设置」面板里的应用语言切换脱钩。
  */
 const COMMAND_LABEL_KEYS = {
   open_options: 'options.shortcuts.label.openOptions',
