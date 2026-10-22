@@ -559,6 +559,7 @@ graph TB
 
 - 偏好设置面板是注入式 UI 的唯一配置入口，三处可达：①悬浮按钮齿轮；②密码管理页「个性化」；③侧边栏右上角齿轮（见 [settingsPanelView.ts](../entrypoints/content/floatingButtons/settingsPanelView.ts)）。面板内含主题（6 款）、界面语言、按钮可见性、快速填充方式、个人信息字段提示、自动触发登录、密码可见性切换、Shadow DOM 穿透与不透明度；行序按使用频率排定——环境与视觉项在最上，每次填充都会碰到的行为开关居中，Shadow DOM 穿透与透明度这类低频技术/外观项沉底（该顺序由 `tests/content/settingsPanelView.rowOrder.test.ts` 钉住，帮助文案的列举顺序同受此守卫约束）。
 - **快速填充方式为三选一分段控件**：侧边栏（聚焦登录框自动弹出）/ 页面内联（输入框内钥匙图标）/ 仅手动（不自动弹出，点悬浮按钮或工具栏图标再开）。存储层实际是 `fillMode` + `autoShowSidepanel` 两个字段，UI 每次选择都同时写两者，保证存储始终是规范态、不残留「内联开启 + 侧边栏自动」这类自相矛盾组合；派生规则为 `fillMode === 'inline'` 优先判为内联（此时 `autoShowSidepanel` 不生效）。
+- **面板分三段：固定 header / 唯一滚动区 / 底栏摘要**。九行高度各不相同，折叠线几乎必然压在文字中间，而 macOS 默认设置下滚动条不占位、只在滚动时浮现，「下面还有」平时没有信号。收法是两条一起上：底栏把「卡片被切坏」改读成「滚动区到此为止」并写明「下方还有 N 项」（N 取底边仍在折叠线以下的行数，不是滚动百分比），滚动区底缘 28px `mask-image` 线性渐隐负责说破「还能滚」——淡的是文字自身的像素，不是往白卡片上盖白纱。滚到底由 `.is-at-bottom` 一并摘掉淡出、底栏收口成「已全部显示」；内容本就装得下时底栏清空（`:empty` 让整条底栏消失），不谎报边界。悬浮按钮那份在构造期是 `visibility: hidden`（零尺寸），初算只能读出「不用滚」，故读数靠 `show()` 里的 `refresh()` 补一次（`tests/content/settingsPanelView.scrollSummary.test.ts` 钉住这些状态）。
 - **新老用户默认值不同**：新装默认内联且不自动弹出（`fillMode: 'inline'` + `autoShowSidepanel: false`）；历史版本没有这两个字段，若直接套用新默认值会静默改变存量用户的行为，因此 [configManager.ts](../utils/storage/configManager.ts) 的 `freezeLegacyFillDefaults()` 在检测到字段缺失时把老用户钉在 `sidepanel` + `true`（即其既有行为）。
 - 选中态用 `✓` 前缀作为第二信号，不只靠颜色区分（浅色主题下同样可辨识）。
 

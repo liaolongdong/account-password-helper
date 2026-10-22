@@ -94,7 +94,9 @@ type PanelMessageKey =
   | 'penetrateShadowTip'
   | 'identityHint'
   | 'identityHintTip'
-  | 'opacity';
+  | 'opacity'
+  | 'footerMore'
+  | 'footerEnd';
 
 /** 面板内建双语文案（tip 类文案含 highlight-tip 高亮标记，需以 innerHTML 渲染） */
 const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
@@ -122,6 +124,9 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     identityHintTip:
       '开启后，在页面里点到姓名、证件号、邮编这类个人信息输入框时，字段下方浮出一枚轻提示，说明这个框要的是什么，并可一键打开管理页个人信息库取值<span class="highlight-tip">（提示只说明字段类型，库内内容仍需你在管理页自行复制，页面拿不到）</span>。关闭后不再出现该提示，页面里也不会注入这枚气泡。',
     opacity: '按钮透明度',
+    // 底栏滚动摘要：以 textContent 渲染（不走 data-i18n 的 innerHTML 通道），两个占位符自己填
+    footerMore: '共 {total} 项设置 · 下方还有 {rest} 项',
+    footerEnd: '已全部显示',
   },
   en: {
     title: 'Preferences',
@@ -146,6 +151,8 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     identityHintTip:
       'When enabled, clicking into a name, ID-number or postal-code field shows a small hint under it saying what the field expects, with a one-click route to the personal info vault in the manager page<span class="highlight-tip"> (the hint only names the field type — vault values still have to be copied inside the manager page and never reach the web page)</span>. When disabled, no hint appears and no bubble is injected into the page.',
     opacity: 'Button opacity',
+    footerMore: '{total} settings · {rest} below',
+    footerEnd: 'All settings shown',
   },
 };
 
@@ -270,12 +277,47 @@ export const settingsPanelViewStyles = `
   color: #666;
 }
 
-/* 设置面板内容（面板超高时作为唯一滚动区，header 保持固定） */
+/* 设置面板内容（面板超高时作为唯一滚动区，header 与底栏保持固定） */
 .settings-content {
   flex: 1 1 auto;
   padding: 16px 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /*
+   * 底缘 28px 线性渐隐。九行高度各不相同（40/43/45/60/101，提示语 32～99），折叠线几乎必然
+   * 压在文字中间；而 macOS 默认设置下滚动条不占位、只在滚动时浮现，「下面还有」平时没有信号。
+   * 淡的是文字自身的像素（露出面板白底），不是往白卡片上盖一层白纱——上一版椭圆渐变在白底上
+   * 糊成一坨灰就是这么翻车的。滚到底由 .is-at-bottom 摘掉，不在「已经到底」的地方还装没到底。
+   * 代价：滚动条末端那 28px 跟着淡，可接受。
+   */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+
+/* 到底或内容本就装得下时收掉淡出：底栏已经写明「已全部显示」，不必再暗示还能滚 */
+.settings-panel.is-at-bottom .settings-content {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/*
+ * 底栏：把「卡片底缘压住半行字」改读成「滚动区到此为止」，并用摘要说破下面还有几项。
+ * 没有可滚内容时 syncScrollSummary 清空文本，:empty 让整条底栏消失，不留一条谎报的边界。
+ */
+.settings-footer {
+  flex: none;
+  padding: 8px 20px 10px;
+  border-top: 1px solid #f0f0f0;
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #9aa1ad;
+  text-align: center;
+}
+
+.settings-footer:empty {
+  display: none;
 }
 
 .settings-content::-webkit-scrollbar {
@@ -642,6 +684,42 @@ function renderFillOverride(
 }
 
 /**
+ * 重新量一次面板几何，刷新底栏摘要与「滚到底就摘掉淡出」这个类
+ *
+ * 判据取「底边还在折叠线以下的行数」而不是滚动偏移比例：行高互不相等，百分比读不出人话，
+ * 而「下方还有 5 项」正好是用户想问的那件事。末行贴到折叠线即视为到底（±1px 吸收小数布局）。
+ *
+ * 零尺寸（`visibility: hidden` 的悬浮按钮面板在构造期）会读出 scrollHeight 与 clientHeight
+ * 同为 0，落到「不用滚」这一支把底栏清空——这是想要的结果，但也意味着那份宿主必须在 show()
+ * 时经 {@link SettingsPanelViewHandle.refresh} 补一次，否则底栏永远空着。
+ *
+ * @param panelRoot 面板根元素（.settings-panel）
+ * @param locale 当前面板语言
+ */
+function syncScrollSummary(panelRoot: HTMLElement, locale: PanelLocale): void {
+  const content = panelRoot.querySelector<HTMLElement>('.settings-content');
+  const footer = panelRoot.querySelector<HTMLElement>('[data-role="scroll-summary"]');
+  if (!content || !footer) return;
+
+  const msg = PANEL_MESSAGES[locale];
+  const setAtBottom = (atBottom: boolean) => panelRoot.classList.toggle('is-at-bottom', atBottom);
+
+  if (content.scrollHeight - content.clientHeight <= 1) {
+    setAtBottom(true);
+    footer.textContent = '';
+    return;
+  }
+
+  const rows = [...content.querySelectorAll<HTMLElement>('.setting-item')];
+  const fold = content.getBoundingClientRect().bottom;
+  const rest = rows.filter(row => row.getBoundingClientRect().bottom > fold + 1).length;
+  setAtBottom(rest === 0);
+  footer.textContent = rest
+    ? msg.footerMore.replace('{total}', String(rows.length)).replace('{rest}', String(rest))
+    : msg.footerEnd;
+}
+
+/**
  * 把透明度写进滑块的填充条、把手、读数与 ARIA 取值
  *
  * 拖拽、触摸、键盘、外部配置同步四条路径共用同一出口，避免「视觉上动了、读屏里没动」。
@@ -784,6 +862,7 @@ export function getSettingsPanelHTML(
         </div>
       </div>
     </div>
+    <div class="settings-footer" data-role="scroll-summary" aria-hidden="true"></div>
   `;
 }
 
@@ -886,6 +965,17 @@ export function bindSettingsPanelView(
   panelRoot.addEventListener('click', onPanelClick);
   cleanups.push(() => panelRoot.removeEventListener('click', onPanelClick));
 
+  // 底栏滚动摘要：滚动、以及任何会改变内容高度的写路径都要重算（口径见 syncScrollSummary）
+  const contentEl = panelRoot.querySelector<HTMLElement>('.settings-content');
+  const sync = () => syncScrollSummary(panelRoot, locale);
+  contentEl?.addEventListener('scroll', sync, { passive: true });
+  cleanups.push(() => contentEl?.removeEventListener('scroll', sync));
+  // 侧边栏可以拖着改宽改高，悬浮按钮面板跟着页面视口走：没有滚动事件也可能换折叠线，
+  // 摘要只有重算才不会继续报旧数（一次 9 个 rect，不值得加节流）
+  window.addEventListener('resize', sync);
+  cleanups.push(() => window.removeEventListener('resize', sync));
+  sync();
+
   // Esc 关闭：面板有遮罩点击与关闭按钮两条鼠标出口，键盘必须有等价的第三条（WCAG 2.1.1）。
   // 挂在 document 捕获阶段而不是面板内：面板刻意不抢焦点，用户此刻的焦点常常仍停在页面登录框上，
   // 按键路径不经过影子树（口径同内联下拉与保存弹窗的 Esc 兜底）。不 preventDefault——页面自己的
@@ -945,6 +1035,8 @@ export function bindSettingsPanelView(
         if (fillTipEl) fillTipEl.textContent = FILL_ENTRY_TIPS[locale][entry];
         // 全局档位一旦改到与站点覆盖同档，提示就失去可解释的差异，跟着收回去
         renderFillOverride(panelRoot, locale, config, siteFillOverride);
+        // 换档会换掉整段说明文案的长度，内容高度随之而变，底栏得跟着重算
+        sync();
         options.onConfigChange(patch);
       };
       optionEl.addEventListener('click', onOptionClick);
@@ -957,6 +1049,8 @@ export function bindSettingsPanelView(
     if (locale === next) return;
     locale = next;
     applyPanelLocale(panelRoot, next, config, siteFillOverride);
+    // 换语言等于换一整套文案长度，折叠线会挪到另一行字上，摘要与淡出都得重算
+    sync();
   };
   const localeGroup = panelRoot.querySelector('[data-setting="locale"]') as HTMLElement | null;
   if (localeGroup) {
@@ -1142,6 +1236,7 @@ export function bindSettingsPanelView(
     // 更新滑块
     const slider = panelRoot.querySelector<HTMLElement>('[data-setting="opacity"]');
     if (slider) renderOpacity(slider, config.opacity);
+    sync();
   };
 
   /**
@@ -1154,6 +1249,8 @@ export function bindSettingsPanelView(
   const setSiteFillOverride = (entry: FillEntry | null): void => {
     siteFillOverride = isFillEntry(entry) ? entry : null;
     renderFillOverride(panelRoot, locale, config, siteFillOverride);
+    // 覆盖提示是 `hidden` 切换，一收一放都会挪动折叠线
+    sync();
   };
 
   const destroy = () => {
@@ -1161,5 +1258,5 @@ export function bindSettingsPanelView(
     cleanups.length = 0;
   };
 
-  return { updateConfig, setLocale: setPanelLocale, setSiteFillOverride, destroy };
+  return { updateConfig, setLocale: setPanelLocale, setSiteFillOverride, refresh: sync, destroy };
 }
