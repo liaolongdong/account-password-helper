@@ -72,7 +72,7 @@
     "@playwright/test": "^1.63.0",
     "@types/chrome": "^0.1.43",
     "@typescript-eslint/parser": "^8.67.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "@vue/eslint-config-typescript": "^14.9.0",
     "@wxt-dev/module-vue": "^1.0.3",
     "eslint": "^10.8.1",
@@ -94,7 +94,7 @@
     "typescript": "^6.0.3",
     "unplugin-auto-import": "^21.1.0",
     "unplugin-vue-components": "^32.1.0",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "wxt": "^0.20.27"
   },
   "pnpm": {
