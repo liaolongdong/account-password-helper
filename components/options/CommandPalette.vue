@@ -91,17 +91,27 @@
 
         <div class="cp-footer">
           <span class="cp-hint">
-            <kbd class="cp-kbd">↑</kbd><kbd class="cp-kbd">↓</kbd>
+            <ShortcutKeyCap text="↑↓" />
             {{ t('options.commandPalette.hintNavigate') }}
           </span>
           <span class="cp-hint">
-            <kbd class="cp-kbd">Enter</kbd>
+            <ShortcutKeyCap text="Enter" />
             {{ t('options.commandPalette.hintSelect') }}
           </span>
           <span class="cp-hint">
-            <kbd class="cp-kbd">Esc</kbd>
+            <ShortcutKeyCap text="Esc" />
             {{ t('options.commandPalette.hintClose') }}
           </span>
+          <!-- 面板里本来就有「快捷键」这条命令，但从这里用到它要走 3 步（关面板 → 帮助 → 快捷键）；
+               入口摆在提示条上，省掉那 3 步。文案复用头部那颗菜单项的 key，与清单里同源。 -->
+          <button
+            type="button"
+            class="cp-footer__action"
+            @keydown.enter.stop.prevent="emit('openShortcuts')"
+            @click="emit('openShortcuts')"
+          >
+            {{ t('options.header.shortcuts') }}
+          </button>
         </div>
       </div>
     </div>
@@ -115,6 +125,7 @@ import type { CommandAction } from '@/utils/commandPalette';
 import { useFocusTrap } from '@/composables/useFocusTrap';
 import { useI18n } from '@/utils/i18n';
 import SearchHighlight from '@/components/SearchHighlight.vue';
+import ShortcutKeyCap from '@/components/ShortcutKeyCap.vue';
 
 /**
  * 命令面板覆盖层组件（Options 页 Ctrl/Cmd+K）
@@ -148,6 +159,13 @@ const emit = defineEmits<{
   'update:activeIndex': [value: number];
   /** 点击某条动作 */
   run: [index: number];
+  /**
+   * 请求打开「快捷键一览」
+   *
+   * 与清单里 `id: 'shortcuts'` 那条指向同一个弹窗，但收尾要由调用方补齐（先收面板再开弹窗）——
+   * 面板本身不知道弹窗的存在，这里只负责把意图报上去。
+   */
+  openShortcuts: [];
 }>();
 
 const { t } = useI18n();
@@ -355,19 +373,30 @@ watch(
 }
 
 /*
- * 浅色面板上的键帽：与 `HeaderBar.vue` 的 `.cp-kbd` 同一套形状（4px 圆角、16px 行高、
- * 11px 字号），配色反过来——那颗贴在深色渐变头部上用白色半透明，这颗在浅色面上得用深色文字。
- * 两处刻意保持同形：键帽在本产品里已经是「这是按键」的固定记号，换形状就等于换语义。
+ * footer 里的「快捷键」入口：与提示文字同权重，但必须看得出可点。
+ * 只换颜色与描边，不做位移——hover 位移在这种密集提示条里会被读成抖动，
+ * 也不属于需要 `prefers-reduced-motion` 兜底的那一档运动量。
  */
-.cp-kbd {
-  padding: 0 5px;
+.cp-footer__action {
+  padding: 2px 8px;
+  margin-left: auto;
   font-family: inherit;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 12px;
   color: var(--aph-text-secondary);
-  background: var(--aph-surface-hover);
+  cursor: pointer;
+  background: transparent;
   border: 1px solid var(--aph-surface-line);
-  border-radius: 4px;
+  border-radius: 5px;
+}
+
+.cp-footer__action:hover {
+  color: var(--aph-primary);
+  border-color: var(--aph-primary-border);
+}
+
+.cp-footer__action:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 1px;
 }
 
 @keyframes cp-fade {

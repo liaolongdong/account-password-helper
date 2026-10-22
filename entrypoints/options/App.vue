@@ -321,6 +321,7 @@
       v-model:active-index="paletteActiveIndex"
       :filtered="paletteFiltered"
       @run="paletteRunAt"
+      @open-shortcuts="openShortcutsFromPalette"
     />
 
     <!-- 删除回执：5 秒内可撤销，复用回收站的恢复链路 -->
@@ -1735,6 +1736,7 @@ const {
   activeIndex: paletteActiveIndex,
   filtered: paletteFiltered,
   open: paletteOpen,
+  close: paletteClose,
   runAt: paletteRunAt,
 } = useCommandPalette({
   getActions: buildPaletteActions,
@@ -1745,6 +1747,17 @@ const {
   // `tour` 与 `guideActive` 在下方声明：这里传的是回调，setup 同步跑完后才可能被按键触发，不存在前置引用问题。
   canOpen: () => isAuthenticated.value && !tour.isActive.value && !guideActive.value,
 });
+
+/**
+ * 从面板 footer 的「快捷键」入口打开快捷键一览
+ *
+ * 先收面板再开弹窗，与 `runAt` 的收尾顺序一致（面板遮罩压在弹窗上面会既挡视又抢焦点）；
+ * 打开的仍是清单里 `shortcuts` 那条用的同一个弹窗、同一个 flag，不另开第二份状态。
+ */
+const openShortcutsFromPalette = (): void => {
+  paletteClose();
+  showShortcutDialog.value = true;
+};
 
 /** Storage 与可见性变化监听 */
 useStorageWatcher({
