@@ -1,3 +1,4 @@
+import type { Component } from 'vue';
 import { matchesKeyword } from '@/utils/searchMatch';
 
 /**
@@ -25,6 +26,12 @@ export interface CommandAction {
   group: CommandGroup;
   /** 展示名（已翻译） */
   label: string;
+  /**
+   * 展示名前的图标，**逐条取自 `HeaderBar` 里同名菜单项那颗**，不构成第二套视觉语言：
+   * 面板是头部的可搜索副本，用户在头部认下的形状必须在面板里指向同一条命令。
+   * 字段刻意必填——漏一条是编译错误，而可选字段会把「忘了配图标」降级成一条静默的空白。
+   */
+  icon: Component;
   /** 检索别名（小写中英文词，命中用） */
   keywords: string[];
   /** 执行：复用既有打开弹窗/命令处理，可同步或异步 */

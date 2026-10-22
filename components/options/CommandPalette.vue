@@ -35,6 +35,7 @@
           class="cp-list"
           role="listbox"
           :aria-label="t('options.commandPalette.listLabel')"
+          @mousemove="onPointerMove"
         >
           <!--
             分组以 `role="group"` 包裹：`role="listbox"` 的合法子元素只有 `option` 与
@@ -63,9 +64,15 @@
               :data-index="item.index"
               role="option"
               :aria-selected="item.index === activeIndex"
-              @mouseenter="emit('update:activeIndex', item.index)"
               @click="emit('run', item.index)"
             >
+              <!-- 图标取自头部同名菜单项，纯装饰：无障碍名仍由同行文本承担 -->
+              <el-icon
+                class="cp-item-icon"
+                aria-hidden="true"
+              >
+                <component :is="item.action.icon" />
+              </el-icon>
               <SearchHighlight
                 class="cp-item-label"
                 :text="item.action.label"
@@ -83,7 +90,18 @@
         </div>
 
         <div class="cp-footer">
-          {{ t('options.commandPalette.hint') }}
+          <span class="cp-hint">
+            <kbd class="cp-kbd">↑</kbd><kbd class="cp-kbd">↓</kbd>
+            {{ t('options.commandPalette.hintNavigate') }}
+          </span>
+          <span class="cp-hint">
+            <kbd class="cp-kbd">Enter</kbd>
+            {{ t('options.commandPalette.hintSelect') }}
+          </span>
+          <span class="cp-hint">
+            <kbd class="cp-kbd">Esc</kbd>
+            {{ t('options.commandPalette.hintClose') }}
+          </span>
         </div>
       </div>
     </div>
@@ -170,6 +188,24 @@ const activeDescendantId = computed(() =>
   props.filtered[props.activeIndex] ? `cp-option-${props.activeIndex}` : undefined,
 );
 
+/**
+ * 指针**真的移动**时才接管活动项
+ *
+ * 此前是逐行 `@mouseenter`，而活动项一变就 `scrollIntoView()`：列表一滚，另一行被搬到静止
+ * 的指针底下，Chromium 重算 hover 并补发 `mouseenter`，把键盘游标改回指针那一行——实测连按
+ * ↓ 会 `4 → 3`、`5 → 4` 地倒退。滚动**不会**补发 `mousemove`，所以把判定收在容器的
+ * `mousemove` 上：鼠标真的动了照样接管游标（鼠标用户不损失任何便利），键盘导航引起的滚动
+ * 则改不动它。索引未变时不写 ref，免得高频事件触发无谓重渲染。
+ */
+const onPointerMove = (event: MouseEvent) => {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  const item = target?.closest<HTMLElement>('[data-index]');
+  if (!item) return;
+  const index = Number(item.dataset.index);
+  if (!Number.isInteger(index) || index === props.activeIndex) return;
+  emit('update:activeIndex', index);
+};
+
 // 打开时聚焦输入框（Tab 陷阱与焦点归还由 useFocusTrap 承担）
 watch(visible, isVisible => {
   if (isVisible) void nextTick(() => inputRef.value?.focus());
@@ -234,6 +270,30 @@ watch(
   overflow-y: auto;
 }
 
+/*
+ * 4px 细条，与偏好设置弹窗同一口径。macOS 默认下滚动条是 overlay（不占位、只在滚动时浮现），
+ * 而 `::-webkit-scrollbar` 会把这一处改回经典渲染：常驻占 4px，换来一个不滚动也看得见的
+ * 「下面还有」信号。刻意与弹窗取同色值，两处注入式/扩展式面板共用一套滚动条观感。
+ */
+.cp-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cp-list::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.cp-list::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* 分组之间给一条断点：30 条一屏滚下来，只有灰字标题时五个组会糊成一片 */
+.cp-group + .cp-group {
+  margin-top: 4px;
+  border-top: 1px solid var(--aph-surface-line);
+}
+
 .cp-group-title {
   padding: 8px 10px 4px;
   font-size: 12px;
@@ -248,6 +308,18 @@ watch(
   color: var(--aph-text-primary);
   cursor: pointer;
   border-radius: 8px;
+}
+
+/* 图标取自头部同名菜单项，未选中时退到次要色，选中才跟文字一起走主色 */
+.cp-item-icon {
+  flex-shrink: 0;
+  margin-right: 9px;
+  font-size: 15px;
+  color: var(--aph-icon-muted);
+}
+
+.cp-item--active .cp-item-icon {
+  color: var(--aph-primary);
 }
 
 .cp-item:hover {
@@ -267,10 +339,35 @@ watch(
 }
 
 .cp-footer {
+  display: flex;
+  gap: 14px;
+  align-items: center;
   padding: 8px 14px;
   font-size: 12px;
   color: var(--aph-text-muted);
   border-top: 1px solid var(--aph-surface-line);
+}
+
+.cp-hint {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/*
+ * 浅色面板上的键帽：与 `HeaderBar.vue` 的 `.cp-kbd` 同一套形状（4px 圆角、16px 行高、
+ * 11px 字号），配色反过来——那颗贴在深色渐变头部上用白色半透明，这颗在浅色面上得用深色文字。
+ * 两处刻意保持同形：键帽在本产品里已经是「这是按键」的固定记号，换形状就等于换语义。
+ */
+.cp-kbd {
+  padding: 0 5px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--aph-text-secondary);
+  background: var(--aph-surface-hover);
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 4px;
 }
 
 @keyframes cp-fade {

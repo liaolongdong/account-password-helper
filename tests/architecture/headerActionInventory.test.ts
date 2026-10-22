@@ -16,6 +16,9 @@
  * 5. **命令面板是头部的镜像**：`data` / `security` / `help` 三个分组必须与对应下拉
  *    **同序同集**（`security` 首位额外前置头部第一行的「立即锁定」）。面板是头部的可搜索副本，
  *    出现第二套分类时，用户按头部顺序记住的位置在面板里全都对不上。
+ * 6. **图标同源**：面板每条命令的 `icon` 必须等于头部同名项那颗（按可见标签键连接）。
+ *    图标是认路用的形状，头部认下的形状在面板里指向别处，比没有图标更糟；而分叉是静默的——
+ *    少配一条会被 `CommandAction['icon']` 必填挡成编译错误，配错一条则只有这条判据读得出。
  *
  * 判据全部带变异自证：每根判据都构造一次「故意改坏」的源码并要求被读出来，
  * 免得写成恒真断言（数字写死、正则错但恰好匹配）而静默失效。
@@ -74,7 +77,7 @@ function handlerCases(app: string, handler: string): string[] {
 
 /** 取 App.vue 命令面板清单里的 `{ id, group }` 序对（顺序即面板内的展示顺序） */
 function palettePairs(app: string): { id: string; group: string }[] {
-  const start = app.indexOf('const buildPaletteActions = () => [');
+  const start = app.indexOf('const buildPaletteActions = (');
   if (start === -1) throw new Error('找不到 buildPaletteActions');
   const slice = app.slice(start, app.indexOf('\n];', start));
   return [...slice.matchAll(/id:\s*'([A-Za-z]\w*)',\s*\n\s*group:\s*'(\w+)'/g)].map(m => ({
@@ -88,6 +91,33 @@ function paletteGroup(app: string, group: string): string[] {
   return palettePairs(app)
     .filter(pair => pair.group === group)
     .map(pair => pair.id);
+}
+
+/**
+ * 头部里「可见标签键 → 图标名」
+ *
+ * 一颗图标属于哪个标签，按「`:icon="X"` 之后最近的那句 `{{ t('KEY') }}`」判定：头部两种载体
+ * （一级 `el-button` 与下拉里的 `el-dropdown-item`）都是这个形状，用标签键做连接键就能一次
+ * 覆盖两边，不必为 5 颗一级按钮另写一张对照表——那张表会成为第三份真源。
+ */
+function headerIconByLabel(header: string): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const m of header.matchAll(/:icon="([A-Za-z]\w*)"[\s\S]{0,220}?\{\{\s*t\('([^']+)'\)\s*\}\}/g)) {
+    if (!map.has(m[2]!)) map.set(m[2]!, m[1]!);
+  }
+  return map;
+}
+
+/** 面板清单里的「id → 标签键 + 图标名」，形状与清单逐行绑定，漂了就取不到数 */
+function paletteIconRows(app: string): { id: string; labelKey: string; icon: string }[] {
+  const start = app.indexOf('const buildPaletteActions = (');
+  if (start === -1) throw new Error('找不到 buildPaletteActions 的带类型声明');
+  const slice = app.slice(start, app.indexOf('\n];', start));
+  return [
+    ...slice.matchAll(
+      /id:\s*'([A-Za-z]\w*)',\s*\n\s*group:\s*'\w+',\s*\n\s*label:\s*t\('([^']+)'\),\s*\n\s*icon:\s*([A-Za-z]\w*),/g,
+    ),
+  ].map(m => ({ id: m[1]!, labelKey: m[2]!, icon: m[3]! }));
 }
 
 /** 「帮助」下拉的分派表：命令 → 本组件透出的事件名 */
@@ -192,6 +222,30 @@ describe('管理页头部的入口与接线清单', () => {
     expect(swappedCommands[0], '变异没生效，这条自证是空的').not.toBe(menuCommands(headerSource, MENUS[0]!)[0]);
     expect(swappedCommands, '下拉顺序变了而面板没跟着变，判据却仍然绿 —— 说明它比的是集合不是顺序').not.toEqual(
       paletteGroup(appSource, 'data'),
+    );
+  });
+
+  it('面板每条图标都取自头部同名项（图标同源，不构成第二套视觉语言）', () => {
+    const rows = paletteIconRows(appSource);
+    const icons = headerIconByLabel(headerSource);
+
+    // 空跑防护：图标行取数必须与清单条数一一对上，否则「每条都比了」是句假话
+    expect(rows.length, '图标取数与清单条数不一致，判据会静默空跑').toBe(palettePairs(appSource).length);
+    expect(icons.size, '头部图标取数为 0，比对会整体静默放行').toBeGreaterThanOrEqual(rows.length);
+
+    for (const row of rows) {
+      const headerIcon = icons.get(row.labelKey);
+      expect(headerIcon, `头部里没找到标签键 \`${row.labelKey}\` 的图标，${row.id} 无从比对`).toBeTruthy();
+      expect(row.icon, `${row.id} 的图标与头部同名项不一致`).toBe(headerIcon);
+    }
+
+    // 牙齿：把「添加密码」的图标改成另一颗真实存在的图标，比对必须读出来
+    const mutated = appSource.replace('    icon: Plus,', '    icon: Delete,');
+    const mutatedRow = paletteIconRows(mutated).find(row => row.id === 'add');
+    expect(mutatedRow?.icon, '变异没生效（清单里找不到「icon: Plus,」这一行）').toBe('Delete');
+    expect(icons.get('options.header.addPassword'), '头部「添加密码」本身不是 Plus，比对基准就错了').toBe('Plus');
+    expect(mutatedRow!.icon, '面板图标被改成 Delete 之后判据却读不出来 —— 说明它没在比图标').not.toBe(
+      icons.get('options.header.addPassword'),
     );
   });
 

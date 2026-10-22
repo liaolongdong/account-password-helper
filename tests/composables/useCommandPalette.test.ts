@@ -26,12 +26,15 @@ function keyEvent(
   };
 }
 
+/** 图标只在组件渲染层起作用，本文件测的是状态机，给个占位 */
+const ICON = {} as CommandAction['icon'];
+
 /** 固定动作列表（同一对象引用，便于断言 run 被调用） */
 function makeActions(): CommandAction[] {
   return [
-    { id: 'add', group: 'entry', label: '添加密码', keywords: ['add', 'new'], run: vi.fn() },
-    { id: 'export', group: 'data', label: '导出数据', keywords: ['export', 'csv'], run: vi.fn() },
-    { id: 'trash', group: 'data', label: '回收站', keywords: ['trash'], run: vi.fn() },
+    { id: 'add', group: 'entry', label: '添加密码', icon: ICON, keywords: ['add', 'new'], run: vi.fn() },
+    { id: 'export', group: 'data', label: '导出数据', icon: ICON, keywords: ['export', 'csv'], run: vi.fn() },
+    { id: 'trash', group: 'data', label: '回收站', icon: ICON, keywords: ['trash'], run: vi.fn() },
   ];
 }
 
