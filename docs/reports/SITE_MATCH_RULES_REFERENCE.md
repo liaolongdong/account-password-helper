@@ -17,7 +17,8 @@
 
 - **主机门**回答「哪些**主机**算本站」，返回层级 `tier`：`0` 精确（含环回别名）/ `1` 通配条目 / `2` 同主域 apex / `3` 同主域其他子域 / `4` 网址为空 / `-1` 不属于本站。这个数字同时就是排序权重。
 - **端口门**回答「同一主机上不同端口的账号要不要互相隔开」，取值 `loose` / `strict`（持久化）加一个只存在于显示层的 `relaxed`。
-- 两道门由 [`matchesSiteEndpoint`](../../utils/domain.ts#L976) 合成，**五个入口共用它**：侧边栏「本站」、内联下拉、一键填充、排序优先级、Popup「此站已有账号数」。以前这四处各自复制分支、且复制得不完整（环回少抄主机、Popup 少抄端口），才会出现「下拉里有、侧边栏没有」和「两个入口结论相反」。
+- **第三条轴只管先后**：列表排序按「与当前站点的关联度」（[`siteRankOf`](../../utils/domain.ts#L762)），恒按最宽口径取层级，**与用户所选档位无关**——档位管「看不看得到」，关联度管「谁排在前面」。见 §2.4。
+- 两道门由 [`matchesSiteEndpoint`](../../utils/domain.ts#L1022) 合成，**五个入口共用它**：侧边栏「本站」、内联下拉、一键填充、排序优先级、Popup「此站已有账号数」。以前这四处各自复制分支、且复制得不完整（环回少抄主机、Popup 少抄端口），才会出现「下拉里有、侧边栏没有」和「两个入口结论相反」。
 - 单调性：**`strict ⊆ loose ⊆ relaxed`**，且主机门只会因档位放宽而变宽；任何一档都不会把「主机不属于本站」的条目带进来。
 
 ---
@@ -70,7 +71,25 @@
 
 折叠发生在**相等判定**这一层（[`canonicalSiteHost`](../../utils/domain.ts#L318)），不改 `getMainDomain` / `registrableScope`，所以远端主体永远不可能被折进 `localhost`。
 
-### 2.3 主机归一口径
+### 2.3 排序关联度（与档位无关）
+
+[`siteRankOf`](../../utils/domain.ts#L762) 给每条算一个排序权重，数值越小越靠前。**它不改变任何一条能不能出现，只改变它出现在第几行**：
+
+| 权重 | 含义                                           | 例子（当前页 `fat.example.com`）                   |
+| ---- | ---------------------------------------------- | -------------------------------------------------- |
+| 0    | 精确主机（含环回别名）                         | `fat.example.com`、`https://fat.example.com/login` |
+| 1    | 通配条目命中                                   | `*.example.com`                                    |
+| 2    | 同主域 apex                                    | `example.com`                                      |
+| 3    | 同主域其他子域                                 | `dev.example.com`、`uat.example.com`               |
+| 4    | 网址为空的通用条目                             | （留空）                                           |
+| 5    | 与当前站点无关                                 | `github.com`、`qq.com`                             |
+| 6    | 同主机、其他端口（本档位下算本站但被端口挡住） | `localhost:4000` 出现在 `localhost:3000` 页面上    |
+
+链上顺序仍是 **关联度 → 收藏置顶 → 侧边栏排序字段**，所以关联度**压过收藏**：一个收藏过的 `github.com` 账号，现在会排在没收藏的 `dev.example.com` 之后（这是本次调整的目的，也是「全站」列表里最容易被察觉的变化）。
+
+不变的是「本站」列表：默认 `off` 档下可见集只有权重 0 与 4 两类，相对顺序与调整前逐字一致，因此**内联下拉、一键填充、右键菜单取到的首条不变**。
+
+### 2.4 主机归一口径
 
 条目网址可以是完整 URL、`host:port`、纯域名、`*.domain`；一律先经 [`normalizeToHostname`](../../utils/domain.ts#L487) 归一为小写 hostname（端口与路径被剥掉，`:*` 也被剥掉，否则 `localhost:*` 会留下脏尾永远匹配不上）。大小写与首尾空白不敏感。
 
@@ -168,7 +187,9 @@
 | 空态「同域名其他端口还有 N 条账号，点击显示」 | 本站列表空、但被端口挡住若干条（`countPortHiddenCandidates`）                        | `sidepanel.scope.portHiddenHint`                     |
 | 空态「同主域还有 N 条账号，可开启跨子域匹配」 | 本站列表空、但 `sameMainDomain` 档能带出条目（环回主机恒 0）                         | `sidepanel.scope.crossSubdomainHint`                 |
 
-**芯片不显示条数**，条数出现在空态那一句里——两个数字都由同一判据 [`isHiddenByPortOnly`](../../utils/domain.ts#L1002) 得出，所以「提示说另有 3 条、点开只多 2 条」不会发生。
+**芯片不显示条数**，条数出现在空态那一句里——两个数字都由同一判据 [`isHiddenByPortOnly`](../../utils/domain.ts#L1048) 得出，所以「提示说另有 3 条、点开只多 2 条」不会发生。
+
+**顺序**：任何范围下都按 §2.3 的关联度排（权重 0 → 6），再叠收藏置顶与所选排序字段。内联下拉与一键填充只看到「本站」可见集，因此它们与侧边栏「本站」的首条永远一致。
 
 ---
 
@@ -223,19 +244,20 @@
 
 ## 11. 代码与测试定位
 
-| 职责                      | 位置                                                                                                                                                                                                                                                                                                             |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 环回判定 / 别名折叠       | [`isLoopbackHost`](../../utils/domain.ts#L295) · [`canonicalSiteHost`](../../utils/domain.ts#L318)                                                                                                                                                                                                               |
-| 主机门（档位分层）        | [`resolveMatchTier`](../../utils/domain.ts#L686)，通配前缀防碰撞见 [`registrableScope`](../../utils/domain.ts#L183)                                                                                                                                                                                              |
-| 端口门（公网 / `strict`） | [`matchesPortScope`](../../utils/domain.ts#L945)，页面端口上下文 [`parsePagePortContext`](../../utils/domain.ts#L820) · [`rawPortOf`](../../utils/domain.ts#L845)                                                                                                                                                |
-| 端口门（环回 `loose`）    | [`matchesPortForLocalDev`](../../utils/domain.ts#L444)                                                                                                                                                                                                                                                           |
-| 两道门合成（唯一判据）    | [`matchesSiteEndpoint`](../../utils/domain.ts#L976)                                                                                                                                                                                                                                                              |
-| 「只是被端口挡住」        | [`isHiddenByPortOnly`](../../utils/domain.ts#L1002) · [`countPortHiddenCandidates`](../../utils/domain.ts#L1066)                                                                                                                                                                                                 |
-| 网址归一 / 端口声明解析   | [`normalizeToHostname`](../../utils/domain.ts#L487) · [`splitHostAndPortDecl`](../../utils/domain.ts#L413) · [`isExactHostMatch`](../../utils/domain.ts#L577)                                                                                                                                                    |
-| 侧边栏范围过滤            | [`matchesSiteScope` / `filterEntriesByScope`](../../utils/passwordFilter.ts#L80)                                                                                                                                                                                                                                 |
-| 下拉与一键填充的过滤排序  | [`filterAndSortEntriesForDomain`](../../utils/passwordSort.ts#L158)                                                                                                                                                                                                                                              |
-| Popup 计数                | [`domainMatchCount`](../../composables/usePopupInit.ts)                                                                                                                                                                                                                                                          |
-| 默认值                    | [`DEFAULT_DOMAIN_MATCH_MODE` / `DEFAULT_PORT_SCOPE`](../../utils/storage/configManager.ts#L579)                                                                                                                                                                                                                  |
-| 纯函数契约测试            | [`tests/utils/localDevSiteScope.test.ts`](../../tests/utils/localDevSiteScope.test.ts)（四条不变量）· [`tests/utils/domain.test.ts`](../../tests/utils/domain.test.ts) · [`passwordFilter.test.ts`](../../tests/utils/passwordFilter.test.ts) · [`passwordSort.test.ts`](../../tests/utils/passwordSort.test.ts) |
-| 源码守卫                  | [`tests/architecture/crossSubdomainTierWiring.test.ts`](../../tests/architecture/crossSubdomainTierWiring.test.ts)（两道门都在真源处应用、放宽不渗入填充判据）                                                                                                                                                   |
-| 真机 e2e                  | [`e2e/local-dev-site-scope.spec.ts`](../../e2e/local-dev-site-scope.spec.ts) · [`e2e/port-isolation.spec.ts`](../../e2e/port-isolation.spec.ts) · [`e2e/cross-subdomain.spec.ts`](../../e2e/cross-subdomain.spec.ts)                                                                                             |
+| 职责                               | 位置                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 环回判定 / 别名折叠                | [`isLoopbackHost`](../../utils/domain.ts#L295) · [`canonicalSiteHost`](../../utils/domain.ts#L318)                                                                                                                                                                                                               |
+| 主机门（档位分层）                 | [`resolveMatchTier`](../../utils/domain.ts#L686)，通配前缀防碰撞见 [`registrableScope`](../../utils/domain.ts#L183)                                                                                                                                                                                              |
+| 端口门（公网 / `strict`）          | [`matchesPortScope`](../../utils/domain.ts#L991)，页面端口上下文 [`parsePagePortContext`](../../utils/domain.ts#L820) · [`rawPortOf`](../../utils/domain.ts#L845)                                                                                                                                                |
+| 端口门（环回 `loose`）             | [`matchesPortForLocalDev`](../../utils/domain.ts#L444)                                                                                                                                                                                                                                                           |
+| 两道门合成（唯一判据）             | [`matchesSiteEndpoint`](../../utils/domain.ts#L1022)                                                                                                                                                                                                                                                             |
+| 排序关联度（与档位无关，只管先后） | [`siteRankOf`](../../utils/domain.ts#L762) · [`NOT_ON_SITE_RANK` / `OTHER_PORT_RANK`](../../utils/domain.ts#L736)                                                                                                                                                                                                |
+| 「只是被端口挡住」                 | [`isHiddenByPortOnly`](../../utils/domain.ts#L1048) · [`countPortHiddenCandidates`](../../utils/domain.ts#L1112)                                                                                                                                                                                                 |
+| 网址归一 / 端口声明解析            | [`normalizeToHostname`](../../utils/domain.ts#L487) · [`splitHostAndPortDecl`](../../utils/domain.ts#L413) · [`isExactHostMatch`](../../utils/domain.ts#L577)                                                                                                                                                    |
+| 侧边栏范围过滤                     | [`matchesSiteScope` / `filterEntriesByScope`](../../utils/passwordFilter.ts#L80)                                                                                                                                                                                                                                 |
+| 下拉与一键填充的过滤排序           | [`filterAndSortEntriesForDomain`](../../utils/passwordSort.ts#L158)                                                                                                                                                                                                                                              |
+| Popup 计数                         | [`domainMatchCount`](../../composables/usePopupInit.ts)                                                                                                                                                                                                                                                          |
+| 默认值                             | [`DEFAULT_DOMAIN_MATCH_MODE` / `DEFAULT_PORT_SCOPE`](../../utils/storage/configManager.ts#L579)                                                                                                                                                                                                                  |
+| 纯函数契约测试                     | [`tests/utils/localDevSiteScope.test.ts`](../../tests/utils/localDevSiteScope.test.ts)（四条不变量）· [`tests/utils/domain.test.ts`](../../tests/utils/domain.test.ts) · [`passwordFilter.test.ts`](../../tests/utils/passwordFilter.test.ts) · [`passwordSort.test.ts`](../../tests/utils/passwordSort.test.ts) |
+| 源码守卫                           | [`tests/architecture/crossSubdomainTierWiring.test.ts`](../../tests/architecture/crossSubdomainTierWiring.test.ts)（两道门都在真源处应用、放宽不渗入填充判据）                                                                                                                                                   |
+| 真机 e2e                           | [`e2e/local-dev-site-scope.spec.ts`](../../e2e/local-dev-site-scope.spec.ts) · [`e2e/port-isolation.spec.ts`](../../e2e/port-isolation.spec.ts) · [`e2e/cross-subdomain.spec.ts`](../../e2e/cross-subdomain.spec.ts)                                                                                             |

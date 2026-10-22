@@ -179,8 +179,8 @@ import {
   isCrossSubdomainTier,
   isDomainMatchMode,
   isPortScope,
-  matchesSiteEndpoint,
   isHiddenByPortOnly,
+  siteRankOf,
   rawPortOf,
   countSameMainDomainCandidates,
   countPortHiddenCandidates,
@@ -513,49 +513,24 @@ const availableTags = computed(() => {
   return [...set].sort((a, b) => a.localeCompare(b));
 });
 
-/** 全站范围下「与当前域名无关」条目的优先级，排在所有档位之后 */
-const NOT_ON_SITE_PRIORITY = 5;
-
-/**
- * 「同域名其他端口」条目的优先级（仅在临时放宽后可见）
- *
- * 排在所有主机层级与外站条目之后：它们不是能填到本页的候选，若与精确条目混排，
- * 「列表首条 = 一键填充首条」这条同源约定会把别的端口的凭证填进眼前这个登录框。
- */
-const OTHER_PORT_PRIORITY = 6;
-
 /**
  * 列表排序的域名优先级
  *
- * 双缺省档（`off` + `loose`，也就是端口隔离功能存在之前的口径）在**公网主机**上沿用既有的
- * 二值口径（命中 0 / 其余 1），保证与引入跨子域之前的顺序逐条一致；
- * 放宽后才返回 tier，使「精确 → 通配 → 主域 → 兄弟子域 → 通用」在「全站」范围下依次靠前。
- * 环回主机即便处在双缺省档也直接返回 tier：它现在先过主机门，别名与通配条目要能分出先后，
- * 而结果集里已不含外站条目，二值口径会把它们与通用条目混在一起。
- * 当前页无域名时不筛站点，仍走二值分支。
- * 临时放宽带出的其他端口条目一律沉到 {@link OTHER_PORT_PRIORITY}，与「首条即可填充」的约定对齐。
+ * 权重来自 `utils/domain.ts` 的 `siteRankOf`：**关联度决定先后，档位决定可见**，两者互不越界。
+ * 层级为 精确(含环回别名) → 通配 → 主域 apex → 同主域其他子域 → 空 URL 通用 → 无关站点，
+ * 于是「全站」范围里 `dev.example.com` 不会再被 `github.com` 压在上面；「本站」可见集里只有
+ * 精确与通用两类，相对顺序与改动前逐字一致，「首条即可填充」这条同源约定不受影响。
+ * 「同主机其他端口」的条目按持久化端口档沉到最末（{@link siteRankOf} 内部），与「首条即可填充」对齐。
+ * 当前页无域名时没有「本站」可收敛，退回二值口径。
  *
  * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成只存在于显示层的
- * `relaxed`，而填充与沉底必须继续按用户所选的端口档判定；若在此处读展示策略，其他端口的
- * 条目于是不再沉底——实测过一次：同域名的门面地址排到了首位，而它并不可填充。
+ * `relaxed`，若在此处读展示策略，其他端口的条目于是不再沉底——实测过一次：同域名的门面地址
+ * 排到了首位，而它并不可填充。
  */
 const domainPriorityOf = (entry: PasswordEntry): number => {
   const domain = currentDomain.value;
-  const policy = sitePolicy.value;
   if (!domain) return getDomainPriority(entry);
-  // 环回主机在 `loose` 下同样按端点过滤，档位与别名要能分出先后，因此不走下面那条
-  // 「双缺省退化为二值」的历史短路；其余双缺省场景保持迁移前的 0/1 顺序逐条不变
-  const localEndpoint = isLoopbackHost(domain) && policy.portScope === 'loose';
-  if (!localEndpoint && policy.mode === DEFAULT_DOMAIN_MATCH_MODE && policy.portScope === DEFAULT_PORT_SCOPE) {
-    return getDomainPriority(entry);
-  }
-  const tier = resolveMatchTier(domain, entry.url, policy.mode);
-  if (tier === -1) return NOT_ON_SITE_PRIORITY;
-  // 端口门按持久化策略判：放宽只放宽显示，不改变「这条属不属于当前端点」的事实
-  if (!matchesSiteEndpoint(entry.url, domain, scopeContext.value.page, policy)) {
-    return OTHER_PORT_PRIORITY;
-  }
-  return tier;
+  return siteRankOf(entry.url, domain, scopeContext.value.page, sitePolicy.value);
 };
 
 /** 搜索 + 范围过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */

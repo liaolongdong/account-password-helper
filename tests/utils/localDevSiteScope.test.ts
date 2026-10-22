@@ -10,6 +10,9 @@ import {
   normalizeToHostname,
   resolveMatchTier,
   splitHostAndPortDecl,
+  siteRankOf,
+  NOT_ON_SITE_RANK,
+  OTHER_PORT_RANK,
   type EffectiveSitePolicy,
   type PagePortContext,
 } from '@/utils/domain';
@@ -224,6 +227,65 @@ describe('不变量 3：`<host>:*` 端口通配是逐条显式授权', () => {
     for (const value of ['localhost:**', 'localhost:999999', 'https://exa mple.com', 'https://', '*.evil']) {
       expect(passes(validate, value), `${value} 应被拒`).toBe(false);
     }
+  });
+});
+
+describe('不变量 5：排序按「与当前站点的关联度」，与档位无关', () => {
+  const fat = { domain: 'fat.example.com', page: pageOf('https://fat.example.com/') };
+  const loose: EffectiveSitePolicy = { mode: 'off', portScope: 'loose' };
+
+  /** 关联度从高到低：精确 → 通配 → 主域 apex → 兄弟子域 → 空 URL 通用 → 无关站点 */
+  it('全站范围里同主域兄弟子域排在无关站点之前', () => {
+    const rank = (url: string) => siteRankOf(url, fat.domain, fat.page, loose);
+    expect(rank('fat.example.com')).toBe(0);
+    expect(rank('*.example.com')).toBe(1);
+    expect(rank('example.com')).toBe(2);
+    expect(rank('dev.example.com')).toBe(3);
+    expect(rank('')).toBe(4);
+    expect(rank('github.com')).toBe(NOT_ON_SITE_RANK);
+    // 用户提的那条：dev 与 github 在改前同为二值 1，谁前谁后只由收藏与最后使用时间决定
+    expect(rank('dev.example.com')).toBeLessThan(rank('github.com'));
+  });
+
+  it('排序权重必须严格递增分层，且外站与「其他端口」永远在最后', () => {
+    const ranks = ['fat.example.com', '*.example.com', 'example.com', 'dev.example.com', ''].map(url =>
+      siteRankOf(url, fat.domain, fat.page, loose),
+    );
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+    expect(OTHER_PORT_RANK).toBeGreaterThan(NOT_ON_SITE_RANK);
+    expect(NOT_ON_SITE_RANK).toBeGreaterThan(4);
+  });
+
+  it('「本站」可见集的顺序不受影响：精确仍在通用条目之前', () => {
+    const onSite = ['fat.example.com', ''].map(url => siteRankOf(url, fat.domain, fat.page, loose));
+    expect(onSite).toEqual([0, 4]);
+  });
+
+  it('同主机其他端口只在「本档位下算本站却被端口挡住」时沉底', () => {
+    const local = { host: 'localhost', page: pageOf('http://localhost:3000/') };
+    // 环回 + loose：:4000 属于本站主机，但端口不过 → 沉到最末（临时放宽带回时也排在这里）
+    expect(siteRankOf('localhost:4000', local.host, local.page, loose)).toBe(OTHER_PORT_RANK);
+    expect(siteRankOf('localhost:3000', local.host, local.page, loose)).toBe(0);
+    // 本地页面上的外站条目属于「与当前站点无关」，不是「其他端口」
+    expect(siteRankOf('github.com', local.host, local.page, loose)).toBe(NOT_ON_SITE_RANK);
+    expect(siteRankOf('example.com:3000', local.host, local.page, loose)).toBe(NOT_ON_SITE_RANK);
+  });
+
+  it('档位只决定可见性、不决定关联度：off 与 sameMainDomain 下排出的顺序一致', () => {
+    const urls = ['fat.example.com', 'dev.example.com', 'github.com', ''];
+    const byOff = urls.map(url => siteRankOf(url, fat.domain, fat.page, loose));
+    const byWide = urls.map(url =>
+      siteRankOf(url, fat.domain, fat.page, { mode: 'sameMainDomain', portScope: 'strict' } as EffectiveSitePolicy),
+    );
+    expect(byOff).toEqual(byWide);
+  });
+
+  it('判据取持久化策略：调用方传入展示策略之外的任何档位都不改变「本站」相对顺序', () => {
+    const local = { host: 'localhost', page: pageOf('http://localhost:3000/') };
+    // 侧边栏排序恒按用户所选的 loose 判定沉底（`App.vue` 传的是 sitePolicy，
+    // 由 crossSubdomainTierWiring.test.ts 的源码守卫钉住，见「临时放宽不渗入填充判据」一条）
+    expect(siteRankOf('localhost:4000', local.host, local.page, loose)).toBe(OTHER_PORT_RANK);
+    expect(siteRankOf('localhost:*', local.host, local.page, loose)).toBe(0);
   });
 });
 

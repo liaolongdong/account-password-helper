@@ -195,6 +195,16 @@ describe('端口范围接线', () => {
     }
   });
 
+  it('排序权重的唯一真源是 siteRankOf，侧边栏不再自行分层', () => {
+    const priorityFn = SIDEPANEL_SRC.match(/const domainPriorityOf =[\s\S]*?\n};/)?.[0] ?? '';
+    expect(priorityFn, '未从侧边栏抽到 domainPriorityOf，本条判据成了空转').not.toBe('');
+    expect(priorityFn, '侧边栏排序不再经 siteRankOf，关联度会与内联下拉及各入口分叉').toContain('siteRankOf(');
+    expect(
+      SIDEPANEL_SRC,
+      '侧边栏里还留着写死的排序权重常量，等于第二个排序真源（关联度层级只在 domain.ts 定义一次）',
+    ).not.toMatch(/const (NOT_ON_SITE|OTHER_PORT)_PRIORITY =/);
+  });
+
   it('临时放宽只放宽显示：填充与排序判据必须用持久化策略', () => {
     // `matchesSiteScope(..., displayPolicy)` 会把别的端口的凭证填进眼前这个登录框
     expect(/matchesSiteScope\([^)]*displayPolicy/.test(SIDEPANEL_SRC), '侧边栏用临时放宽的策略判定能否填充').toBe(
