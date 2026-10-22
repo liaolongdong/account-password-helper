@@ -596,11 +596,25 @@ const crossDomainHintCount = computed(() => {
  *
  * 只数「主机已经匹配、纯粹栽在端口门上」的条目，与 `crossDomainHintCount` 互补：
  * 前者说明「放宽跨子域能看到多少」，本数说明「放宽端口限制能看到多少」。
- * 同样惰性求值，且只在持久化策略确实是 strict 时才算——`loose` 档下不存在被端口挡住的条目。
+ * 同样惰性求值；公网 + `loose` 结构上不存在被端口挡住的条目，计数函数自己就返回 0。
  */
 const portHiddenHintCount = computed(() => {
   if (searchScope.value === 'all' || globalMatchCount.value === 0) return 0;
   if (portRelaxedTemporarily.value) return 0;
+  return countPortHiddenCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
+});
+
+/**
+ * 被端口轴挡在本站外的条目数（芯片是否出现的判据）
+ *
+ * 与上面的 `portHiddenHintCount` 刻意分开：那一句属于**空态引导**，只在「本站一条都不剩」时
+ * 才数（`globalMatchCount` 那一支决定这件事），列表有结果时恒为 0。芯片要的判据是
+ * 「这一页到底有没有东西可放宽」，而列表非空时恰恰最需要它——真机实测过一次：本地开发页面上
+ * `:3000` 的账号正常显示着，被端口挡掉的 `:4000` 账号因此一个提示都没有，因为芯片复用了空态计数、
+ * 永远数出 0。
+ */
+const portHiddenTotal = computed(() => {
+  if (portRelaxedTemporarily.value || searchScope.value === 'all') return 0;
   return countPortHiddenCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
 });
 
@@ -614,7 +628,7 @@ const portHiddenHintCount = computed(() => {
  */
 const showPortChip = computed(() => {
   if (portScope.value === 'strict') return !!currentPagePort.value && !currentPagePort.value.atDefaultPort;
-  return portRelaxedTemporarily.value || (isLoopbackHost(currentDomain.value) && portHiddenHintCount.value > 0);
+  return portRelaxedTemporarily.value || (isLoopbackHost(currentDomain.value) && portHiddenTotal.value > 0);
 });
 
 /**
