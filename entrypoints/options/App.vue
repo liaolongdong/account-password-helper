@@ -424,6 +424,7 @@ import { useCommandPalette } from '@/composables/useCommandPalette';
 import { useOnboardingTour } from '@/composables/useOnboardingTour';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 import { findDuplicateIdentity } from '@/utils/identity/dedup';
+import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
@@ -1367,7 +1368,7 @@ const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> =
   } catch (error) {
     const code = getIdentityCrudErrorCode(error);
     if (code === 'LIMIT_REACHED') {
-      ElMessage.error(t('identity.form.limitReached'));
+      ElMessage.error(t('identity.form.limitReached', { max: MAX_IDENTITIES }));
     } else if (code === 'UPDATE_CONFLICT') {
       ElMessage.error(t('identity.form.updateConflict'));
     } else if (code === 'NOT_FOUND') {

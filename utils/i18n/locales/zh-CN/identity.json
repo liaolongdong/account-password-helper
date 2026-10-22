@@ -92,7 +92,7 @@
   "identity.form.secret": "机密（默认掩码）",
   "identity.form.cvvWarning": "CVV 属高敏信息，存储会扩大单点泄露后果，请谨慎填写。",
   "identity.form.saveSuccess": "已保存",
-  "identity.form.limitReached": "个人信息条目已达上限（30 条）",
+  "identity.form.limitReached": "个人信息条目已达上限（{max} 条）",
   "identity.form.updateConflict": "该个人信息已被其他窗口修改，请刷新后重试",
   "identity.form.deletedConflict": "该个人信息已被其他窗口删除，请刷新后重试",
   "identity.form.duplicateTitle": "疑似重复",
@@ -140,5 +140,5 @@
   "identity.import.importSuccess": "成功导入 {count} 条个人信息",
   "identity.import.empty": "该备份文件中没有可导入的个人信息条目",
   "identity.import.importFailed": "导入失败，请重试",
-  "identity.import.limitReached": "导入后条目数将超过上限（30 条），请先删除部分条目"
+  "identity.import.limitReached": "导入后条目数将超过上限（{max} 条），请先删除部分条目"
 }

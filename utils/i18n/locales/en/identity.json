@@ -92,7 +92,7 @@
   "identity.form.secret": "Secret (masked by default)",
   "identity.form.cvvWarning": "CVV is highly sensitive. Storing it increases the impact of a single point of compromise; fill it only if necessary.",
   "identity.form.saveSuccess": "Saved",
-  "identity.form.limitReached": "Personal info vault limit reached (30 records)",
+  "identity.form.limitReached": "Personal info vault limit reached ({max} records)",
   "identity.form.updateConflict": "This personal info record was modified in another window. Refresh and try again.",
   "identity.form.deletedConflict": "This personal info record was deleted in another window. Refresh and try again.",
   "identity.form.duplicateTitle": "Possible duplicate",
@@ -140,5 +140,5 @@
   "identity.import.importSuccess": "Imported {count} personal info record(s)",
   "identity.import.empty": "This backup file contains no personal info records to import.",
   "identity.import.importFailed": "Import failed. Please try again.",
-  "identity.import.limitReached": "Import would exceed the limit (30 records). Delete some records first."
+  "identity.import.limitReached": "Import would exceed the limit ({max} records). Delete some records first."
 }

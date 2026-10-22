@@ -73,12 +73,15 @@ const FOOTERS: FooterRow[] = [
   },
   {
     // 选择栏右侧那两枚文字按钮（隐藏/展开全部机密、折叠/展开全部）：同一文件里的第二个
-    // 相邻按钮行，写着 gap 却没接管就是 24px，用户看到的正是「间距有点大」
+    // 相邻按钮行，写着 gap 却没接管就是 24px，用户看到的正是「间距有点大」。
+    // 8px 而非 footer 档的 12px：`link` 按钮盒子含 1px 透明边框 + `is-link` 的 2px 内边距，
+    // 字面可见间距是 8+3×2=14px，与本弹窗卡片动作行的净间距同档（真机读数见
+    // e2e/identity-vault-selectbar-density.spec.ts）。footer 那两排是成组的确认/取消动作，保持 12px。
     name: '个人信息库选择栏',
     file: 'components/options/IdentityVaultDialog.vue',
     container: '.identity-selectbar__actions',
     takeover: '.identity-selectbar__actions :deep(.el-button + .el-button)',
-    expectedGapPx: 12,
+    expectedGapPx: 8,
   },
   {
     name: '关于抽屉',

@@ -5,7 +5,7 @@
  * - 两侧落盘形状不同（`TrashedPasswordEntry` 逐字段密文 + `encrypted` 标志，
  *   `TrashedIdentityRecord` 整块 `encryptedPayload`），混放会让 at-rest 安全网
  *   按密码形状误判身份条目为明文残留；
- * - 容量口径不同（`MAX_IDENTITIES` 30 vs `MAX_PASSWORD_ENTRIES` 2000）；
+ * - 容量口径不同（`MAX_IDENTITIES` vs `MAX_PASSWORD_ENTRIES` 2000）；
  * - 身份回收站没有密码库的历史记录/到期提醒等附属清理项。
  *
  * 共享的是**口径**而非代码：保留期常量与剩余天数读数复用零依赖模块 `trashRetention` 的

@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { createEntry, expect, rowOf, test } from './harness';
-import { numericTemplateOf, templatedOf, textOf } from './i18n';
+import { templatedOf, textOf } from './i18n';
 import { IDENTITY_FIELD_NAME_STEMS } from '../utils/identity/fields';
 import {
   addIdentity,
@@ -84,7 +84,7 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   await expect(searchInput(page)).toHaveValue(PHONE_HIT);
   await expect(cards(page)).toHaveCount(1);
   await expect(cards(page).first()).toContainText(NAME_HIT);
-  await expect(vaultDialog(page).locator('.identity-meta')).toContainText(
+  await expect(vaultDialog(page).locator('.identity-selectbar__matched')).toContainText(
     templatedOf('identity.matchCount', { count: 1 }),
   );
   await expect(drawer).toBeHidden();
@@ -96,7 +96,7 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   await openVaultFromMenu(page, false);
   await expect(searchInput(page)).toHaveValue('');
   await expect(cards(page)).toHaveCount(2);
-  await expect(vaultDialog(page).locator('.identity-meta')).not.toContainText(numericTemplateOf('identity.matchCount'));
+  await expect(vaultDialog(page).locator('.identity-selectbar__matched')).toHaveCount(0);
 
   // ⑤ 零命中那一行：气泡把用户送到库里，而他从没建过那一格时，空态必须说清「差的是哪个名字」，
   //    并给出与工具栏同一条添加出路。源码守卫只看接线，这句话是否真的渲染出来、

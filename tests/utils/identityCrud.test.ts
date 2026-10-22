@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import type { IdentityPayload, IdentityRecord } from '@/utils/identity/types';
 
 /**
@@ -140,7 +141,7 @@ describe('saveIdentity', () => {
   });
 
   it('达到条数上限时拒绝新增', async () => {
-    const full: IdentityRecord[] = Array.from({ length: 30 }, (_, i) => ({
+    const full: IdentityRecord[] = Array.from({ length: MAX_IDENTITIES }, (_, i) => ({
       id: `id-${i}`,
       encryptedPayload: enc(JSON.stringify(payload()), SESSION_KEY),
       createTime: 1,
@@ -323,7 +324,7 @@ describe('replaceAllIdentity（导入写回不丢弃不可解密记录）', () =
 
 describe('getIdentityCrudErrorCode（类型化错误码，替代散文匹配）', () => {
   it('saveIdentity 上限错误携带 LIMIT_REACHED', async () => {
-    const full: IdentityRecord[] = Array.from({ length: 30 }, (_, i) => ({
+    const full: IdentityRecord[] = Array.from({ length: MAX_IDENTITIES }, (_, i) => ({
       id: `id-${i}`,
       encryptedPayload: enc(JSON.stringify(payload()), SESSION_KEY),
       createTime: 1,

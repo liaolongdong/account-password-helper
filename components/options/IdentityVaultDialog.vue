@@ -71,23 +71,6 @@
         class="identity-reminder"
       />
 
-      <!-- 状态栏：搜索命中计数（左，仅过滤时） + 条数上限指示（右） -->
-      <div
-        v-if="rows.length > 0"
-        class="identity-meta"
-      >
-        <span v-if="filterActive">
-          {{ t('identity.matchCount', { count: filteredRows.length }) }}
-        </span>
-        <span :class="['identity-meta__count', { 'is-limit': atLimit }]">
-          {{
-            atLimit
-              ? t('identity.countAtLimit', { max: MAX_IDENTITIES })
-              : t('identity.countIndicator', { count: rows.length, max: MAX_IDENTITIES })
-          }}
-        </span>
-      </div>
-
       <!--
         放宽说明行：这一屏不是「搜到了值」，而是「这句话读作了某一格的名字」。
         不写这句就会变成一次静默的检索语义切换——用户打的是页面上那行字，
@@ -101,7 +84,10 @@
         {{ t('identity.searchRelaxed', { keyword: keyword.trim() }) }}
       </p>
 
-      <!-- 选择栏：全选 + 已选/总数摘要（驱动导出作用域） + 右侧批量动作（显示/隐藏全部机密、折叠/展开全部） -->
+      <!--
+        选择栏（一行装下全部读数与批量动作）：全选 + 已选/总数摘要（驱动导出作用域）
+        + 搜索命中数（仅过滤时）+ 条数上限指示（右推，与批量动作同组）
+      -->
       <div
         v-if="rows.length > 0"
         class="identity-selectbar"
@@ -115,6 +101,19 @@
         </el-checkbox>
         <span class="identity-selectbar__summary">
           {{ t('identity.selection.summary', { selected: selectedCount, total: rows.length }) }}
+        </span>
+        <span
+          v-if="filterActive"
+          class="identity-selectbar__matched"
+        >
+          {{ t('identity.matchCount', { count: filteredRows.length }) }}
+        </span>
+        <span :class="['identity-selectbar__count', { 'is-limit': atLimit }]">
+          {{
+            atLimit
+              ? t('identity.countAtLimit', { max: MAX_IDENTITIES })
+              : t('identity.countIndicator', { count: rows.length, max: MAX_IDENTITIES })
+          }}
         </span>
         <div class="identity-selectbar__actions">
           <el-button
@@ -467,7 +466,8 @@ import type { IdentityVault } from '@/composables/useIdentityVault';
  *
  * 展示解密后的身份条目（类别过滤 + 排序档位 + 搜索 + 卡级机密显隐 / 批量展开收起 +
  * 单卡折叠与「折叠 / 展开全部」+
- * 整卡/逐字段复制 + 勾选 + 删除；顶部状态栏显示搜索命中数与「已用 n/30」条数上限，无匹配时空态提供「清除筛选」）。
+ * 整卡/逐字段复制 + 勾选 + 删除；全选行内一并显示已选摘要、搜索命中数与「已用 n / max 条」
+ * 上限指示（原本自占一行的状态栏已并入该行），无匹配时空态提供「清除筛选」）。
  * 眼睛按「卡片」为粒度切换该卡全部机密字段（设计如此，非 bug）；每卡复选框 + 工具栏
  * 全选驱动导出作用域——未勾选=导出全部，勾选=仅导出所选子集。footer 常驻备份导入/导出：
  * 加密 `.aphid` 走主密码解密；「导出明文（不推荐）」与导入均接受明文 `.json`，明文读写都设
@@ -862,7 +862,7 @@ const applyImportedData = async (data: IdentityBackupData, plaintext: boolean): 
   // 预览计数基于当前内存快照（advisory，仅用于确认弹窗展示）
   const preview = mergeIdentityRecords(rows.value, data.records);
   if (preview.records.length > MAX_IDENTITIES) {
-    ElMessage.error(t('identity.import.limitReached'));
+    ElMessage.error(t('identity.import.limitReached', { max: MAX_IDENTITIES }));
     return;
   }
 
@@ -887,7 +887,7 @@ const applyImportedData = async (data: IdentityBackupData, plaintext: boolean): 
   await load();
   const merged = mergeIdentityRecords(rows.value, data.records);
   if (merged.records.length > MAX_IDENTITIES) {
-    ElMessage.error(t('identity.import.limitReached'));
+    ElMessage.error(t('identity.import.limitReached', { max: MAX_IDENTITIES }));
     return;
   }
 
@@ -998,45 +998,47 @@ const handleFileChange = async (event: Event): Promise<void> => {
   margin-bottom: 12px;
 }
 
-.identity-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.identity-meta__count {
-  margin-left: auto;
-}
-
-.identity-meta__count.is-limit {
-  color: var(--el-color-warning);
-}
-
 .identity-selectbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   margin-bottom: 12px;
 }
 
-.identity-selectbar__summary {
+/*
+ * 三个读数共用一档字号与次要色。`flex-wrap` 是英文态的兜底，口径同 `.identity-footer__left`：
+ * 摘要与「已用 n / max」在 en 下比 zh 长，挤满 728px 内容区时换行，而不是把动作组推出圆角外。
+ */
+.identity-selectbar__summary,
+.identity-selectbar__matched,
+.identity-selectbar__count {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+/* 上限指示顶到右侧批量动作之前，取代此前单独占一行的状态栏 */
+.identity-selectbar__count {
+  margin-left: auto;
+}
+
+.identity-selectbar__count.is-limit {
+  color: var(--el-color-warning);
 }
 
 .identity-selectbar__actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   margin-left: auto;
 }
 
 /*
  * 容器写了 gap，就必须接管 Element Plus 的 `.el-button + .el-button { margin-left: 12px }`，
- * 否则净间距是 12 + 12 = 24px——正是「两个按钮之间空得离谱」的读数。口径同本文件
- * `.identity-footer__left`，登记在 tests/architecture/dialogFooterDensityWiring.test.ts。
+ * 否则净间距读成两者之和（接管前是 24px）。取 8px 而不是 footer 那一档的 12px：
+ * `link` 按钮盒子含 1px 透明边框 + `is-link` 的 2px 内边距（特异性 (0,2,0) 压过
+ * `.el-button--small` 的 `padding:5px 11px`），故字面可见间距 = 8 + 3×2 = 14px，
+ * 与本弹窗卡片动作行的 8px 净间距同档。真机读数见 `e2e/identity-vault-selectbar-density.spec.ts`，
+ * 声明值登记在 `tests/architecture/dialogFooterDensityWiring.test.ts`。
  */
 .identity-selectbar__actions :deep(.el-button + .el-button) {
   margin-left: 0;

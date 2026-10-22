@@ -435,7 +435,7 @@ export async function getIdentityManualOrder(): Promise<string[]> {
 }
 
 /**
- * 保存身份库 `manual` 档的手排顺序（明文单键，上限即条目上限 30 条）
+ * 保存身份库 `manual` 档的手排顺序（明文单键，上限即条目上限 `MAX_IDENTITIES`）
  *
  * 只在用户真的动了顺序（拖拽 / 键盘换位）时被调用，数组由调用方先经
  * `normalizeManualOrder` 剪枝 + 追加对齐过，故这里的形状校验只是第二道闸门：

@@ -17,7 +17,7 @@ export type IdentityCategory = 'person' | 'id_card' | 'bank_card' | 'address';
  *   否则切语言会把顺序换一遍；
  * - `title` 用列表标题（`displayTitle` 回退链）按界面语言排序，走 Intl 拼写排序而非码位序；
  * - `manual` 用户手排：不比较记录本身，只查落盘的 id 顺序数组（`IDENTITY_MANUAL_ORDER`，
- *   明文 `string[]`、上限 30 条），未登记的 id 落到末尾而不会消失。
+ *   明文 `string[]`、上限同条数上限），未登记的 id 落到末尾而不会消失。
  */
 export type IdentitySortMode = 'updated' | 'created' | 'category' | 'title' | 'manual';
 

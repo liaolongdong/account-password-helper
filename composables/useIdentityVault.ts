@@ -9,7 +9,7 @@
  * - 视图态：卡级显隐 toggleReveal / 批量 toggleRevealAll（仅作用可见含机密卡）/ 单卡折叠 toggleCollapse 与批量折叠 toggleCollapseAll（均仅作用可见卡）/ 档位切换 setSortMode（落盘为偏好）/ 手排换位 moveIdentity（仅 `manual` 档，落盘顺序数组）/ 勾选选择态 / 过滤清除 clearFilters；
  * - 领域：displayTitle（列表标题回退链）/ copyField（逐字段复制）/ copyCard（整卡复制，恒走限时自动清除通道）/ markBackupPending 与 markBackupDone（备份提醒的会话内信号）。
  *
- * 搜索刻意**不加防抖**：既有 200ms 防抖是为上百条密码设计，身份库 ≤30 条，
+ * 搜索刻意**不加防抖**：既有 200ms 防抖是为上百条密码设计，身份库 ≤100 条（`MAX_IDENTITIES`），
  * 即时过滤更简单（有意偏离，见方案 §4.1）。
  *
  * 排序档位只改**列表展示**顺序：`rows` 恒按 updateTime 倒序，导出与勾选摘要读的是 `rows`，
@@ -174,7 +174,7 @@ export function useIdentityVault() {
    */
   const unbackedMutation = ref(false);
 
-  /** id → 手排序位（一次建表供整轮比较器复用；`rows` ≤30 条，重排成本可忽略） */
+  /** id → 手排序位（一次建表供整轮比较器复用；`rows` 不超条目上限，重排成本可忽略） */
   const manualRank = computed(() => new Map(manualOrder.value.map((id, index) => [id, index])));
 
   /**
@@ -218,7 +218,7 @@ export function useIdentityVault() {
     return { list: relaxedList, relaxed: true, keys: asked };
   });
 
-  /** 类别过滤 + 搜索过滤后的条目，按当前档位排序（≤30 条，每次重排成本可忽略） */
+  /** 类别过滤 + 搜索过滤后的条目，按当前档位排序（不超条目上限，每次重排成本可忽略） */
   const filteredRows = computed(() =>
     sortIdentityEntries(
       textStage.value.list,

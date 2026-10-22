@@ -464,7 +464,7 @@ test('深链带筛选词：点「从身份库选择」时把本人姓名框的�
   await expect(searchInput(optionsPage)).toHaveValue(SELF_NAME);
   await expect(cards(optionsPage)).toHaveCount(1);
   await expect(cards(optionsPage).first()).toContainText(SELF_NAME);
-  await expect(vaultDialog(optionsPage).locator('.identity-meta')).toContainText(
+  await expect(vaultDialog(optionsPage).locator('.identity-selectbar__matched')).toContainText(
     templatedOf('identity.matchCount', { count: 1 }),
   );
   // 档位停在「全部」：姓名只作检索词，不替用户决定「这条身份属于哪一档」
