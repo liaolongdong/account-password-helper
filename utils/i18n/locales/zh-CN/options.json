@@ -195,6 +195,8 @@
   "options.filter.tagPlaceholder": "按标签筛选",
   "options.filter.sitePlaceholder": "按站点筛选",
   "options.filter.siteGenericOption": "（无网址）",
+  "options.filter.siteWithAliases": "{site}（含 {hosts}）",
+  "options.filter.sitePorts": "端口 {ports}",
   "options.filter.batchEditTags": "编辑标签 ({count})",
   "options.filter.batchExportSelected": "导出选中 ({count})",
   "options.batchTag.title": "批量编辑标签",

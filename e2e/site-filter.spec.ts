@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { expect, runHeaderCommand, storedArrayCount, test } from './harness';
-import { textOf } from './i18n';
+import { templatedOf, textOf } from './i18n';
 
 /**
  * 管理页筛选栏的两个候选下拉（标签 / 站点）的真机回归
@@ -134,9 +134,50 @@ async function seedVault(page: Page): Promise<void> {
   expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(TOTAL);
 }
 
+/**
+ * 环回折叠的用例数据：同一台机器的三种写法与四种端口形态各一条，
+ * 外加一条**同机但不同虚拟主机**（`myapp.localhost`）和一条公网站点作反证——
+ * 折叠只该发生在环回字面写法之间，扩大到这两者就会把不该并的账号并成一桶。
+ */
+const LOOPBACK_CSV = [
+  'username,password,url,tag,remark',
+  'e2e-lb-1,Synthetic!Lb1,http://localhost:3000/login,,',
+  'e2e-lb-2,Synthetic!Lb2,127.0.0.1:4000,,',
+  'e2e-lb-3,Synthetic!Lb3,localhost:5173,,',
+  'e2e-lb-4,Synthetic!Lb4,localhost:*,',
+  'e2e-lb-vhost,Synthetic!Lbv,myapp.localhost:3000,,',
+  'e2e-lb-public,Synthetic!Lbp,https://example.com/,,',
+].join('\n');
+
 test.describe.configure({ timeout: 120_000 });
 
 test.describe('管理页筛选栏候选下拉（标签 / 站点）', () => {
+  test('本机三种环回写法折成一档：标签写明涵盖的写法，勾选后各端口都在', async ({ optionsPage: page }) => {
+    await importCsv(page, 'e2e-loopback-site-filter.csv', LOOPBACK_CSV);
+    await expect(mainRows(page)).toHaveCount(6);
+
+    await siteSelect(page).locator('.el-select__wrapper').click();
+    // 折叠后 `127.0.0.1` 不再是独立候选：它必须写在标签上，否则用户既筛不到、也看不出这一桶涵盖了什么
+    const bucket = templatedOf('options.filter.siteWithAliases', { site: 'localhost', hosts: '127.0.0.1' });
+    await expect(facetTexts(page, 'site')).toHaveText([bucket, 'example.com', 'myapp.localhost']);
+
+    // 端口分布只进 title：面板宽度按最长 label 量出，把端口串塞进 label 会让整列候选被最活跃的一桶挤窄
+    const ports = templatedOf('options.filter.sitePorts', { ports: '3000 / 4000 / 5173 / *' });
+    const localRow = facetPopper(page, 'site').locator('.el-select-dropdown__item').first();
+    await expect(localRow.locator('.facet-option')).toHaveAttribute(
+      'title',
+      new RegExp(`(?:${bucket.source}) · (?:${ports.source})`),
+    );
+
+    await localRow.click();
+    await page.keyboard.press('Escape');
+
+    // 本机整桶四条（含 `localhost:*` 那条）；同机不同虚拟主机与公网站点一条都不带
+    await expect(mainRows(page)).toHaveCount(4);
+    await expect(mainRows(page).filter({ hasText: 'e2e-lb-vhost' })).toHaveCount(0);
+    await expect(mainRows(page).filter({ hasText: 'e2e-lb-public' })).toHaveCount(0);
+  });
+
   test('候选集由条目网址自动汇总：按条目数倒序并带计数', async ({ optionsPage: page }) => {
     await seedVault(page);
 
