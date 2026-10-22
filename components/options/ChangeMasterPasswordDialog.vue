@@ -240,12 +240,17 @@ const handleSubmit = async () => {
     ElMessage.success(t('options.changePwd.success'));
     emit('update:modelValue', false);
     emit('success');
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('修改主密码失败:', error);
-    const msg = error?.message || '';
-    if (error?.code === 'WRONG_PASSWORD' || msg.includes('验证失败')) {
+    // 存储层用 `Object.assign(new Error(...), { code })` 携带稳定错误码，按码分流本地化文案：
+    // 直出的 `error.message` 是存储层中文串，塞进本地化模板会让英文界面夹进中文
+    const { message: msg = '', code } = (error ?? {}) as { message?: string; code?: string };
+    if (code === 'REKEY_CONCURRENT_WRITE') {
+      // 重加密期间另一张管理页标签写过数据，快照复验主动取消了这次换钥（数据仍完整可读）
+      ElMessage.error(t('options.changePwd.concurrentWrite'));
+    } else if (code === 'WRONG_PASSWORD' || msg.includes('验证失败')) {
       ElMessage.error(t('options.changePwd.wrongOldPassword'));
-    } else if (error?.code === 'EMPTY_PASSWORD') {
+    } else if (code === 'EMPTY_PASSWORD') {
       // 纯空白新密码过得了 required/min 规则，归一化后在存储层被拒，这里给出本地化提示
       ElMessage.error(t('options.changePwd.newPasswordRequired'));
     } else {

@@ -18,11 +18,15 @@
  * - 页面唯一的 `<h1>` 取自 frontmatter 的 `title`。正文开头若出现同级 ATX 标题
  *   （`# ...`）会被剥掉，避免一页两个 h1 稀释权重、破损文档大纲；
  *   值允许用 YAML 单/双引号包裹，解析时会被脱引；
+ * - 同一批 Markdown 还产出三份分发面：`blog/feed.xml`（中文）、
+ *   `blog/feed.en.xml`（英文）与根目录 `llms-full.txt`（`llms.txt` 摘要 + 全部中英正文）。
+ *   RSS 按文章 `date` 倒序，`lastBuildDate` 取该语言最新的 `modified`；
+ *   llms-full 里的相对图片路径会改写成站点绝对 URL；
  * - `sitemap.xml` 不由本脚本产出，其 `lastmod` 需手工同步到同一日期。
  *
  * 修改文章后运行 `pnpm gen:blog` 重新生成。本仓库没有 Pages 部署 workflow，
- * Pages 直接读 `main` 分支根目录，所以 `blog/*.html` 属**必须提交入库的产物**——
- * 只在本地重跑不会让线上变化。
+ * Pages 直接读 `main` 分支根目录，所以 `blog/*.html`、两份 feed 与 `llms-full.txt`
+ * 属**必须提交入库的产物**——只在本地重跑不会让线上变化。
  *
  * @file scripts/build-blog-pages.mjs
  */
@@ -142,18 +146,69 @@ const CWS_URL = 'https://chromewebstore.google.com/detail/account-password-helpe
 /** 无封面文章与索引页的分享卡兜底图：中英各一张 1200×630，语言与页面一致 */
 const OG_IMAGE = { 'zh-CN': OG_IMAGE_ZH, en: OG_IMAGE_EN };
 
+/** 品牌名按语言输出：中文页此前挂着英文品牌，与 pricing/privacy 等页面口径不一致 */
+const BRAND = { 'zh-CN': '账号密码管理助手', en: 'Account Password Helper' };
+
+/** 面包屑里博客一级的短名（索引页标题较长，不适合当 crumb 文案） */
+const BLOG_CRUMB = { 'zh-CN': '博客', en: 'Blog' };
+
+/** 作者页按语言各一份；文章署名优先指到这里，GitHub 作为 sameAs 保留 */
+const AUTHOR_PAGE = {
+  'zh-CN': `${SITE}/author.html`,
+  en: `${SITE}/author.en.html`,
+};
+const authorProfileUrl = (author, lang) =>
+  author === 'liaolongdong' ? AUTHOR_PAGE[lang] : `https://github.com/${author}`;
+
+/** 每语言一份 RSS：读者只订自己读得懂的那一份，避免中英条目混流 */
+const BLOG_FEED = {
+  'zh-CN': {
+    file: 'feed.xml',
+    language: 'zh-cn',
+    title: '账号密码管理助手 · 技术博客',
+    description: '本地优先密码管理器的产品思考与工程实现：安全设计、MV3 性能、Web Crypto 加密与多环境登录。',
+    indexUrl: `${SITE}/blog/`,
+  },
+  en: {
+    file: 'feed.en.xml',
+    language: 'en',
+    title: 'Account Password Helper · Engineering Blog',
+    description:
+      'Product thinking and engineering deep-dives: local-first security, MV3 performance, Web Crypto internals and multi-environment login.',
+    indexUrl: `${SITE}/blog/index.en.html`,
+  },
+};
+
+/** 文章在对应语言下的公开地址 */
+const articleUrl = (article, lang) => `${SITE}/blog/${article.slug}${lang === 'zh-CN' ? '' : '.en'}.html`;
+
+/** RSS 的日期是 RFC 822；日期本身在读取 frontmatter 时已按 ISO 形状校验 */
+const rfc822 = iso => new Date(`${iso}T00:00:00Z`).toUTCString();
+
+/** XML 文本节点转义（`escapeHtml` 已覆盖 & < > "，文本里的单引号无需实体化） */
+const escapeXml = s => escapeHtml(s);
+
 /**
  * 页内共享的图标、主题色与爬虫指令。
  *
- * 博客 12 个页面此前既没有 favicon 也没有 `robots` meta，而同站另外 8 个页面都写了
+ * 博客 18 个页面此前既没有 favicon 也没有 `robots` meta，而同站另外 8 个页面都写了
  * `index, follow, max-image-preview:large`——文章封面是 1600×900（16:9），
  * 少了这条声明就拿不到大图富结果。
+ *
+ * RSS 自动发现链接随页面语言给出，订阅器在任意一篇文章上都能找到对应语言的 feed。
  */
-function headKit() {
+function headKit(lang) {
+  const feed = BLOG_FEED[lang];
   return `    <link
       rel="icon"
       type="image/svg+xml"
       href="${SITE}/assets/icons/icon.svg"
+    />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="${escapeAttr(`${BRAND[lang]} · ${BLOG_CRUMB[lang]}`)}"
+      href="${SITE}/blog/${feed.file}"
     />
     <link
       rel="icon"
@@ -182,7 +237,15 @@ function siteLinks(lang) {
   const suffix = zh ? '' : '.en';
   const home = zh ? `${SITE}/` : `${SITE}/en.html`;
   const anchors = zh
-    ? ['产品官网与功能演示', '定价：永久免费', '与 Bitwarden、1Password 对比', '隐私政策', 'Chrome 应用商店', 'GitHub']
+    ? [
+        '产品官网与功能演示',
+        '定价：永久免费',
+        '与 Bitwarden、1Password 对比',
+        '隐私政策',
+        'Chrome 应用商店',
+        'GitHub',
+        'RSS 订阅',
+      ]
     : [
         'Product site &amp; demo',
         'Pricing: free forever',
@@ -190,6 +253,7 @@ function siteLinks(lang) {
         'Privacy policy',
         'Chrome Web Store',
         'GitHub',
+        'RSS feed',
       ];
   const hrefs = [
     home,
@@ -198,6 +262,7 @@ function siteLinks(lang) {
     `${SITE}/privacy${suffix}.html`,
     CWS_URL,
     GH_URL,
+    `${SITE}/blog/${BLOG_FEED[lang].file}`,
   ];
   return hrefs.map((href, i) => `<a href="${href}">${anchors[i]}</a>`).join(' · ');
 }
@@ -252,17 +317,111 @@ function blogPostingJsonLd(article, url, lang) {
     image: article.image ? `${SITE}/${article.image}` : undefined,
     datePublished: article.date,
     dateModified: article.modified || article.date,
-    author: { '@type': 'Person', name: article.author },
+    author: {
+      '@type': 'Person',
+      name: article.author,
+      url: authorProfileUrl(article.author, lang),
+      sameAs: [`https://github.com/${article.author}`],
+    },
     keywords: article.tags.join(','),
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
   });
 }
 
-/** 品牌名按语言输出：中文页此前挂着英文品牌，与 pricing/privacy 等页面口径不一致 */
-const BRAND = { 'zh-CN': '账号密码管理助手', en: 'Account Password Helper' };
+/**
+ * RSS 2.0 feed
+ *
+ * 只放标题、链接、摘要与标签：正文已经在站内页面和 llms-full 里，
+ * feed 再塞全文只会让订阅器重复缓存同一批内容。`lastBuildDate` 取该语言
+ * 最新的 `modified`，保证同一批源文件重复生成时字节稳定。
+ */
+function feedXml(articles, lang) {
+  const meta = BLOG_FEED[lang];
+  const selfUrl = `${SITE}/blog/${meta.file}`;
+  const sorted = [...articles].sort((a, b) => b.date.localeCompare(a.date));
+  const lastBuilt = sorted
+    .map(a => a.modified || a.date)
+    .sort()
+    .at(-1);
+  const items = sorted
+    .map(article => {
+      const url = articleUrl(article, lang);
+      const categories = article.tags.map(tag => `      <category>${escapeXml(tag)}</category>`).join('\n');
+      return `    <item>
+      <title>${escapeXml(article.title)}</title>
+      <link>${url}</link>
+      <guid isPermaLink="true">${url}</guid>
+      <pubDate>${rfc822(article.date)}</pubDate>
+      <description>${escapeXml(article.description)}</description>
+${categories}
+    </item>`;
+    })
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss
+  version="2.0"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+>
+  <channel>
+    <title>${escapeXml(meta.title)}</title>
+    <link>${meta.indexUrl}</link>
+    <description>${escapeXml(meta.description)}</description>
+    <language>${meta.language}</language>
+    <lastBuildDate>${rfc822(lastBuilt)}</lastBuildDate>
+    <atom:link
+      href="${selfUrl}"
+      rel="self"
+      type="application/rss+xml"
+    />
+${items}
+  </channel>
+</rss>
+`;
+}
 
-/** 面包屑里博客一级的短名（索引页标题较长，不适合当 crumb 文案） */
-const BLOG_CRUMB = { 'zh-CN': '博客', en: 'Blog' };
+/**
+ * llms-full.txt：`llms.txt` 摘要 + 全部中英博客正文
+ *
+ * 面向需要完整上下文的 AI 爬虫。正文标题降一级（文章名占 `##`），
+ * 图片相对路径改成站点绝对 URL；frontmatter 已在读取阶段剥离。
+ */
+function llmsFullText(zhArticles, enArticles) {
+  const base = readFileSync(path.join(root, 'llms.txt'), 'utf8').trimEnd();
+  const sections = [
+    { lang: 'zh-CN', label: '中文原文', articles: zhArticles },
+    { lang: 'en', label: 'English originals', articles: enArticles },
+  ];
+  const content = sections
+    .map(section => {
+      const articles = [...section.articles]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .map(article => {
+          const body = article.body
+            .replace(/^(#{1,5})\s/gm, '#$1 ')
+            .replace(/\]\(imgs\//g, `](${SITE}/imgs/`)
+            .trim();
+          const updated = article.modified ? ` · Updated: ${article.modified}` : '';
+          return `### [${article.title}](${articleUrl(article, section.lang)})
+
+> Published: ${article.date}${updated} · Author: [${article.author}](https://github.com/${article.author})
+
+${body}`;
+        })
+        .join('\n\n---\n\n');
+      return `## ${section.label}\n\n${articles}`;
+    })
+    .join('\n\n');
+  return `${base}
+
+---
+
+# Full Content
+
+> Every blog post in full, in both languages. The summary version is [llms.txt](${SITE}/llms.txt).
+
+${content}
+`;
+}
 
 function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, switchLabel }) {
   const cover = article.image ? `${SITE}/${article.image}` : OG_IMAGE[lang];
@@ -271,6 +430,16 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
     { name: BLOG_CRUMB[lang], url: `${SITE}/blog/${lang === 'zh-CN' ? '' : 'index.en.html'}` },
     { name: article.title, url: selfUrl },
   ];
+  const authorUrl = escapeAttr(authorProfileUrl(article.author, lang));
+  const authorGithubUrl = `https://github.com/${escapeAttr(article.author)}`;
+  const authorCard =
+    lang === 'zh-CN'
+      ? `<aside class="author-card" aria-label="关于作者">
+        <p><strong>关于作者</strong>：<a href="${authorUrl}" rel="author">${escapeHtml(article.author)}</a>，开源爱好者与贡献者，利用业余时间维护账号密码管理助手、Transfer Any File、Cross-origin Proxy 等免费开源浏览器扩展，关注本地优先、离线可用与可审计的工程实现 · <a href="${authorGithubUrl}" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+      </aside>`
+      : `<aside class="author-card" aria-label="About the author">
+        <p><strong>About the author</strong>: <a href="${authorUrl}" rel="author">${escapeHtml(article.author)}</a> is an open-source enthusiast and contributor who maintains free, open-source browser extensions including Account Password Helper, Transfer Any File and Cross-origin Proxy in their spare time, with a focus on local-first, offline-capable and auditable engineering · <a href="${authorGithubUrl}" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+      </aside>`;
   return `<!doctype html>
 <!-- Generated by scripts/build-blog-pages.mjs from docs/blog/${lang === 'zh-CN' ? 'zh' : 'en'}/${article.slug}.md — do not edit manually. -->
 <html lang="${lang}">
@@ -289,7 +458,11 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
       name="author"
       content="${escapeAttr(article.author)}"
     />
-${headKit()}
+${headKit(lang)}
+    <link
+      rel="author"
+      href="https://github.com/${escapeAttr(article.author)}"
+    />
     <link
       rel="canonical"
       href="${selfUrl}"
@@ -433,10 +606,46 @@ ${breadcrumbJsonLd(breadcrumb)}
       .topbar .spacer {
         flex: 1;
       }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        font-size: 14px;
+        color: #ffffff;
+        text-decoration: none;
+        background: var(--accent);
+        border-radius: 6px;
+        transform: translateY(-200%);
+      }
+      .skip-link:focus-visible {
+        transform: translateY(0);
+      }
       article {
         max-width: 760px;
         margin: 0 auto;
         padding: 40px 24px 80px;
+      }
+      .crumbs {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .crumbs a {
+        flex-shrink: 0;
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .crumbs [aria-current='page'] {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       h1 {
         margin: 0 0 12px;
@@ -447,6 +656,10 @@ ${breadcrumbJsonLd(breadcrumb)}
         margin-bottom: 28px;
         font-size: 14px;
         color: var(--muted);
+      }
+      .meta a {
+        color: var(--accent-ink);
+        text-decoration: none;
       }
       .cover {
         width: 100%;
@@ -503,6 +716,21 @@ ${breadcrumbJsonLd(breadcrumb)}
         border: none;
         border-top: 1px solid var(--border);
       }
+      .author-card {
+        padding: 16px 18px;
+        margin-top: 40px;
+        font-size: 14px;
+        color: var(--muted);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .author-card p {
+        margin: 0;
+      }
+      .author-card a {
+        color: var(--accent-ink);
+      }
       img {
         max-width: 100%;
         border-radius: 8px;
@@ -523,17 +751,28 @@ ${breadcrumbJsonLd(breadcrumb)}
     </style>
   </head>
   <body>
-    <nav class="topbar">
+    <a class="skip-link" href="#main">${lang === 'zh-CN' ? '跳到正文' : 'Skip to content'}</a>
+    <nav class="topbar" aria-label="${lang === 'zh-CN' ? '文章导航' : 'Article navigation'}">
       <a href="${backHref}">${backLabel}</a>
       <span class="spacer"></span>
       <a href="${altUrl}">${switchLabel}</a>
     </nav>
-    <article>
-      <h1>${escapeHtml(article.title)}</h1>
-      <p class="meta">${article.date}${article.modified ? ` · ${lang === 'zh-CN' ? '更新于' : 'Updated'} ${article.modified}` : ''} · ${escapeHtml(article.author)}</p>
-      ${article.image ? `<img class="cover" src="${SITE}/${article.image}" alt="${escapeAttr(article.title)}" />` : ''}
-      ${renderMarkdown(article.body)}
-    </article>
+    <main id="main" tabindex="-1">
+      <article>
+        <nav class="crumbs" aria-label="${lang === 'zh-CN' ? '面包屑' : 'Breadcrumb'}">
+          <a href="${breadcrumb[0].url}">${BRAND[lang]}</a>
+          <span aria-hidden="true">/</span>
+          <a href="${breadcrumb[1].url}">${BLOG_CRUMB[lang]}</a>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" title="${escapeAttr(article.title)}">${escapeHtml(article.title)}</span>
+        </nav>
+        <h1>${escapeHtml(article.title)}</h1>
+        <p class="meta">${article.date}${article.modified ? ` · ${lang === 'zh-CN' ? '更新于' : 'Updated'} ${article.modified}` : ''} · <a rel="author" href="${authorUrl}">${escapeHtml(article.author)}</a></p>
+        ${article.image ? `<img class="cover" src="${SITE}/${article.image}" alt="${escapeAttr(article.title)}" />` : ''}
+        ${renderMarkdown(article.body)}
+        ${authorCard}
+      </article>
+    </main>
     <footer class="footer">
       <p>${BRAND[lang]} · ${lang === 'zh-CN' ? '开源（GPL-3.0）' : 'Open source (GPL-3.0)'}</p>
       <p>${siteLinks(lang)}</p>
@@ -577,7 +816,7 @@ function indexPage({ lang, title, subtitle, selfUrl, altUrl, articles, readLabel
       name="description"
       content="${escapeAttr(subtitle)}"
     />
-${headKit()}
+${headKit(lang)}
     <link
       rel="canonical"
       href="${selfUrl}"
@@ -709,6 +948,22 @@ ${breadcrumbJsonLd(breadcrumb)}
       .topbar .spacer {
         flex: 1;
       }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        font-size: 14px;
+        color: #ffffff;
+        text-decoration: none;
+        background: var(--accent);
+        border-radius: 6px;
+        transform: translateY(-200%);
+      }
+      .skip-link:focus-visible {
+        transform: translateY(0);
+      }
       main {
         max-width: 960px;
         margin: 0 auto;
@@ -785,12 +1040,13 @@ ${breadcrumbJsonLd(breadcrumb)}
     </style>
   </head>
   <body>
-    <nav class="topbar">
+    <a class="skip-link" href="#main">${lang === 'zh-CN' ? '跳到正文' : 'Skip to content'}</a>
+    <nav class="topbar" aria-label="${lang === 'zh-CN' ? '博客导航' : 'Blog navigation'}">
       <a href="${backLabel.href}">${backLabel.text}</a>
       <span class="spacer"></span>
       <a href="${altUrl}">${switchLabel}</a>
     </nav>
-    <main>
+    <main id="main" tabindex="-1">
       <h1>${escapeHtml(title)}</h1>
       <p class="subtitle">${escapeHtml(subtitle)}</p>
       <div class="grid">
@@ -879,4 +1135,14 @@ writeFileSync(
 );
 written += 2;
 
-console.log(`blog pages generated: ${written} files in blog/`);
+for (const [lang, articles] of [
+  ['zh-CN', zhArticles],
+  ['en', enArticles],
+]) {
+  writeFileSync(path.join(outDir, BLOG_FEED[lang].file), feedXml(articles, lang));
+  written += 1;
+}
+
+writeFileSync(path.join(root, 'llms-full.txt'), llmsFullText(zhArticles, enArticles));
+
+console.log(`blog pages generated: ${written} files in blog/, plus llms-full.txt`);

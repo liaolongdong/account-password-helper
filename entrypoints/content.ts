@@ -6,6 +6,8 @@ import { showSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt
 import type { SavePromptData, SavePromptEditedData } from '@/entrypoints/content/types';
 import { rememberContextMenuTarget } from '@/entrypoints/content/contextMenuTarget';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
+import { MessageType, type RuntimeMessage } from '@/utils/types';
+import { cancelActiveSelectorPick, startSelectorPick, stopSelectorPick } from '@/entrypoints/content/selectorPicker';
 import { logger } from '@/utils/logger';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initLiteI18n } from '@/utils/i18n-lite';
@@ -26,6 +28,32 @@ export default defineContentScript({
 
     // 初始化登录自动保存（所有 frame 都需要，以便捕获 iframe 内的登录表单）
     const loginAutoSave = new LoginAutoSave();
+
+    // 站点规则选择器拾取：只在顶层 frame 渲染覆盖层，Background 固定投递到 frameId 0。
+    // 这里只接收指令并启停拾取器；选择器结果由 selectorPicker 自行回传，不经过本监听。
+    let selectorPickerMessageListener:
+      | ((
+          message: RuntimeMessage,
+          sender: chrome.runtime.MessageSender,
+          sendResponse: (response?: unknown) => void,
+        ) => boolean)
+      | null = null;
+    if (isTopFrame && chrome?.runtime?.onMessage) {
+      selectorPickerMessageListener = (message, _sender, sendResponse) => {
+        if (message?.type === MessageType.START_SELECTOR_PICK) {
+          startSelectorPick(message.data);
+          sendResponse({ success: true });
+          return false;
+        }
+        if (message?.type === MessageType.CANCEL_SELECTOR_PICK) {
+          stopSelectorPick(message.data?.requestId);
+          sendResponse({ success: true });
+          return false;
+        }
+        return false;
+      };
+      chrome.runtime.onMessage.addListener(selectorPickerMessageListener);
+    }
 
     // 预唤醒 SW：用户聚焦表单输入框时，很可能即将使用侧边栏快速填充
     // 提前发送消息唤醒 SW，与用户操作并行，消除后续 sidePanel.open() 的冷启动延迟。
@@ -127,6 +155,12 @@ export default defineContentScript({
     // 统一清理逻辑：销毁各实例注册的事件监听器、MutationObserver 与注入 UI。
     // 各 destroy() 均为幂等实现，可安全地被多次/多入口调用。
     const cleanup = (): void => {
+      // 页面卸载时把取消回执发给 Options，避免管理页锁在「拾取中」直到 120 秒超时
+      cancelActiveSelectorPick();
+      if (selectorPickerMessageListener && chrome?.runtime?.onMessage) {
+        chrome.runtime.onMessage.removeListener(selectorPickerMessageListener);
+        selectorPickerMessageListener = null;
+      }
       formDetector.destroy();
       loginAutoSave.destroy();
       if (isTopFrame) {

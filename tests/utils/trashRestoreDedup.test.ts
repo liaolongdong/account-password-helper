@@ -145,10 +145,24 @@ describe('正常恢复路径行为等价', () => {
     storageData[STORAGE_KEYS.PASSWORDS] = [cipherEntry('keep')];
     storageData[STORAGE_KEYS.TRASH] = [trashEntry('other')];
 
-    await restoreFromTrash(['not-in-trash']);
+    // 返回零计数是弹窗分流提示的前提：此前该分支静默 return，调用方照样弹「已恢复到密码列表」，
+    // 把一次空操作报成成功（用户点恢复的行其实已被 24h 到期清理永久移除）。
+    await expect(restoreFromTrash(['not-in-trash'])).resolves.toEqual({ restored: 0, skippedExisting: 0 });
 
     expect(localSet).not.toHaveBeenCalled();
     expect(passwordIds()).toEqual(['keep']);
     expect(trashIds()).toEqual(['other']);
+  });
+
+  it('计数按真实结果分档：追加回主列表记 restored，仅消费副本记 skippedExisting', async () => {
+    const { restoreFromTrash } = await import('@/utils/storage/trashManager');
+    storageData[STORAGE_KEYS.PASSWORDS] = [cipherEntry('dup')];
+    storageData[STORAGE_KEYS.TRASH] = [trashEntry('dup'), trashEntry('fresh'), trashEntry('untouched')];
+
+    await expect(restoreFromTrash(['dup', 'fresh', 'gone'])).resolves.toEqual({
+      restored: 1,
+      skippedExisting: 1,
+    });
+    expect(trashIds()).toEqual(['untouched']);
   });
 });

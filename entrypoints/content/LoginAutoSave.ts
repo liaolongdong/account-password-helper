@@ -431,6 +431,8 @@ export class LoginAutoSave {
       remarkEdited: false,
       timestamp: Date.now(),
       mode: 'save',
+      // 与 url 同帧采集：跳转后恢复弹窗时，归属判定仍按登录那一页的端点算
+      protocol: location.protocol,
     };
     void this.persistPending(pending);
 
@@ -462,8 +464,14 @@ export class LoginAutoSave {
   /**
    * 向 background 查询凭证在密码库中的状态
    *
-   * 仅发送账号/密码/域名，background 侧比对后返回状态枚举与非密码元数据，
+   * 仅发送账号/密码/站点/协议，background 侧比对后返回状态枚举与非密码元数据，
    * 绝不回传已存明文密码。上下文失效或查询失败时保底返回 new，不阻断保存流程。
+   *
+   * 站点刻意用 `location.host` 而非 `hostname`，与写入条目时（见 `handleLogin` 构造的 pending.url）
+   * 同口径：预检查与落盘若按两个不同的站点串去判重，端口隔离下会出现
+   * 「弹窗说新账号、实际更新了另一条」的自相矛盾。协议只补这一位，是为了让后台能分辨
+   * 页面在 443 还是 80——`location.host` 会把协议默认端口省略掉。
+   *
    * @param username 用户名
    * @param password 密码
    * @returns 凭证状态响应
@@ -475,7 +483,7 @@ export class LoginAutoSave {
       }
       const response = (await chrome.runtime.sendMessage({
         type: MessageType.CHECK_CREDENTIAL_STATUS,
-        data: { username, password, url: location.hostname },
+        data: { username, password, url: location.host, protocol: location.protocol },
       })) as CredentialStatusResponse | undefined;
       return response?.status ? response : { status: 'new' };
     } catch {
@@ -946,6 +954,7 @@ export class LoginAutoSave {
           username: finalUsername,
           password: finalPassword,
           url: pending.url,
+          protocol: pending.protocol,
           tag: pending.tag,
           remark: pending.remark,
           tagEdited: pending.tagEdited,

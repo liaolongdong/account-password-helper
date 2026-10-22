@@ -8,7 +8,13 @@ import {
   type SortState,
 } from '@/utils/passwordSort';
 import type { PasswordEntry } from '@/utils/types';
-import { isExactHostMatch } from '@/utils/domain';
+import {
+  isExactHostMatch,
+  parsePagePortContext,
+  type DomainMatchMode,
+  type PortScope,
+  type SitePolicy,
+} from '@/utils/domain';
 import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
 
 /**
@@ -17,6 +23,12 @@ import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
  * 锁定当前排序契约（优先级链、方向语义、缺失值处理、就地排序等），
  * 仅记录现状，不主张应然。
  */
+
+/** 站点匹配策略夹具：两项缺省合起来即「跨子域放宽与端口隔离都存在之前」的口径 */
+const policy = (mode: DomainMatchMode = 'off', portScope: PortScope = 'loose'): SitePolicy => ({ mode, portScope });
+
+/** 页面端口上下文夹具：必须由完整 URL 解析，手写对象会绕开 80/443 默认端口口径 */
+const page = (url: string) => parsePagePortContext(url);
 
 describe('默认排序常量', () => {
   it('列表默认按 updateTime 降序', () => {
@@ -135,7 +147,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'match', url: 'https://a.example.com/login', lastUsedAt: 1 }),
       entry({ id: 'other', url: 'https://b.example.com', lastUsedAt: 500 }),
     ];
-    const result = filterAndSortEntriesForDomain(list, 'a.example.com');
+    const result = filterAndSortEntriesForDomain(list, 'a.example.com', DEFAULT_SIDEPANEL_SORT, null, policy());
     // b.example.com 不匹配被过滤；域名匹配的 match 优先于 lastUsedAt 更大的空 URL 条目
     expect(result.map(e => e.id)).toEqual(['match', 'noUrl']);
   });
@@ -145,7 +157,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'a', url: 'https://a.example.com', lastUsedAt: 1 }),
       entry({ id: 'b', url: 'https://b.example.com', lastUsedAt: 2 }),
     ];
-    const result = filterAndSortEntriesForDomain(list, 'localhost');
+    const result = filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy());
     expect(result).toHaveLength(2);
     // localhost 下两条均不精确匹配（优先级相同），按侧边栏默认 lastUsedAt 降序
     expect(result.map(e => e.id)).toEqual(['b', 'a']);
@@ -158,17 +170,17 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'local', url: 'http://localhost:3000/login', lastUsedAt: 1 }),
     ];
 
-    expect(filterAndSortEntriesForDomain(list, 'localhost').map(item => item.id)).toEqual([
-      'local',
-      'remoteFav',
-      'empty',
-    ]);
+    expect(
+      filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy()).map(item => item.id),
+    ).toEqual(['local', 'remoteFav', 'empty']);
   });
 
   it('重复 id 不会共享优先级缓存，排序按条目对象语义执行', () => {
     const list = [entry({ id: 'same', url: '', favorite: true }), entry({ id: 'same', url: 'https://x.com' })];
 
-    expect(filterAndSortEntriesForDomain(list, 'x.com').map(item => item.url)).toEqual(['https://x.com', '']);
+    expect(
+      filterAndSortEntriesForDomain(list, 'x.com', DEFAULT_SIDEPANEL_SORT, null, policy()).map(item => item.url),
+    ).toEqual(['https://x.com', '']);
   });
 
   it('同为域名匹配时收藏置顶，首条即侧边栏展示第一条', () => {
@@ -176,7 +188,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'recent', url: 'https://x.com', lastUsedAt: 999 }),
       entry({ id: 'fav', url: 'https://x.com', favorite: true, lastUsedAt: 1 }),
     ];
-    const result = filterAndSortEntriesForDomain(list, 'x.com');
+    const result = filterAndSortEntriesForDomain(list, 'x.com', DEFAULT_SIDEPANEL_SORT, null, policy());
     expect(result[0].id).toBe('fav');
   });
 
@@ -186,14 +198,14 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'a', url: 'https://x.com', username: 'amy' }),
     ];
     const sort: SortState = { prop: 'username', order: 'ascending' };
-    const result = filterAndSortEntriesForDomain(list, 'x.com', sort);
+    const result = filterAndSortEntriesForDomain(list, 'x.com', sort, null, policy());
     expect(result.map(e => e.id)).toEqual(['a', 'z']);
   });
 
   it('无匹配时返回空数组，且不修改入参数组', () => {
     const list = [entry({ id: 'a', url: 'https://a.com' }), entry({ id: 'b', url: 'https://b.com' })];
     const snapshot = list.map(e => e.id);
-    const result = filterAndSortEntriesForDomain(list, 'no-match.example.org');
+    const result = filterAndSortEntriesForDomain(list, 'no-match.example.org', DEFAULT_SIDEPANEL_SORT, null, policy());
     expect(result).toEqual([]);
     expect(list.map(e => e.id)).toEqual(snapshot);
   });
@@ -225,15 +237,25 @@ function legacyFilter(entries: PasswordEntry[], domain: string): string[] {
 describe('filterAndSortEntriesForDomain：off 档与迁移前口径等价', () => {
   for (const domain of ['mail.qq.com', 'qq.com', 'uat.example.com', 'evil-qq.com']) {
     it(`域名 ${domain}：集合与顺序逐 id 一致`, () => {
-      const got = filterAndSortEntriesForDomain(MULTI_ENV, domain, DEFAULT_SIDEPANEL_SORT).map(p => p.id);
+      const got = filterAndSortEntriesForDomain(MULTI_ENV, domain, DEFAULT_SIDEPANEL_SORT, null, policy()).map(
+        p => p.id,
+      );
       expect(got).toEqual(legacyFilter([...MULTI_ENV], domain));
     });
   }
 
-  it('显式传 off 与缺省参数结果一致', () => {
+  it('缺省策略下端口上下文惰性（与迁移前省略端口参数等价）', () => {
+    // loose 端口轴 + off 档时，页面端口不参与判定：调用方传不传端口上下文都必须得到同一份列表，
+    // 否则「取不到端口」这一状态本身就会改变可见集，端口隔离尚未开启即先引入差异
     expect(
-      filterAndSortEntriesForDomain(MULTI_ENV, 'mail.qq.com', DEFAULT_SIDEPANEL_SORT, undefined, 'off').map(p => p.id),
-    ).toEqual(filterAndSortEntriesForDomain(MULTI_ENV, 'mail.qq.com', DEFAULT_SIDEPANEL_SORT).map(p => p.id));
+      filterAndSortEntriesForDomain(
+        MULTI_ENV,
+        'mail.qq.com',
+        DEFAULT_SIDEPANEL_SORT,
+        page('https://mail.qq.com:8443'),
+        policy(),
+      ).map(p => p.id),
+    ).toEqual(legacyFilter([...MULTI_ENV], 'mail.qq.com'));
   });
 });
 
@@ -243,8 +265,8 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
       MULTI_ENV,
       'mail.qq.com',
       DEFAULT_SIDEPANEL_SORT,
-      undefined,
-      'sameMainDomain',
+      null,
+      policy('sameMainDomain'),
     ).map(p => p.id);
     expect(ids).toEqual(['exact', 'wild', 'apex', 'sibling', 'generic']);
   });
@@ -254,17 +276,20 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
       MULTI_ENV,
       'mail.qq.com',
       DEFAULT_SIDEPANEL_SORT,
-      undefined,
-      'wildcard',
+      null,
+      policy('wildcard'),
     ).map(p => p.id);
     expect(ids).toEqual(['exact', 'wild', 'generic']);
   });
 
   it('本地开发域名仍走端口过滤，三档结果一致（档位不参与）', () => {
     const localdev = [entry({ id: 'p3000', url: 'localhost:3000' }), entry({ id: 'p8080', url: 'localhost:8080' })];
+    const localPage = page('http://localhost:3000');
     for (const mode of ['off', 'wildcard', 'sameMainDomain'] as const) {
       expect(
-        filterAndSortEntriesForDomain(localdev, 'localhost', DEFAULT_SIDEPANEL_SORT, '3000', mode).map(p => p.id),
+        filterAndSortEntriesForDomain(localdev, 'localhost', DEFAULT_SIDEPANEL_SORT, localPage, policy(mode)).map(
+          p => p.id,
+        ),
       ).toEqual(['p3000']);
     }
   });

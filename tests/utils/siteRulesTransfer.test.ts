@@ -178,17 +178,23 @@ describe('parseSiteRulesImportText（结构与条目校验）', () => {
     for (const rule of rules) expect('fillEntry' in rule).toBe(false);
   });
 
-  it('剔除非法域名与非法选择器，保留同一文件里的合法规则', () => {
+  it('剔除非法域名与含非法选择器的条目，只钉一侧的规则照收', () => {
     const rules = parseRules(
       envelopeText([
         { domain: 'https://bad.com', customSelectors: { username: '#u', password: '#p' } },
+        // 写了的一侧语法非法 → 整条剔除：静默丢掉坏侧会让用户以为两侧都钉住了
         { domain: 'bad-selector.com', customSelectors: { username: '##', password: '#p' } },
+        // 只钉一侧是新语义下的合法形态（短信码站点没有密码框）
         { domain: 'half.com', customSelectors: { username: '#u' } },
+        { domain: 'nothing.com', customSelectors: { username: '##' } },
         { domain: 'good.com', customSelectors: { username: '#u', password: '#p' } },
       ]),
     );
 
-    expect(rules).toEqual([{ domain: 'good.com', customSelectors: { username: '#u', password: '#p' } }]);
+    expect(rules).toEqual([
+      { domain: 'half.com', customSelectors: { username: '#u' } },
+      { domain: 'good.com', customSelectors: { username: '#u', password: '#p' } },
+    ]);
   });
 
   it('被剔除的条数与规则一起回报，重复域名也计入，避免静默丢数据', () => {
@@ -324,13 +330,16 @@ describe('importSiteRulesFromText（落盘）', () => {
   it('部分条目被剔除时照常落盘合法部分，并把剔除数回给调用方', async () => {
     const result = await importSiteRulesFromText(
       envelopeText([
-        { domain: 'bad.com', customSelectors: { username: '##', password: '#p' } },
+        // 两侧都不合法 = 这条规则没有任何有效内容，仍然整条剔除
+        { domain: 'bad.com', customSelectors: { username: '##', password: '##' } },
         { domain: 'ok.com', customSelectors: { username: '#u', password: '#p' } },
+        // 只钉一侧是新语义下的有效规则（短信码站点没有密码框），不能被当成坏条目丢掉
+        { domain: 'half.com', customSelectors: { username: '#u' } },
       ]),
     );
 
-    expect(result).toEqual({ added: 1, updated: 0, dropped: 1 });
-    expect(Object.keys(await getSiteRules())).toEqual(['ok.com']);
+    expect(result).toEqual({ added: 2, updated: 0, dropped: 1 });
+    expect(Object.keys(await getSiteRules()).sort()).toEqual(['half.com', 'ok.com']);
   });
 
   it('只设档位的规则落库后仍能被内容脚本按域名读到', async () => {

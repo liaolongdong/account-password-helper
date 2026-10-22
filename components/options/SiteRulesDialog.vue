@@ -34,16 +34,30 @@
           >
             <template #default="{ row }">
               <div
-                v-if="row.customSelectors"
+                v-if="hasAnySelector(row)"
                 class="selector-cell"
               >
-                <div class="selector-line">
+                <div
+                  v-if="row.customSelectors?.username"
+                  class="selector-line"
+                >
                   <span class="selector-tag">{{ t('options.siteRules.labelUsername') }}</span>
                   <code :title="row.customSelectors.username">{{ row.customSelectors.username }}</code>
                 </div>
-                <div class="selector-line">
+                <div
+                  v-if="row.customSelectors?.password"
+                  class="selector-line"
+                >
                   <span class="selector-tag">{{ t('options.siteRules.labelPassword') }}</span>
                   <code :title="row.customSelectors.password">{{ row.customSelectors.password }}</code>
+                </div>
+                <!-- 只钉一侧时把「另一侧仍由插件自动识别」写在同一格里：列表是用户回看规则时唯一
+                     能看到的地方，少了这句就会误以为整站的字段来源都被规则管住了 -->
+                <div
+                  v-if="isHalfSelectorRule(row)"
+                  class="selector-line"
+                >
+                  <span class="selector-auto">{{ t('options.siteRules.selectorAutoOther') }}</span>
                 </div>
               </div>
               <span
@@ -136,6 +150,7 @@
           <el-input
             v-model="formData.domain"
             :readonly="isEditing"
+            :disabled="!!pickingField"
             :class="{ 'domain-input--locked': isEditing }"
             :placeholder="t('options.siteRules.formDomainPlaceholder')"
             :clearable="!isEditing"
@@ -184,22 +199,68 @@
           :label="t('options.siteRules.formUsernameSelector')"
           prop="usernameSelector"
         >
-          <el-input
-            v-model="formData.usernameSelector"
-            :placeholder="t('options.siteRules.formUsernamePlaceholder')"
-            clearable
-          />
+          <div class="selector-field-row">
+            <el-input
+              v-model="formData.usernameSelector"
+              class="selector-field-input"
+              :placeholder="t('options.siteRules.formUsernamePlaceholder')"
+              clearable
+              @input="revalidateSelectors"
+            />
+            <el-button
+              class="selector-pick-button"
+              :icon="Aim"
+              :loading="pickingField === 'username'"
+              :disabled="!!pickingField && pickingField !== 'username'"
+              :title="t('options.siteRules.pickUsername')"
+              :aria-label="t('options.siteRules.pickUsername')"
+              @click="startPick('username')"
+            >
+              {{ t('options.siteRules.pick') }}
+            </el-button>
+          </div>
+          <div class="field-tip">{{ t('options.siteRules.selectorSingleHint') }}</div>
         </el-form-item>
 
         <el-form-item
           :label="t('options.siteRules.formPasswordSelector')"
           prop="passwordSelector"
         >
-          <el-input
-            v-model="formData.passwordSelector"
-            :placeholder="t('options.siteRules.formPasswordPlaceholder')"
-            clearable
-          />
+          <div class="selector-field-row">
+            <el-input
+              v-model="formData.passwordSelector"
+              class="selector-field-input"
+              :placeholder="t('options.siteRules.formPasswordPlaceholder')"
+              clearable
+              @input="revalidateSelectors"
+            />
+            <el-button
+              class="selector-pick-button"
+              :icon="Aim"
+              :loading="pickingField === 'password'"
+              :disabled="!!pickingField && pickingField !== 'password'"
+              :title="t('options.siteRules.pickPassword')"
+              :aria-label="t('options.siteRules.pickPassword')"
+              @click="startPick('password')"
+            >
+              {{ t('options.siteRules.pick') }}
+            </el-button>
+          </div>
+          <div
+            class="field-tip picker-tip"
+            aria-live="polite"
+          >
+            {{
+              pickingField
+                ? t('options.siteRules.pickActiveHint', {
+                    field:
+                      pickingField === 'username'
+                        ? t('options.siteRules.labelUsername')
+                        : t('options.siteRules.labelPassword'),
+                  })
+                : t('options.siteRules.pickHint')
+            }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -225,6 +286,7 @@
         <el-button
           type="primary"
           :loading="saving"
+          :disabled="!!pickingField"
           @click="handleSubmit"
         >
           {{ t('common.save') }}
@@ -267,11 +329,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus';
-import { Plus, Lock, Download, Upload } from '@element-plus/icons-vue';
+import { Plus, Lock, Download, Upload, Aim } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
-import type { FillEntry } from '@/utils/types';
+import {
+  MessageType,
+  type FillEntry,
+  type SelectorPickedData,
+  type SelectorPickCancelledData,
+  type StartSelectorPickResponse,
+} from '@/utils/types';
 import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { logger } from '@/utils/logger';
 import {
@@ -316,6 +384,196 @@ const editingRule = ref<SiteRule | null>(null);
 const saving = ref(false);
 const exporting = ref(false);
 const importing = ref(false);
+
+type PickField = 'username' | 'password';
+
+/** 正在拾取的字段；null 表示拾取器未运行 */
+const pickingField = ref<PickField | null>(null);
+const pickRequestId = ref('');
+let pickTabId: number | undefined;
+let pickTimeout: ReturnType<typeof setTimeout> | null = null;
+let pickDomain = '';
+
+const runtimeAvailable = (): boolean =>
+  typeof chrome !== 'undefined' && typeof chrome.runtime?.sendMessage === 'function';
+
+const clearPickState = (): void => {
+  if (pickTimeout) {
+    clearTimeout(pickTimeout);
+    pickTimeout = null;
+  }
+  pickingField.value = null;
+  pickRequestId.value = '';
+  pickTabId = undefined;
+  pickDomain = '';
+};
+
+/** 取消仍在目标页运行的拾取器；无论消息是否送达都先清本地状态，避免表单被锁住 */
+const cancelActivePick = (): void => {
+  const requestId = pickRequestId.value;
+  const tabId = pickTabId;
+  clearPickState();
+  if (!requestId || !runtimeAvailable()) return;
+  try {
+    void chrome.runtime
+      .sendMessage({ type: MessageType.CANCEL_SELECTOR_PICK, data: { tabId, requestId } })
+      .catch(() => {});
+  } catch {
+    /* 扩展上下文已失效时没有可清理的页面 */
+  }
+};
+
+let optionsTabId: number | undefined;
+
+/** 拾取完成后把管理页切回前台，用户不必再手动找回来 */
+const activateOptionsTab = async (): Promise<void> => {
+  if (optionsTabId === undefined || !runtimeAvailable()) return;
+  try {
+    const tab = await chrome.tabs.get(optionsTabId);
+    await chrome.tabs.update(optionsTabId, { active: true });
+    if (tab?.windowId !== undefined) await chrome.windows.update(tab.windowId, { focused: true });
+  } catch {
+    /* 管理页可能已被关闭；结果仍会留在内存状态里，没有可切回的页面 */
+  }
+};
+
+/** 启动拾取：背景会切到同域名的已打开标签页，用户点一下输入框即可回填 */
+const startPick = async (field: PickField): Promise<void> => {
+  if (pickingField.value) return;
+  const domain = normalizeSiteRuleDomain(formData.domain);
+  if (!domain) {
+    const validation = formRef.value?.validateField('domain');
+    if (validation) void validation.catch(() => {});
+    ElMessage.warning(t('options.siteRules.pickDomainRequired'));
+    return;
+  }
+  if (!runtimeAvailable()) {
+    ElMessage.error(t('options.siteRules.pickFailed'));
+    return;
+  }
+
+  pickingField.value = field;
+  pickDomain = domain;
+  pickRequestId.value =
+    typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const requestId = pickRequestId.value;
+  pickTimeout = setTimeout(() => {
+    if (!pickingField.value || pickRequestId.value !== requestId) return;
+    // 超时不只是关本地状态：目标页上的拾取覆盖层也要撤掉
+    cancelActivePick();
+    ElMessage.warning(t('options.siteRules.pickTimeout'));
+    void activateOptionsTab();
+  }, 120_000);
+
+  try {
+    const response = (await chrome.runtime.sendMessage({
+      type: MessageType.START_SELECTOR_PICK,
+      data: { domain, field, requestId },
+    })) as StartSelectorPickResponse | undefined;
+
+    // 等待回包期间可能已超时 / 取消 / 切换了请求：旧响应不得重新点亮表单状态
+    if (pickRequestId.value !== requestId || pickingField.value !== field) {
+      if (response?.success && response.tabId !== undefined) {
+        try {
+          void chrome.runtime
+            .sendMessage({ type: MessageType.CANCEL_SELECTOR_PICK, data: { tabId: response.tabId, requestId } })
+            .catch(() => {});
+        } catch {
+          /* 扩展上下文失效时没有可取消的页面 */
+        }
+      }
+      return;
+    }
+
+    if (!response?.success) {
+      clearPickState();
+      if (response?.error === 'NO_TAB') {
+        ElMessage.warning(t('options.siteRules.pickNoTab', { domain }));
+      } else if (response?.error === 'NO_CONTENT_SCRIPT') {
+        ElMessage.warning(t('options.siteRules.pickNoContentScript'));
+      } else {
+        ElMessage.error(t('options.siteRules.pickFailed'));
+      }
+      return;
+    }
+    pickTabId = response.tabId;
+    ElMessage.info(t('options.siteRules.pickStarted'));
+  } catch (error) {
+    logger.error('启动选择器拾取失败:', error);
+    clearPickState();
+    ElMessage.error(t('options.siteRules.pickFailed'));
+  }
+};
+
+/** 接收 Background 广播的拾取结果 / 取消回执 */
+const handleSelectorPickMessage = (message: unknown): void => {
+  if (!pickingField.value) return;
+  const msg = message as {
+    type?: string;
+    data?: Partial<SelectorPickedData> & Partial<SelectorPickCancelledData>;
+  };
+  if (msg.type === MessageType.SELECTOR_PICKED) {
+    const data = msg.data as Partial<SelectorPickedData> | undefined;
+    if (
+      !data ||
+      data.requestId !== pickRequestId.value ||
+      data.field !== pickingField.value ||
+      (data.domain && data.domain !== pickDomain)
+    ) {
+      return;
+    }
+    const selector = typeof data.selector === 'string' ? data.selector.trim() : '';
+    if (!selector || !isValidCssSelector(selector)) {
+      clearPickState();
+      ElMessage.error(t('options.siteRules.pickInvalid'));
+      void activateOptionsTab();
+      return;
+    }
+    const field = pickingField.value;
+    if (field === 'username') formData.usernameSelector = selector;
+    else formData.passwordSelector = selector;
+    clearPickState();
+    revalidateSelectors();
+    // 拾取到的框自己声明了一次性口令语义（验证码 / 动态口令）时提醒一句：账号或密码任何一侧都适用，
+    // 规则照用户的设置生效，但填充回执会标出「来自站点规则」。短信码站点没有密码框时更该留空。
+    // 两个提示同时成立时只播这一条：不唯一只是要复核选择器，而这一条意味着落点可能就是错的。
+    if (data.codeLike === true) {
+      ElMessage.warning(t('options.siteRules.pickCodeLikeWarning'));
+    } else if (data.unique === false) {
+      ElMessage.warning(t('options.siteRules.pickNotUnique'));
+    } else {
+      ElMessage.success(t('options.siteRules.pickSuccess'));
+    }
+    void activateOptionsTab();
+    return;
+  }
+  if (msg.type === MessageType.SELECTOR_PICK_CANCELLED) {
+    const data = msg.data as Partial<SelectorPickCancelledData> | undefined;
+    if (!data || data.requestId !== pickRequestId.value) return;
+    clearPickState();
+    ElMessage.info(t('options.siteRules.pickCancelled'));
+    void activateOptionsTab();
+  }
+};
+
+onMounted(() => {
+  if (runtimeAvailable()) {
+    chrome.runtime.onMessage.addListener(handleSelectorPickMessage);
+    void chrome.tabs
+      .getCurrent()
+      .then(tab => {
+        optionsTabId = tab?.id;
+      })
+      .catch(() => {});
+  }
+});
+
+onBeforeUnmount(() => {
+  if (runtimeAvailable()) chrome.runtime.onMessage.removeListener(handleSelectorPickMessage);
+  cancelActivePick();
+});
 
 /** 导入错误码 → 可读文案；原始异常只进日志，不直接抛给用户 */
 const IMPORT_ERROR_KEYS: Record<SiteRulesImportErrorCode, string> = {
@@ -373,27 +631,23 @@ const FILL_ENTRY_I18N_KEYS: Record<FillEntry, string> = {
 /** 列表列与表单复用的档位标签 */
 const fillEntryLabel = (entry: FillEntry): string => t(FILL_ENTRY_I18N_KEYS[entry]);
 
+/** 该规则是否钉住了任一字段来源（两侧都空 = 只覆盖档位/穿透，选择器列显示空态文案） */
+const hasAnySelector = (rule: SiteRule): boolean =>
+  !!(rule.customSelectors?.username || rule.customSelectors?.password);
+
+/** 该规则是否只钉了一侧，需要在列表里补一句「另一侧仍由插件自动识别」 */
+const isHalfSelectorRule = (rule: SiteRule): boolean =>
+  !!rule.customSelectors?.username !== !!rule.customSelectors?.password;
+
 /**
- * 选择器规则：要么两侧都填、要么都留空，且语法合法
+ * 选择器规则：两侧各自独立，可填可不填，填了就必须语法合法
  *
- * 不能只填一侧：`CustomSelectors` 是成对语义（消费端拿它同时覆盖账号/密码两个字段的来源），
- * 半条规则会让另一侧继续走启发式检测，用户看到的是一张「规则生效了一半」的页面。
- * 两侧都留空则合法——只覆盖填充档位、或只关影子穿透，都是有效规则。
- * 判定读的是 `formData` 而非回调里的 `value`，因为这条规则同时挂在账号与密码两个字段上，
- * 任一侧 blur 都要能对整对字段给出结论。
+ * 曾经要求「要么两侧都填、要么都留空」，理由是半条规则会让另一侧继续走启发式。但短信验证码
+ * 登录页根本没有密码框：想钉住账号框就必须随手再指一个「密码框」，而唯一还能点的框就是
+ * 验证码框——规则覆盖是权威路径、绕过全部启发式判据，于是密码被写进验证码框（实测事故）。
+ * 现在按「配一侧即只钉一侧」表达，未配的侧继续自动检测，这正是用户当时的真实意图。
  */
 const selectorRules = computed(() => [
-  {
-    validator: (_rule: unknown, _value: string, callback: (err?: Error) => void) => {
-      const hasUsername = !!formData.usernameSelector.trim();
-      const hasPassword = !!formData.passwordSelector.trim();
-      if (hasUsername !== hasPassword) {
-        return callback(new Error(t('options.siteRules.validateSelectorPair')));
-      }
-      callback();
-    },
-    trigger: 'blur',
-  },
   {
     validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
       const selector = (value ?? '').trim();
@@ -411,6 +665,23 @@ const findRuleByDomain = (domain: string): SiteRule | undefined => {
   const normalized = normalizeSiteRuleDomain(domain);
   if (!normalized) return undefined;
   return rulesList.value.find(rule => normalizeSiteRuleDomain(rule.domain) === normalized);
+};
+
+/**
+ * 重新校验账号与密码两个选择器字段
+ *
+ * 两侧共用同一条语法规则，但校验是分字段触发的：手动清空一侧后另一侧可能仍显示过期提示，
+ * 因此任一侧改动后把两个字段一起校验，让提示与当前内容同步。
+ */
+let selectorsValidationScheduled = false;
+const revalidateSelectors = (): void => {
+  if (!showForm.value || !formRef.value || selectorsValidationScheduled) return;
+  selectorsValidationScheduled = true;
+  void nextTick(() => {
+    selectorsValidationScheduled = false;
+    const validation = formRef.value?.validateField(['usernameSelector', 'passwordSelector']);
+    if (validation) void validation.catch(() => {});
+  });
 };
 
 const formRules = computed(() => ({
@@ -472,6 +743,7 @@ const resetForm = () => {
 
 /** 打开添加模式 */
 const handleAdd = () => {
+  cancelActivePick();
   editingRule.value = null;
   resetForm();
   showForm.value = true;
@@ -479,6 +751,7 @@ const handleAdd = () => {
 
 /** 打开编辑模式 */
 const handleEdit = (rule: SiteRule) => {
+  cancelActivePick();
   editingRule.value = rule;
   formData.domain = rule.domain;
   formData.usernameSelector = rule.customSelectors?.username ?? '';
@@ -491,6 +764,7 @@ const handleEdit = (rule: SiteRule) => {
 
 /** 取消编辑，回到列表 */
 const cancelForm = () => {
+  cancelActivePick();
   showForm.value = false;
   editingRule.value = null;
   resetForm();
@@ -499,6 +773,7 @@ const cancelForm = () => {
 /** 提交表单 */
 const handleSubmit = async () => {
   if (!formRef.value) return;
+  cancelActivePick();
   try {
     await formRef.value.validate();
   } catch {
@@ -512,7 +787,7 @@ const handleSubmit = async () => {
   const password = formData.passwordSelector.trim();
   // 三项覆盖全为空：新增态是在造一条空壳，编辑态是在撤销这个站点的全部特殊处理，两种意图
   // 不能按同一条规则处置（见下面 clearingAll 分支）。
-  const clearingAll = formData.fillEntry === FOLLOW_GLOBAL && formData.penetrateShadow && !(username && password);
+  const clearingAll = formData.fillEntry === FOLLOW_GLOBAL && formData.penetrateShadow && !(username || password);
   // 新增态拒绝入库：只带一个域名的规则什么都不做，却会在列表里长期占一行，
   // 让人以为这个站点已被管住（导入侧对同样的空规则也是直接剔除）。
   if (clearingAll && !editingRule.value) {
@@ -520,9 +795,14 @@ const handleSubmit = async () => {
     return;
   }
   const patch: Omit<SiteRule, 'domain'> = { penetrateShadow: formData.penetrateShadow };
-  // 选择器成对写入（校验已保证两侧同时有或同时无），两侧都空时干脆不写这个键，
-  // 而不是留一条 `{ username: '', password: '' }`：消费端按「键存在」决定是否覆盖，空串只会变成两条永不命中的查询
-  if (username && password) patch.customSelectors = { username, password };
+  // 只写非空的那一侧（空侧 = 该侧继续自动检测），两侧都空时干脆不写这个键，
+  // 而不是留一条 `{ username: '', password: '' }`：消费端按「键存在且非空」决定是否覆盖，空串只会变成一条永不命中的查询
+  if (username || password) {
+    patch.customSelectors = {
+      ...(username ? { username } : {}),
+      ...(password ? { password } : {}),
+    };
+  }
   // 「跟随全局」= 不写该字段，而不是写死当前全局档位：写死会让用户之后的全局设置变更
   // 在这个站点上被永久挡掉，而那并不是他设规则时的意思。
   if (formData.fillEntry !== FOLLOW_GLOBAL) patch.fillEntry = formData.fillEntry;
@@ -630,6 +910,7 @@ const handleImportFile = async (event: Event) => {
 
 /** 弹窗关闭动画结束后复位到列表视图 */
 const handleClosed = () => {
+  cancelActivePick();
   showForm.value = false;
   editingRule.value = null;
   resetForm();
@@ -710,6 +991,12 @@ function openPrefilledRule(rawDomain: string): void {
   white-space: nowrap;
 }
 
+/* 半条规则的补充说明：与 .selector-tag / code 同字号，但它是解释不是内容，用次级灰 */
+.selector-auto {
+  font-size: 12px;
+  color: #909399;
+}
+
 /* 覆盖档位标签：与选择器行的 .selector-tag 同族，但它是「一档设置」不是「一段代码」，
    用中性底色而不是主色胶囊，避免列表里两类信息看起来同等重要 */
 .fill-entry-tag {
@@ -756,6 +1043,27 @@ function openPrefilledRule(rawDomain: string): void {
   font-size: 12px;
   line-height: 1.4;
   color: #909399;
+}
+
+/* 选择器输入框与「拾取」按钮同一行；输入框吸收剩余宽度，按钮不被压缩 */
+.selector-field-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.selector-field-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.selector-pick-button {
+  flex-shrink: 0;
+}
+
+.picker-tip {
+  margin-top: 4px;
 }
 
 /* 影子 DOM 穿透行的下边距从 form-item 交给移到外面的提示语，

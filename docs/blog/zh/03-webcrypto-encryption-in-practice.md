@@ -3,12 +3,12 @@ title: 用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + 
 description: 不引任何加密库，只用浏览器原生 Web Crypto API 构建可审计的加密体系：密钥派生、字段级加密、会话生命周期与换钥的完整实现。
 tags: Web Crypto,加密,密码管理器,安全,Chrome扩展
 date: 2026-08-28
-modified: 2026-10-13
+modified: 2026-10-18
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
 
-![从主密码到密文：加密管线全流程](imgs/02-flowchart-security-pipeline.png)
+![从主密码到密文：加密管线全流程](imgs/02-flowchart-security-pipeline.webp)
 
 给密码管理器写加密模块，第一反应往往是引入一个加密库。但如果你做的是浏览器扩展，有个更好的选择：**什么都不引，直接用浏览器原生的 Web Crypto API**。
 
@@ -85,4 +85,4 @@ image: imgs/blog-cover-03-webcrypto.png
 
 ---
 
-_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（2888 项自动化测试，含加密与换钥路径）。_
+_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（3912 项自动化测试，含加密与换钥路径）。_

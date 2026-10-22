@@ -5,28 +5,37 @@ import {
   type FillEntry,
   FillPasswordData,
   FillResult,
+  type FillOutcome,
   PingResponse,
   PendingTotpData,
 } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
+import { resetSessionMemoryState, SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import { logger } from '@/utils/logger';
 import {
   USERNAME_SELECTORS,
   MOBILE_SELECTORS,
   VERIFY_CODE_SELECTORS,
+  isPhoneExtensionField,
   LOGIN_BUTTON_KEYWORDS,
   LOGIN_BUTTON_SELECTORS,
   MUTATION_LOGIN_KEYWORDS,
-  MOBILE_KEYWORDS,
+  classifyAccountField,
+  isEmailLikeValue,
+  isPhoneLikeValue,
+  looksLikeCodeField,
+  looksLikePhoneField,
+  matchesVerifyCodeSelectors,
   normalizeButtonText,
   shouldExcludeButton,
-} from '@/entrypoints/content/formSelectors';
-import { InputFiller } from '@/entrypoints/content/InputFiller';
-import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
-import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
-import type { FormFieldSets } from '@/entrypoints/content/types';
-import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
-import { isDetectableCheckbox, isElementVisible } from './domUtils';
+} from './formSelectors';
+import type { AccountFieldKind } from './formSelectors';
+import { InputFiller } from './InputFiller';
+import { CheckboxHandler } from './CheckboxHandler';
+import { LoginFormAnalyzer } from './LoginFormAnalyzer';
+import type { FormFieldSets } from './types';
+import { PasswordVisibilityToggle } from './PasswordVisibilityToggle';
+import { isDetectableAriaCheckbox, isDetectableCheckbox, isElementVisible } from './domUtils';
 import { fillContextMenuTarget, resolveContextMenuInputTarget } from './contextMenuTarget';
 import { isNotificationType, NOTICE_MAX_LENGTH, showNativeNotification } from './NativeNotification';
 import { tl } from '@/utils/i18n-lite';
@@ -38,13 +47,39 @@ import {
   getTotpHandoffCapsule,
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
+import { getFillAckChip, destroyFillAckChip, type FillAckKind } from './FillAckChip';
+import {
+  destroyIdentityHint,
+  hideIdentityHint,
+  prefetchIdentityHintSettingsTip,
+  setIdentityHintTheme,
+  showIdentityHint,
+} from './IdentityHint';
+import { resolvePiiField } from './piiClassifier';
+import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
-import { getSiteRule, isValidCssSelector, type SiteRule } from '@/utils/storage/siteRules';
+import {
+  getSiteRules,
+  isValidCssSelector,
+  resolveShadowScopedSelector,
+  resolveSiteRuleForHosts,
+  SHADOW_SELECTOR_SEPARATOR,
+  type SiteRule,
+} from '@/utils/storage/siteRules';
 import { resolveFillEntry } from '@/utils/fillEntry';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 /** 收集 open shadow DOM 查询根时的节点预算，防止极端页面把主线程吃满 */
 const SHADOW_ROOT_SCAN_BUDGET = 6000;
+
+/**
+ * 快速填充那把钥匙「取得出值」的角色
+ *
+ * 钥匙的面板只有账号、手机号、邮箱三类值，所以让位只对这几档成立。旧分桶把带「号码」的框
+ * （证件号码、订单号码）也读成手机号框，钥匙会在它们上面出现，却填不出身份库里的证件号——
+ * 跟着让位就是提示与钥匙双双落空，正是用户实测「身份证号码那一行没识别到」的成因之一。
+ */
+const SIDE_PANEL_FILLABLE_ROLES: ReadonlySet<IdentityHintRole> = new Set<IdentityHintRole>(['phone', 'email']);
 
 /**
  * 表单检测器
@@ -61,7 +96,7 @@ export class FormDetector {
   /** 检测到的验证码输入框列表 */
   private verifyCodeFields: HTMLInputElement[] = [];
   /** 检测到的复选框列表 */
-  private checkboxFields: HTMLInputElement[] = [];
+  private checkboxFields: HTMLElement[] = [];
   /** 检测到的登录按钮列表 */
   private loginButtons: HTMLElement[] = [];
   /** DOM 变化观察器 */
@@ -87,6 +122,14 @@ export class FormDetector {
   private fillFailurePromptShown = false;
   /** 当前站点的填充规则（自定义选择器 / 影子穿透覆盖），null 表示未配置 */
   private siteRule: SiteRule | null = null;
+  /**
+   * 本轮由站点规则钉死的账号 / 密码落点
+   *
+   * 只用于给填充回执标注来源（「这次写入用的是你自己的规则」），不参与任何落点决策——
+   * 规则始终以用户设置为准。每轮 `detectForms()` 先清空，避免无规则的站点沿用上一轮标记。
+   */
+  private ruleUsernameField: HTMLInputElement | null = null;
+  private rulePasswordField: HTMLInputElement | null = null;
   /** 站点规则读取Promise（首轮检测依赖，避免规则尚未读到就检测导致选择器被静默跳过） */
   private siteRuleReady: Promise<void> = Promise.resolve();
   /** 站点规则存储监听器（destroy 时移除） */
@@ -191,6 +234,9 @@ export class FormDetector {
       this.inlineDropdown.setTheme(this.floatingButtonConfig.theme);
       // 预置两步接力胶囊主题（实例创建无 DOM 副作用，Shadow 惰性构建）
       getTotpHandoffCapsule().setTheme(this.floatingButtonConfig.theme);
+      // 「开关在哪」那行说明要在聚焦那一刻同步决定画不画，标记提前取；
+      // 提示总闸关着时不必为一句不会出现的文案读一次存储
+      if (this.identityHintEnabled) void prefetchIdentityHintSettingsTip();
     } catch (error) {
       logger.error('FormDetector: 加载配置失败:', error);
     }
@@ -217,9 +263,30 @@ export class FormDetector {
    */
   private setupStorageListener(): void {
     this.storageListener = changes => {
+      /*
+       * 会话键变化必须让本上下文的内存镜像失效。
+       *
+       * `isSessionValid()` 在镜像已填好时会跳过 storage 回读：手动锁定 / 到期清除发生在
+       * 另一个上下文时，这里会继续用陈旧 expiry 返回 true。后台只重置它自己的镜像，
+       * 内容脚本此前没有对应清理，于是「解锁 → 锁定 → 再聚焦」仍会出身份提示。
+       * 会话创建 / 换钥时同样重置，下一次检查自然会用新的键重建镜像。
+       */
+      const sessionKeysChanged = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY].some(
+        key => key in changes,
+      );
+      if (sessionKeysChanged) {
+        const sessionRemoved = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY].some(
+          key => changes[key]?.newValue === undefined,
+        );
+        resetSessionMemoryState();
+        if (sessionRemoved) hideIdentityHint();
+      }
+
       if (changes.floating_button_config) {
         const rawConfig = changes.floating_button_config.newValue as Partial<FloatingButtonConfig> | undefined;
         if (rawConfig) {
+          const penetratedBefore = this.penetrateShadowEnabled;
+          const hintedBefore = this.identityHintEnabled;
           // 合并默认值兜底：升级钩子 freezeLegacyFillDefaults 可能写入部分对象，
           // 直接整体替换会令 visible/theme 等未覆盖字段变为 undefined
           const newConfig: FloatingButtonConfig = {
@@ -235,6 +302,18 @@ export class FormDetector {
           this.inlineDropdown.setTheme(newConfig.theme);
           // 同步两步接力胶囊主题
           getTotpHandoffCapsule().setTheme(newConfig.theme);
+          // 同步身份提示气泡主题：影子宿主常驻复用，令牌只在 ensureHost 那次内联写入，
+          // 不在这里重放就会让已显示的气泡停在旧主色直到页面刷新（与接力胶囊同口径）
+          setIdentityHintTheme(newConfig.theme);
+          // 穿透总闸翻转后重检测，口径同站点规则那条监听：否则关闸要刷新页面才见效。
+          // 只在翻转时做——位置/透明度每次拖动都会写这份配置，全量重检测代价太大。
+          if (penetratedBefore !== this.penetrateShadowEnabled) this.detectForms();
+          // 身份提示总闸翻到「关」时把屏上那枚一起收起：聚焦那一刻的门管不到已经可见的气泡，
+          // 而管理页与侧边栏的偏好设置弹窗都在另一个上下文里写这份配置。
+          // 反方向（关→开）补一次预取：那行「开关在哪」的说明靠初始化时预取才画得到，
+          // 而这份配置可能在页面活着的时候才被拨开，不补就只能等下一次加载。
+          if (hintedBefore && !this.identityHintEnabled) hideIdentityHint();
+          else if (!hintedBefore && this.identityHintEnabled) void prefetchIdentityHintSettingsTip();
         }
       }
     };
@@ -281,6 +360,9 @@ export class FormDetector {
       const currentUrl = location.href;
       if (currentUrl !== this.lastUrl) {
         this.lastUrl = currentUrl;
+        // SPA 路由切换可能直接移除焦点字段，浏览器不保证派发 focusout；
+        // 不主动收起会让身份气泡以最高 z-index 悬空留在新页面上。
+        hideIdentityHint();
         this.notifyUrlChange();
       }
 
@@ -387,6 +469,8 @@ export class FormDetector {
     this.verifyCodeFields = [];
     this.checkboxFields = [];
     this.loginButtons = [];
+    this.ruleUsernameField = null;
+    this.rulePasswordField = null;
     this.passwordFieldsSet = new WeakSet();
     this.usernameFieldsSet = new WeakSet();
     this.mobileFieldsSet = new WeakSet();
@@ -419,10 +503,19 @@ export class FormDetector {
       }
     });
 
-    // 检测手机号码字段（排除已归类为用户名的字段）
+    // 检测手机号码字段（排除已归类为用户名的字段与验证码字段）
+    // `MOBILE_SELECTORS` 含裸 `input[type="tel"]`，而国内短信登录页的验证码框常常也写成
+    // `type="tel"`（防偷看 + 数字键盘）。手机号桶先跑、验证码桶只排除账号/手机号桶，
+    // 于是验证码框会被读成手机号框、`verifyCodeFields` 变空——后果是 TOTP 动态码报
+    // 「未找到验证码输入框」、两步接力胶囊不出现、且账号回退会把手机号写进验证码框。
     const mobileInputs = document.querySelectorAll(MOBILE_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
     Array.from(mobileInputs).forEach(input => {
-      if (isElementVisible(input) && !this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
+      if (
+        isElementVisible(input) &&
+        !this.mobileFieldsSet.has(input) &&
+        !this.usernameFieldsSet.has(input) &&
+        !matchesVerifyCodeSelectors(input)
+      ) {
         this.mobileFields.push(input);
         this.mobileFieldsSet.add(input);
         this.fieldTypeCache.set(input, 'mobile');
@@ -450,9 +543,14 @@ export class FormDetector {
       this.detectUsernameByProximity();
     }
 
-    // 检测复选框（含原生 input 被隐藏但存在可见关联 label 的自定义样式复选框）
+    // 检测复选框：原生 input（含 input 被隐藏但存在可见关联 label 的自定义样式载体）+
+    // role="checkbox" 按钮模拟复选框（现代组件库载体，如豆包登录弹窗的协议勾选）
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-    this.checkboxFields = Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input));
+    const ariaCheckboxes = document.querySelectorAll('[role="checkbox"]') as NodeListOf<HTMLElement>;
+    this.checkboxFields = [
+      ...Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input)),
+      ...Array.from(ariaCheckboxes).filter(el => isDetectableAriaCheckbox(el)),
+    ];
 
     // F1: 站点规则自定义选择器——命中则作为权威字段覆盖启发式结果（确定性控制）
     this.applySiteRuleSelectors();
@@ -506,6 +604,10 @@ export class FormDetector {
     }
     try {
       const res = await chrome.runtime.sendMessage({ type: MessageType.GET_PENDING_TOTP });
+      // await 之后必须先重新确认生命周期再动 UI：`destroy()` 已跑过时这一次 `show` 会重建
+      // 胶囊单例，而销毁路径早已走完，此后没有任何清理入口（与本文件 detectForms、
+      // fillPassword 各续体的 disposed 门同口径，也符合「await 续体不得在销毁后动作」的既有约定）。
+      if (this.disposed || !field.isConnected) return;
       const entryId = (res?.data as PendingTotpData | undefined)?.entryId;
       if (!entryId) {
         logger.debug('两步接力：验证码页未命中待接力标记（未记录/已过期/域名失配）');
@@ -541,6 +643,16 @@ export class FormDetector {
   }
 
   /**
+   * 个人信息字段提示总闸是否启用
+   *
+   * 判据取「显式 false 才关」：存量配置里没有这个键，未写即开，口径与设置面板的
+   * `isSwitchOn` 一致（两处各写一份时，老配置下面板的显示态与实际门会错位）。
+   */
+  private get identityHintEnabled(): boolean {
+    return this.floatingButtonConfig.identityHintEnabled !== false;
+  }
+
+  /**
    * F1: 当前站点生效的快速填充入口
    *
    * 站点规则优先于全局配置，未设档位即跟随全局（见 `resolveFillEntry`）。这是填充
@@ -560,7 +672,14 @@ export class FormDetector {
   private async loadSiteRule(): Promise<void> {
     if (!this.domain) return;
     try {
-      this.siteRule = (await getSiteRule(this.domain)) ?? null;
+      // 先按 host（含非默认端口）取精确规则，再回退 hostname：与拾取器选标签页的口径一致，
+      // 既保留「example.com 规则覆盖所有端口」的既有行为，也让 localhost:3000 这类端口规则可用。
+      const rules = await getSiteRules();
+      this.siteRule =
+        resolveSiteRuleForHosts(rules, window.location.host, window.location.hostname) ??
+        // 兼容页面显式设置 document.domain 的旧场景：this.domain 是既有读取口径
+        rules[this.domain.toLowerCase()] ??
+        null;
     } catch (error) {
       logger.debug('FormDetector: 读取站点规则失败:', error);
       this.siteRule = null;
@@ -640,6 +759,17 @@ export class FormDetector {
     }
     const trimmed = (selector as string).trim();
 
+    // 作用域选择器显式编码了宿主链，必须从 document 起逐级进入其声明的 open shadowRoot。
+    // 不能再把它丢进「document + 所有 shadowRoot」的平铺查询：裸选择器在 document
+    // 与影子树里都可能命中，document 优先会把凭证写进主文档同 tag 的搜索框。
+    if (trimmed.includes(SHADOW_SELECTOR_SEPARATOR)) {
+      if (!this.penetrateShadowEnabled) {
+        logger.debug('FormDetector: 影子 DOM 穿透已关闭，跳过作用域选择器');
+        return [];
+      }
+      return resolveShadowScopedSelector<T>(trimmed, document);
+    }
+
     const results: T[] = [];
     const seen = new WeakSet<Element>();
     for (const root of roots) {
@@ -665,14 +795,86 @@ export class FormDetector {
    * 命中即作为权威账号/密码字段覆盖启发式结果（确定性控制），未命中的字段保留启发式结果。
    * 被替换掉的启发式字段必须同步降级类型缓存：`getFieldType` 优先读缓存，只换数组不换缓存
    * 会让侧边栏/内联图标继续在被判定为「非登录框」的元素上弹出，覆盖只生效一半。
+   *
+   * 规则来自用户手填或拾取器，且拾取时唯一的判据是「当时命中一个」——页面改版、切 tab
+   * 或位置型选择器漂移之后就可能指向别的框。这里的取舍是**能确定落点时一律照用户设置执行**：
+   * 作废只发生在「这条规则本身指不出唯一那个框」时（语法非法、超出长度预算、作用域选择器命中
+   * 多个可见字段、同一裸选择器跨 shadow 根命中多根、穿透总闸已关闭），不再按字段语义判据否决
+   * 一个明确指向单框的选择器——`type="text"` 的密码框（`name="passCode"` 是真实写法）和有意把
+   * 口令当密码存的掩码框都必须照原样工作，静默作废只会换来「我配的规则没生效」这一更难排查的
+   * 结论。歧义时宁可不猜：这些路径只留 debug 日志（生产构建裁剪），但那时没有任何一格被标成
+   * 「来自规则」，用户看到的是自动检测的原生行为，而不是一个被悄悄改写的落点。落点确定时的
+   * 另一处保障是来源可见：本轮钉下的框记进 `ruleUsernameField` / `rulePasswordField`，
+   * 填充回执据此标注「来自站点规则」，详见 {@link pickFillAckKind}。
    */
   private applySiteRuleSelectors(): void {
     const sel = this.siteRule?.customSelectors;
     if (!sel) return;
 
     const roots = this.collectShadowQueryRoots();
-    const username = this.queryInRoots<HTMLInputElement>(roots, sel.username).find(el => isElementVisible(el));
-    const password = this.queryInRoots<HTMLInputElement>(roots, sel.password).find(el => isElementVisible(el));
+    /**
+     * 作用域选择器要求唯一：宿主链 + 内层选择器若命中多个可见字段，说明规则已过期或
+     * 页面结构变化，宁可不覆盖启发式结果，也不能任选第一个写凭证。
+     * 普通选择器保留「在多个可见命中里挑一个」的既有能力（`input[type="password"]` 这类
+     * 宽规则是用户有意写的），但次序不再只看文档顺序：带一次性口令语义的框排到最后，
+     * 因为「账号/密码写进验证码框」是同一份规则最坏的落点。
+     */
+    const pick = (selector: string | undefined): HTMLInputElement | undefined => {
+      if (!selector) return undefined;
+      const matches = this.queryInRoots<HTMLInputElement>(roots, selector).filter(el => isElementVisible(el));
+      if (matches.length === 0) return undefined;
+      if (selector.includes(SHADOW_SELECTOR_SEPARATOR)) {
+        if (matches.length > 1) {
+          logger.debug('FormDetector: 作用域选择器命中多个可见字段，已跳过');
+          return undefined;
+        }
+        return matches[0];
+      }
+
+      // 存量/手写的裸选择器也做一次跨根歧义检查：同一 selector 在 document 与影子树
+      // 都有可见命中时，无法判断用户指的是哪个根，宁可不覆盖启发式结果。
+      if (this.penetrateShadowEnabled && roots.length > 1) {
+        let matchedRoots = 0;
+        for (const root of roots) {
+          try {
+            if (Array.from(root.querySelectorAll<HTMLElement>(selector)).some(el => isElementVisible(el))) {
+              matchedRoots += 1;
+            }
+          } catch {
+            // 语法已由 queryInRoots 校验，这里只防御动态选择器实现差异
+          }
+          if (matchedRoots > 1) {
+            logger.debug('FormDetector: 裸选择器跨 shadow 根命中多个可见字段，已跳过');
+            return undefined;
+          }
+        }
+      }
+
+      // 严格不替换平局：候选都不带口令语义时结果与旧逻辑的「首个可见命中」逐字节相同
+      return matches.reduce(
+        (best, current) => (looksLikeCodeField(best) && !looksLikeCodeField(current) ? current : best),
+        matches[0],
+      );
+    };
+
+    const username = pick(sel.username);
+    const password = pick(sel.password);
+
+    // 记下这两个落点，供填充回执标注来源。规则**始终以用户设置为准**，判据只用来标注、不用来否决：
+    // 把 `type="text"` 的密码框（`name="passCode"` 这类真实写法）或掩码口令框按语义判据悄悄作废，
+    // 用户看到的是「我配的规则没生效」，那比一个标注了来源的落点更难排查。
+    this.ruleUsernameField = username ?? null;
+    this.rulePasswordField = password ?? null;
+
+    // 两种可疑形态只留日志（回执会把来源摊到用户眼前，这里再吵一句没意义）：
+    // ① 明文却声明一次性口令语义的框被指认为密码框，多半是配错了（短信码站点没有密码框）
+    // ② 账号与密码指向同一个框，后写入的密码会顶掉账号值
+    if (password && password.type !== 'password' && looksLikeCodeField(password)) {
+      logger.debug('FormDetector: 规则的密码选择器指向声明了验证码语义的框，请复核这条规则');
+    }
+    if (username && username === password) {
+      logger.debug('FormDetector: 规则的账号与密码选择器命中同一个字段，账号值会被密码覆盖');
+    }
     if (!username && !password) return;
 
     // 只降级「本轮被替换掉的那一类」字段：未配置的选择器保留启发式结果，
@@ -814,10 +1016,13 @@ export class FormDetector {
    * 处理委托的聚焦事件：内联模式下为登录字段显示钥匙触发图标
    */
   private handleDelegatedFocusIn = (event: FocusEvent): void => {
+    const focusTarget = event.target;
+    if (!(focusTarget instanceof HTMLElement)) return;
+    // 身份提示与填充入口档位无关：仅手动/侧边栏模式下，注册页里的姓名、证件号同样需要
+    // 「这个框要的是什么」的说明，因此判定必须早于下面那条内联模式的 early return。
+    this.handleIdentityHintOnFocus(focusTarget);
     if (this.effectiveFillEntry !== 'inline') return;
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const input = target instanceof HTMLInputElement ? target : target.closest('input');
+    const input = focusTarget instanceof HTMLInputElement ? focusTarget : focusTarget.closest('input');
     if (!input) return;
     if (this.shouldShowSidePanel(input)) {
       this.inlineDropdown.showTriggerFor(input, {
@@ -825,6 +1030,98 @@ export class FormDetector {
       });
     }
   };
+
+  /**
+   * 聚焦字段上的身份库召唤提示（形态一：识别 + 提示 + 深链，零明文跨界）
+   *
+   * 判据全部来自 {@link resolvePiiField} 的单字段语义分类，只读取 name/id/label/placeholder
+   * 等**结构信号**与该字段当前值（值仅用于形状收口，不进入任何出口）；结论经
+   * `normalizeIdentityHintRole` 收到闭集枚举后才交给气泡，卡类口令在这一步之前就被挡掉；
+   * 登录语义的让位判据要读角色，因此排在收窄之后。
+   *
+   * 六道守卫的必要性：
+   * - 总闸关闭时整条链不启动，页面不注入任何扩展 UI（对齐「关闭即完全不出现」的标签承诺）；
+   * - 会话必须有效：身份库密文只在解锁会话内可读，锁定态出提示会把用户引向空库；
+   * - `allFrames` 注入让内容脚本在每个 iframe 各跑一份，而广告/统计 iframe 里的悬浮气泡
+   *   既不在用户的注视点上，也给页面脚本多一个可反复触发的扩展 UI，只在顶层 frame 出提示；
+   * - 焦点目标必须是 `input` / `textarea` / `select` 三类控件之一，包裹元素上挂气泡没有意义；
+   * - 只读的框不参与（`readOnly`）：气泡唯一的动作是「把这格填上」，而组件库的日期选择器与
+   *   下拉代理框、页面自己回写的灰底框都写成只读，提示挂在它们下面是一句做不到的承诺；
+   * - 快速填充真正认领的字段由钥匙图标负责，不再叠一层提示。让位的判据取
+   *    {@link shouldShowSidePanel} 而非 `getFieldType`：后者只看桶归属，前者才是触发条件。
+   *    用桶归属会把注册页的手机号框一并挡掉——它进了 mobile 桶，却因不在登录表单里
+   *    永远拿不到钥匙，结果是钥匙与提示双双落空。让位还要求这一档是钥匙取得出值的
+   *    （{@link SIDE_PANEL_FILLABLE_ROLES}）：证件号这类框会被旧分桶误读成手机号框而挂上钥匙，
+   *    但钥匙填不出身份库的值，跟着让位同样双双落空，所以这一档由提示补上。
+   *
+   * @param target 当前获得焦点的元素（`focusin` 的 retargeted 目标）
+   */
+  private handleIdentityHintOnFocus(target: HTMLElement): void {
+    if (!this.identityHintEnabled) return;
+    if (window !== window.top) return;
+
+    // 提示只跟随真正的表单控件：`<input>` / `<textarea>` / `<select>` 三类都是个人信息的载体
+    // （详细地址常用 textarea，地区/性别常用 select）。聚焦目标是包裹元素时不出提示——
+    // 真实的焦点转移一定以控件为目标，收起上一枚气泡由 `focusout` 负责。
+    if (!target.matches('input, textarea, select')) return;
+    // 只读的框没有「把这格填上」这一步：组件库把日期选择器与下拉代理成 `<input readonly>`，
+    // 页面回写的灰底框同理，焦点进得去、键盘打不进，对它们说「从身份库选择」是做不到的承诺。
+    // 不看 `disabled`——那类控件（含 `<fieldset disabled>` 里的）根本拿不到焦点。
+    if ('readOnly' in target && (target as HTMLInputElement).readOnly) return;
+
+    const verdict = resolvePiiField(target);
+    const role = normalizeIdentityHintRole(verdict.role);
+    // 让位只对钥匙取得出值的那几档成立（判据取 shouldShowSidePanel 而非桶归属，见上方注释）；
+    // 证件号这类被旧分桶误读成手机号框的字段，钥匙挂得上、值却填不进来，提示必须顶上。
+    if (
+      role !== null &&
+      SIDE_PANEL_FILLABLE_ROLES.has(role) &&
+      target instanceof HTMLInputElement &&
+      this.shouldShowSidePanel(target)
+    ) {
+      return;
+    }
+    if (role === null) {
+      // 气泡只跟随当前聚焦字段：新字段无身份语义时必须收起上一个字段的提示
+      hideIdentityHint();
+      return;
+    }
+    void this.revealIdentityHintWhenUnlocked(target, role, verdict.needsVerify);
+  }
+
+  /**
+   * 会话有效时才展示身份提示
+   *
+   * 身份库的密文只在已解锁会话里可读：锁定态展示气泡会把用户引向
+   * 「复验主密码 → 打开空身份库」的死路（`getAllIdentity` 拿不到会话数据密钥）。
+   * `isSessionValid` 自带 5 秒结果缓存，个人信息字段聚焦频率低，不构成热路径 IO。
+   *
+   * 检查是异步的，返回后必须复核三件事：
+   * - 总闸可能在这段时间被别的上下文拨到关；
+   * - 焦点可能已经移到别的字段，迟到的气泡不能画到一个不再聚焦的字段上；
+   * - 字段可能已被页面卸载。
+   * 锁定态只收起「焦点仍在该字段」的气泡：若用户已移到下一个字段，
+   * 那枚新气泡由它自己的检查负责，不能被这条迟到的结果误收。
+   */
+  private async revealIdentityHintWhenUnlocked(
+    target: HTMLElement,
+    role: IdentityHintRole,
+    needsVerify: boolean,
+  ): Promise<void> {
+    let unlocked = false;
+    try {
+      unlocked = await StorageUtils.isSessionValid();
+    } catch (error) {
+      logger.debug('IdentityHint: 会话状态检查失败，按未解锁处理:', error);
+    }
+    if (this.disposed || !this.identityHintEnabled) return;
+    if (!unlocked) {
+      if (document.activeElement === target) hideIdentityHint();
+      return;
+    }
+    if (document.activeElement !== target || !target.isConnected) return;
+    showIdentityHint(target, role, needsVerify);
+  }
 
   /**
    * 处理委托的点击事件，判断是否需要显示侧边栏
@@ -984,28 +1281,14 @@ export class FormDetector {
 
   /**
    * 判断输入框是否可能是手机号输入框
+   *
+   * 判据本体在 `formSelectors.looksLikePhoneField`（与账号候选排序同一把尺子），
+   * 这里保留方法名是为了不改动本文件里那几处按业务语义读判的调用点。
    * @param input - 输入框元素
    * @returns 是否可能是手机号输入
    */
   private isLikelyMobileInput(input: HTMLInputElement): boolean {
-    const name = (input.name || '').toLowerCase();
-    const id = (input.id || '').toLowerCase();
-    const placeholder = (input.placeholder || '').toLowerCase();
-    const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
-    const type = input.type.toLowerCase();
-    const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
-
-    const textToCheck = `${name} ${id} ${placeholder} ${ariaLabel} ${autocomplete}`;
-
-    if (type === 'tel') {
-      return true;
-    }
-
-    if (autocomplete.includes('tel') || autocomplete.includes('phone') || autocomplete.includes('mobile')) {
-      return true;
-    }
-
-    return MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+    return looksLikePhoneField(input);
   }
 
   /**
@@ -1198,8 +1481,7 @@ export class FormDetector {
         });
         return true;
       case MessageType.FILL_MOBILE_CODE:
-        this.fillMobileCode(message.data);
-        sendResponse({ success: true, message: tl('cs.fd.fillDone') });
+        sendResponse(this.fillMobileCode(message.data));
         return true;
       case MessageType.FILL_TOTP:
         this.fillTotpCode(message.data.code).then(result => {
@@ -1210,6 +1492,7 @@ export class FormDetector {
         // 右键菜单填充：目标为被右键的输入框（由 contextMenuTarget 记忆），
         // 消息由 background 经 tabs.sendMessage({ frameId }) 定向本 frame
         fillContextMenuTarget(message.data).then(result => {
+          if (result.success) this.showFillAck(resolveContextMenuInputTarget(), this.pickFillAckKind(result.outcome));
           sendResponse(result);
         });
         return true;
@@ -1290,6 +1573,23 @@ export class FormDetector {
   }
 
   /**
+   * 页面是否已就绪到「可以试着填充」
+   *
+   * 判据刻意不把 `mobile` 单独算作就绪：搜索框、注册表单、收货地址页都会命中
+   * `input[type="tel"]`，放宽到单字段等于把这些页面判成登录页。手机号 + 验证码同时存在
+   * 才是国内短信登录页的形状，与 `shouldShowSidePanel` 里既有的组合判据同源，不是新造规则。
+   *
+   * @returns 是否存在可填充的登录表单
+   */
+  private get hasFillableLoginForm(): boolean {
+    return (
+      this.usernameFields.length > 0 ||
+      this.passwordFields.length > 0 ||
+      (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
+    );
+  }
+
+  /**
    * 等待表单字段被检测到（带指数退避重试）
    * @param maxRetries - 最大重试次数，默认 10
    * @returns 是否成功检测到字段
@@ -1301,7 +1601,7 @@ export class FormDetector {
     for (let i = 0; i < maxRetries; i++) {
       this.detectForms();
 
-      if (this.usernameFields.length > 0 || this.passwordFields.length > 0) {
+      if (this.hasFillableLoginForm) {
         return true;
       }
 
@@ -1381,6 +1681,123 @@ export class FormDetector {
   }
 
   /**
+   * 账号值该进账号桶里的哪一个框
+   *
+   * `USERNAME_SELECTORS` 把 `[name*="email"]`、`[name*="mobile"]`、`[name*="user"]` 收进同一个桶，
+   * 于是「手机号 / 邮箱二选一」这类两个框都渲染在页面上的登录表单，旧逻辑按文档顺序取首个，
+   * 条目里存的是邮箱却可能写进手机号框（反之亦然）。
+   *
+   * 排序只在**多个候选**且**值形状明确**时介入，且只调次序、不淘汰候选：
+   * ① 值是邮箱 → 邮箱语义框优先；② 值是国内手机号或带 `+` 的国际格式 → 手机号语义框优先；
+   * ③ 其余情况（单候选、值形状不明确、无匹配语义的框）结果与文档顺序首个逐字节相同。
+   * 语义自相矛盾的框（同时命中两组关键词）按通用处理，不抢优先位。
+   *
+   * @param fields - 账号候选字段列表
+   * @param value - 要写入的账号值（条目的 username）
+   * @returns 目标框，无有效字段时返回 null
+   */
+  private pickAccountField(fields: HTMLInputElement[], value: string): HTMLInputElement | null {
+    const available = fields.filter(input => input.isConnected && isElementVisible(input));
+    if (available.length <= 1) return available[0] ?? null;
+
+    const wantedKind: AccountFieldKind | null = isEmailLikeValue(value)
+      ? 'email'
+      : isPhoneLikeValue(value)
+        ? 'phone'
+        : null;
+    if (!wantedKind) return available[0];
+
+    /** 0＝语义与值形状吻合，1＝通用框（不反对这个值），2＝语义与值冲突 */
+    const scoreOf = (input: HTMLInputElement): number => {
+      const kind = classifyAccountField(input);
+      if (kind === wantedKind) return 0;
+      return kind === 'generic' ? 1 : 2;
+    };
+
+    // 严格小于：同分时保留排在前面的那个，与旧逻辑的「首个可见」结果一致
+    return available.reduce((best, current) => (scoreOf(current) < scoreOf(best) ? current : best), available[0]);
+  }
+
+  /**
+   * 密码值该进哪个密码框
+   *
+   * `VERIFY_CODE_SELECTORS` 里 `input[name*="otp"]`、`[name*="2fa"]` 这些条目不带 type 限定，
+   * 而密码检测又是无条件收 `input[type="password"]`，于是「把动态口令框做成掩码输入」的站点
+   * 会让同一个框同时出现在密码桶与验证码桶里。密码取首个的旧写法，在一页既有登录密码框
+   * 又有掩码口令框时可能把条目的静态密码写进口令框（银行 / 券商网页登录就是这个形状）。
+   *
+   * 只在候选之间调次序、不新增拒填路径：单候选或全同分时结果与「取首个可见」逐字节相同。
+   *
+   * @returns 目标密码框，无可见字段时返回 null
+   */
+  private pickPasswordField(): HTMLInputElement | null {
+    const available = this.passwordFields.filter(input => input.isConnected && isElementVisible(input));
+    if (available.length === 0) return null;
+    /** 0＝语义不像一次性口令（正是静态密码该去的地方），1＝像口令 */
+    const scoreOf = (input: HTMLInputElement): number => (looksLikeCodeField(input) ? 1 : 0);
+    // 严格小于：同分时保留排在前面的那个，与旧逻辑的「首个可见」结果一致
+    return available.reduce((best, current) => (scoreOf(current) < scoreOf(best) ? current : best), available[0]);
+  }
+
+  /**
+   * 手机号 + 短信码登录页里，账号（手机号）应该落到哪个 tel 框
+   *
+   * 仅在「页面确实没有密码框」时由账号回退路径调用。`mobileFields` 里混着国家码 / 区号等
+   * 子字段，直接取首个可见项会把整串手机号写进 3～4 位的短框，因此这里加两道约束：
+   * ① 排除 `isPhoneExtensionField` 命中的号码子字段；
+   * ② 优先取与某个验证码字段同属一个 `<form>` 的 tel 框——这才是「手机号 + 短信码」的登录形状，
+   *    避开另一表单里「绑定手机号 / 短信找回」用途的 tel 输入。
+   * 无同表单项时退回首个非子字段 tel，兼容 tel 框未包裹在 `<form>` 内的页面；一个都不剩则返回
+   * null（宁可回退到「未填充并提示」，也不写进明显错误的短框）。
+   *
+   * @returns 应作为账号目标的手机号框，无合适字段时返回 null
+   */
+  private findMobileAccountField(): HTMLInputElement | null {
+    const candidates = this.mobileFields.filter(
+      input => input.isConnected && isElementVisible(input) && !isPhoneExtensionField(input),
+    );
+    if (candidates.length === 0) return null;
+    const verifyForms = new Set(this.verifyCodeFields.filter(field => field.isConnected).map(field => field.form));
+    return candidates.find(input => input.form !== null && verifyForms.has(input.form)) ?? candidates[0];
+  }
+
+  /**
+   * 在页面内给出「填充已落地」的回执
+   *
+   * 侧边栏 / popup 在填充成功后会各自关闭，快捷键与右键菜单同样没有页面内提示，
+   * 回执胶囊因此锚定在刚写入的那个字段下缘，让确认动作发生在用户视线当前位置。
+   * 档位由调用方算好传入：`unverified`（写入成功但站点未必登记了 input 事件）要让用户看一眼，
+   * 来自站点规则的写入必须标明来源——规则绕过全部启发式判据，落点合不合意只有用户能判断。
+   * 胶囊只渲染固定文案，不含任何填充值。
+   *
+   * @param field - 刚写入值的字段，无有效字段时静默跳过
+   * @param kind - 回执档位，见 {@link FillAckKind}
+   */
+  private showFillAck(field: HTMLElement | null, kind: FillAckKind): void {
+    // 填充路径含 await 复检窗口；destroy() 已执行后不得再重建胶囊/宿主与定时器
+    if (!field || this.disposed) return;
+    getFillAckChip().show(field, kind, this.floatingButtonConfig.theme);
+  }
+
+  /**
+   * 按锚定格是否来自站点规则、以及它像不像验证码框，选回执档位
+   *
+   * 次序是 `ruleCodeLike > rule > check > filled`：来源是用户可以永久修掉的东西，
+   * 落点错了比这一次没登记 input 事件更值得先看一眼，所以「这是你的规则写的」排在
+   * 「请核对」之前。档位只描述**被锚定的那一格**——只钉一侧的规则不该在自动检测选中的
+   * 另一格上自称来自规则。
+   * @param outcome - FillResult.outcome
+   * @param viaSiteRule - 锚定格的落点是否来自站点规则
+   * @param ruleTargetCodeLike - 锚定格是否「未打码却声明了一次性口令语义」的规则落点
+   */
+  private pickFillAckKind(outcome?: FillOutcome, viaSiteRule?: boolean, ruleTargetCodeLike?: boolean): FillAckKind {
+    if (ruleTargetCodeLike) return 'ruleCodeLike';
+    if (viaSiteRule) return 'rule';
+    if (outcome === 'unverified') return 'check';
+    return 'filled';
+  }
+
+  /**
    * 填充密码并返回详细结果
    * @param data - 填充数据（用户名和密码）
    * @returns 填充结果
@@ -1412,7 +1829,7 @@ export class FormDetector {
       // 会导致可见输入框保持空白
       this.detectForms();
 
-      if (this.usernameFields.length === 0 && this.passwordFields.length === 0) {
+      if (!this.hasFillableLoginForm) {
         const detected = await this.waitForFieldsDetected();
         if (this.disposed) return result;
         if (!detected) {
@@ -1442,46 +1859,78 @@ export class FormDetector {
         }
       }
 
+      // 回执锚点：记下真正写进去的那个框，密码框优先（用户最关心它有没有落进去）
+      let ackField: HTMLInputElement | null = null;
       // 填充用户名（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.username) {
-        const usernameField = this.findFillableField(this.usernameFields);
+        // 手机号 + 短信码登录页既没有账号框也没有密码框，而条目里的 username 存的就是手机号。
+        // 回退只在「页面上确实没有密码框」时成立：只要存在密码框，这就是账号密码表单，
+        // 此时页面里另一个 tel 输入框通常是「绑定手机号/短信找回」而非登录账号，写进去是错的。
+        const usernameField =
+          this.pickAccountField(this.usernameFields, data.username) ??
+          (this.passwordFields.length === 0 ? this.findMobileAccountField() : null);
         if (usernameField) {
           result.details.usernameField.found = true;
           const fillResult = await this.inputFiller.setInputValueWithStrategies(usernameField, data.username);
           result.details.usernameField.filled = fillResult.filled;
           result.details.usernameField.verified = fillResult.verified;
           result.details.strategy = fillResult.strategy;
+          if (fillResult.filled) ackField = usernameField;
         }
       }
 
       // 填充密码（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.password) {
-        const passwordField = this.findFillableField(this.passwordFields);
+        const passwordField = this.pickPasswordField();
         if (passwordField) {
           result.details.passwordField.found = true;
           const fillResult = await this.inputFiller.setInputValueWithStrategies(passwordField, data.password);
           result.details.passwordField.filled = fillResult.filled;
           result.details.passwordField.verified = fillResult.verified;
+          if (fillResult.filled) ackField = passwordField;
           if (fillResult.strategy !== 'native') {
             result.details.strategy = fillResult.strategy;
           }
         }
       }
 
-      this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
+      this.checkboxHandler.autoCheckNearestCheckbox(
+        this.checkboxFields,
+        this.passwordFields,
+        this.usernameFields,
+        this.mobileFields,
+      );
 
       const usernameSuccess = !data.username || result.details.usernameField.verified;
       const passwordSuccess = !data.password || result.details.passwordField.verified;
 
       if (usernameSuccess && passwordSuccess) {
         result.success = true;
+        result.outcome = 'verified';
         result.message = tl('cs.fd.fillSuccess');
       } else if (result.details.usernameField.filled || result.details.passwordField.filled) {
         result.success = true;
+        result.outcome = 'unverified';
         result.message = tl('cs.fd.fillCheck');
       } else {
+        result.reason = 'nothing_filled';
         result.message = tl('cs.fd.fillIncomplete');
       }
+
+      // 来源标注只看**被锚定的那一格**（回执胶囊与提示语说的就是它）：只钉账号一侧的规则
+      // 不该在自动检测选中的密码框上自称「来自站点规则」，那会把用户推去改一个本就留空的选择器。
+      // `ruleCodeLike` 同样两格都查——账号值被写进一个声明了口令语义的明文框，是同一种配错。
+      const ackFromRule =
+        ackField !== null && (ackField === this.ruleUsernameField || ackField === this.rulePasswordField);
+      const ackCodeLike =
+        ackField !== null && ackFromRule && ackField.type !== 'password' && looksLikeCodeField(ackField);
+      if (ackFromRule) result.viaSiteRule = true;
+      if (ackCodeLike) result.ruleTargetCodeLike = true;
+
+      // 回执只跟着「真正写进去的字段」走：失败路径必然一个字段都没写（ackField 仍为 null），
+      // 此时提示语由发起方（侧边栏 / popup / 内联面板）展示且面板刻意保持打开，
+      // 再叠一枚胶囊就是同一件事说两遍
+      this.showFillAck(ackField, this.pickFillAckKind(result.outcome, ackFromRule, ackCodeLike));
 
       // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）
       // 当 autoLogin 为 true 时强制触发登录
@@ -1501,6 +1950,7 @@ export class FormDetector {
       }
     } catch (error) {
       logger.error('填充密码失败:', error);
+      result.reason = 'fill_error';
       result.message = tl('cs.fd.fillError');
     }
 
@@ -1550,25 +2000,51 @@ export class FormDetector {
 
   /**
    * 填充手机号（验证码需用户手动获取）
+   *
+   * 回执与返回值只跟着「是否真的写进了那个可见的手机号框」走：找不到可填字段时
+   * `success` 为 false，不再无条件谎报成功（与账号密码填充支路的 outcome 契约同口径）。
+   * 号码本身写入即视为「已填充」（验证码由用户手动获取，不在本方法职责内）。
    * @param data - 包含手机号和验证码的数据
+   * @returns 填充是否落地，以及面向发起方的提示文案
    */
-  private fillMobileCode(data: { mobile: string; code: string }): void {
+  private fillMobileCode(data: { mobile: string; code: string }): { success: boolean; message: string } {
     try {
+      // 回执锚点：写到「仍在文档中且可见」的框才算真的落地，与密码填充同一口径
+      let ackField: HTMLInputElement | null = null;
+
       if (data.mobile && this.mobileFields.length > 0) {
-        this.inputFiller.setInputValueNative(this.mobileFields[0], data.mobile);
+        const field = this.findMobileAccountField();
+        if (field) {
+          this.inputFiller.setInputValueNative(field, data.mobile);
+          ackField = field;
+        }
       }
 
       if (data.mobile && this.mobileFields.length === 0 && this.usernameFields.length > 0) {
-        this.inputFiller.setInputValueNative(this.usernameFields[0], data.mobile);
+        const field = this.pickAccountField(this.usernameFields, data.mobile);
+        if (field) {
+          this.inputFiller.setInputValueNative(field, data.mobile);
+          ackField = field;
+        }
       }
 
-      this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
+      this.checkboxHandler.autoCheckNearestCheckbox(
+        this.checkboxFields,
+        this.passwordFields,
+        this.usernameFields,
+        this.mobileFields,
+      );
+
+      this.showFillAck(ackField, 'filled');
 
       setTimeout(() => {
         this.hideSidePanel();
       }, 300);
+
+      return { success: ackField !== null, message: tl(ackField ? 'cs.fd.fillDone' : 'cs.fd.fillIncomplete') };
     } catch (error) {
       logger.error('填充手机号+验证码失败:', error);
+      return { success: false, message: tl('cs.fd.fillIncomplete') };
     }
   }
 
@@ -1597,23 +2073,38 @@ export class FormDetector {
         this.detectForms();
       }
       if (this.verifyCodeFields.length === 0) {
+        result.reason = 'no_totp_input';
         result.message = tl('cs.fd.noTotpInput');
         return result;
       }
 
-      const field = this.verifyCodeFields[0];
+      // 优先写「仍在文档中且可见」的那个框：页面里常见一个 hidden 的 name="code" 输入
+      // 排在可见框前面，取首个会把动态码写进看不见的框还回报「已填充」。
+      // 一个都不可见时退回取首个（保留六格验证码组件那种「可见格子 + 隐藏真实输入」的页面形状，
+      // 那类页面站点的 JS 正是从隐藏输入读值）。
+      const field = this.findFillableField(this.verifyCodeFields) ?? this.verifyCodeFields[0];
       const fillResult = await this.inputFiller.setInputValueWithStrategies(field, code);
       result.success = fillResult.filled;
       result.details.strategy = fillResult.strategy;
-      result.message = fillResult.filled ? tl('cs.fd.totpFillSuccess') : tl('cs.fd.totpFillManual');
+      if (fillResult.filled) {
+        // 与账号密码填充同一语义：写入成功但站点未登记 input 事件（未回读校验）时降级为「请核对」，
+        // 动态码时效短、前端常受控更新，unverified 概率更高，不能一律报「已填充」误导用户。
+        result.outcome = fillResult.verified ? 'verified' : 'unverified';
+        result.message = tl('cs.fd.totpFillSuccess');
+      } else {
+        result.reason = 'nothing_filled';
+        result.message = tl('cs.fd.totpFillManual');
+      }
 
       if (result.success) {
+        this.showFillAck(field, this.pickFillAckKind(result.outcome));
         setTimeout(() => {
           this.hideSidePanel();
         }, 300);
       }
     } catch (error) {
       logger.error('填充 TOTP 验证码失败:', error);
+      result.reason = 'fill_error';
       result.message = tl('cs.fd.totpFillError');
     }
 
@@ -1665,5 +2156,7 @@ export class FormDetector {
     this.passwordVisibilityToggle.destroy();
     destroyInlineFillDropdown();
     destroyTotpHandoffCapsule();
+    destroyFillAckChip();
+    destroyIdentityHint();
   }
 }

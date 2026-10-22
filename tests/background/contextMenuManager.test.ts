@@ -26,7 +26,6 @@ vi.mock('@/entrypoints/background/quickFillHandler', () => ({
       return '';
     }
   }),
-  extractPortFromUrl: vi.fn(() => undefined),
 }));
 
 vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({

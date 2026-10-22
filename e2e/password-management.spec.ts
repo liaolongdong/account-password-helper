@@ -8,6 +8,7 @@ import {
   footerPrimary,
   leaksPlaintext,
   parkPointer,
+  readStoredConfig,
   rowOf,
   storedArrayCount,
   test,
@@ -96,10 +97,30 @@ test.describe('密码条目增删改', () => {
       .locator('.el-message-box')
       .getByRole('button', { name: textOf('form.moveToTrash') })
       .click();
-    await expectSuccessToast(page, 'form.movedToTrash');
+    const undoToast = page.locator('.undo-toast');
+    await expect(undoToast).toBeVisible();
+    await expect(undoToast).toContainText(textOf('options.undoDelete.messageSingle'));
 
     await expect(allRows(page)).toHaveCount(0);
     await expect(page.getByText(textOf('options.emptyGuide.title'))).toBeVisible();
+    expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(0);
+    expect(await storedArrayCount(page, STORAGE_KEYS.TRASH)).toBe(1);
+
+    // 回执上的撤销必须真的把条目从回收站带回主列表
+    await undoToast.getByRole('button', { name: textOf('options.undoDelete.action') }).click();
+    await expect(undoToast).toBeHidden();
+    await expect(rowOf(page, GAMMA.username)).toBeVisible();
+    expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(1);
+    expect(await storedArrayCount(page, STORAGE_KEYS.TRASH)).toBe(0);
+
+    // 再删一次但不撤销，确认回执不会改变软删除的最终结果
+    await deleteButton.click();
+    await page
+      .locator('.el-message-box')
+      .getByRole('button', { name: textOf('form.moveToTrash') })
+      .click();
+    await expect(page.locator('.undo-toast')).toBeVisible();
+    await expect(allRows(page)).toHaveCount(0);
     expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(0);
     expect(await storedArrayCount(page, STORAGE_KEYS.TRASH)).toBe(1);
   });
@@ -163,5 +184,39 @@ test.describe('密码条目增删改', () => {
     await firstRow.getByRole('button', { name: textOf('common.unfavorite') }).click();
     await expectSuccessToast(page, 'sidepanel.unfavorited');
     await expect(allRows(page).first()).toContainText('e2e-fav-second');
+  });
+
+  test('体检弹窗显示本机趋势入口', async ({ optionsPage: page }) => {
+    await createEntry(page, ALPHA);
+    await page.getByRole('button', { name: textOf('options.header.healthCheck') }).click();
+
+    const dialog = page.locator('.health-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(textOf('health.trendTitle'))).toBeVisible();
+    // 全新 profile 只有本次打开记录的一个点：单点不画折线，给的是「等下一次」占位
+    await expect(dialog.getByText(textOf('health.trendWaiting'))).toBeVisible();
+  });
+
+  test('安全起步清单：已有密码后出现，暂不提醒后刷新不再出现', async ({ optionsPage: page }) => {
+    await createEntry(page, ALPHA);
+
+    const checklist = page.locator('.activation');
+    await expect(checklist).toBeVisible();
+    await expect(checklist.getByText(textOf('options.activation.stepBackup'))).toBeVisible();
+    await expect(checklist.getByText(textOf('options.activation.stepHealth'))).toBeVisible();
+
+    await checklist.getByRole('button', { name: textOf('options.activation.dismiss') }).click();
+    await expect(checklist).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const state = (await readStoredConfig(page, STORAGE_KEYS.ACTIVATION_CHECKLIST)) as
+          { dismissedAt?: unknown } | undefined;
+        return typeof state?.dismissedAt;
+      })
+      .toBe('number');
+
+    await page.reload();
+    await expect(page.locator('.header')).toBeVisible();
+    await expect(page.locator('.activation')).toHaveCount(0);
   });
 });

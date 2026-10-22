@@ -3,12 +3,12 @@ title: Why I Built a Local-First Password Manager
 description: A local-first, open-source Chrome password manager for developers juggling dev, test, staging and prod accounts. No account, no sync server, no cloud trust.
 tags: password manager,browser extension,open source,chrome extension,local-first
 date: 2026-08-28
-modified: 2026-10-13
+modified: 2026-10-18
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
 
-![Account Password Helper core value overview](imgs/01-infographic-core-value.png)
+![Account Password Helper core value overview](imgs/01-infographic-core-value.webp)
 
 I keep four accounts for the same admin system: dev, test, staging, and prod. Chrome's built-in password manager treats them all as "the same site" and fills in whichever one it feels like. Bitwarden can match URLs precisely, sure — but it only _fills_. After filling, I still tick the terms checkbox myself, click the login button myself, and switch to my phone to copy a 2FA code.
 
@@ -64,13 +64,13 @@ A password manager earns trust through verifiable design, not slogans. The hard 
 2. **Field-level encryption.** Username, password, URL, notes, and TOTP secret are each encrypted individually. The storage layer sees only ciphertext.
 3. **Standard algorithms, no invention.** PBKDF2-SHA256 (600,000 iterations) for key derivation, AES-256-GCM authenticated encryption, all via the browser-native Web Crypto API. A follow-up post covers the implementation in depth.
 4. **Sessions have lifecycles.** 24 hours by default (1 hour to 7 days configurable). Idle auto-lock tied to system screen lock, and relock on browser restart, are both opt-in and off by default; one-click manual lock is always available. On any lock path, in-memory key handles and decrypted snapshots are wiped.
-5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 2888 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
+5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 3912 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
 
 An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And the master password cannot be recovered if forgotten — use the encrypted backup feature. Stating boundaries plainly is what security products should do.
 
 ## Who It's For
 
-![Feature overview for developers and QA engineers](imgs/03-infographic-dev-features.png)
+![Feature overview for developers and QA engineers](imgs/03-infographic-dev-features.webp)
 
 - **Developers** — environment isolation + one-click login, dozens fewer clicks per day;
 - **QA engineers** — switch test accounts fast across environments;

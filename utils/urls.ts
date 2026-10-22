@@ -48,6 +48,23 @@ export const PRIVACY_POLICY_URL_EN = 'https://liaolongdong.github.io/account-pas
  */
 export const PRODUCT_DOCS_URL = 'https://liaolongdong.github.io/account-password-helper/';
 
+/** 作者页中英各一份；About 抽屉按当前界面语言直接给出对应版本 */
+export const AUTHOR_PAGE_URL = `${PRODUCT_DOCS_URL}author.html`;
+export const AUTHOR_PAGE_URL_EN = `${PRODUCT_DOCS_URL}author.en.html`;
+
+/**
+ * 「分享给同事」专用地址
+ *
+ * 产品说明页负责讲清楚这是什么、凭什么值得装，商店页负责安装；两条链接共用同一组
+ * UTM：`utm_source=about` 标记入口是「关于」抽屉，`utm_medium=share` 标记分享媒介，
+ * `utm_campaign=teammate` 标记同事分享活动，便于把这条分享带来的访问与安装同自然流量分开。
+ */
+export const TEAMMATE_PRODUCT_URL = `${PRODUCT_DOCS_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
+export const TEAMMATE_SHARE_URL = `${CHROME_WEB_STORE_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
+
+/** 一次性评价引导专用商店链接：与分享链接分开归因，避免把「老用户评价」算进「同事分享」 */
+export const REVIEW_PROMPT_URL = `${CHROME_WEB_STORE_URL}?utm_source=options&utm_medium=review&utm_campaign=review_prompt`;
+
 /**
  * CWS 可访问性探测 URL（轻量 HEAD 请求目标）
  *

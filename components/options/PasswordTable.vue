@@ -4,7 +4,6 @@
       ref="localTableRef"
       v-loading="loading"
       :element-loading-text="t('options.table.loading')"
-      :empty-text="t('common.noData')"
       :data="data"
       style="width: 100%"
       stripe
@@ -277,6 +276,33 @@
           </div>
         </template>
       </el-table-column>
+      <template #empty>
+        <!--
+          空态到这里只有一种真实形状：库里有条目，但筛选把这一页筛空了
+          （整库为空时父级走 EmptyGuide，本组件在 v-else 分支上不渲染）。
+          所以这里给的是「清空筛选」出口，而不是又一句「暂无数据」。
+        -->
+        <div
+          v-if="hasActiveFilters"
+          class="table-empty-filtered"
+        >
+          <p class="empty-title">
+            {{ t('options.table.noMatchedEntries') }}
+          </p>
+          <el-button
+            size="small"
+            @click="$emit('clearFilters')"
+          >
+            {{ t('options.table.clearFilters') }}
+          </el-button>
+        </div>
+        <div
+          v-else
+          class="table-empty-plain"
+        >
+          {{ t('common.noData') }}
+        </div>
+      </template>
     </el-table>
     <!--
       分页条：与表格同属这张卡片，因此挂在 `.password-list` 内部而不是 App 层，
@@ -365,6 +391,8 @@ defineProps<{
   selectedCount: number;
   /** 已选中但不在当前页的条数 */
   offPageSelectedCount: number;
+  /** 是否有生效中的筛选条件，决定空态给「清空筛选」出口还是纯占位文案 */
+  hasActiveFilters?: boolean;
 }>();
 
 defineEmits<{
@@ -376,6 +404,7 @@ defineEmits<{
   edit: [row: PasswordEntry];
   toggleFavorite: [id: string];
   deletePassword: [id: string];
+  clearFilters: [];
   'update:currentPage': [page: number];
   'update:pageSize': [size: number];
 }>();
@@ -616,9 +645,18 @@ defineExpose({
   justify-content: space-between;
 }
 
-/* 表格行动画 */
+/*
+ * 表格行动画
+ *
+ * 只列真正会变的那几项（hover 的上浮、投影，以及 `options/styles.css` 给 tr 铺的背景），
+ * 不再写 `all`：`all 0.3s ease` 会连 `.new-item` 带来的 `border-bottom` 宽度/颜色一起补间，
+ * 新增行高亮时那条下划线是「长出来」的，而不是本来就有的效果。
+ */
 :deep(.el-table__body-wrapper .el-table__row) {
-  transition: all 0.3s ease;
+  transition:
+    transform var(--aph-duration-slow) ease,
+    box-shadow var(--aph-duration-slow) ease,
+    background-color var(--aph-duration-slow) ease;
 }
 
 :deep(.el-table__body-wrapper .el-table__row:hover) {
@@ -647,25 +685,28 @@ defineExpose({
   border-bottom: 2px solid var(--el-color-success);
 }
 
-/** 删除密码列表动效 */
+/**
+ * 删除密码列表动效
+ *
+ * `forwards` 不是装饰：节点由 `DELETE_ANIMATION_MS` 定时器摘除，标签页被节流时定时器
+ * 会晚于动画结束，缺了填充模式那行会在摘除前一帧从 opacity 0 弹回 1（闪一下）。
+ */
 :deep(.el-table__body-wrapper .el-table__row.del-item) {
-  animation: fade-out 1s ease-in-out;
+  animation: fade-out var(--aph-duration-mid) ease-in-out forwards;
 }
 
 @keyframes fade-out {
   0% {
     opacity: 1;
-    transform: translateX(0);
   }
   100% {
     opacity: 0;
-    transform: translateX(800px);
   }
 }
 
 /*
- * 减弱动效：本表的两处大位移——新增行 20px 入场、删除行 800px 滑出，外加行悬浮上浮。
- * 取消动画只影响观感，不影响正确性：新增高亮的 3 秒清除与删除落盘都由 JS 定时器驱动
+ * 减弱动效：本表的两处大位移——新增行 20px 入场、行悬浮上浮，以及删除行的淡出。
+ * 取消动画只影响观感，不影响正确性：新增高亮的 6 秒清除与删除落盘都由 JS 定时器驱动
  * （`usePasswordManagement` 的 `ROW_HIGHLIGHT_MS` / `DELETE_ANIMATION_MS`），
  * 且摘除节点走的是 `setTimeout` 而非 `animationend`，减弱档下删除时序与结果完全一致。
  */
@@ -789,6 +830,21 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 空态：库里有条目但筛选把这一页筛空，给一条回到整库视图的出口 */
+.table-empty-filtered {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--aph-text-secondary);
 }
 
 /* 响应式 */

@@ -36,7 +36,9 @@
   border: 1px solid var(--aph-primary-border);
   border-radius: 6px;
   box-shadow: none;
-  transition: all 0.2s ease;
+  transition:
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease;
 }
 
 :deep(.el-input--large .el-input__wrapper:hover) {
@@ -52,7 +54,9 @@
   border: 1px solid var(--aph-primary-border);
   border-radius: 6px;
   box-shadow: none;
-  transition: all 0.2s ease;
+  transition:
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease;
 }
 
 :deep(.el-input .el-input__wrapper:hover) {
@@ -72,7 +76,11 @@
   background: var(--aph-primary);
   border: 1px solid var(--aph-primary);
   border-radius: 6px;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
 :deep(.el-button--large.el-button--primary:hover) {
@@ -96,7 +104,13 @@
 :deep(.el-button) {
   font-weight: 400;
   border-radius: 6px;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    opacity var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
 :deep(.el-button:hover) {

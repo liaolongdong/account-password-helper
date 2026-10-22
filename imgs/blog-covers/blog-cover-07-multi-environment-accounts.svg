@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1B34"/>
+      <stop offset="1" stop-color="#17305C"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <g stroke="#409EFF" stroke-width="2" fill="none" opacity="0.2">
+    <path d="M1600 720 H1430 L1404 694"/>
+  </g>
+  <circle cx="1404" cy="694" r="5" fill="#409EFF" opacity="0.45"/>
+
+  <g>
+    <rect x="96" y="68" width="52" height="52" rx="13" fill="#409EFF"/>
+    <g transform="translate(96,68) scale(0.40625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="164" y="104" font-size="27" font-weight="600" fill="#FFFFFF">Account Password Helper</text>
+    <text x="1504" y="104" font-size="24" fill="#A9BFE0" text-anchor="end">技术博客 07 / 08</text>
+  </g>
+
+  <g>
+    <text x="96" y="250" font-size="84" font-weight="700" fill="#FFFFFF">dev / test / prod</text>
+    <text x="96" y="348" font-size="84" font-weight="700" fill="#FFFFFF">不串号</text>
+    <text x="96" y="418" font-size="38" font-weight="600" fill="#66B3FF">exact · wildcard · apex</text>
+    <text x="96" y="474" font-size="28" fill="#A9BFE0">多环境账号管理的四层做法</text>
+  </g>
+
+  <g font-size="27" font-weight="500">
+    <rect x="96" y="512" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="550" fill="#CFE3FF">精确匹配</text>
+    <rect x="312" y="512" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="338" y="550" fill="#CFE3FF">命名标签</text>
+    <rect x="528" y="512" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="554" y="550" fill="#CFE3FF">自动提交</text>
+    <rect x="96" y="588" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="626" fill="#CFE3FF">保存判重</text>
+    <rect x="312" y="588" width="286" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="338" y="626" fill="#CFE3FF">团队凭据不群发</text>
+  </g>
+
+  <g>
+    <line x1="96" y1="762" x2="640" y2="762" stroke="#23406E" stroke-width="3"/>
+    <text x="96" y="812" font-size="26" fill="#A9BFE0">utils/domain.ts · resolveMatchTier</text>
+  </g>
+
+  <g>
+    <rect x="880" y="168" width="624" height="66" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <g transform="translate(908,188)" stroke="#8FB4FF" stroke-width="3" fill="none" stroke-linecap="round">
+      <path d="M4 12 V8 a6 6 0 0 1 12 0 v4"/>
+      <rect y="12" width="20" height="16" rx="4" fill="#8FB4FF" stroke="none"/>
+    </g>
+    <text x="946" y="211" font-size="30" fill="#CFE3FF">admin-dev.example.com</text>
+    <text x="1480" y="211" font-size="22" fill="#A9BFE0" text-anchor="end">当前页</text>
+  </g>
+
+  <line x1="932" y1="240" x2="932" y2="640" stroke="#8FB4FF" stroke-width="3" stroke-dasharray="12 12" opacity="0.4"/>
+
+  <g>
+    <rect x="900" y="272" width="584" height="76" rx="14" fill="url(#primary)"/>
+    <circle cx="932" cy="310" r="21" fill="#FFFFFF"/>
+    <text x="932" y="320" font-size="26" font-weight="600" fill="#337ECC" text-anchor="middle">0</text>
+    <text x="970" y="320" font-size="28" fill="#FFFFFF">admin-dev.example.com</text>
+    <text x="1462" y="320" font-size="22" fill="#CFE3FF" text-anchor="end">精确命中</text>
+
+    <rect x="900" y="364" width="584" height="76" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <circle cx="932" cy="402" r="21" fill="#1E3A6B" stroke="#8FB4FF" stroke-width="2"/>
+    <text x="932" y="412" font-size="26" font-weight="600" fill="#CFE3FF" text-anchor="middle">1</text>
+    <text x="970" y="412" font-size="28" fill="#CFE3FF">*.example.com</text>
+    <rect x="1358" y="384" width="104" height="38" rx="19" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="1410" y="411" font-size="20" fill="#CFE3FF" text-anchor="middle">通配</text>
+
+    <rect x="900" y="456" width="584" height="76" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <circle cx="932" cy="494" r="21" fill="#1E3A6B" stroke="#8FB4FF" stroke-width="2"/>
+    <text x="932" y="504" font-size="26" font-weight="600" fill="#CFE3FF" text-anchor="middle">2</text>
+    <text x="970" y="504" font-size="28" fill="#CFE3FF">example.com</text>
+    <rect x="1358" y="476" width="104" height="38" rx="19" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="1410" y="503" font-size="20" fill="#CFE3FF" text-anchor="middle">主域</text>
+
+    <rect x="900" y="548" width="584" height="76" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <circle cx="932" cy="586" r="21" fill="#1E3A6B" stroke="#E6A23C" stroke-width="2"/>
+    <text x="932" y="596" font-size="26" font-weight="600" fill="#FFD04B" text-anchor="middle">3</text>
+    <text x="970" y="596" font-size="28" fill="#CFE3FF">admin-test.example.com</text>
+    <rect x="1358" y="568" width="104" height="38" rx="19" fill="#E6A23C" fill-opacity="0.16" stroke="#E6A23C" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="1410" y="595" font-size="20" fill="#FFD04B" text-anchor="middle">兄弟子域</text>
+  </g>
+  <text x="900" y="790" font-size="24" fill="#A9BFE0">只有在当前域名没有精确命中时才兜底</text>
+</svg>

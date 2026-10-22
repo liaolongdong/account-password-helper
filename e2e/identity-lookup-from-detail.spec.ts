@@ -1,14 +1,16 @@
 import type { Locator, Page } from '@playwright/test';
+import { createEntry, expect, rowOf, test } from './harness';
+import { templatedOf, textOf } from './i18n';
+import { IDENTITY_FIELD_NAME_STEMS } from '../utils/identity/fields';
 import {
-  createEntry,
-  expect,
-  expectSuccessToastFor,
-  rowOf,
-  runHeaderCommand,
-  test,
-  verifyMasterPassword,
-} from './harness';
-import { anchoredTextOf, numericTemplateOf, templatedOf, textOf } from './i18n';
+  addIdentity,
+  cards,
+  closeVault,
+  openVaultFromMenu,
+  searchInput,
+  vaultDialog,
+  verifyDialog,
+} from './identityVaultDom';
 
 /**
  * 「详情抽屉 → 身份信息库检索」跳转的真机回归
@@ -22,7 +24,14 @@ import { anchoredTextOf, numericTemplateOf, templatedOf, textOf } from './i18n';
  *    「点了没反应」或「库开了但搜索框是空的」，而源码看起来完全正常；
  * ③ 预填是一次性的：关闭即由 teardown 清掉明文搜索词，下一次从菜单打开必须回到全量列表
  *    （否则上一轮的检索条件会悄悄框住这一轮的视野，明文 PII 也多活一轮）；
- * ④ 抽屉与弹窗同屏共存时的收起时序。
+ * ④ 抽屉与弹窗同屏共存时的收起时序；
+ * ⑤ 零命中那一屏：气泡说「可在自定义字段里存下它」把人送进库里，若他从没建过那一格，
+ *    空态必须把差的那个名字说出来（`{keyword}` 是否真被插值）并给出与工具栏同一条添加出路——
+ *    这两点源码守卫证不了，只有真浏览器渲染得出来；
+ * ⑥ 字段名检索的落点：把屏上那一列的名字喂回搜索框，命中要落在**标签列**的高亮上，
+ *    清空关键词后屏上不留高亮实例（EP 的 `#label` 插槽在 border 模式下是否真渲染，只有真机量得到）；
+ * ⑦ 放宽那一屏：打的是页面上那种长写法（严格检索在值与名字上都搜不到），说明行、整串高亮、
+ *    以及「不许有命中式高亮」三件都得在真浏览器里各量一遍。
  *
  * 身份条目一律走真实表单录入：库里是整包密文（`encryptedPayload`），测试进程没有解密入口，
  * storage 后门造不出「已解锁会话下的身份条目」，也验证不到加解密链路。
@@ -37,91 +46,12 @@ const NAME_HIT = 'e2e-lookup-hit';
 const NAME_MISS = 'e2e-lookup-miss';
 
 /**
- * 身份库列表弹窗
+ * 详情抽屉（标题「条目详情」为抽屉独有，按文案定位即可）
  *
- * 不按标题 `hasText` 定位：工具栏「添加」按钮的文案（`identity.add`）与表单弹窗标题
- * （`identity.form.addTitle`）在中英文下都是同一串，表单打开时两个 dialog 会同时命中。
- * 改按只有列表才有的工具栏类名收窄。
+ * 只有本文件用到，故留在原地；弹窗与表单那一组跨文件共用的定位口径在 `./identityVaultDom`。
  */
-const vaultDialog = (page: Page): Locator =>
-  page.getByRole('dialog').filter({ has: page.locator('.identity-toolbar') });
-
-/** 身份表单弹窗：只有它有 `.identity-form-footer` */
-const identityFormDialog = (page: Page): Locator =>
-  page.getByRole('dialog').filter({ has: page.locator('.identity-form-footer') });
-
-/** 详情抽屉（标题「条目详情」为抽屉独有，按文案定位即可） */
 const detailDrawer = (page: Page): Locator =>
   page.getByRole('dialog').filter({ hasText: textOf('options.detail.title') });
-
-/** 主密码复验弹窗：按本入口的提示文案定位（每个复验入口的提示语唯一） */
-const verifyDialog = (page: Page): Locator =>
-  page.getByRole('dialog').filter({ hasText: textOf('identity.verifyPrompt') });
-
-/** 库工具栏的搜索框（跳转唯一要落地的控件） */
-const searchInput = (page: Page): Locator => vaultDialog(page).locator('.identity-toolbar__search input');
-
-/** 可见的身份卡片 */
-const cards = (page: Page): Locator => vaultDialog(page).locator('.identity-card');
-
-/**
- * 关闭身份库列表弹窗（footer 那颗「关闭」）
- *
- * 名字匹配必须锚定：对话框头还有一颗 EP 自带的 × ，其 `aria-label` 是
- * 「Close this dialog」——非锚定的 /关闭|Close/ 会同时命中两颗按钮而撞 strict mode。
- */
-async function closeVault(page: Page): Promise<void> {
-  await vaultDialog(page)
-    .getByRole('button', { name: anchoredTextOf('common.close') })
-    .click();
-  await expect(vaultDialog(page)).toBeHidden();
-}
-
-/**
- * 身份表单里某个字段的输入框
- *
- * 走 `getByLabel`：Element Plus 的 `el-form-item` 会把 `for` 落到本项唯一的那个输入框上
- * （实测 12 项全部带 `for`），于是标签即字段名，读屏软件看到的和测试点中的是同一个控件。
- * 不用「`.el-form-item` + `filter({ has: 标签 })`」的结构写法：`has` 里的内层定位符一旦自带
- * 前缀链（这里是以 dialog 收窄后的 `form`）就不再按外层元素重新生根，实测恒匹配 0 个，
- * 表现为 `fill()` 干等 20 秒——诊断时别以为是折叠区没展开。
- */
-const identityField = (form: Locator, labelKey: string): Locator => form.getByLabel(textOf(labelKey)).first();
-
-/** 从已打开的身份库里经表单录一条（姓名 + 手机号），并等到成功提示与表单关闭 */
-async function addIdentity(page: Page, name: string, phone: string): Promise<void> {
-  await vaultDialog(page)
-    .getByRole('button', { name: textOf('identity.add') })
-    .click();
-  const form = identityFormDialog(page);
-  await expect(form).toBeVisible();
-  await identityField(form, 'identity.field.name').fill(name);
-  await identityField(form, 'identity.field.phone').fill(phone);
-  await expectSuccessToastFor(page, 'identity.form.saveSuccess', () =>
-    form.getByRole('button', { name: textOf('common.save') }).click(),
-  );
-  await expect(form).toBeHidden();
-}
-
-/**
- * 经数据管理菜单打开身份库，返回前库已处于已解锁态
- *
- * `expectRecheck` 必须显式传：默认档 `perSession` 的语义是「同一管理页文档会话内第一次打开问、
- * 之后不再问」（`entrypoints/options/App.vue` 的 `identityVaultVerifiedThisSession`）。写成
- * 「有弹窗就填、没弹窗就跳过」会把这条语义整个测没了，所以两种预期各走各的断言。
- * 不问那一趟的判据顺序是**先等库可见**：复验若弹，库被挡在它后面打不开，这一步就超时判红；
- * 反过来先断言「复验层不在」是恒真——`runHeaderCommand` 只负责点菜单、不等任何弹窗落地。
- */
-async function openVaultFromMenu(page: Page, expectRecheck: boolean): Promise<void> {
-  await runHeaderCommand(page, 'options.header.data', 'identity.title');
-  if (!expectRecheck) {
-    await expect(vaultDialog(page)).toBeVisible();
-    await expect(verifyDialog(page)).toBeHidden();
-    return;
-  }
-  await verifyMasterPassword(page, 'identity.verifyPrompt');
-  await expect(vaultDialog(page)).toBeVisible();
-}
 
 /** 打开某条密码的详情抽屉 */
 async function openDrawer(page: Page, username: string): Promise<Locator> {
@@ -154,7 +84,7 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   await expect(searchInput(page)).toHaveValue(PHONE_HIT);
   await expect(cards(page)).toHaveCount(1);
   await expect(cards(page).first()).toContainText(NAME_HIT);
-  await expect(vaultDialog(page).locator('.identity-meta')).toContainText(
+  await expect(vaultDialog(page).locator('.identity-selectbar__matched')).toContainText(
     templatedOf('identity.matchCount', { count: 1 }),
   );
   await expect(drawer).toBeHidden();
@@ -166,7 +96,65 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   await openVaultFromMenu(page, false);
   await expect(searchInput(page)).toHaveValue('');
   await expect(cards(page)).toHaveCount(2);
-  await expect(vaultDialog(page).locator('.identity-meta')).not.toContainText(numericTemplateOf('identity.matchCount'));
+  await expect(vaultDialog(page).locator('.identity-selectbar__matched')).toHaveCount(0);
+
+  // ⑤ 零命中那一行：气泡把用户送到库里，而他从没建过那一格时，空态必须说清「差的是哪个名字」，
+  //    并给出与工具栏同一条添加出路。源码守卫只看接线，这句话是否真的渲染出来、
+  //    `{keyword}` 是否真的被插值，只有真浏览器量得到。
+  await searchInput(page).fill('e2e-no-such-field');
+  await expect(cards(page)).toHaveCount(0);
+  const empty = vaultDialog(page).locator('.identity-empty');
+  await expect(empty.locator('.identity-empty__hint')).toContainText('e2e-no-such-field');
+  await expect(empty.getByRole('button', { name: textOf('identity.add') })).toBeVisible();
+  await expect(empty.getByRole('button', { name: textOf('identity.clearFilters') })).toBeVisible();
+
+  // 词清掉之后列表必须回全量：出路不能把用户永久钉在空态里
+  await searchInput(page).fill('');
+  await expect(cards(page)).toHaveCount(2);
+  await expect(empty).toHaveCount(0);
+
+  // ⑥ 按字段名检索：把屏上那一列的名字原样喂回搜索框——中英两侧都不必硬编码文案。
+  //    判据分两半：命中的是「名字」而不是标题里的字（标题那一格不许有高亮），
+  //    而那一格的高亮必须真的落在标签列上——Element Plus 的 `#label` 插槽在 border 模式下
+  //    到底渲染不渲染，源码守卫证不了，只有真浏览器给得起答案。
+  const firstCard = cards(page).first();
+  const phoneLabel = firstCard.locator('.identity-field__label').nth(1);
+  const labelName = (await phoneLabel.innerText()).trim();
+  expect(labelName, '标签列读出来是空的：字段名那一格没渲染').not.toBe('');
+
+  await searchInput(page).fill(labelName);
+  await expect(cards(page)).toHaveCount(2);
+  await expect(cards(page).first().locator('.identity-field__label').nth(1).locator('.search-hit')).toHaveText(
+    labelName,
+  );
+  await expect(cards(page).first().locator('.identity-card__title .search-hit')).toHaveCount(0);
+  // 严格那一屏不许配放宽说明——否则下面 ⑦ 段「说明行出现」就失去了对照
+  await expect(vaultDialog(page).locator('.identity-relaxed')).toHaveCount(0);
+
+  await searchInput(page).fill('');
+  await expect(cards(page)).toHaveCount(2);
+  await expect(cards(page).first().locator('.search-hit')).toHaveCount(0);
+
+  // ⑦ 放宽那一屏：打的是页面上那种长写法（`手机号码` / `mobile`），严格检索在值与名字上都搜不到，
+  //    只有「这句话是不是在要某一格」那条通道认得。判据三件：说明行真的把这行字插进去了、
+  //    整串高亮落在标签列那一格上、命中式高亮一个都不许有（值里并没有这几个字，亮了就是撒谎）。
+  //    探针词从词表里挑，中英两侧都不用硬编码：挑一条「不是屏上那串名字的子串、且与它同文字系统」的写法。
+  const labelBefore = (await cards(page).first().locator('.identity-field__label').nth(1).innerText()).trim();
+  const isHan = /[\u4e00-\u9fff]/.test(labelBefore);
+  const probe = IDENTITY_FIELD_NAME_STEMS.phone.find(
+    stem => !labelBefore.toLowerCase().includes(stem.toLowerCase()) && /[\u4e00-\u9fff]/.test(stem) === isHan,
+  );
+  expect(probe, '词表里挑不出一条可用的长写法：这条通道的真机判据就没了载体').toBeTruthy();
+
+  await searchInput(page).fill(probe!);
+  await expect(cards(page)).toHaveCount(2);
+  await expect(vaultDialog(page).locator('.identity-relaxed')).toContainText(probe!);
+  await expect(cards(page).first().locator('.identity-field__name-hit')).toHaveText(labelBefore);
+  await expect(cards(page).first().locator('.search-hit')).toHaveCount(0);
+
+  await searchInput(page).fill('');
+  await expect(vaultDialog(page).locator('.identity-relaxed')).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(2);
 });
 
 test('抽屉跳转：取消主密码复验则库不打开，抽屉与已填内容都还在', async ({ optionsPage: page }) => {

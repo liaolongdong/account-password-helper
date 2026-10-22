@@ -248,6 +248,14 @@
       <!-- 右侧辅助入口：空间不足时整组换行到下一行右侧，不与左组换行后的基线错位 -->
       <div class="header-actions-right">
         <el-button
+          :icon="Search"
+          :title="t('options.header.commandPaletteTitle')"
+          :aria-label="t('options.header.commandPaletteTitle')"
+          @click="$emit('openCommandPalette')"
+        >
+          {{ t('options.header.commandPalette') }}
+        </el-button>
+        <el-button
           :icon="Compass"
           :title="t('options.header.tourTitle')"
           @click="$emit('openTour')"
@@ -309,6 +317,7 @@ import {
   Connection,
   Postcard,
   InfoFilled,
+  Search,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -356,6 +365,8 @@ defineEmits<{
   openTour: [];
   /** 打开页内「使用指引」文档中页 */
   openGuide: [];
+  /** 打开命令面板 */
+  openCommandPalette: [];
   /** 打开「关于」抽屉 */
   openAbout: [];
 }>();
@@ -487,7 +498,10 @@ const backupStatusText = computed(() => {
 .header-actions-right {
   display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
   gap: 12px;
+  justify-content: flex-end;
+  max-width: 100%;
   margin-left: auto;
 }
 

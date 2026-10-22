@@ -10,6 +10,7 @@ import { applySavedSortConfig } from './configManager';
 import { snapshotPasswordHistory } from './passwordHistory';
 import { moveToTrash } from './trashManager';
 import { assertWithinCapacity } from './vaultCapacity';
+import { markFirstQuickFill } from './reviewPrompt';
 
 /**
  * 延迟加载加密模块（deriveEncryptionKey / encryptPasswordEntry / decryptPasswordEntry）
@@ -340,6 +341,9 @@ async function flushMetadataUpdates(): Promise<void> {
   // 快照并清空队列（防止 flush 期间新入队的数据被本次写入覆盖）
   const batch = new Map(_pendingMetadataUpdates);
   _pendingMetadataUpdates.clear();
+  // 批次里出现 lastUsedAt 即为「有一次真实填充」：侧边栏、快捷键、内联下拉、右键菜单、
+  // Popup 一键填充的使用痕迹全部经本函数落盘，这里是唯一的汇聚点
+  const hasFillUpdate = [...batch.values()].some(updates => updates.lastUsedAt !== undefined);
 
   try {
     const passwords = await getAllPasswordsRaw();
@@ -363,6 +367,7 @@ async function flushMetadataUpdates(): Promise<void> {
       try {
         await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.METADATA_FLUSH_AT]: Date.now() });
         await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: passwords });
+        if (hasFillUpdate) void markFirstQuickFill();
       } catch (error) {
         void chrome.storage.session.remove(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT).catch(() => {});
         throw error;

@@ -1,5 +1,5 @@
-import { expect, test } from './harness';
-import { textOf } from './i18n';
+import { expect, expectSuccessToast, test } from './harness';
+import { anchoredTextOf, textOf } from './i18n';
 
 /**
  * 命令面板的入口能不能真的把目标界面唤出来
@@ -27,6 +27,13 @@ import { textOf } from './i18n';
  * `tour.isActive` 期间会拒绝再次唤起面板，跑完就不再需要面板了。
  */
 test.describe('命令面板执行入口', () => {
+  test('HeaderBar 的可见入口 → 打开命令面板', async ({ optionsPage: page }) => {
+    await page.getByRole('button', { name: textOf('options.header.commandPaletteTitle') }).click();
+    await expect(page.locator('.cp-overlay'), '可见入口没唤起命令面板').toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.cp-overlay')).toBeHidden();
+  });
+
   test('关于 → 打开关于抽屉', async ({ optionsPage: page }) => {
     await page.keyboard.press('Control+k');
     await expect(page.locator('.cp-overlay'), 'Ctrl+K 没唤起命令面板').toBeVisible();
@@ -38,6 +45,71 @@ test.describe('命令面板执行入口', () => {
     await expect(page.locator('.cp-overlay')).toBeHidden();
     // 按文案过滤而不是 `.el-drawer` 裸取：页面里同时存在「查看详情」抽屉的节点，裸取会撞 strict mode
     await expect(page.getByRole('dialog').filter({ hasText: textOf('options.about.title') })).toBeVisible();
+  });
+
+  test('关于 → 分享给同事复制带 UTM 的产品页与商店链接', async ({ optionsPage: page }) => {
+    await page.getByRole('button', { name: textOf('options.header.about') }).click();
+    const drawer = page.getByRole('dialog').filter({ hasText: textOf('options.about.title') });
+    await expect(drawer).toBeVisible();
+
+    const review = drawer.getByRole('button', { name: textOf('options.about.review') });
+    const share = drawer.getByRole('button', { name: textOf('options.about.share') });
+    // 抽屉自带的关闭按钮 aria-label 也是 "Close this dialog"，非锚定匹配会同时命中两个；
+    // 这里要量的是页脚那颗文字按钮，必须整串相等。
+    const close = drawer.getByRole('button', { name: anchoredTextOf('common.close') });
+    await expect(review).toBeVisible();
+    await expect(share).toBeVisible();
+    await expect(close).toBeVisible();
+    /*
+     * 三颗按钮的几何必须在**同一帧**里读。`el-drawer` 是滑入动画，分三次 `boundingBox()`
+     * 就是三次 CDP 往返，抽屉还在往左搬，后一次量到的 x 必然比前一次小——「评价在分享左侧」
+     * 会被动画本身判死（本机差 0.6 像素，CI 差 86 像素）。一次 evaluate 里的三次 rect 同属
+     * 一帧，整块平移不影响它们的相对关系，因此判据与动画时刻无关。
+     * 身份仍按可访问名认领（不靠 DOM 顺序下标）：页脚少渲染一颗、或顺序被调换，
+     * 都必须让这条用例红，而不是拿错位后的矩形继续算「通过」。
+     */
+    const footer = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.about-footer .el-button')].map(el => {
+        const rect = el.getBoundingClientRect();
+        return {
+          text: el.textContent?.trim() ?? '',
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        };
+      }),
+    );
+    expect(footer, '「关于」页脚不是三颗按钮').toHaveLength(3);
+    const pick = (matcher: RegExp, label: string) => {
+      const found = footer.find(button => matcher.test(button.text));
+      expect(found, `页脚认不出「${label}」那颗按钮`).toBeDefined();
+      expect(found!.width, `「${label}」量到零宽：不可见节点没有几何可谈`).toBeGreaterThan(0);
+      return found!;
+    };
+    const reviewBox = pick(textOf('options.about.review'), '评价');
+    const shareBox = pick(textOf('options.about.share'), '分享');
+    const closeBox = pick(anchoredTextOf('common.close'), '关闭');
+    expect(reviewBox.x + reviewBox.width, '评价入口应在分享左侧').toBeLessThanOrEqual(shareBox.x);
+    expect(shareBox.x - (reviewBox.x + reviewBox.width), '评价与分享间距没有收紧').toBeLessThanOrEqual(8);
+    expect(closeBox.x - (shareBox.x + shareBox.width), '分享与关闭间距没有收紧').toBeLessThanOrEqual(8);
+    expect(Math.abs(closeBox.y - reviewBox.y), '三个按钮没有排在同一行').toBeLessThanOrEqual(1);
+
+    await share.click();
+    await expectSuccessToast(page, 'options.about.shareCopied');
+
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toContain('liaolongdong.github.io/account-password-helper/?utm_source=about');
+    expect(copied).toContain('chromewebstore.google.com');
+    // 产品页与商店页各带一次 UTM，避免两条链接只有一条可归因
+    expect(copied.match(/utm_source=about/g)).toHaveLength(2);
+    expect(copied).toContain('utm_campaign=teammate');
+    // 文案必须把「开源免费 / 安全加密 / 核心功能」三件事讲全
+    expect(copied).toContain('GPL-3.0');
+    expect(copied).toContain('AES-256-GCM');
+    expect(copied).toContain('TOTP');
+    expect(copied).toMatch(/可选自动登录|optional auto-login/i);
+    expect(copied).toMatch(/个人信息库|personal info vault/i);
   });
 
   test('新手引导 → 起引导层', async ({ optionsPage: page }) => {

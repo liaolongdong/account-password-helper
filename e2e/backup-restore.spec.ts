@@ -6,7 +6,6 @@ import {
   allRows,
   createEntry,
   expect,
-  expectSuccessToast,
   expectSuccessToastFor,
   footerPrimary,
   leaksPlaintext,
@@ -168,7 +167,11 @@ test.describe('加密备份导出与导入', () => {
       .locator('.el-message-box')
       .getByRole('button', { name: textOf('form.moveToTrash') })
       .click();
-    await expectSuccessToast(page, 'form.movedToTrash');
+    // 单条删除的反馈是「可撤销回执」（`role="status"` 的 `.undo-toast`），不是 ElMessage：
+    // `commitDelete` 只在拿不到撤销 id 时才发 `form.movedToTrash` 提示，走 alert 断言必然落空
+    const undoToast = page.locator('.undo-toast');
+    await expect(undoToast).toBeVisible();
+    await expect(undoToast).toContainText(textOf('options.undoDelete.messageSingle'));
     await expect(allRows(page)).toHaveCount(0);
 
     await importBackupFile(page, 'e2e-roundtrip.aph', backupFile);

@@ -71,24 +71,23 @@
         class="identity-reminder"
       />
 
-      <!-- 状态栏：搜索命中计数（左，仅过滤时） + 条数上限指示（右） -->
-      <div
-        v-if="rows.length > 0"
-        class="identity-meta"
+      <!--
+        放宽说明行：这一屏不是「搜到了值」，而是「这句话读作了某一格的名字」。
+        不写这句就会变成一次静默的检索语义切换——用户打的是页面上那行字，
+        看到的是几张没有值匹配的卡，只能靠猜。判据与 `searchRelaxed` 同源：
+        放宽没产出条目时它是 false，空态那句「建一条同名自定义字段」继续说话。
+      -->
+      <p
+        v-if="searchRelaxed"
+        class="identity-relaxed"
       >
-        <span v-if="filterActive">
-          {{ t('identity.matchCount', { count: filteredRows.length }) }}
-        </span>
-        <span :class="['identity-meta__count', { 'is-limit': atLimit }]">
-          {{
-            atLimit
-              ? t('identity.countAtLimit', { max: MAX_IDENTITIES })
-              : t('identity.countIndicator', { count: rows.length, max: MAX_IDENTITIES })
-          }}
-        </span>
-      </div>
+        {{ t('identity.searchRelaxed', { keyword: keyword.trim() }) }}
+      </p>
 
-      <!-- 选择栏：全选 + 已选/总数摘要（驱动导出作用域） + 右侧批量动作（显示/隐藏全部机密、折叠/展开全部） -->
+      <!--
+        选择栏（一行装下全部读数与批量动作）：全选 + 已选/总数摘要（驱动导出作用域）
+        + 搜索命中数（仅过滤时）+ 条数上限指示（右推，与批量动作同组）
+      -->
       <div
         v-if="rows.length > 0"
         class="identity-selectbar"
@@ -102,6 +101,19 @@
         </el-checkbox>
         <span class="identity-selectbar__summary">
           {{ t('identity.selection.summary', { selected: selectedCount, total: rows.length }) }}
+        </span>
+        <span
+          v-if="filterActive"
+          class="identity-selectbar__matched"
+        >
+          {{ t('identity.matchCount', { count: filteredRows.length }) }}
+        </span>
+        <span :class="['identity-selectbar__count', { 'is-limit': atLimit }]">
+          {{
+            atLimit
+              ? t('identity.countAtLimit', { max: MAX_IDENTITIES })
+              : t('identity.countIndicator', { count: rows.length, max: MAX_IDENTITIES })
+          }}
         </span>
         <div class="identity-selectbar__actions">
           <el-button
@@ -146,11 +158,30 @@
         class="identity-empty"
       >
         <el-empty :description="t('identity.noMatch')">
+          <!--
+            深链零命中的出路：气泡那句「库里没有这一格，可在自定义字段里存下它」把用户送到这里，
+            若他从没建过那一格，落点就是一片空态。这一行只解释「差的是哪个名字」，动作复用工具栏
+            那枚同一条 `$emit('add')`——不自建第二套添加流程，也不在这里碰任何明文。
+            只在**有搜索词**时说这句话：按类别筛空的那些形里，这句话会把人往错误的落点上引。
+          -->
+          <p
+            v-if="keyword.trim()"
+            class="identity-empty__hint"
+          >
+            {{ t('identity.noMatchHint', { keyword: keyword.trim() }) }}
+          </p>
           <el-button
             v-if="filterActive"
             @click="clearFilters"
           >
             {{ t('identity.clearFilters') }}
+          </el-button>
+          <el-button
+            v-if="keyword.trim()"
+            type="primary"
+            @click="$emit('add')"
+          >
+            {{ t('identity.add') }}
           </el-button>
         </el-empty>
       </div>
@@ -202,11 +233,21 @@
               :model-value="isSelected(entry.id)"
               @change="toggleSelect(entry.id)"
             />
-            <div class="identity-card__title">
+            <!--
+              标题区同时是整行折叠开关：它占满复选框与动作行之间的剩余宽度，
+              比右侧 24px 的 chevron 好点得多。只挂标题而不挂 header，是为了让
+              复选框、拖拽把手和动作行各自的事件保持原样；键盘与读屏路径仍走右侧 chevron。
+            -->
+            <div
+              class="identity-card__title"
+              @click="handleTitleToggle(entry, $event)"
+            >
               <SearchHighlight
+                v-if="keyword"
                 :text="displayTitle(entry)"
                 :keyword="keyword"
               />
+              <template v-else>{{ displayTitle(entry) }}</template>
               <el-tag
                 size="small"
                 effect="plain"
@@ -219,6 +260,7 @@
               <el-button
                 :icon="isCollapsed(entry.id) ? ArrowDown : ArrowUp"
                 :aria-label="isCollapsed(entry.id) ? t('identity.expandOne') : t('identity.collapseOne')"
+                :aria-expanded="!isCollapsed(entry.id)"
                 link
                 @click="toggleCollapse(entry.id)"
               />
@@ -264,8 +306,34 @@
             <el-descriptions-item
               v-for="field in buildFieldRows(entry)"
               :key="field.key"
-              :label="field.label"
+              label-class-name="identity-field__label"
             >
+              <!--
+                标签列也走高亮：字段名进了检索面（搜「银行卡号」命中的就是这一格的名字），
+                命中处必须看得见，否则列表里出现一张毫无强调的卡，用户读不出它凭什么匹配。
+                各分支都挂关键词或认格集合，空关键词是本弹窗的常态，
+                按管理页表格的既有约定（`tests/architecture/optionsRenderIdentity.test.ts`）
+                不该为一段纯文本每格建一个组件实例；等价性由 `highlightSegments(text, '')`
+                恒等于单段非高亮文本来保证。
+              -->
+              <template #label>
+                <!--
+                  放宽那一屏里没有可高亮的命中子串：用户打的 `联系电话号码` 并不出现在屏上
+                  那串 `手机号` 里。所以这里高亮的是**整串名字**——它表达的是「你要的就是这一格」，
+                  而不是「这一格里有你要的那几个字」。
+                -->
+                <span
+                  v-if="relaxedNameKeys.has(field.key)"
+                  class="identity-field__name-hit"
+                  >{{ field.label }}</span
+                >
+                <SearchHighlight
+                  v-else-if="keyword"
+                  :text="field.label"
+                  :keyword="keyword"
+                />
+                <template v-else>{{ field.label }}</template>
+              </template>
               <div class="identity-field">
                 <span
                   v-if="field.secret"
@@ -274,10 +342,11 @@
                   {{ isRevealed(entry.id) ? field.value : MASK }}
                 </span>
                 <SearchHighlight
-                  v-else
+                  v-else-if="keyword"
                   :text="field.value"
                   :keyword="keyword"
                 />
+                <template v-else>{{ field.value }}</template>
                 <el-button
                   :icon="CopyDocument"
                   :aria-label="t('common.copy')"
@@ -325,10 +394,22 @@
           >
             {{ t('identity.import.action') }}
           </el-button>
+          <el-button
+            :icon="Delete"
+            @click="trashVisible = true"
+          >
+            {{ trashButtonLabel }}
+          </el-button>
         </div>
         <el-button @click="$emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
       </div>
     </template>
+
+    <!-- 身份回收站（嵌套弹窗）：恢复/彻底删除/清空后经 changed 刷新主列表与计数 -->
+    <IdentityTrashDialog
+      v-model="trashVisible"
+      @changed="handleTrashChanged"
+    />
   </el-dialog>
 </template>
 
@@ -359,6 +440,7 @@ import {
 } from '@/utils/identity/constants';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
+import { shouldToggleCollapseFromTitleClick } from '@/utils/identity/titleToggle';
 import {
   exportIdentityBackup,
   exportIdentityPlaintext,
@@ -370,10 +452,13 @@ import {
 } from '@/utils/identity/backup';
 import type { IdentityBackupData } from '@/utils/identity/backup';
 import { replaceAllIdentity } from '@/utils/storage/identityCrud';
+import { getIdentityTrashCount } from '@/utils/storage/identityTrashManager';
+import { TRASH_RETENTION_DAYS } from '@/utils/storage/trashRetention';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
 import SearchHighlight from '@/components/SearchHighlight.vue';
+import IdentityTrashDialog from '@/components/options/IdentityTrashDialog.vue';
 import type { IdentityVault } from '@/composables/useIdentityVault';
 
 /**
@@ -381,7 +466,8 @@ import type { IdentityVault } from '@/composables/useIdentityVault';
  *
  * 展示解密后的身份条目（类别过滤 + 排序档位 + 搜索 + 卡级机密显隐 / 批量展开收起 +
  * 单卡折叠与「折叠 / 展开全部」+
- * 整卡/逐字段复制 + 勾选 + 删除；顶部状态栏显示搜索命中数与「已用 n/30」条数上限，无匹配时空态提供「清除筛选」）。
+ * 整卡/逐字段复制 + 勾选 + 删除；全选行内一并显示已选摘要、搜索命中数与「已用 n / max 条」
+ * 上限指示（原本自占一行的状态栏已并入该行），无匹配时空态提供「清除筛选」）。
  * 眼睛按「卡片」为粒度切换该卡全部机密字段（设计如此，非 bug）；每卡复选框 + 工具栏
  * 全选驱动导出作用域——未勾选=导出全部，勾选=仅导出所选子集。footer 常驻备份导入/导出：
  * 加密 `.aphid` 走主密码解密；「导出明文（不推荐）」与导入均接受明文 `.json`，明文读写都设
@@ -419,6 +505,8 @@ const {
   categoryFilter,
   sortMode,
   filteredRows,
+  searchRelaxed,
+  relaxedNameKeys,
   identityBackupPending,
   selectedIds,
   selectedCount,
@@ -485,6 +573,19 @@ const handleSortModeChange = (value: unknown): void => {
   if (isIdentitySortMode(value)) {
     setSortMode(value);
   }
+};
+
+/**
+ * 标题区点击切换折叠
+ *
+ * 标题只做指针增强，不挂 `role` / `tabindex`：右侧 chevron 已是键盘与读屏的
+ * 等价入口，再给标题一个可聚焦角色会让 Tab 序里出现两个同义控件。
+ * 标题内拖选文字时浏览器仍会补发 click，交给纯函数判掉，避免选字把卡片收起。
+ */
+const handleTitleToggle = (entry: IdentityEntry, event: MouseEvent): void => {
+  const title = event.currentTarget as HTMLElement | null;
+  if (!shouldToggleCollapseFromTitleClick(event.detail, window.getSelection(), title)) return;
+  toggleCollapse(entry.id);
 };
 
 // ==================== manual 档：拖拽 + 键盘两条写入路径 ====================
@@ -596,13 +697,19 @@ const handleCopyCard = (entry: IdentityEntry): Promise<void> =>
 /** 当前导出作用域：未勾选→全部；已勾选→所选子集 */
 const exportTargets = computed(() => resolveExportEntries(rows.value, selectedIds.value));
 
-/** 弹窗打开时加载数据，并行恢复落盘的排序档位（对标 TrashDialog 的 watch modelValue） */
+/** 回收站弹窗显隐（父弹窗关闭时立即收起，避免解密标题随隐藏 DOM 多留一拍） */
+const trashVisible = ref(false);
+
+/** 弹窗打开时加载数据，并行恢复落盘的排序档位、拉取回收站计数（对标 TrashDialog 的 watch modelValue） */
 watch(
   () => props.modelValue,
   visible => {
     if (visible) {
       void load();
       void restoreSortMode();
+      void refreshTrashCount();
+    } else {
+      trashVisible.value = false;
     }
   },
 );
@@ -615,19 +722,48 @@ watch(
  */
 const handleClosed = (): void => {
   teardown();
+  // 父弹窗关闭（Esc / 外部点击 / 会话锁定）时一并收起嵌套回收站：
+  // 否则 trashVisible 会保留到下次打开，带着上一轮的解密标题直接重新出现。
+  trashVisible.value = false;
   resetDragState();
 };
 
-/** 删除条目（二次确认 + 明说不可恢复） */
+// ==================== 回收站 ====================
+
+/** 回收站条目数（驱动入口按钮计数读数；读失败由数据层降级为 0，不打扰用户） */
+const trashCount = ref(0);
+
+/** 入口按钮文案：有条目时附计数，用户不必打开弹窗即可判断回收站是否有货 */
+const trashButtonLabel = computed(() =>
+  trashCount.value > 0 ? `${t('identity.trash.action')} (${trashCount.value})` : t('identity.trash.action'),
+);
+
+/** 刷新回收站计数 */
+const refreshTrashCount = async (): Promise<void> => {
+  trashCount.value = await getIdentityTrashCount();
+};
+
+/** 回收站内容变化（恢复/彻底删除/清空）后同步主列表与计数——恢复的新条目须立刻可见 */
+const handleTrashChanged = (): void => {
+  void load();
+  void refreshTrashCount();
+};
+
+/** 删除条目（二次确认；软删除移入回收站，保留期内可恢复） */
 const handleDelete = async (entry: IdentityEntry): Promise<void> => {
   try {
-    await ElMessageBox.confirm(t('identity.deleteConfirm'), t('identity.deleteConfirmTitle'), {
-      confirmButtonText: t('common.delete'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning',
-    });
+    await ElMessageBox.confirm(
+      t('identity.deleteConfirm', { days: TRASH_RETENTION_DAYS }),
+      t('identity.deleteConfirmTitle'),
+      {
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
     await remove(entry.id);
-    ElMessage.success(t('identity.deleteSuccess'));
+    ElMessage.success(t('identity.deleteSuccess', { days: TRASH_RETENTION_DAYS }));
+    void refreshTrashCount();
   } catch (error) {
     if (error !== 'cancel') {
       logger.error('删除身份信息失败:', error);
@@ -726,7 +862,7 @@ const applyImportedData = async (data: IdentityBackupData, plaintext: boolean): 
   // 预览计数基于当前内存快照（advisory，仅用于确认弹窗展示）
   const preview = mergeIdentityRecords(rows.value, data.records);
   if (preview.records.length > MAX_IDENTITIES) {
-    ElMessage.error(t('identity.import.limitReached'));
+    ElMessage.error(t('identity.import.limitReached', { max: MAX_IDENTITIES }));
     return;
   }
 
@@ -751,7 +887,7 @@ const applyImportedData = async (data: IdentityBackupData, plaintext: boolean): 
   await load();
   const merged = mergeIdentityRecords(rows.value, data.records);
   if (merged.records.length > MAX_IDENTITIES) {
-    ElMessage.error(t('identity.import.limitReached'));
+    ElMessage.error(t('identity.import.limitReached', { max: MAX_IDENTITIES }));
     return;
   }
 
@@ -862,39 +998,50 @@ const handleFileChange = async (event: Event): Promise<void> => {
   margin-bottom: 12px;
 }
 
-.identity-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.identity-meta__count {
-  margin-left: auto;
-}
-
-.identity-meta__count.is-limit {
-  color: var(--el-color-warning);
-}
-
 .identity-selectbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   margin-bottom: 12px;
 }
 
-.identity-selectbar__summary {
+/*
+ * 三个读数共用一档字号与次要色。`flex-wrap` 是英文态的兜底，口径同 `.identity-footer__left`：
+ * 摘要与「已用 n / max」在 en 下比 zh 长，挤满 728px 内容区时换行，而不是把动作组推出圆角外。
+ */
+.identity-selectbar__summary,
+.identity-selectbar__matched,
+.identity-selectbar__count {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+/* 上限指示顶到右侧批量动作之前，取代此前单独占一行的状态栏 */
+.identity-selectbar__count {
+  margin-left: auto;
+}
+
+.identity-selectbar__count.is-limit {
+  color: var(--el-color-warning);
 }
 
 .identity-selectbar__actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   margin-left: auto;
+}
+
+/*
+ * 容器写了 gap，就必须接管 Element Plus 的 `.el-button + .el-button { margin-left: 12px }`，
+ * 否则净间距读成两者之和（接管前是 24px）。取 8px 而不是 footer 那一档的 12px：
+ * `link` 按钮盒子含 1px 透明边框 + `is-link` 的 2px 内边距（特异性 (0,2,0) 压过
+ * `.el-button--small` 的 `padding:5px 11px`），故字面可见间距 = 8 + 3×2 = 14px，
+ * 与本弹窗卡片动作行的 8px 净间距同档。真机读数见 `e2e/identity-vault-selectbar-density.spec.ts`，
+ * 声明值登记在 `tests/architecture/dialogFooterDensityWiring.test.ts`。
+ */
+.identity-selectbar__actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 /* 读屏播报区：不能用 display:none / visibility:hidden——那样读屏也读不到，只能裁出可视区 */
@@ -912,6 +1059,32 @@ const handleFileChange = async (event: Event): Promise<void> => {
   align-items: center;
   justify-content: center;
   min-height: 260px;
+}
+
+/* 零命中那一行的上下文说明：说清差的是哪个名字，不改变弹窗里任何其他文字的层级 */
+.identity-empty__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--aph-text-secondary);
+  text-align: center;
+}
+
+/* 放宽说明行：紧贴指标行下方，与空态那句说明同一字号，靠边而不居中（它挨着的是列表） */
+.identity-relaxed {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--aph-text-secondary);
+}
+
+/*
+ * 放宽那一屏里被认中的格子名：与 `SearchHighlight` 的命中段同一套强调（主题色 + 加粗），
+ * 但不借用它的类名——那一层的语义是「命中的那几个字」，这里的语义是「你要的这一格」。
+ */
+.identity-field__name-hit {
+  font-weight: 600;
+  color: var(--aph-primary, var(--el-color-primary));
 }
 
 .identity-list {
@@ -999,6 +1172,7 @@ const handleFileChange = async (event: Event): Promise<void> => {
   font-size: 15px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  cursor: pointer;
 }
 
 .identity-card__category {
@@ -1071,7 +1245,20 @@ const handleFileChange = async (event: Event): Promise<void> => {
 
 .identity-footer__left {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/*
+ * 与 `.identity-card__actions` 那条不同源：这里是文字按钮行，净间距跟弹窗 footer 一致取 12px，
+ * 故接管掉 Element Plus 的相邻按钮边距——原先 `gap: 8px` 与它叠加成 20px。
+ * 上面那条 `flex-wrap` 是给英文态兜底的：真机量具实测四颗按钮 751.68px，超出 760px 弹窗
+ * footer 的 728px 可用宽（旧 20px 档下要 775.68px，且 `.el-dialog` 无 `overflow: hidden`，
+ * 多出来的部分会直接探出弹窗圆角外）。中文态 545.08px 放得下，换行只在英文态发生。
+ * 口径由 tests/architecture/dialogFooterDensityWiring.test.ts 守卫。
+ */
+.identity-footer__left :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .identity-file-input {

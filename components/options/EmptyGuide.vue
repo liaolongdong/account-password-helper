@@ -10,7 +10,11 @@
     <div class="empty-guide__cards">
       <div
         class="empty-guide__card"
+        role="button"
+        tabindex="0"
         @click="$emit('add')"
+        @keydown.enter.prevent="$emit('add')"
+        @keydown.space.prevent="$emit('add')"
       >
         <el-icon
           :size="28"
@@ -23,7 +27,11 @@
       </div>
       <div
         class="empty-guide__card"
+        role="button"
+        tabindex="0"
         @click="$emit('import')"
+        @keydown.enter.prevent="$emit('import')"
+        @keydown.space.prevent="$emit('import')"
       >
         <el-icon
           :size="28"
@@ -36,7 +44,11 @@
       </div>
       <div
         class="empty-guide__card"
+        role="button"
+        tabindex="0"
         @click="$emit('restore')"
+        @keydown.enter.prevent="$emit('restore')"
+        @keydown.space.prevent="$emit('restore')"
       >
         <el-icon
           :size="28"
@@ -103,10 +115,16 @@ const { t } = useI18n();
     transform 0.25s;
 }
 
-.empty-guide__card:hover {
+.empty-guide__card:hover,
+.empty-guide__card:focus-visible {
   border-color: var(--el-color-primary);
   box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 12%);
   transform: translateY(-2px);
+}
+
+.empty-guide__card:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
 }
 
 .empty-guide__card-title {

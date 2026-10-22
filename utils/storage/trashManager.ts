@@ -1,40 +1,38 @@
-import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry } from '@/utils/types';
+import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry, TrashRestoreResult } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { deleteHistoryByEntryIds } from './passwordHistory';
-import { removeReminders } from './reminderManager';
+import { pauseReminders, removeReminders, resumeReminders } from './reminderManager';
 import { assertWithinCapacity } from './vaultCapacity';
 
 /**
- * 回收站条目保留天数
+ * 回收站写入串行队列
  *
- * 对外导出：回收站弹窗的「剩余天数」读数与这里的自动清理必须同一口径，
- * 各自写死 30 的话，改保留期时弹窗会静默显示一个与真实清理规则不符的倒计时。
+ * move / restore / permanent delete / empty / cleanup 都是「读主列表 + 读回收站 → 整体覆写」。
+ * 同一上下文内并发调用时，后写者会用陈旧快照覆盖前一次写入，表现为刚删的条目复活或恢复被回滚。
+ * 这里按调用顺序串行化写操作；读取路径不排队（单次 storage.set 本身原子）。
+ * 跨上下文（Options 与 Background）仍以 storage.onChanged 与既有守卫协调。
  */
-export const TRASH_RETENTION_DAYS = 30;
+let trashMutationQueue: Promise<unknown> = Promise.resolve();
 
-/** 一天的毫秒数 */
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/** 毫秒数：30 天 */
-const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * MS_PER_DAY;
+function enqueueTrashMutation<T>(task: () => Promise<T>): Promise<T> {
+  const next = trashMutationQueue.then(task, task);
+  trashMutationQueue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
 
 /**
- * 计算某条回收站条目的剩余保留天数（按「已过几个完整 24 小时」扣减，已到期为 0）
+ * 本模块的到期阈值（= trashRetention.TRASH_RETENTION_MS）。
  *
- * 纯展示口径，与 {@link cleanExpiredTrash} 的到期判定同源（共用 `TRASH_RETENTION_DAYS`）：
- * 阈值仍由 `now - deletedAt > TRASH_RETENTION_MS` 决定，这里只是把同一个差值换算成天数读数。
- *
- * 读数按**天**而不是按保留期整体换算：`30 - floor(已过天数)` 才会随时间逐格递减，
- * 若除以 `TRASH_RETENTION_MS` 则整月都停在 30、到期当天直接跳到 0。
- * 上限同样夹在 `TRASH_RETENTION_DAYS`：时钟回拨或 `deletedAt` 带未来时间时不给出「31 天」。
- *
- * @param deletedAt 删除时间戳（毫秒）
- * @param now 基准时刻（毫秒），由调用方一次取样，避免同一屏内每行各取一次 `Date.now()`
- * @returns 剩余天数（0 ~ `TRASH_RETENTION_DAYS`）
+ * 刻意写成字面量而不是 `import { TRASH_RETENTION_MS }`：trashManager 被 passwordCrud
+ * 静态引用、位于 popup 首屏闭包内，任何指向 trashRetention 的模块边都会把该 chunk
+ * 提升进 eager 清单（sidepanelClosure 守卫会当场失败）。口径单一事实源在
+ * trashRetention.ts，由回收站天数测试断言两者永远相等。
  */
-export const getTrashRemainingDays = (deletedAt: number, now: number = Date.now()): number =>
-  Math.min(TRASH_RETENTION_DAYS, Math.max(0, TRASH_RETENTION_DAYS - Math.floor((now - deletedAt) / MS_PER_DAY)));
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 // ==================== 内部工具 ====================
 
@@ -88,7 +86,7 @@ async function readPasswords(): Promise<(PasswordEntry | EncryptedPasswordEntry)
  *
  * @param ids 要移入回收站的条目 ID 列表
  */
-export async function moveToTrash(ids: string[]): Promise<void> {
+async function moveToTrashInternal(ids: string[]): Promise<void> {
   if (!ids.length) return;
   try {
     const idSet = new Set(ids);
@@ -115,9 +113,9 @@ export async function moveToTrash(ids: string[]): Promise<void> {
       [STORAGE_KEYS.TRASH]: [...trash, ...movedEntries],
     });
 
-    // 清理已移入回收站条目的到期提醒（避免对非活跃条目发送通知）
-    // 批量化：原本逐个 id 各读一次整包提醒表，批删 100 条 = 100 次串行往返
-    await removeReminders(ids).catch(() => {});
+    // 暂停而不是删除提醒：撤销删除 / 从回收站恢复后提醒应继续生效。
+    // 批量化：一次读整包提醒表并一次写回，避免批删 100 条产生 100 次串行往返。
+    await pauseReminders(ids).catch(() => {});
   } catch (error) {
     logger.error('移入回收站失败:', error);
     throw error;
@@ -129,10 +127,16 @@ export async function moveToTrash(ids: string[]): Promise<void> {
  *
  * 恢复后的条目追加到主列表末尾；主列表已存在同 id 条目时仅消费回收站副本，不产生重复条目。
  *
+ * 计数原样返回而不抛错：`restored === 0 && skippedExisting === 0` 表示请求的 id 已不在
+ * 回收站——弹窗开着的那几秒里到期清理恰好跑过，或另一张管理页标签把它彻底删除了，两种都会
+ * 落到这里。这是一次**空操作**而不是异常，静默 return 会让调用方把它报成「已恢复」，
+ * 所以两个计数交给调用方分流（没恢复的条数由调用方按 `ids.length` 自行推得）。
+ *
  * @param ids 要恢复的条目 ID 列表
+ * @returns `restored`（真的回到主列表的条数）与 `skippedExisting`（主列表已有同 id，仅消费副本）
  */
-export async function restoreFromTrash(ids: string[]): Promise<void> {
-  if (!ids.length) return;
+async function restoreFromTrashInternal(ids: string[]): Promise<TrashRestoreResult> {
+  if (!ids.length) return { restored: 0, skippedExisting: 0 };
   try {
     const idSet = new Set(ids);
     const trash = await readTrash();
@@ -162,7 +166,7 @@ export async function restoreFromTrash(ids: string[]): Promise<void> {
       }
     }
 
-    if (restoredEntries.length === 0 && skippedExisting === 0) return;
+    if (restoredEntries.length === 0 && skippedExisting === 0) return { restored: 0, skippedExisting: 0 };
 
     // 总量守卫：与批量导入同口径——整批要么全恢复要么一条都不动，不静默截断。
     // 「恢复了 5 条中的 2 条」会让回收站看起来没清空，用户无法判断还剩哪些。
@@ -173,6 +177,11 @@ export async function restoreFromTrash(ids: string[]): Promise<void> {
       [STORAGE_KEYS.PASSWORDS]: [...passwords, ...restoredEntries],
       [STORAGE_KEYS.TRASH]: remainingTrash,
     });
+
+    // 恢复后继续原提醒（软删除时只暂停）。失败只记日志，不影响条目已恢复的事实。
+    await resumeReminders(restoredEntries.map(entry => entry.id));
+
+    return { restored: restoredEntries.length, skippedExisting };
   } catch (error) {
     logger.error('从回收站恢复失败:', error);
     throw error;
@@ -186,7 +195,7 @@ export async function restoreFromTrash(ids: string[]): Promise<void> {
  *
  * @param ids 要彻底删除的条目 ID 列表
  */
-export async function permanentDeleteFromTrash(ids: string[]): Promise<void> {
+async function permanentDeleteFromTrashInternal(ids: string[]): Promise<void> {
   if (!ids.length) return;
   try {
     const idSet = new Set(ids);
@@ -211,7 +220,7 @@ export async function permanentDeleteFromTrash(ids: string[]): Promise<void> {
  *
  * 同时清理所有回收站条目的密码修改历史。
  */
-export async function emptyTrash(): Promise<void> {
+async function emptyTrashInternal(): Promise<void> {
   try {
     const trash = await readTrash();
     if (trash.length === 0) return;
@@ -233,7 +242,7 @@ export async function emptyTrash(): Promise<void> {
  *
  * 由 background 定时闹钟触发，自动清理到期条目。
  */
-export async function cleanExpiredTrash(): Promise<void> {
+async function cleanExpiredTrashInternal(): Promise<void> {
   try {
     const trash = await readTrash();
     if (trash.length === 0) return;
@@ -243,7 +252,12 @@ export async function cleanExpiredTrash(): Promise<void> {
     const remaining: TrashedPasswordEntry[] = [];
 
     for (const entry of trash) {
-      if (now - entry.deletedAt > TRASH_RETENTION_MS) {
+      // 语义与 trashRetention.isTrashEntryExpired 一致（本模块因 popup 首屏闭包不能 import 它，
+      // 与上面的阈值字面量同属"本地副本 + 断言钉死"那一套，改一边必须改另一边）：
+      // `deletedAt` 非有限数按已到期处理，反向判会让畸形条目在盘上永不过期，
+      // 与回收站弹窗「剩余 N 天」的承诺矛盾。
+      const due = !Number.isFinite(entry.deletedAt) || now - entry.deletedAt > TRASH_RETENTION_MS;
+      if (due) {
         expired.push(entry);
       } else {
         remaining.push(entry);
@@ -311,11 +325,44 @@ export async function getAllTrashRaw(): Promise<TrashedPasswordEntry[]> {
  *
  * @param entries 重新加密后的回收站数组
  */
-export async function replaceAllTrash(entries: TrashedPasswordEntry[]): Promise<void> {
+async function replaceAllTrashInternal(entries: TrashedPasswordEntry[]): Promise<void> {
   try {
     await writeTrash(entries);
   } catch (error) {
     logger.error('替换回收站数据失败:', error);
     throw error;
   }
+}
+
+// ==================== 串行化写入口 ====================
+// 具体实现保持原名 + Internal；导出层只负责排队，调用方无需感知并发顺序。
+
+/** 将密码条目移入回收站（软删除） */
+export function moveToTrash(ids: string[]): Promise<void> {
+  return enqueueTrashMutation(() => moveToTrashInternal(ids));
+}
+
+/** 从回收站恢复条目到密码列表 */
+export function restoreFromTrash(ids: string[]): Promise<TrashRestoreResult> {
+  return enqueueTrashMutation(() => restoreFromTrashInternal(ids));
+}
+
+/** 从回收站彻底删除条目 */
+export function permanentDeleteFromTrash(ids: string[]): Promise<void> {
+  return enqueueTrashMutation(() => permanentDeleteFromTrashInternal(ids));
+}
+
+/** 清空整个回收站 */
+export function emptyTrash(): Promise<void> {
+  return enqueueTrashMutation(() => emptyTrashInternal());
+}
+
+/** 清理过期的回收站条目（后台闹钟） */
+export function cleanExpiredTrash(): Promise<void> {
+  return enqueueTrashMutation(() => cleanExpiredTrashInternal());
+}
+
+/** 批量替换回收站全部数据（rekey） */
+export function replaceAllTrash(entries: TrashedPasswordEntry[]): Promise<void> {
+  return enqueueTrashMutation(() => replaceAllTrashInternal(entries));
 }

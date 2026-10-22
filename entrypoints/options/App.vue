@@ -52,14 +52,45 @@
         :health-grade="passwords.length ? healthReport.grade : undefined"
         :last-verified-backup-at="lastVerifiedBackupAt"
         @add-password="openAddDialogWithActiveTab"
-        @open-health="showHealthDialog = true"
+        @open-health="openHealthDialog"
         @open-validity="openValiditySetting"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
         @open-tour="replayTour"
         @open-guide="openGuide"
+        @open-command-palette="paletteOpen"
         @open-about="showAboutDrawer = true"
+      />
+
+      <!-- 版本更新：已有密码库的用户升级后一次性弹窗，首次安装不打扰 -->
+      <WhatsNewDialog
+        :model-value="whatsNewVisible"
+        :version="currentVersion"
+        @update:model-value="handleWhatsNewVisibility"
+        @cta="handleWhatsNewCta"
+      />
+
+      <!-- 安全起步清单：已有密码后提示备份与体检，可暂不提醒 -->
+      <ActivationChecklist
+        v-if="showActivationChecklist"
+        :has-password="passwords.length > 0"
+        :has-backup="!!lastVerifiedBackupAt"
+        :has-health-check="activationHealthDone"
+        @add="handleActivationAdd"
+        @import-data="handleActivationImport"
+        @backup="handleActivationBackup"
+        @health="handleActivationHealth"
+        @dismiss="handleActivationDismiss"
+      />
+
+      <!-- 一次性评价引导：密码多于 1 条、成功填充过且首次填充满 7 天后出现，可延后或永久关闭 -->
+      <ReviewPrompt
+        :model-value="showReviewPrompt"
+        @update:model-value="handleReviewVisibility"
+        @cta="handleReviewCta"
+        @snooze="handleReviewSnooze"
+        @dismiss="dismissReview"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -119,7 +150,9 @@
         :total-count="totalCount"
         :selected-count="selectedIds.length"
         :off-page-selected-count="offPageSelectedCount"
+        :has-active-filters="hasActiveFilters"
         @selection-change="handleSelectionChange"
+        @clear-filters="clearFilters"
         @sort-change="handleSortChange"
         @toggle-password="togglePasswordVisibility"
         @view-detail="onViewDetail"
@@ -286,6 +319,19 @@
       @run="paletteRunAt"
     />
 
+    <!-- 删除回执：5 秒内可撤销，复用回收站的恢复链路 -->
+    <UndoDeleteToast
+      :visible="undoDeleteState.visible"
+      :message="undoDeleteMessage"
+      :action-label="t('options.undoDelete.action')"
+      :close-label="t('options.undoDelete.close')"
+      :duration="UNDO_DELETE_WINDOW_MS"
+      :reset-key="undoDeleteState.token"
+      @undo="undoDelete"
+      @close="dismissUndo"
+      @expire="dismissUndo"
+    />
+
     <!-- 聚光式新手引导：状态机由本页持有，组件只做渲染（v-if 决定异步 chunk 何时加载） -->
     <OnboardingTour
       v-if="tourActive"
@@ -296,6 +342,7 @@
     <AboutDrawer
       v-model="showAboutDrawer"
       :version="currentVersion"
+      @review="handleReviewCta"
     />
   </div>
 </template>
@@ -359,12 +406,16 @@ import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
 import PasswordFormDialog from '@/components/options/PasswordFormDialog.vue';
 import PasswordTable from '@/components/options/PasswordTable.vue';
 import HeaderBar from '@/components/options/HeaderBar.vue';
+import UndoDeleteToast from '@/components/options/UndoDeleteToast.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
+import ActivationChecklist from '@/components/options/ActivationChecklist.vue';
+import ReviewPrompt from '@/components/options/ReviewPrompt.vue';
+import WhatsNewDialog from '@/components/options/WhatsNewDialog.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
-import { usePasswordManagement } from '@/composables/usePasswordManagement';
+import { usePasswordManagement, UNDO_DELETE_WINDOW_MS } from '@/composables/usePasswordManagement';
 import { useStorageWatcher } from '@/composables/useStorageWatcher';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
@@ -373,6 +424,7 @@ import { useCommandPalette } from '@/composables/useCommandPalette';
 import { useOnboardingTour } from '@/composables/useOnboardingTour';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 import { findDuplicateIdentity } from '@/utils/identity/dedup';
+import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
@@ -380,7 +432,23 @@ import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
-import { isDev } from '@/utils/env';
+import { isDev, isFirefox } from '@/utils/env';
+import { markOptionsFirstView, markOptionsReady, rememberOptionsFirstView } from './appReady';
+import {
+  ACTIVATION_SNOOZE_MS,
+  dismissActivationChecklist,
+  getActivationChecklistState,
+} from '@/utils/storage/activationChecklist';
+import { getWhatsNewState, markWhatsNewSeen, shouldShowWhatsNew } from '@/utils/storage/whatsNew';
+import {
+  dismissReviewPrompt,
+  getReviewPromptState,
+  REVIEW_PROMPT_SNOOZE_MS,
+  shouldShowReviewPrompt,
+  snoozeReviewPrompt,
+} from '@/utils/storage/reviewPrompt';
+import { GITHUB_RELEASES_PAGE_URL, REVIEW_PROMPT_URL } from '@/utils/urls';
+import { readHealthHistory } from '@/utils/healthHistory';
 
 /**
  * 标签页标题跟随语言
@@ -649,6 +717,25 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
 };
 
 /**
+ * 从页面侧身份提示打开身份库
+ *
+ * 进来的是一个标签（后台已按既有检索口径各收口一次，非法值即 `undefined`）：搜索词预填
+ * 检索框——它是页面侧按字段角色取出的那一个标签（本人姓名，或编号族那「一格的字段名」，
+ * 分派见 `IdentityHint` 的 `pickSearchKeyword`），作用是让列表直接筛到那一个人或那条字段，
+ * 省掉「打开身份库再手打」。复验门槛与 palette 入口共用同一个 `openIdentityVaultWithVerify`，
+ * 不新开旁路；词只在复验通过、弹窗确实要打开之后才写入，取消复验时不留检索态。
+ *
+ * 类别档位**刻意不由这条指令决定**：一条身份条目同时携带证件号、手机号、地址等多个值，
+ * 按页面字段角色预选类别会把该命中的条目筛出视野（用户点的就是「搜不到身份证号码」），
+ * 因此恒停在「全部」档，交给检索词收敛。
+ *
+ * @param keyword 已收口的搜索词，缺失时不预填
+ */
+const openIdentityVaultFromPage = (keyword?: string): void => {
+  void openIdentityVaultWithVerify(keyword);
+};
+
+/**
  * 数据管理下拉菜单命令处理
  * @param command 菜单项命令标识
  */
@@ -776,6 +863,10 @@ const {
   copyPassword,
   deletePassword,
   batchDelete,
+  undoDeleteState,
+  undoDeleteMessage,
+  undoDelete,
+  dismissUndo,
   batchEditTags,
   batchExportSelected,
   handlePasswordsImported,
@@ -880,14 +971,59 @@ const healthReport = ref<HealthReport>({
   noTotpCount: 0,
 });
 
-/** 异步更新健康报告（密码列表变化时触发） */
+/**
+ * 异步更新健康报告（密码列表变化时触发）
+ *
+ * 「体检」按钮会等这份报告就绪后再打开弹窗：刚新增/导入条目就立刻点体检时，列表已经变了、
+ * 字典校验还在异步跑，旧实现会把空库报告直接铺进弹窗。同一份列表复用已在飞的 Promise；
+ * 列表在等待期间再次变化则发起新的一轮，旧结果由落地时的引用比较丢弃，避免后到的旧报告覆盖新列表。
+ *
+ * 这里**不做**「算过就复用」的结果缓存：新增与编辑走的是就地更新（`passwords.value.push` /
+ * `Object.assign`，见 `composables/usePasswordManagement.ts`），数组引用全程不变，按引用认列表会让
+ * 挂载那次算出的空库报告永久命中——实测表现为「加完条目点体检，弹窗还说还没有密码」。改按内容
+ * 认（条数 + 最大 `updateTime`）又漏掉 `batchEditTags` 这类**刻意不刷新 `updateTime`** 的就地改字段。
+ * 2000 条整库重算实测 warm 23ms / cold 43ms，比任何一套指纹都便宜，所以每次打开都重算。
+ */
+let healthReportPromise: Promise<void> | null = null;
+/** 在飞那一轮开始时的列表引用：引用变了就另起一轮，避免把旧数组的结果当成新列表的结果 */
+let healthReportInFlightList: PasswordEntry[] | null = null;
+
+const syncHealthReport = (): Promise<void> => {
+  const list = passwords.value;
+  if (healthReportPromise && healthReportInFlightList === list) return healthReportPromise;
+  healthReportInFlightList = list;
+  const promise = buildHealthReportAsync(list, Date.now())
+    .then(report => {
+      if (list === passwords.value) healthReport.value = report;
+    })
+    .finally(() => {
+      if (healthReportPromise === promise) {
+        healthReportPromise = null;
+        healthReportInFlightList = null;
+      }
+    });
+  healthReportPromise = promise;
+  return promise;
+};
+
 watch(
   passwords,
-  async list => {
-    healthReport.value = await buildHealthReportAsync(list, Date.now());
+  () => {
+    void syncHealthReport().catch(error => logger.error('更新健康报告失败:', error));
   },
   { immediate: true },
 );
+
+/** 打开体检弹窗前等待当前列表的报告就绪 */
+const openHealthDialog = async (): Promise<void> => {
+  try {
+    await syncHealthReport();
+  } catch (error) {
+    // 报告失败仍打开弹窗（显示上一份报告），比点了没反应更可诊断
+    logger.error('打开安全体检前更新报告失败:', error);
+  }
+  showHealthDialog.value = true;
+};
 
 /**
  * 安全体检「去处理」：关闭体检弹窗并跳转到对应条目的编辑流程
@@ -961,9 +1097,219 @@ const {
   resetMasterPassword,
 } = useAuthFlow({
   loadPasswords,
+  // 列表解密要等会话判定之后：骨架据此先切到 setup / verify / vault，避免显示错状态
+  onFirstViewResolved: markOptionsFirstView,
   onSessionExpired: () => {
     passwords.value = [];
   },
+});
+
+/**
+ * 认证状态变化时同步刷新「上次视图」提示
+ *
+ * head 里的同步预判脚本靠 sessionStorage 让下一次刷新直接落到正确骨架。页面内锁定 / 解锁
+ * 之后这份提示必须跟着变，否则刷新会先闪旧形态（例如会话过期后仍先画表格骨架）。
+ */
+watch([showMasterPasswordSetup, showPasswordVerify, isAuthenticated], ([setup, verify, authenticated]) => {
+  if (setup) rememberOptionsFirstView('setup');
+  else if (verify) rememberOptionsFirstView('verify');
+  else if (authenticated) rememberOptionsFirstView('vault');
+});
+
+// ==================== 更新提示与一次性评价引导 ====================
+// 只持久化「已读版本」「评价已关闭 / 已延后 / 首次填充时间」几项非敏感时间戳；
+// 首次填充由后台在填充使用痕迹落盘时记录一次，页面只读。
+const growthReady = ref(false);
+const whatsNewVisible = ref(false);
+/** 本次页面已展示过更新卡片时，评价引导延后到下次打开，避免连续两张卡片 */
+const whatsNewShownThisSession = ref(false);
+const reviewDismissedAt = ref<number | null>(null);
+const reviewSnoozedUntil = ref<number | null>(null);
+const reviewFirstFillAt = ref<number | null>(null);
+
+// ==================== 安全起步清单 ====================
+// 完成状态全部由已有事实派生：密码数量、最近验证备份、体检趋势是否存在。
+// 唯一新增持久化是「暂不提醒」时间戳，见 utils/storage/activationChecklist.ts。
+
+const ACTIVATION_TOTAL_STEPS = 3;
+const activationStateReady = ref(false);
+const activationDismissedAt = ref<number | null>(null);
+const activationHealthDone = ref(false);
+
+const activationDoneCount = computed(
+  () =>
+    [passwords.value.length > 0, Boolean(lastVerifiedBackupAt.value), activationHealthDone.value].filter(Boolean)
+      .length,
+);
+
+const activationSnoozed = computed(
+  () => activationDismissedAt.value !== null && Date.now() - activationDismissedAt.value < ACTIVATION_SNOOZE_MS,
+);
+
+const showReviewPrompt = computed(
+  () =>
+    growthReady.value &&
+    isAuthenticated.value &&
+    !isFirefox &&
+    !tableLoading.value &&
+    !whatsNewVisible.value &&
+    !whatsNewShownThisSession.value &&
+    shouldShowReviewPrompt({
+      dismissedAt: reviewDismissedAt.value,
+      snoozedUntil: reviewSnoozedUntil.value,
+      firstFillAt: reviewFirstFillAt.value,
+      passwordCount: passwords.value.length,
+    }),
+);
+
+const showActivationChecklist = computed(
+  () =>
+    activationStateReady.value &&
+    isAuthenticated.value &&
+    passwords.value.length > 0 &&
+    !whatsNewVisible.value &&
+    !activationSnoozed.value &&
+    activationDoneCount.value < ACTIVATION_TOTAL_STEPS,
+);
+
+/** 读取清单唯一需要异步补齐的两项：暂不提醒时间与体检趋势是否存在 */
+const loadActivationState = async (): Promise<void> => {
+  const [state, history] = await Promise.all([getActivationChecklistState(), readHealthHistory()]);
+  activationDismissedAt.value = state.dismissedAt;
+  activationHealthDone.value = history.length > 0;
+  activationStateReady.value = true;
+};
+
+/** 体检弹窗关闭后刷新趋势完成态；弹窗打开时写入快照，关闭时才能读到 */
+const refreshActivationHealthDone = async (): Promise<void> => {
+  activationHealthDone.value = (await readHealthHistory()).length > 0;
+};
+
+const handleActivationAdd = (): void => {
+  void openAddDialogWithActiveTab();
+};
+
+const handleActivationImport = (): void => {
+  showImportDialog.value = true;
+};
+
+const handleActivationBackup = (): void => {
+  handleDataCommand('backupExport');
+};
+
+const handleActivationHealth = (): void => {
+  void openHealthDialog();
+};
+
+const handleActivationDismiss = (): void => {
+  const at = Date.now();
+  activationDismissedAt.value = at;
+  void dismissActivationChecklist(at);
+};
+
+/**
+ * 初始化「本次更新」与一次性评价引导
+ *
+ * 首次安装（还没有主密码配置）直接把当前版本记为已读，不弹更新弹窗；
+ * 已有密码库的用户在版本变化时看到一次更新要点。评价引导在「保存的密码多于 1 条、
+ * 至少成功填充过一次、且首次填充已满 7 天」时询问一次，可延后 30 天或永久关闭。
+ */
+const initGrowthPrompts = async (): Promise<void> => {
+  try {
+    const [hasVault, whatsNewState, reviewState] = await Promise.all([
+      StorageUtils.hasMasterPassword(),
+      getWhatsNewState(),
+      getReviewPromptState(),
+    ]);
+    if (
+      shouldShowWhatsNew({
+        seenVersion: whatsNewState.seenVersion,
+        currentVersion: currentVersion.value,
+        hasVault,
+      })
+    ) {
+      whatsNewVisible.value = true;
+      whatsNewShownThisSession.value = true;
+    } else if (!hasVault) {
+      await markWhatsNewSeen(currentVersion.value);
+    }
+    reviewDismissedAt.value = reviewState.dismissedAt;
+    reviewSnoozedUntil.value = reviewState.snoozedUntil;
+    reviewFirstFillAt.value = reviewState.firstFillAt;
+  } catch (error) {
+    logger.warn('初始化更新与评价提示失败:', error);
+  } finally {
+    growthReady.value = true;
+  }
+};
+
+/**
+ * 弹窗显隐：无论通过「知道了」、右上角关闭、Esc 还是遮罩关闭，都写回已读版本
+ * 并停止本次会话中的评价引导，避免同一轮连续出现两张卡片。
+ */
+const handleWhatsNewVisibility = (visible: boolean): void => {
+  whatsNewVisible.value = visible;
+  if (!visible) void markWhatsNewSeen(currentVersion.value);
+};
+
+/**
+ * 打开外部页面：失败时给出可见反馈并返回 false
+ *
+ * CTA 不能先写已读再点火：`chrome.tabs.create` 失败（扩展上下文失效、系统限制）时
+ * 用户既没看到页面，提示又会永久消失。成功后才由调用方落盘已读/关闭状态。
+ */
+const openExternalPage = async (url: string, failureMessage: string): Promise<boolean> => {
+  try {
+    await chrome.tabs.create({ url });
+    return true;
+  } catch (error) {
+    logger.warn('打开外部页面失败:', error);
+    ElMessage.error(failureMessage);
+    return false;
+  }
+};
+
+const handleWhatsNewCta = async (): Promise<void> => {
+  const opened = await openExternalPage(GITHUB_RELEASES_PAGE_URL, t('options.growth.whatsNew.openFailed'));
+  if (!opened) return;
+  whatsNewVisible.value = false;
+  await markWhatsNewSeen(currentVersion.value);
+};
+
+const dismissReview = (): void => {
+  const at = Date.now();
+  reviewDismissedAt.value = at;
+  reviewSnoozedUntil.value = null;
+  void dismissReviewPrompt(at);
+};
+
+const handleReviewSnooze = (): void => {
+  const at = Date.now();
+  reviewSnoozedUntil.value = at + REVIEW_PROMPT_SNOOZE_MS;
+  void snoozeReviewPrompt(at);
+};
+
+/**
+ * 弹窗被 ESC / 点遮罩关闭时按「稍后再说」处理
+ *
+ * 三个动作按钮（去评价 / 稍后再说 / 不再提醒）各自写回状态后，`showReviewPrompt`
+ * 计算属性随即转 false 关闭弹窗。判据因此取「父层状态还没落定」，而不是「收到一次
+ * false」：`el-dialog` 在关闭动画结束时（Element Plus `useDialog.afterLeave`）**无条件**
+ * 补抛一次 `update:modelValue(false)`，程序性关闭也不例外。若照单全收，「不再提醒」会在
+ * 写完永久关闭之后紧跟一条 30 天静默期，把两个互斥状态同时写进存储。
+ */
+const handleReviewVisibility = (visible: boolean): void => {
+  if (!visible && showReviewPrompt.value) handleReviewSnooze();
+};
+
+const handleReviewCta = async (): Promise<void> => {
+  const opened = await openExternalPage(REVIEW_PROMPT_URL, t('options.growth.review.openFailed'));
+  if (!opened) return;
+  dismissReview();
+};
+
+watch(showHealthDialog, (visible, wasVisible) => {
+  if (!visible && wasVisible) void refreshActivationHealthDone();
 });
 
 /** 身份信息库状态与操作（单一实例注入列表弹窗，会话失效由下方 watch teardown） */
@@ -1022,7 +1368,7 @@ const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> =
   } catch (error) {
     const code = getIdentityCrudErrorCode(error);
     if (code === 'LIMIT_REACHED') {
-      ElMessage.error(t('identity.form.limitReached'));
+      ElMessage.error(t('identity.form.limitReached', { max: MAX_IDENTITIES }));
     } else if (code === 'UPDATE_CONFLICT') {
       ElMessage.error(t('identity.form.updateConflict'));
     } else if (code === 'NOT_FOUND') {
@@ -1141,7 +1487,7 @@ const buildPaletteActions = () => [
     group: 'entry',
     label: t('options.header.healthCheck'),
     keywords: ['health', 'audit', 'score'],
-    run: () => (showHealthDialog.value = true),
+    run: () => void openHealthDialog(),
   },
   {
     id: 'tour',
@@ -1259,7 +1605,7 @@ const buildPaletteActions = () => [
     id: 'identityAccess',
     group: 'security',
     label: t('options.header.identityAccess'),
-    keywords: ['identity', 'vault', 'verify', 'master', '身份库', '复验'],
+    keywords: ['identity', 'vault', 'verify', 'master', '个人信息库', '身份信息库', '身份库', '复验'],
     run: () => (showIdentityAccessDialog.value = true),
   },
   {
@@ -1326,6 +1672,7 @@ const {
   keyword: paletteKeyword,
   activeIndex: paletteActiveIndex,
   filtered: paletteFiltered,
+  open: paletteOpen,
   runAt: paletteRunAt,
 } = useCommandPalette({
   getActions: buildPaletteActions,
@@ -1363,6 +1710,25 @@ const applySearchKeyword = (keyword: string): void => {
   filterSites.value = [];
 };
 
+/**
+ * 是否有生效中的筛选条件
+ *
+ * 供表格空态判断该给「清空筛选」出口还是纯占位文案。搜索、收藏、标签、站点四者是
+ * 叠加（AND）关系，任一非空都可能把列表筛成 0 条。
+ */
+const hasActiveFilters = computed(
+  () =>
+    !!searchKeyword.value.trim() || favoriteOnly.value || filterTags.value.length > 0 || filterSites.value.length > 0,
+);
+
+/** 清空全部筛选条件，回到整库视图（表格空态里的「清空筛选」按钮） */
+const clearFilters = (): void => {
+  searchKeyword.value = '';
+  favoriteOnly.value = false;
+  filterTags.value = [];
+  filterSites.value = [];
+};
+
 /** Runtime 消息监听 */
 useRuntimeMessageHandler({
   passwords,
@@ -1374,6 +1740,7 @@ useRuntimeMessageHandler({
   openSiteRules,
   openDomainMatchSetting,
   applySearchKeyword,
+  openIdentityVault: openIdentityVaultFromPage,
 });
 
 // ==================== 使用指引文档中页 ====================
@@ -1502,10 +1869,19 @@ onMounted(async () => {
   await checkAuth();
   // 读取「最近一次已验证备份」时间戳，供 HeaderBar 展示备份健康提示（时间戳非敏感，读取无需会话态）
   lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
+  // 安全起步清单的暂不提醒状态与体检趋势；两项都只读非敏感摘要，失败时降级为未完成
+  void loadActivationState();
+  // 更新提示与一次性评价引导；版本/关闭标记都只读非敏感数据
+  void initGrowthPrompts();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
-  // 恢复表格排序配置
-  restoreSortConfig();
+  // 恢复表格排序配置；等排序落定再揭开骨架，避免淡出过程中表格又重排一次
+  await restoreSortConfig().catch(error => logger.error('恢复排序配置失败:', error));
+  // 首屏真实视图（认证结论 + 列表 / 设置页）已经完成绘制，通知 main.ts 淡出静态骨架；
+  // 双 rAF 保证淡出开始时浏览器已经画过这一帧，而不是在布局完成前就揭开覆盖层。
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => markOptionsReady());
+  });
 });
 
 /**

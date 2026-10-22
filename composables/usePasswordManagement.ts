@@ -1,4 +1,4 @@
-import { ref, computed, watch, nextTick, onScopeDispose, type Ref } from 'vue';
+import { ref, reactive, computed, watch, nextTick, onScopeDispose, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry, PasswordEntryWithUI, PasswordFormModel } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
@@ -31,14 +31,19 @@ import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
 import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
+import { restoreFromTrash } from '@/utils/storage/trashManager';
 
 /**
- * 删除动画时长：行淡出后再落盘（沿用原实现的 1s 节奏，不改变观感）
+ * 删除动画时长：行淡出后再落盘
  *
  * 导出供回归测试复用：测试里写死同一个数字，实现调整节奏后只会「多推进」而不会失败，
  * 动画与落盘的时序契约就静默失守了。
+ *
+ * 与 `PasswordTable.vue` 里 `.del-item` 的 `animation: fade-out var(--aph-duration-mid)`
+ * 是同一节奏（0.2s）。两边不一致时后果是有界的：定时器晚于动画，行由 `forwards` 保持透明
+ * 直到摘除；定时器早于动画，行在中途被摘掉、少显示剩下那一小段。都不会把行留在页面上。
  */
-export const DELETE_ANIMATION_MS = 1000;
+export const DELETE_ANIMATION_MS = 200;
 
 /**
  * 保存 / 收藏 / 创建副本后目标行的高亮时长
@@ -47,6 +52,14 @@ export const DELETE_ANIMATION_MS = 1000;
  * 测试里写死数字会让「实现把 6 秒改成 600 毫秒」静默通过。
  */
 export const ROW_HIGHLIGHT_MS = 6000;
+
+/**
+ * 删除回执上「撤销」的可用窗口（毫秒）
+ *
+ * 与回收站的软删除语义一致：窗口内撤销等价于「刚移入回收站又恢复」，
+ * 超时后回执消失，用户仍可走「数据管理 → 回收站」的既有恢复路径。
+ */
+export const UNDO_DELETE_WINDOW_MS = 5000;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
 const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
@@ -593,6 +606,92 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   /** 各行尚未到点的高亮定时器，按条目 ID 保存，重复定位时重置而不是叠加 */
   const rowHighlights = new Map<string, ReturnType<typeof setTimeout>>();
 
+  /** 删除回执的撤销窗口状态：只持有条目 id、展示计数与重置序号，不持有任何条目内容 */
+  const undoDeleteState = reactive({
+    visible: false,
+    ids: [] as string[],
+    count: 0,
+    /** 每次新回执递增；组件据此重置自己的 5 秒计时器与进度条 */
+    token: 0,
+  });
+
+  /** 删除请求序号：确认瞬间递增，保证先发起的删除晚完成时不会覆盖更新的回执 */
+  let deleteRequestSequence = 0;
+  let lastUndoSequence = 0;
+
+  /** 收起删除回执并清空待撤销 id */
+  const dismissUndo = (): void => {
+    undoDeleteState.visible = false;
+    undoDeleteState.ids = [];
+    undoDeleteState.count = 0;
+  };
+
+  /**
+   * 删除成功后展示回执
+   *
+   * ids 必须来自确认瞬间的快照，不能到点再读选择集。计时器由回执组件独占，
+   * 父层不再并存第二只时钟；sequence 让并发删除按发起顺序而不是完成顺序更新回执。
+   */
+  const showUndoDelete = (ids: string[], sequence: number): void => {
+    if (!ids.length || sequence < lastUndoSequence) return;
+    lastUndoSequence = sequence;
+    // 回执仍在窗口内时合并，而不是用后一批覆盖前一批：连续快速删除两条时，
+    // 两条都应能被同一次「撤销」找回，而不是第一条悄无声息地失去入口。
+    const merged = undoDeleteState.visible ? [...new Set([...undoDeleteState.ids, ...ids])] : [...ids];
+    undoDeleteState.ids = merged;
+    undoDeleteState.count = merged.length;
+    undoDeleteState.token += 1;
+    undoDeleteState.visible = true;
+  };
+
+  /** 回执文案：单条与批量分开，避免「已将 1 条移入回收站」这类生硬表达 */
+  const undoDeleteMessage = computed(() =>
+    undoDeleteState.count === 1
+      ? t('options.undoDelete.messageSingle')
+      : t('options.undoDelete.messageBatch', { count: undoDeleteState.count }),
+  );
+
+  /**
+   * 撤销刚完成的删除
+   *
+   * 与「数据管理 → 回收站 → 恢复」复用同一条落盘链路；窗口内恢复失败时不假装成功，
+   * 容量不足给出与回收站恢复一致的提示，其余失败引导用户去回收站手动恢复。
+   */
+  const undoDelete = async (): Promise<void> => {
+    const ids = [...undoDeleteState.ids];
+    // 先清空状态再 await：双击「撤销」时第二次调用看到空 id 直接返回，不会重复恢复
+    undoDeleteState.visible = false;
+    undoDeleteState.ids = [];
+    undoDeleteState.count = 0;
+    if (!ids.length) return;
+
+    try {
+      const result = await restoreFromTrash(ids);
+      const handled = result.restored + result.skippedExisting;
+      if (handled === 0) {
+        ElMessage.warning(t('options.trash.restoreMissing'));
+      } else if (handled < ids.length) {
+        ElMessage.warning(
+          t('options.undoDelete.partial', {
+            restored: handled,
+            missing: ids.length - handled,
+          }),
+        );
+      } else {
+        ElMessage.success(t('options.undoDelete.restored'));
+      }
+      await loadPasswords();
+    } catch (error) {
+      logger.error('撤销删除失败:', error);
+      ElMessage.error(
+        isVaultCapacityError(error)
+          ? t('options.capacity.restoreBlocked', { max: MAX_PASSWORD_ENTRIES })
+          : t('options.undoDelete.restoreFailed'),
+      );
+      await loadPasswords();
+    }
+  };
+
   onScopeDispose(() => {
     revealGeneration++;
     for (const timer of rowHighlights.values()) clearTimeout(timer);
@@ -767,11 +866,17 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    *
    * @returns 是否真正删除成功（失败时由调用方把动画期间摘掉的行插回原位）
    */
-  const commitDelete = async (runDelete: () => Promise<void>, failureMessage: string): Promise<boolean> => {
+  const commitDelete = async (
+    runDelete: () => Promise<void>,
+    failureMessage: string,
+    undoIds: string[] = [],
+    undoSequence = 0,
+  ): Promise<boolean> => {
     try {
       await runLocalOperation(runDelete);
       await loadPasswords();
-      ElMessage.success(t('form.movedToTrash'));
+      if (undoIds.length) showUndoDelete(undoIds, undoSequence || ++deleteRequestSequence);
+      else ElMessage.success(t('form.movedToTrash'));
       return true;
     } catch (error) {
       logger.error('移入回收站失败:', error);
@@ -821,20 +926,24 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       return;
     }
 
+    // 在确认瞬间分配序号：并发删除时先发起的那一笔即使晚完成，也不会覆盖更新的回执
+    const undoSequence = ++deleteRequestSequence;
     const delItem = findPasswordRow(id);
     // 行未渲染（被当前筛选/搜索条件排除等）时同样要执行删除：原实现只在命中 DOM 行的
     // 分支里落盘，用户确认后既无提示也无删除，表现为「点了没反应」
     if (!delItem) {
-      await commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed'));
+      await commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed'), [id], undoSequence);
       return;
     }
 
     delItem.classList.add('del-item');
     setTimeout(() => {
       const restoreRow = detachRow(delItem);
-      void commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed')).then(deleted => {
-        if (!deleted) restoreRow();
-      });
+      void commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed'), [id], undoSequence).then(
+        deleted => {
+          if (!deleted) restoreRow();
+        },
+      );
     }, DELETE_ANIMATION_MS);
   };
 
@@ -860,6 +969,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
     // 确认瞬间一次性快照选择集：淡出动画（DELETE_ANIMATION_MS）期间用户仍可勾选/取消，
     // 到点时才读 selectedIds 会让「动画里的行」与「真正被删的 id」分叉，误删新选中项
+    const undoSequence = ++deleteRequestSequence;
     const idsToDelete = [...selectedIds.value];
     const patchDelItems: HTMLElement[] = [];
     idsToDelete.forEach((id: string) => {
@@ -871,7 +981,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     });
     setTimeout(() => {
       const restoreRows = patchDelItems.map(delItem => detachRow(delItem));
-      void commitDelete(() => StorageUtils.deletePasswords(idsToDelete), t('form.batchDeleteFailed')).then(deleted => {
+      void commitDelete(
+        () => StorageUtils.deletePasswords(idsToDelete),
+        t('form.batchDeleteFailed'),
+        idsToDelete,
+        undoSequence,
+      ).then(deleted => {
         if (deleted) {
           // 只摘掉本次真正删除的 id，保留动画期间新勾选的项
           const deletedSet = new Set(idsToDelete);
@@ -1209,6 +1324,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     copyPassword,
     deletePassword,
     batchDelete,
+    undoDeleteState,
+    undoDeleteMessage,
+    undoDelete,
+    dismissUndo,
     batchEditTags,
     batchExportSelected,
     handlePasswordsImported,

@@ -28,6 +28,7 @@ import {
   resetDomainMatchModeMirror,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
+import { refreshActionIcon, setActionIconState } from './actionIcon';
 import { UNLOCK_NOTIFICATION_ID } from './quickFillHandler';
 import {
   decidePasswordBackupReminder,
@@ -247,6 +248,9 @@ async function setupTrashCleanupAlarm() {
 
 /**
  * 执行回收站过期清理
+ *
+ * 密码库与身份库两个回收站共用本闹钟（同一 30 天保留期口径），
+ * 各自独立容错——一侧清理失败不阻断另一侧。
  */
 async function performTrashCleanup() {
   try {
@@ -254,6 +258,12 @@ async function performTrashCleanup() {
     await cleanExpiredTrash();
   } catch (error) {
     logger.error('Background: 回收站过期清理失败:', error);
+  }
+  try {
+    const { cleanExpiredIdentityTrash } = await import('@/utils/storage/identityTrashManager');
+    await cleanExpiredIdentityTrash();
+  } catch (error) {
+    logger.error('Background: 身份回收站过期清理失败:', error);
   }
 }
 
@@ -352,6 +362,11 @@ async function recordBackupRelevantChanges(changes: Record<string, chrome.storag
 
     const identityChange = changes[STORAGE_KEYS.IDENTITY];
     if (identityChange && isBackupRelevantIdentityChange(identityChange.oldValue, identityChange.newValue)) {
+      // 只比对主列表 IDENTITY，与密码库同口径（其 recordBackupRelevantChanges 只读
+      // PASSWORDS、从不读 TRASH）：软删/恢复都改变主列表活动条目，本分支已覆盖；
+      // 而彻底删除/清空/TTL 自动清理只动 IDENTITY_TRASH、活动条目不变，`.aphid` 备份
+      // 又不含回收站——若为回收站单独刷新时间戳，会点亮「重新导出也无法消除」的假提醒
+      //（备份内容与上次一致却判为未备份），违背本模块「只在有内容可备时出声」的契约。
       await StorageUtils.setLastIdentityChangeAt(now);
       logger.debug('Background: 检测到与备份相关的身份信息变更，已记录时间戳');
     }
@@ -670,6 +685,11 @@ export function setupBackgroundServices(): void {
     }
   });
 
+  // SW 每次启动对齐工具栏图标与会话状态：Chrome 的默认档位始终是 manifest 里的解锁态钥匙，
+  // 而会话材料是落盘的——浏览器重启后仍「有材料但已过期」或「已锁定」时，不刷新就会留下
+  // 「库是锁着的、图标却是钥匙」的错相。fire-and-forget，不阻塞其余初始化。
+  void refreshActionIcon();
+
   // 监听通知点击事件
   chrome.notifications.onClicked.addListener(notificationId => {
     if (notificationId === 'extension-update-available') {
@@ -791,6 +811,11 @@ export function setupBackgroundServices(): void {
         // 检测会话键是否被删除（clearSession 从任意上下文调用都会触发 storage 变化）
         // 这是通用安全网：覆盖手动清除（弹窗）、自动过期、锁定按钮等所有清除路径
         const sessionRemoved = sessionKeyChanges.some(([, change]) => change.newValue === undefined);
+
+        // 工具栏图标跟随会话材料出现 / 消失：本分支天然覆盖全部锁定与解锁入口
+        // （弹窗手动锁定、倒计时到期、浏览器重启重锁、闲置锁定、设置与验证主密码、换钥），
+        // 因为它们最终都要么清除要么写入这两个键，无需在每个入口逐个接线
+        setActionIconState(sessionRemoved ? 'locked' : 'unlocked');
 
         if (sessionRemoved) {
           // 会话被清除：重置 BG 的会话内存镜像与验证缓存，防止 isSessionValid() 依据

@@ -35,6 +35,14 @@ export interface PasswordReminder {
   createdAt: number;
   /** 是否已通知（避免重复通知） */
   notified?: boolean;
+  /**
+   * 是否暂停（条目在回收站内）
+   *
+   * 软删除不再销毁提醒：撤销删除/从回收站恢复后提醒应继续生效。暂停期间
+   * `getDueReminders` 跳过该条，避免对已删除条目发通知；彻底删除或 TTL 清理
+   * 仍走 `removeReminders` 真正清除。
+   */
+  paused?: boolean;
 }
 
 /** 提醒数据存储结构 */
@@ -123,7 +131,67 @@ export async function removeReminders(entryIds: Iterable<string>): Promise<void>
  */
 export async function getDueReminders(now: number = Date.now()): Promise<PasswordReminder[]> {
   const reminders = await getReminders();
-  return Object.values(reminders).filter(r => r.remindAt <= now && !r.notified);
+  return Object.values(reminders).filter(r => r.remindAt <= now && !r.notified && !r.paused);
+}
+
+/**
+ * 暂停若干条目的到期提醒（软删除进回收站时调用）
+ *
+ * 只翻转 `paused`，保留原提醒时间与 `notified`；撤销删除/恢复后调用
+ * {@link resumeReminders} 即可继续。读/写失败只记录日志、不阻断删除流程；此时
+ * 提醒可能对已进回收站的条目继续触发一次，直到下一次暂停或彻底删除清理。
+ * 这比“软删除直接清空提醒、撤销后永久丢失”更可接受，且不会泄露条目内容。
+ *
+ * @param entryIds 需要暂停的条目 ID
+ */
+export async function pauseReminders(entryIds: Iterable<string>): Promise<void> {
+  const ids = entryIds instanceof Set ? entryIds : new Set(entryIds);
+  if (ids.size === 0) return;
+  try {
+    const reminders = await getReminders();
+    let changed = false;
+    for (const id of ids) {
+      const reminder = reminders[id];
+      if (reminder && !reminder.paused) {
+        reminder.paused = true;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+    logger.debug(`ReminderManager: 已暂停 ${ids.size} 条提醒`);
+  } catch (error) {
+    logger.error('ReminderManager: 暂停提醒失败:', error);
+  }
+}
+
+/**
+ * 恢复若干条目的到期提醒（从回收站恢复/撤销删除时调用）
+ *
+ * 与 {@link pauseReminders} 对称；已通知过的提醒保持 `notified=true`，不会因
+ * 一次删除/恢复重放历史通知。
+ *
+ * @param entryIds 需要恢复的条目 ID
+ */
+export async function resumeReminders(entryIds: Iterable<string>): Promise<void> {
+  const ids = entryIds instanceof Set ? entryIds : new Set(entryIds);
+  if (ids.size === 0) return;
+  try {
+    const reminders = await getReminders();
+    let changed = false;
+    for (const id of ids) {
+      const reminder = reminders[id];
+      if (reminder?.paused) {
+        reminder.paused = false;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+    logger.debug(`ReminderManager: 已恢复 ${ids.size} 条提醒`);
+  } catch (error) {
+    logger.error('ReminderManager: 恢复提醒失败:', error);
+  }
 }
 
 /**

@@ -13,7 +13,7 @@ import type { FillStrategy, SaveRiskHint, SaveTargetNote } from '@/utils/types';
 export interface InputFillResult {
   /** 是否成功填充 */
   filled: boolean;
-  /** 填充值是否与预期一致 */
+  /** 填充值是否在写后复检窗口结束时仍与预期一致（站点脚本稍后改写或清空则判 false） */
   verified: boolean;
   /** 使用的填充策略 */
   strategy: FillStrategy;
@@ -161,6 +161,14 @@ export interface PendingCredentials {
   timestamp: number;
   /** 弹窗展示模式（save/update），由库级预检查判定，缺省为 save */
   mode?: SavePromptMode;
+  /**
+   * 捕获帧的协议（`location.protocol`，如 `https:`）
+   *
+   * 随待确认凭据一起持久化，是为了让跨页面恢复后的保存仍按**登录那一页**的端点判归属——
+   * 恢复路径上的 `location` 已经是目标页面，就地取协议会把跳转后的站点当成登录站点。
+   * `url` 用的是 `location.host`，协议默认端口被它省略，端口隔离必须有这一位才能判定。
+   */
+  protocol?: string;
 }
 
 // ── PasswordVisibilityToggle 相关 ──

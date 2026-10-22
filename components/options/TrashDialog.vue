@@ -147,13 +147,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Search } from '@element-plus/icons-vue';
-import {
-  getTrashEntries,
-  restoreFromTrash,
-  permanentDeleteFromTrash,
-  emptyTrash,
-  getTrashRemainingDays,
-} from '@/utils/storage/trashManager';
+import { getTrashEntries, restoreFromTrash, permanentDeleteFromTrash, emptyTrash } from '@/utils/storage/trashManager';
+import { getTrashRemainingDays } from '@/utils/storage/trashRetention';
 import { getSessionDataKey } from '@/utils/storage/facades';
 import { formatDate as formatDateYmd } from '@/utils/dateFormat';
 import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
@@ -178,7 +173,7 @@ const { t } = useI18n();
  *
  * 展示已删除的密码条目，支持恢复、彻底删除和清空回收站。
  * 条目在回收站中保留 30 天后自动清理（保留期与倒计时同读
- * `trashManager` 的 `TRASH_RETENTION_DAYS`，避免两处各写一份 30）。
+ * `trashRetention` 的 `TRASH_RETENTION_DAYS`，避免两处各写一份 30）。
  */
 const props = defineProps<{
   modelValue: boolean;
@@ -321,11 +316,22 @@ const loadTrash = async () => {
   }
 };
 
-/** 恢复条目 */
+/**
+ * 恢复条目
+ *
+ * 提示按 `restoreFromTrash` 返回的计数分三档，判据与理由住在那个函数的注释里；
+ * 数据一行没动或只消费了副本时弹「已恢复」，就是把空操作报成成功。
+ */
 const handleRestore = async (id: string) => {
   try {
-    await restoreFromTrash([id]);
-    ElMessage.success(t('options.trash.restored'));
+    const { restored, skippedExisting } = await restoreFromTrash([id]);
+    if (restored > 0) {
+      ElMessage.success(t('options.trash.restored'));
+    } else if (skippedExisting > 0) {
+      ElMessage.info(t('options.trash.restoreAlreadyInList'));
+    } else {
+      ElMessage.warning(t('options.trash.restoreMissing'));
+    }
     await loadTrash();
     emit('restored');
   } catch (error) {

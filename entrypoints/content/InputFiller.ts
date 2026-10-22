@@ -5,11 +5,32 @@ import { logger } from '@/utils/logger';
 export type FillableFormControl = HTMLInputElement | HTMLTextAreaElement;
 
 /**
+ * 写后复检的等待时长（毫秒）
+ *
+ * 策略命中后那次 50ms 回读只证明「值进得去」，不证明「值留得住」：受控组件常在自己的
+ * rAF / 防抖窗口里把 DOM 值改回受控状态，掩码框会在失焦后重排格式，站点校验脚本还会清空
+ * 它认为不合法的值。这些改写都发生在首次回读之后，于是我们按「已填充」回执、用户看到的
+ * 却是一个空框。
+ *
+ * 取 100ms 是为了跨过「一次 rAF + 一个短防抖」这一最常见的改写窗口；再加长会把
+ * 「逐字符模拟」那条策略的耗时推进用户可感区间，而更长尾的改写本就测不全覆盖。
+ */
+const POST_WRITE_RECHECK_MS = 100;
+
+/**
  * 输入框填充器
  * 提供多种策略来填充表单输入框的值，依次尝试直到成功：
  * 1. 原生 setter + 完整事件序列
  * 2. execCommand 模拟用户输入
  * 3. 逐字符模拟输入
+ *
+ * 每条策略的回读要过两道：写入后 50ms 的值比对，再加一次 `POST_WRITE_RECHECK_MS`
+ * 之后的复检。只有两道都通过才判定该策略成功；复检不通过时**继续下一条策略**，
+ * 最终由末尾分支按当场读数给出 `filled` / `verified`，因此这次改写既不会新增
+ * 「值被站点抹掉却回执已填充」，也不会关掉原本会发生的自动提交。
+ *
+ * 代价上限可复算：成功路径每字段 +100ms，三级全不通过的最坏路径每字段
+ * `3 × (50 + 100) = 450ms` 固定等待（改造前为 150ms），账号 + 密码串联即 900ms。
  */
 export class InputFiller {
   /**
@@ -22,26 +43,39 @@ export class InputFiller {
     // 策略1: 原生setter + 完整事件序列
     this.setInputValueNative(input, value);
     await this.delay(50);
-    if (input.value === value) {
+    if (input.value === value && (await this.holdsAfterRecheck(input, value))) {
       return { filled: true, verified: true, strategy: 'native' };
     }
 
     // 策略2: execCommand模拟用户输入
     this.setInputValueExecCommand(input, value);
     await this.delay(50);
-    if (input.value === value) {
+    if (input.value === value && (await this.holdsAfterRecheck(input, value))) {
       return { filled: true, verified: true, strategy: 'execCommand' };
     }
 
     // 策略3: 模拟逐字符输入
     await this.setInputValueSimulate(input, value);
     await this.delay(50);
-    if (input.value === value) {
+    if (input.value === value && (await this.holdsAfterRecheck(input, value))) {
       return { filled: true, verified: true, strategy: 'simulate' };
     }
 
     const filled = input.value.length > 0;
     return { filled, verified: input.value === value, strategy: 'native' };
+  }
+
+  /**
+   * 写入值是否经受住了站点的异步改写
+   *
+   * 只延长判定窗口，不改变「等于期望值才算 verified」这一判据本体。
+   * @param input - 目标输入框
+   * @param value - 期望值
+   * @returns 复检窗口结束时值是否仍等于期望值
+   */
+  private async holdsAfterRecheck(input: FillableFormControl, value: string): Promise<boolean> {
+    await this.delay(POST_WRITE_RECHECK_MS);
+    return input.value === value;
   }
 
   /**

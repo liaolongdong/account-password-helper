@@ -118,6 +118,68 @@ export function placeholderOf(key: string): RegExp {
 /** 直接取某一侧的完整文案（需要精确断言文本内容时使用） */
 export function exactText(key: string, locale: (typeof LOCALES)[number] = 'zh-CN'): string {
   const value = loadLocale(locale)[key];
-  if (!value) throw new Error(`E2E 文案缺失：${locale} 下没有 key "${key}"`);
+  if (!value) throw new Error(`E2E 文案缺失：${locale} 下没有 key "${key}"（产品文案改名后请同步测试）`);
   return value;
+}
+
+/**
+ * 「本次更新」亮点的条数：由语言包实际键数推导，不在用例里写死
+ *
+ * 组件的 `ITEM_COUNT` 与用例的 `toHaveCount(N)` 各写一份时，加一条亮点就会在 CI 上红两条用例
+ * （2026-10-21 端口隔离那条亮点加进去时就撞上了）。取数以中英两侧 `item.N` 的连续前缀为准，
+ * 顺带钉住两语言键集一致——只在一侧补文案也会在这里变红。
+ */
+export function whatsNewItemCount(): number {
+  const countFor = (locale: (typeof LOCALES)[number]): number => {
+    const dict = loadLocale(locale);
+    let n = 0;
+    while (`options.growth.whatsNew.item.${n + 1}` in dict) n += 1;
+    return n;
+  };
+  const [zh, en] = [countFor('zh-CN'), countFor('en')];
+  if (zh !== en) throw new Error(`E2E 文案不齐：whatsNew 亮点中文 ${zh} 条、英文 ${en} 条`);
+  return zh;
+}
+
+const LITE_SOURCE = path.resolve(HERE, '..', 'utils', 'i18n-lite.ts');
+
+/**
+ * 读取 content / background 侧的轻量文案（`utils/i18n-lite.ts` 里的 `LITE_MESSAGES`）
+ *
+ * 上面那套只认 `utils/i18n/locales/*.json`，而页面注入式 UI（悬浮按钮、内联下拉、身份提示气泡）
+ * 走的是不含 Vue 响应式开销的第二套体系，两侧 key 各自独立维护。身份提示的气泡文本正是这一套，
+ * 因此它的断言必须从源码取词，而不是把中英文抄进测试里。
+ *
+ * 取源码而不是 import：`i18n-lite.ts` 的语言初值由 `chrome.i18n` 在运行时决定，测试进程里
+ * 拿到的是「当前这一侧」，而闭包里的中英两份才是真正的契约。
+ */
+function liteValues(key: string): string[] {
+  const source = fs.readFileSync(LITE_SOURCE, 'utf-8');
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const values = [...source.matchAll(new RegExp(`'${escaped}':\\s*'((?:[^'\\\\]|\\\\.)*)'`, 'g'))].map(m => m[1]);
+  if (!values.length) throw new Error(`E2E 轻量文案缺失：utils/i18n-lite.ts 里没有 key "${key}"`);
+  return [...new Set(values)];
+}
+
+/** 供文本包含类断言使用的中英并集正则（轻量文案侧） */
+export function liteTextOf(key: string): RegExp {
+  const alternatives = liteValues(key)
+    .map(value => stripPlaceholders(value))
+    .map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .filter(Boolean);
+  return new RegExp(alternatives.join('|'));
+}
+
+/**
+ * 完整文案逐字相等（不带占位符裁剪），中英任一份命中即算通过
+ *
+ * 气泡里的角色词是模板 `{role}` 被替换后的那一段，砍前缀拿不到它；要断言「角色词真的被
+ * 填进去了」，只能按完整值比。语言由浏览器决定，所以两份都认。
+ *
+ * 这里刻意用 `includes`（整串相等）而不是「并集正则 + 子串匹配」：角色词之间有包含关系——
+ * `name` 是「姓名」，而 `givenName` / `familyName` 是「名」/「姓」，子串判据下
+ * 「期望姓名、实际报名」与「期望名、实际报姓名」两种走偏都会静默绿灯。
+ */
+export function liteExactMatch(key: string, text: string): boolean {
+  return liteValues(key).includes(text);
 }

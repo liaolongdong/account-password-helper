@@ -9,7 +9,15 @@ import type {
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { isCrossSubdomainTier, normalizeToHostname, resolveMatchTier } from '@/utils/domain';
+import {
+  isCrossSubdomainTier,
+  matchesPortScope,
+  normalizeToHostname,
+  pagePortFromHostLike,
+  resolveMatchTier,
+  type PagePortContext,
+  type PortScope,
+} from '@/utils/domain';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
@@ -214,13 +222,23 @@ function hostMatchScore(dataHost: string, entryHost: string): number {
  * 多条命中时取**最精确**的一条（同一 hostname 优先于父子域），而非数组顺序首条 ——
  * 避免在 `example.com` 与 `uat.example.com` 并存时改写错条目。精度并列时保留原顺序。
  *
+ * 端口隔离（`strict`）开启时再加一道归属门：只有与当前端点端口相容的条目才可被改写。
+ * 这条门必须与「侧边栏看不看得到它」同判据（同用 `matchesPortScope`），否则会写出
+ * 用户看不见的更新；而跨端口覆盖密码是**数据损失**，比多存一条严重得多。
+ * 端口上下文不可得（调用方未带 `protocol`，或策略本就是 `loose`）时不额外拦，
+ * 退回本功能存在之前的归属行为。
+ *
  * @param passwords 已解密的密码条目列表
  * @param data 待匹配的账号与域名
+ * @param page 当前页面端口上下文，null 表示不可得
+ * @param portScope 端口匹配范围（`loose` 下端口不参与归属判定）
  * @returns 匹配到的条目，未找到返回 undefined
  */
 export function findMatchingEntry(
   passwords: PasswordEntry[],
   data: { username: string; url: string },
+  page: PagePortContext | null = null,
+  portScope: PortScope = 'loose',
 ): PasswordEntry | undefined {
   const dataHost = toMatchableHost(data.url);
   let best: PasswordEntry | undefined;
@@ -228,6 +246,7 @@ export function findMatchingEntry(
 
   for (const entry of passwords) {
     if (!entry.url || entry.username !== data.username) continue;
+    if (!matchesPortScope(entry.url, page, portScope)) continue;
     const score = hostMatchScore(dataHost, toMatchableHost(entry.url));
     // 严格大于：并列时先到者胜，保持与迁移前相同的条目选择
     if (score > bestScore) {
@@ -237,6 +256,23 @@ export function findMatchingEntry(
   }
 
   return best;
+}
+
+/**
+ * 解析本次写入的端口归属入参
+ *
+ * 返回 `findMatchingEntry` 的端口两参。刻意把「读不到」统一退成不限端口
+ * （`loose`，或 `strict` 但页面端点缺失时上下文为 null）：自动保存是用户点下登录那一下
+ * 触发的动作，任何一次判定失败都不该让这次登录静默不落盘——宁可少隔离一次，不可漏保存一次。
+ *
+ * @param url 本次登录的站点（`location.host`，非默认端口时含端口）
+ * @param protocol 页面协议（`location.protocol`），用于分辨默认端口是 80 还是 443
+ * @returns `[页面端口上下文, 端口范围]`
+ */
+async function resolvePortOwnership(url: string, protocol?: string): Promise<[PagePortContext | null, PortScope]> {
+  const { portScope } = await getDomainMatchConfig();
+  if (portScope === 'loose') return [null, 'loose'];
+  return [pagePortFromHostLike(url, protocol), portScope];
 }
 
 /**
@@ -266,7 +302,8 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     // 载荷容量边界由调用方（background/autoSaveHandler）在本函数之前收口。
     const passwords = await getAllPasswords();
 
-    const existingEntry = findMatchingEntry(passwords, data);
+    // 端口归属门：策略与页面端点一起取，任一边取不到都退成「不限端口」
+    const existingEntry = findMatchingEntry(passwords, data, ...(await resolvePortOwnership(data.url, data.protocol)));
 
     if (existingEntry) {
       const newTag = data.tagEdited ? data.tag : existingEntry.tag || data.tag || '';
@@ -437,7 +474,9 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     }
 
     const passwords = await getAllPasswords();
-    const existingEntry = findMatchingEntry(passwords, data);
+    // 与 autoSavePassword 用同一份端口归属入参：预检查说「新账号」而真正保存时改写了另一条
+    // （或反之），弹窗文案就会与落盘结果自相矛盾
+    const existingEntry = findMatchingEntry(passwords, data, ...(await resolvePortOwnership(data.url, data.protocol)));
 
     if (!existingEntry) {
       return {

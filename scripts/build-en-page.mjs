@@ -54,7 +54,7 @@ const EN_FEATURE_LIST = [
   'Encrypted .aph backup and restore, plus email backup composed locally via mailto',
   'Side panel opens instantly in every state (~20-50ms to data on the cached warm path)',
   'Six color themes and a bilingual 中文 / English interface',
-  'Identity vault: ID, bank card and other personal details in a separate encrypted store',
+  'Personal info vault: ID, bank card and other personal details in a separate encrypted store',
 ];
 
 const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored from the Chinese HowTo block in index.html -->
@@ -154,6 +154,17 @@ replaceOnce(/property="og:image"\s+content="[^"]*"/, `property="og:image"\n     
 replaceOnce(/name="twitter:image"\s+content="[^"]*"/, `name="twitter:image"\n      content="${OG_IMAGE_EN}"`);
 // SoftwareApplication 的 image 与分享图同源，否则英文页的富结果会挂上中文卡
 replaceOnce(`"image": "${OG_IMAGE_ZH}"`, `"image": "${OG_IMAGE_EN}"`);
+// screenshot[] 同理：英文页声明英文那套截图。整块按 `-en` 后缀重写，条数与顺序照抄源页，
+// 所以新增一张截图不需要动本脚本——源页没有 `-en` 版本时，页面自己就会挂出中文图，
+// 那属于「图还没做」而不是「生成器漏了」。
+replaceOnce(/"screenshot": \[[\s\S]*?\],/, block => block.replaceAll('.png"', '-en.png"'));
+// 首帧静态 slide 的截图与 alt：`applyI18n` 只换标签内容、不碰属性，而这一屏是服务字节里唯一
+// 静态写着的 slide，所以按运行时 `shotFile()` 的同一条规则换英文那套图，alt 直接取字典里的英文名
+// （与 h3 同一个真源，不在此处再抄一遍）。中文源页改了文件名 → 这里匹配不上即失败，不会静默留一张中文图。
+replaceOnce(
+  /src="\.\/assets\/cws-store\/(screen-1-one-click-login)\.webp" alt="[^"]*"/,
+  `src="./assets/cws-store/$1-en.webp" alt="${I18N['showcase.s1.title'].en}"`,
+);
 
 // 页内跳转改为英文兄弟页面，避免英文页链向中文页
 const replaceEvery = (from, to) => {
@@ -163,6 +174,7 @@ const replaceEvery = (from, to) => {
 replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
 replaceEvery('href="./pricing.html"', 'href="./pricing.en.html"');
 replaceEvery('href="./compare.html"', 'href="./compare.en.html"');
+replaceEvery('href="./author.html"', 'href="./author.en.html"');
 replaceEvery('href="./blog/"', 'href="./blog/index.en.html"');
 // 跨域代理助手有英文产品页，英文页指过去；Transfer Any File 暂无英文页（实测 404），保持基础 URL
 replaceEvery(
@@ -190,12 +202,21 @@ replaceOnce(
   `"featureList": [\n${EN_FEATURE_LIST.map(feature => `          ${JSON.stringify(feature)}`).join(',\n')}\n        ],`,
 );
 replaceOnce(/"description": "开源免费的本地密码管理器[^\n]*",/, `"description": "${EN_JSONLD_DESCRIPTION}",`);
+// SoftwareApplication.url 指向英文页自身的 canonical，而不是中文首页；Organization / WebSite
+// 的 url 仍保持站点根，不属于同一实体声明。
+replaceOnce(
+  /"url": "https:\/\/liaolongdong\.github\.io\/account-password-helper\/",\n(\s*)"installUrl":/,
+  `"url": "${SITE}/en.html",\n$1"installUrl":`,
+);
 // 英文版：中文 FAQPage / HowTo 结构化数据块替换为英文版，避免语言错配
 // FAQPage 与可见 FAQ 同源（faqEntries 取自 FAQS 数组），文案不再单独维护
 replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, () => buildFaqPageJsonLd(faqEntries, 'en'));
 replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, () => EN_HOWTO_JSONLD);
 // 静态英文页缺省语言固定为 en（仍尊重 ?lang 参数与 localStorage 显式选择）
-replaceOnce("return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';", "return 'en';");
+replaceOnce(
+  /\/\* localStorage 不可用时保持中文缺省 \*\/\n        \}\n        return 'zh';/,
+  "/* localStorage 不可用时保持英文缺省 */\n        }\n        return 'en';",
+);
 
 html = html.replace(
   '<!doctype html>\n',

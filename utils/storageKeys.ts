@@ -55,6 +55,14 @@ export const STORAGE_KEYS = {
   PASSWORD_HISTORY_CONFIG: 'password_history_config',
   /** 身份信息库条目（个人信息收藏夹，整块加密存储） */
   IDENTITY: 'personal_identity_infos',
+  /**
+   * 身份信息库回收站（软删除，30 天 TTL 自动清理）
+   *
+   * 落盘形状 = `IdentityRecord` 四键 + `deletedAt`，密文原样搬移（与密码库 TRASH 同一口径）。
+   * 注意不能复用密码库的 `TRASH` 键：两侧条目形状不同，且 at-rest 安全网按
+   * `encrypted` 标志扫描密码形状，混入身份形状会被误判为明文残留。
+   */
+  IDENTITY_TRASH: 'personal_identity_infos_trash',
   /** 身份信息库列表排序档位（仅存枚举值，不含任何 PII，故明文单键） */
   IDENTITY_SORT_MODE: 'identity_sort_mode',
   /**
@@ -73,6 +81,8 @@ export const STORAGE_KEYS = {
   IDENTITY_MANUAL_ORDER: 'identity_manual_order',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
+  /** 健康评分趋势快照（只存分数与四类计数，不含任何条目内容或明文） */
+  HEALTH_HISTORY: 'password_health_history',
   /** 用户语言偏好（'zh-CN' | 'en'） */
   LOCALE: 'app_locale',
   /** 站点级填充规则（域名 → 自定义选择器/穿透开关） */
@@ -86,12 +96,24 @@ export const STORAGE_KEYS = {
   /** 内联填充首次引导气泡已展示标记（终生仅展示一次） */
   INLINE_FILL_HINT_SHOWN: 'inline_fill_hint_shown',
   /**
+   * 个人信息提示的「开关在哪」首次说明已展示标记（终生仅展示一次）
+   *
+   * 只存一个布尔，不含站点、字段名或库内内容，因此不构成隐私面。
+   */
+  IDENTITY_HINT_TIP_SHOWN: 'identity_hint_tip_shown',
+  /**
    * 新手引导（聚光引导）状态
    *
    * 仅存 `{ seen, outcome, finishedAt }` 三个标记位，不含任何账号、密码、
    * 站点或步骤内容，因此本键不构成隐私面。自动弹出终生仅一次。
    */
   ONBOARDING_TOUR: 'onboarding_tour_state',
+  /** 安全起步清单暂不提醒时间（只存时间戳，不含账号数据） */
+  ACTIVATION_CHECKLIST: 'activation_checklist',
+  /** 已读过「本次更新」的扩展版本（只存版本号字符串，不含账号数据） */
+  WHATS_NEW_SEEN_VERSION: 'whats_new_seen_version',
+  /** 一次性评价引导状态（只存首次成功填充、永久关闭与延后截止时间戳，不含账号数据） */
+  REVIEW_PROMPT_STATE: 'review_prompt_state',
 };
 
 /**

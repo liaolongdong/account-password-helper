@@ -4,6 +4,7 @@ import { StorageUtils } from '@/utils/storage';
 import { lockSession } from '@/utils/sessionLock';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
+import type { OptionsFirstView } from '@/utils/optionsFirstView';
 
 /** 输入框抖动动画持续时间（毫秒） */
 export const SHAKE_DURATION_MS = 400;
@@ -16,8 +17,22 @@ export function useAuthFlow(options: {
   loadPasswords: () => Promise<void>;
   /** 会话过期时的额外清理回调（如清除密码列表），在状态切换前调用 */
   onSessionExpired?: () => void;
+  /**
+   * 首个真实视图判定完成（在列表解密前回调，且只回调一次）
+   *
+   * 骨架屏靠它在「锁定 / 首次安装」时及时切走表格形态，不必等列表加载完。
+   */
+  onFirstViewResolved?: (view: OptionsFirstView) => void;
 }) {
   const { loadPasswords } = options;
+
+  /** 首视图只上报一次：后续 checkAuth / 会话往返不应把骨架再切回去 */
+  let firstViewReported = false;
+  const reportFirstView = (view: OptionsFirstView): void => {
+    if (firstViewReported) return;
+    firstViewReported = true;
+    options.onFirstViewResolved?.(view);
+  };
 
   // 页面状态
   const isAuthenticated = ref(false);
@@ -116,6 +131,7 @@ export function useAuthFlow(options: {
         showPasswordVerify.value = false;
         isAuthenticated.value = false;
         showMasterPasswordSetup.value = true;
+        reportFirstView('setup');
 
         const validityHours = await StorageUtils.getMasterPasswordValidityHours();
         setupForm.value.validityHours = validityHours;
@@ -132,12 +148,15 @@ export function useAuthFlow(options: {
           // 竞态防护：如果会话已被广播标记为过期，不覆盖状态，避免显示加密乱码
           if (sessionExpiredByBroadcast.value) {
             logger.debug('Auth: checkAuth 跳过（会话已被广播标记为过期）');
+            reportFirstView('verify');
             return;
           }
           // 命中已认证：若先前已是已认证态，避免抖动；否则切换并加载
           const wasAuthenticated = isAuthenticated.value;
           showMasterPasswordSetup.value = false;
           showPasswordVerify.value = false;
+          // 列表解密可能耗时较长：先让骨架切到表格形态，再开始加载
+          reportFirstView('vault');
 
           if (!wasAuthenticated) {
             await loadPasswords();
@@ -147,6 +166,7 @@ export function useAuthFlow(options: {
           showMasterPasswordSetup.value = false;
           isAuthenticated.value = false;
           showPasswordVerify.value = true;
+          reportFirstView('verify');
 
           const validityHours = await StorageUtils.getMasterPasswordValidityHours();
           verifyForm.value.validityHours = validityHours;
@@ -164,6 +184,7 @@ export function useAuthFlow(options: {
       showMasterPasswordSetup.value = false;
       showPasswordVerify.value = true;
       isAuthenticated.value = false;
+      reportFirstView('verify');
     }
   };
 

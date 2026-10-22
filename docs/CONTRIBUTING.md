@@ -133,7 +133,7 @@ graph LR
 | `pnpm icons:build`                                  | SVG 图标渲染为多尺寸 PNG（`public/icon/`）                                                                        |
 | `pnpm gen:en` / `gen:privacy-en` / `gen:pricing-en` | 由中文源页面生成 `en.html` / `privacy.en.html` / `pricing.en.html`                                                |
 | `pnpm gen:faq` / `gen:faq-dom`                      | 由 `index.html` 的 `FAQS` 生成 FAQPage JSON-LD / 页面可见的 FAQ 静态 DOM                                          |
-| `pnpm gen:blog`                                     | 由 `docs/blog/{zh,en}/*.md` 生成 `blog/*.html`                                                                    |
+| `pnpm gen:blog`                                     | 由 `docs/blog/{zh,en}/*.md` 生成 `blog/*.html`、双语 `blog/feed*.xml` 与根目录 `llms-full.txt`                    |
 | `pnpm covers:render`                                | 渲染博客封面图                                                                                                    |
 | `pnpm web:build`                                    | 组装 Worker 部署目录 `site-dist/`（只收公开落地页闭包，商店素材与内部文档不入包）                                 |
 | `pnpm typecheck`                                    | TypeScript 类型检查                                                                                               |
@@ -300,6 +300,29 @@ graph LR
 - 不得自创加密算法或修改现有加密参数（PBKDF2 迭代次数、AES 模式、IV 生成等）。
 - 新增网络请求、遥测或远程资源加载前必须获得用户明确确认，默认保持本地优先、离线可用。当前唯一已获批的出站行为是 `utils/updateChecker.ts` 的匿名版本检查（不携带任何用户数据），它属于既有例外，不是待修的问题。
 - Chrome 权限遵循最小权限原则，新增权限需说明必要性。
+
+### 评价引导触发规则
+
+一次性评价引导（管理页主内容区的卡片）是激活闭环里唯一的「请求用户动作」环节，规则被三处代码和两层测试钉住，改动前请先读这一节。
+
+- **触发条件（三条同时满足，缺一即不出现）**
+  1. 已保存的密码**多于 1 条**（`REVIEW_PROMPT_MIN_PASSWORDS = 2`）；
+  2. **确实成功填充过一次**——侧边栏点击条目、`Ctrl/Cmd+Shift+F` 快捷键、页面内联下拉、右键菜单、Popup 一键填充任一即可，且以填充成功为准，「打开过面板」「点过条目」不算；收藏**不算**使用；
+  3. 距**第一次成功填充满 7 天**（`REVIEW_PROMPT_MIN_AGE_MS`）。
+
+- **状态与写入点**：全部落在 `chrome.storage.local` 的 `review_prompt_state`，只有三个时间戳——`firstFillAt`（首次成功填充）、`dismissedAt`（永久关闭）、`snoozedUntil`（延后截止），不含账号、密码、条目内容与任何可推导身份的数据，也不上传。`firstFillAt` 由后台在 `utils/storage/passwordCrud.ts` 的元数据批量落盘处调用 `markFirstQuickFill()` 写一次：现有快速填充路径（侧边栏、快捷键、Popup 一键填充、内联下拉、右键菜单）的使用痕迹 `lastUsedAt` 全部经 `updatePasswordInSession` 落到这里，批次里出现 `lastUsedAt` 即为一次真实填充，进程内闸门保证只写一次。**新增填充入口只要仍走 `updatePasswordInSession` 就不需要补埋点**；若某个新上下文绕过它直接写库，就必须显式调用 `markFirstQuickFill()`。右键菜单填动态码同样写 `lastUsedAt`，因此也算一次使用，与「最近使用」排序口径保持一致。
+
+- **锚点与展示开关解耦**：`dismissedAt` 只决定要不要展示，`firstFillAt` 记的是「用户第一次用上快速填充」这一事实，**即使用户已经永久关闭也照样记一次**。否则后来清空关闭状态的用户会从「下一次填充」重新起算 7 天，门槛被悄悄改写。
+
+- **读写失败的方向盘**：三处写入都是「读全量 → 合并 → 写全量」，所以读存储失败时**必须放弃本次写入**——把降级出来的空状态写回去会抹掉用户刚点下的「不再提醒」，让已拒绝的提示复活，比丢一次延后严重得多。展示用的 `getReviewPromptState()` 才允许降级为「未关闭」，两者不要混用。
+
+- **为什么锚点必须是首次填充时间**：`lastUsedAt` 每次填充都被刷新，用它当年龄锚点会让「只用一条账号」的用户永远达不到门槛；条目的 `createTime` 又会在用户真正开始使用之前就把 7 天走完。所以门槛是「体验到价值之后 7 天」，不是「装好之后 7 天」。
+
+- **升级兼容**：这版之前不存在 `firstFillAt`，老用户要等下一次成功填充才记下锚点，即「再填充一次 + 7 天」才会被询问。这是刻意的保守取舍（宁可晚问，也不猜测历史行为），不是缺陷，改动时不要试图用条目时间戳回填。
+
+- **交互与政策边界**：本次已展示更新弹窗时评价卡片延后到下次打开，避免连续两张卡片；【稍后再说】静默 30 天（写入前先读，保留另一标签页刚写入的永久关闭与锚点），【不再提醒】与【去评价】都写 `dismissedAt` 永久关闭；Firefox 构建不展示。Chrome Web Store 政策禁止奖励换评价、按满意度分流、阻断功能来索要评价——本卡片三个动作都不附带奖励、不判断用户是否满意、不关闭任何功能，只打开商店页面由用户自行决定，商店链接的 UTM 为 `utm_source=options&utm_medium=review&utm_campaign=review_prompt`。
+
+- **改动时的回归口径**：`tests/utils/reviewPrompt.test.ts`（门槛与读写归一化）、`tests/utils/passwordCrudFirstFillAnchor.test.ts`（真实防抖 flush 上「写一次、只收藏不写、不覆盖」）、`tests/architecture/growthPromptWiring.test.ts`（Options 接线、组件不碰存储、锚点记账点排在密码写入成功之后）、`e2e/growth-prompt.spec.ts`（真机逐条翻动门槛与延后/永久关闭落盘）。放宽或收紧门槛属于用户可见行为变更，需同时更新本节、`docs/ARCHITECTURE.md`「更新提示与一次性评价引导」与本文英文对应章节。
 
 ## Pull Request 指南
 
@@ -525,7 +548,7 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 | `pnpm icons:build`                                  | Render the SVG icon to multi-size PNGs (`public/icon/`)                                                                                         |
 | `pnpm gen:en` / `gen:privacy-en` / `gen:pricing-en` | Generate `en.html` / `privacy.en.html` / `pricing.en.html` from the Chinese source pages                                                        |
 | `pnpm gen:faq` / `gen:faq-dom`                      | Generate the FAQPage JSON-LD / the visible FAQ static DOM from `index.html`'s `FAQS` array                                                      |
-| `pnpm gen:blog`                                     | Generate `blog/*.html` from `docs/blog/{zh,en}/*.md`                                                                                            |
+| `pnpm gen:blog`                                     | Generate `blog/*.html`, the bilingual `blog/feed*.xml` feeds and root `llms-full.txt` from `docs/blog/{zh,en}/*.md`                             |
 | `pnpm covers:render`                                | Render the blog cover images                                                                                                                    |
 | `pnpm web:build`                                    | Assemble the Worker deploy directory `site-dist/` (public landing-page closure only; store assets and internal docs stay out)                   |
 | `pnpm typecheck`                                    | TypeScript type checking                                                                                                                        |
@@ -691,6 +714,29 @@ This is a password manager — security is the top priority. Please follow these
 - Do not invent new encryption algorithms or modify existing encryption parameters (PBKDF2 iterations, AES mode, IV generation, etc.).
 - New network requests, telemetry, or remote resource loading must require explicit user confirmation; default to local-first, offline-capable. The one already-approved outbound call is the anonymous version check in `utils/updateChecker.ts` (it carries no user data); it is an existing exception, not a defect to "fix".
 - Chrome permissions follow the principle of least privilege; new permissions must be justified.
+
+### Review Prompt Trigger Rules
+
+The one-time review prompt (the card in the manager page's main content area) is the only place in the activation loop that asks the user for a favour. The rule is pinned by three files of code and two layers of tests — read this section before changing it.
+
+- **Trigger conditions (all three must hold, or the card never appears)**
+  1. more than one saved password (`REVIEW_PROMPT_MIN_PASSWORDS = 2`);
+  2. **an actual successful fill** — clicking an entry in the side panel, the `Ctrl/Cmd+Shift+F` shortcut, the in-page inline dropdown, the context menu, or the Popup one-click fill; success is what counts, so "opened the panel" or "clicked an entry" does not, and favouriting is **not** usage;
+  3. **7 days since the first successful fill** (`REVIEW_PROMPT_MIN_AGE_MS`).
+
+- **State and write point**: everything lives in `review_prompt_state` under `chrome.storage.local` as three timestamps only — `firstFillAt` (first successful fill), `dismissedAt` (permanent dismissal), `snoozedUntil` (snooze deadline). No account, password, entry content, or anything that identifies the user, and nothing is uploaded. `firstFillAt` is written once by the background, where `utils/storage/passwordCrud.ts` flushes batched metadata: every quick-fill path (side panel, keyboard shortcut, Popup one-click fill, inline dropdown, context menu) persists its usage mark `lastUsedAt` through `updatePasswordInSession`, so a batch carrying `lastUsedAt` is exactly one real fill, and `markFirstQuickFill` keeps an in-process gate so it writes once. **A new fill entry point needs no extra instrumentation as long as it still goes through `updatePasswordInSession`**; a new context that writes the vault directly must call `markFirstQuickFill()` explicitly. Filling a TOTP code from the context menu also writes `lastUsedAt`, so it counts as usage — consistent with the "recently used" ordering.
+
+- **The anchor is decoupled from the dismissal**: `dismissedAt` only controls whether the card shows; `firstFillAt` records the fact that the user used quick fill for the first time, and is **still written once even after a permanent dismissal**. Otherwise a user who later clears the dismissal would restart the 7-day clock from their next fill, silently rewriting the threshold.
+
+- **Failure direction of the write paths**: all three writers are "read the whole object → merge → write the whole object", so a **failed read must abort the write**. Persisting the degraded empty state would erase the "Don't ask again" the user just clicked and resurrect a prompt they rejected — far worse than losing one snooze. Only the display-side `getReviewPromptState()` may degrade to "not dismissed"; do not reuse it in the writers.
+
+- **Why the anchor has to be the first fill**: `lastUsedAt` is refreshed on every fill, so using it as the age anchor means a user with a single entry never reaches the threshold; the entry's `createTime`, on the other hand, can age 7 days before the user ever experiences a fill. The gate is "7 days after the value was felt", not "7 days after install".
+
+- **Upgrade compatibility**: `firstFillAt` did not exist before this change, so an existing user records the anchor on their next successful fill and is asked "one more fill + 7 days" later. That is a deliberate conservative trade-off (better to ask late than to guess past behaviour), not a defect — do not backfill it from entry timestamps.
+
+- **Interaction and policy boundary**: if the update dialog was already shown in this session, the card waits for the next visit instead of stacking two prompts. "Later" is silent for 30 days (the write reads first, preserving a permanent dismissal and the anchor written by another tab); "Don't ask again" and "Review" both write `dismissedAt` and dismiss for good. Firefox builds never show it. Chrome Web Store policy forbids trading rewards for reviews, sorting users by sentiment, or gating features to solicit a review — this card does none of that: all three actions carry no reward, make no satisfaction judgement, block no feature, and only open the store page for the user to decide, with UTM `utm_source=options&utm_medium=review&utm_campaign=review_prompt`.
+
+- **Regression contract when changing this**: `tests/utils/reviewPrompt.test.ts` (thresholds and read/write normalization), `tests/utils/passwordCrudFirstFillAnchor.test.ts` (on the real debounced flush: writes once, favourites-only does not write, an existing anchor is not overwritten), `tests/architecture/growthPromptWiring.test.ts` (Options wiring, components touch no storage, the anchor write is ordered after the password array write succeeds), `e2e/growth-prompt.spec.ts` (real Chrome, flipping one gate at a time plus dismissal persistence). Relaxing or tightening a threshold is a user-visible behaviour change: update this section, the "Update Prompt and One-Time Review Prompt" section of `docs/ARCHITECTURE.md`, and the matching Chinese chapter together.
 
 ## Pull Request Guidelines
 

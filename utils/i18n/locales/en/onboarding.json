@@ -14,7 +14,7 @@
   "onboarding.search.title": "What you'll lean on later",
   "onboarding.search.desc": "Search understands pinyin initials, and tags plus 'favorites only' stack as filters. Select rows to retag, delete or export in bulk.",
   "onboarding.data.title": "Backups and migrations live here",
-  "onboarding.data.desc": "Import/export, encrypted backup, trash and the identity vault share this one menu. An exported .aph only opens with your master password.",
+  "onboarding.data.desc": "Import/export, encrypted backup, trash and the personal info vault share this one menu. An exported .aph only opens with your master password.",
   "onboarding.data.tip": "Run an encrypted backup export now — the menu header records your last successful backup.",
   "onboarding.settings.title": "Tune the security policy",
   "onboarding.settings.desc": "Idle auto-lock, session validity, auto-save, site rules, clipboard clearing and shortcuts all start from this group.",

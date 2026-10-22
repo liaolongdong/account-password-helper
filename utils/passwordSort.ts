@@ -3,8 +3,11 @@ import {
   isExactHostMatch,
   isLocalDevDomain,
   matchesPortForLocalDev,
+  matchesPortScope,
+  rawPortOf,
   resolveMatchTier,
-  type DomainMatchMode,
+  type PagePortContext,
+  type SitePolicy,
 } from '@/utils/domain';
 
 /**
@@ -139,50 +142,52 @@ export function sortPasswordEntries(
 /**
  * 按域名过滤并按侧边栏展示顺序排序密码条目（纯函数）
  *
- * 过滤规则：纳入 `resolveMatchTier` 判定为匹配（tier ≥ 0）的条目——
- * - 本地开发域名（localhost 等）：有端口时按端口过滤，无端口时放行全部，档位不参与
- * - 当前域名为空（如非 http 页面）：仅纳入空 URL 通用条目，档位不参与
+ * 过滤规则：纳入 `resolveMatchTier` 判定为匹配（tier ≥ 0）**且**通过端口门
+ * （`matchesPortScope`）的条目——
+ * - `loose` 档下的本地开发域名（localhost 等）：沿用既有端口口径，档位不参与
+ * - 当前域名为空（如非 http 页面）：仅纳入空 URL 通用条目，档位与端口不参与
  * - 其余按档位分层：`off`（缺省）= 精确主机 + 空 URL；`wildcard` 追加通配条目；
- *   `sameMainDomain` 再追加 apex 与同主域其他子域
+ *   `sameMainDomain` 再追加 apex 与同主域其他子域；`strict` 端口档在此之上再收窄
  *
  * 排序规则：匹配层级（0 精确 → 4 通用）→ 收藏置顶 → 指定排序字段（与侧边栏展示顺序一致，
  * 结果首条即侧边栏列表第一条）。供 quickFillHandler（填充首条）与
  * getMatchingAccounts（内联下拉列表）共用。
  *
- * 缺省 `off` 时的集合与顺序与引入跨子域之前逐条一致。
+ * 策略两项均取缺省时，集合与顺序与引入端口隔离之前逐条一致。
  *
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
  * @param sort 排序状态，默认侧边栏排序
- * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
- * @param mode 跨子域匹配档位，缺省 `off`（最严格）
+ * @param page 当前页面端口上下文（null 表示取不到，端口门自动放行）
+ * @param policy 站点匹配策略（档位 + 端口范围），必传
  * @returns 过滤并排序后的新数组（不修改入参数组）
  */
 export function filterAndSortEntriesForDomain(
   passwords: PasswordEntry[],
   domain: string,
   sort: SortState = DEFAULT_SIDEPANEL_SORT,
-  port?: string,
-  mode: DomainMatchMode = 'off',
+  page: PagePortContext | null,
+  policy: SitePolicy,
 ): PasswordEntry[] {
   const matched = passwords.filter(p => {
-    if (isLocalDevDomain(domain)) {
-      // 本地开发域名：有端口时按端口过滤，无端口时保持原有行为（放行全部）；档位不参与
-      return matchesPortForLocalDev(p.url, port ?? '');
+    if (isLocalDevDomain(domain) && policy.portScope === 'loose') {
+      // 本地开发域名（loose 档）：有端口时按端口过滤，无端口时保持原有行为（放行全部）；档位不参与
+      return matchesPortForLocalDev(p.url, rawPortOf(page));
     }
     if (!domain) return !p.url || p.url.trim() === '';
-    return resolveMatchTier(domain, p.url, mode) >= 0;
+    if (resolveMatchTier(domain, p.url, policy.mode) < 0) return false;
+    return matchesPortScope(p.url, page, policy.portScope);
   });
 
   // 域名优先级即匹配层级：off 档下退化为迁移前的 0/1 二值（4=通用条目仍在其后）
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!domain) return 0;
-    if (isLocalDevDomain(domain)) {
+    if (isLocalDevDomain(domain) && policy.portScope === 'loose') {
       // 本地开发域名不参与档位：与迁移前一致，精确主机为 0，其余（含空 URL 与外站）同为 1 不区分
       return !!entry.url?.trim() && isExactHostMatch(domain, entry.url) ? 0 : 1;
     }
-    // 过滤阶段已保证只有匹配（tier ≥ 0）的条目进入此分支
-    return resolveMatchTier(domain, entry.url, mode);
+    // 过滤阶段已保证只有匹配（tier ≥ 0）且通过端口门的条目进入此分支
+    return resolveMatchTier(domain, entry.url, policy.mode);
   };
 
   return sortPasswordEntries(matched, sort, getDomainPriority);

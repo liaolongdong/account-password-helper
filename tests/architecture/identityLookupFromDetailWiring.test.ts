@@ -3,7 +3,7 @@
  *
  * 这条跳转刻意**不做跨库关联**：用户名只当搜索词递给身份库，因此它没有数据模型可测，
  * 全部风险都落在接线形状上（按本仓惯例做源码扫描，见 `trashSearchWiring.test.ts`）。
- * 四个会被顺手拆掉的边界：
+ * 这些边界会被顺手拆掉（只编号、不记数，免得清单又比实现旧一格）：
  *
  * 1. **复验门槛不可绕过**：身份库含证件号/卡号等高敏 PII，开窗只有 `openIdentityVaultWithVerify`
  *    一个入口。新增入口直接 `showIdentityVaultDialog.value = true`，就等于给「会话已解锁但人离开
@@ -20,6 +20,9 @@
  * 5. **策略本身不可免验修改**：档位决定「打开身份库前问不问」。若改档位不需要证明知道
  *    主密码，坐在已解锁机器前的旁人只要把它拨到「跟随有效期」，门槛自身就当场变成免验通道。
  *    故设置弹窗的保存路径必须复验，且写入配置的地方只能有它一处。
+ * 6. **检索面与高亮面同源**：字段名进检索面的那一格，屏上就必须是高亮面——否则列表里出现一张
+ *    毫无强调的卡，用户读不出它凭什么匹配；反过来，标签列一旦改成只读 prop（`:label`），
+ *    命中就看不见，而检索仍然命中，等于把「搜得到但找不到」写回产品里。
  *
  * 另附外围：空用户名不得发起跳转（否则把空白搜索词当「全部结果」打开身份库），
  * 图标按钮必须带可读标签（无障碍），以及引用的 `options.detail.*` 文案在中英文语言包都在。
@@ -45,6 +48,16 @@ const stripComments = (src: string): string =>
     .split('\n')
     .filter(line => !line.trim().startsWith('//') && !line.trim().startsWith('*') && !line.trim().startsWith('/*'))
     .join('\n');
+
+/**
+ * 剔掉模板里的 HTML 注释块
+ *
+ * 护的是那两条**跨行整段**判据——`<template #label>…<：text="field.label"…</template>` 与
+ * `<template v-else>{{ … }}</template>` 的出口清单：注释里只要写了一段「期望的模板形状」作说明，
+ * 整段匹配读到的就是解释而不是代码。三处 `<SearchHighlight … />` 用法块各自收口在 `/>`，
+ * 注释吸不进去，那条逐用法判据并不依赖本函数（变异对照做过：摘与不摘，三处读数一样）。
+ */
+const stripHtmlComments = (src: string): string => src.replace(/<!--[\s\S]*?-->/g, '');
 
 /** 取出某个箭头函数声明的函数体（到首个顶格 `};` 为止） */
 const functionBody = (src: string, name: string): string => {
@@ -207,6 +220,88 @@ describe('详情抽屉到身份库的跳转接线', () => {
     };
     expect(teardownBody('resetViewState'), '复位视图态不再清关键词：预填会粘到下次打开').toMatch(/keyword\.value = ''/);
     expect(teardownBody('teardown'), 'teardown 不再连带复位视图态').toContain('resetViewState()');
+  });
+
+  it('深链零命中时，空态要给一条出路：说清是「没有含这个词的字段」，并复用工具栏那条添加事件', () => {
+    const empty = VAULT_DIALOG_SRC.match(/filteredRows\.length === 0[\s\S]*?<\/el-empty>/);
+    expect(empty, '未找到「无匹配」空态那一块').toBeTruthy();
+
+    // 三条判据各自钉一个**元素**，不共用一个正则：`v-if="keyword.trim()"` 在这一块里出现两次
+    // （说明行与出路按钮各一次），整块匹配会被另一处救活——变异实测只摘说明行那处时守卫照样绿。
+    const hint = empty![0].match(/<p\b[\s\S]*?class="identity-empty__hint"[\s\S]*?<\/p>/);
+    expect(hint, '空态里那行上下文说明不见了').toBeTruthy();
+    expect(hint![0], '空态不再引用带上下文的说明文案').toMatch(/t\('identity\.noMatchHint'/);
+    expect(hint![0], '说明文案必须把搜索词插进去，否则等于没说').toMatch(/\{\s*keyword:\s*keyword\.trim\(\)\s*\}/);
+    // 引导只在「有搜索词」时出现：按类别筛空的那些形里，这句话会把人往错误的落点上引
+    expect(hint![0], '说明行不再受搜索词约束，会在纯类别筛选的空态里乱指路').toMatch(/v-if="keyword\.trim\(\)"/);
+
+    const addButton = empty![0].match(/<el-button\b[^>]*@click="\$emit\('add'\)"[\s\S]*?<\/el-button>/);
+    expect(addButton, '空态的添加按钮绕开了工具栏那条事件，等于开出第二个入口').toBeTruthy();
+    expect(addButton![0], '出路按钮不再受搜索词约束').toMatch(/v-if="keyword\.trim\(\)"/);
+    expect(addButton![0], '出路按钮的文案不再是工具栏那一句').toMatch(/\{\{ t\('identity\.add'\) \}\}/);
+    for (const banned of [/decrypt/i, /encrypt/i, /localStorage/, /chrome\.storage/]) {
+      expect(empty![0], `空态里出现了 ${banned.source}`).not.toMatch(banned);
+    }
+  });
+
+  it('字段名进了检索面，标签列就得是高亮面：命中处必须看得见，且空关键词不建实例', () => {
+    // 检索面：值与它当前界面语言的译名一起进集合，且**只在有值时**进——空格子的名字一旦也进，
+    // 「搜一个框名」就退化成「全库命中」。这里钉的是**那一行连同它的门判据**，不是只钉 push：
+    // 光看 `fields.push(value, t(...))` 的话，把条件写成 `typeof value === 'string'`（空串也算有值）
+    // 照样过关，而那正是这条边界要挡的形状——空串只有导入路径造得出来，行为侧的用例已被它咬住（变异验过）。
+    expect(VAULT_HOOK_SRC, '名字的门判据不再要求「有值」：空的那一格会把它的名字也带进检索面').toMatch(
+      /if \(typeof value === 'string' && value\) \{\n\s*fields\.push\(value, t\(`identity\.field\.\$\{def\.key\}`\)\)/,
+    );
+    expect(VAULT_HOOK_SRC, '字段名不该无条件进检索面').not.toMatch(/fields\.push\(t\(`identity\.field/);
+
+    const dialog = stripHtmlComments(VAULT_DIALOG_SRC);
+    expect(dialog, '标签列不再走高亮组件：搜字段名命中的格子屏上没有强调').toMatch(
+      /<template #label>[\s\S]*?:text="field\.label"[\s\S]*?<\/template>/,
+    );
+    // `:label` 与 `#label` 并存时插槽赢，那个 prop 是死代码，留着会让下一个人以为改它有效
+    expect(dialog, 'el-descriptions-item 上还挂着被插槽盖住的 :label').not.toMatch(/:label="field\.label"/);
+
+    const usages = [...dialog.matchAll(/<SearchHighlight\b[\s\S]*?\/>/g)].map(m => m[0]);
+    expect(usages.length, '身份库的高亮用法应为三处（标题 / 字段名 / 字段值），写法漂移时让守卫变红').toBe(3);
+    for (const usage of usages) {
+      expect(usage, '空关键词下这一格仍会建一个 SearchHighlight 实例').toMatch(/v-(?:if|else-if)="keyword"/);
+    }
+    const fallbacks = [...dialog.matchAll(/<template v-else>\{\{\s*([\w.()]+)\s*\}\}<\/template>/g)]
+      .map(m => m[1])
+      .sort();
+    expect(fallbacks, '每处高亮都要配一个纯文本出口，否则空关键词时那一格变空白').toEqual([
+      'displayTitle(entry)',
+      'field.label',
+      'field.value',
+    ]);
+  });
+
+  it('放宽那一屏必须自己说清楚：说明行挂 searchRelaxed，认中的格子整串高亮', () => {
+    const dialog = stripHtmlComments(VAULT_DIALOG_SRC);
+
+    const notice = dialog.match(/<p\b[^>]*class="identity-relaxed"[\s\S]*?<\/p>/);
+    expect(notice, '放宽说明行不见了：检索语义的切换会变成静默的').toBeTruthy();
+    expect(notice![0], '说明行不再受放宽标记约束，严格命中那一屏也会说这句').toMatch(/v-if="searchRelaxed"/);
+    expect(notice![0], '说明行没把用户打的那句话插进去').toMatch(/\{\s*keyword:\s*keyword\.trim\(\)\s*\}/);
+    expect(notice![0], '说明行引用的不是放宽那条文案').toContain("t('identity.searchRelaxed'");
+
+    const labelSlot = dialog.match(/<template #label>([\s\S]*?)<\/template>/);
+    expect(labelSlot, '标签列插槽写法漂移：整串高亮的判据要跟着改').toBeTruthy();
+    const hit = labelSlot![1].match(
+      /<span\b[\s\S]*?class="identity-field__name-hit"[\s\S]*?>\s*\{\{ field\.label \}\}\s*<\/span\s*>/,
+    );
+    expect(hit, '认中的格子不再整串高亮：放宽那一屏会退化成「列表变了但没人告诉我为什么」').toBeTruthy();
+    expect(hit![0], '整串高亮不再由认中的格子集合控制').toMatch(/v-if="relaxedNameKeys\.has\(field\.key\)"/);
+    // 顺序是硬判据：整串高亮必须排在关键词分支**之前**，否则 keyword 非空时后一支先赢，这一支成死代码。
+    expect(
+      hit!.index! < labelSlot![1].indexOf('<SearchHighlight'),
+      '整串高亮被排到 SearchHighlight 之后：放宽那一屏它永远不生效',
+    ).toBe(true);
+    expect(labelSlot![1], '标签列开始引用值：放宽只该高亮名字，不该把值提前显出来').not.toMatch(/field\.value/);
+
+    expect(VAULT_HOOK_SRC, 'composable 没把放宽标记与认中的格子交给视图').toMatch(
+      /searchRelaxed,\n\s*relaxedNameKeys,/,
+    );
   });
 
   it('抽屉不持有身份库状态，也不引入身份加解密', () => {

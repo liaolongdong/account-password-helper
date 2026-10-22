@@ -91,7 +91,8 @@ describe('表格截断浮层对指针透明', () => {
   }
 
   it('扫描到了带截断浮层的表格（抽取为空意味着守卫空跑）', () => {
-    expect(overflowTables.length).toBe(5);
+    // 6 张：密码表 / 回收站 / 密码历史 / 批量改标签 + 身份回收站（IdentityTrashDialog）等
+    expect(overflowTables.length).toBe(6);
   });
 
   it('每一张带 show-overflow-tooltip 的表格都绑定了共享 tooltip-options', () => {

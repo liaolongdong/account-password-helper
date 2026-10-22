@@ -1,0 +1,20 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    工具栏「已锁定」态图标：与解锁态（icon.svg 的钥匙）成对使用，由 background 经
+    chrome.action.setIcon 按会话状态切换。设计约束是 16px 下仍能一眼分辨，因此
+    只用一个粗轮廓挂锁、不放细线条；底色取同色系深蓝（variants/README.md 的强调色），
+    与解锁态的主蓝构成「色相一致、明度更低」的二次编码（形状 + 明度，不只靠颜色）。
+  -->
+  <!-- 背景：深蓝圆角方块，与解锁态同一骨架 -->
+  <rect width="128" height="128" rx="20" fill="#337ECC"/>
+
+  <!-- 锁梁：闭合圆弧，两条腿伸进锁体后被盖住，16px 下仍读作实心环 -->
+  <path d="M46 64V50a18 18 0 0 1 36 0v14" stroke="#FFFFFF" stroke-width="11" fill="none"/>
+
+  <!-- 锁体：白色圆角矩形 -->
+  <rect x="36" y="62" width="56" height="42" rx="9" fill="#FFFFFF"/>
+
+  <!-- 锁孔：深蓝圆 + 短槽，与解锁态的钥匙孔同一形状语言 -->
+  <circle cx="64" cy="77" r="6.5" fill="#337ECC"/>
+  <rect x="60.75" y="80" width="6.5" height="13" rx="3.25" fill="#337ECC"/>
+</svg>

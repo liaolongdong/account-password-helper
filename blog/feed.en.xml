@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss
+  version="2.0"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+>
+  <channel>
+    <title>Account Password Helper · Engineering Blog</title>
+    <link>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</link>
+    <description>Product thinking and engineering deep-dives: local-first security, MV3 performance, Web Crypto internals and multi-environment login.</description>
+    <language>en</language>
+    <lastBuildDate>Mon, 19 Oct 2026 00:00:00 GMT</lastBuildDate>
+    <atom:link
+      href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml"
+      rel="self"
+      type="application/rss+xml"
+    />
+    <item>
+      <title>Chrome Password Manager: Which One to Use?</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>Built-in Chrome, cloud managers and local-first tools fit different users. Compare environment isolation, encryption, migration and offline use before choosing.</description>
+      <category>password manager</category>
+      <category>chrome extension</category>
+      <category>comparison</category>
+      <category>local-first</category>
+      <category>open source</category>
+    </item>
+    <item>
+      <title>Managing Dev, Test and Prod Accounts Safely</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>Four accounts for one system — how do you stop a test credential from landing in production? A practical guide to host matching, naming, dedupe and team handoff.</description>
+      <category>multi-environment</category>
+      <category>developer tools</category>
+      <category>host matching</category>
+      <category>testing</category>
+      <category>account management</category>
+    </item>
+    <item>
+      <title>TOTP 2FA: How It Works and Where to Store It</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>What TOTP is, why codes change every 30 seconds, and what to check before moving secrets from a phone authenticator into a browser extension.</description>
+      <category>totp</category>
+      <category>2fa</category>
+      <category>two-factor</category>
+      <category>security</category>
+      <category>browser extension</category>
+    </item>
+    <item>
+      <title>Three Tiers of Cross-Subdomain Matching</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html</guid>
+      <pubDate>Tue, 22 Sep 2026 00:00:00 GMT</pubDate>
+      <description>Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught.</description>
+      <category>chrome extension</category>
+      <category>password manager</category>
+      <category>domain matching</category>
+      <category>multi-environment testing</category>
+      <category>frontend</category>
+    </item>
+    <item>
+      <title>Four Features, Four Implementation Notes</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html</guid>
+      <pubDate>Sat, 05 Sep 2026 00:00:00 GMT</pubDate>
+      <description>Right-click fill, inline panel positioning, site-wide side panel search and the read-only entry drawer — the trade-offs and security boundaries behind each.</description>
+      <category>chrome extension</category>
+      <category>browser extension</category>
+      <category>password manager</category>
+      <category>frontend</category>
+      <category>interaction design</category>
+    </item>
+    <item>
+      <title>Why I Built a Local-First Password Manager</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html</guid>
+      <pubDate>Fri, 28 Aug 2026 00:00:00 GMT</pubDate>
+      <description>A local-first, open-source Chrome password manager for developers juggling dev, test, staging and prod accounts. No account, no sync server, no cloud trust.</description>
+      <category>password manager</category>
+      <category>browser extension</category>
+      <category>open source</category>
+      <category>chrome extension</category>
+      <category>local-first</category>
+    </item>
+    <item>
+      <title>Sub-Second Chrome Side Panel on MV3</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html</guid>
+      <pubDate>Fri, 28 Aug 2026 00:00:00 GMT</pubDate>
+      <description>MV3 service workers die without warning, so the side panel cold-starts white. Dual-layer keep-alive, four-tier pre-warming and three-way data racing fix that.</description>
+      <category>chrome extension</category>
+      <category>manifest v3</category>
+      <category>service worker</category>
+      <category>performance</category>
+      <category>frontend engineering</category>
+    </item>
+    <item>
+      <title>Web Crypto for a Real Password Manager</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html</guid>
+      <pubDate>Fri, 28 Aug 2026 00:00:00 GMT</pubDate>
+      <description>No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying.</description>
+      <category>web crypto</category>
+      <category>encryption</category>
+      <category>password manager</category>
+      <category>security</category>
+      <category>chrome extension</category>
+    </item>
+  </channel>
+</rss>

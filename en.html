@@ -135,7 +135,8 @@
       type="application/xml"
       href="./sitemap.xml"
     />
-    <!-- SoftwareApplication 结构化数据：帮助 Google 识别为 Chrome 扩展产品页，提升富媒体搜索结果展示 -->
+    <!-- SoftwareApplication 结构化数据：帮助 Google 识别为 Chrome 扩展产品页，提升富媒体搜索结果展示。
+         datePublished 取首个发布标签的提交日期，可复算：`git log -1 --format=%ci v1.0.0` → 2026-05-23 -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -144,10 +145,11 @@
         "alternateName": "账号密码管理助手",
         "applicationCategory": "SecurityApplication",
         "applicationSubCategory": "Password Manager",
-        "operatingSystem": "Chrome",
+        "operatingSystem": "Windows, macOS, Linux, ChromeOS",
         "browserRequirements": "Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.",
-        "softwareVersion": "3.15.2",
-        "dateModified": "2026-10-14",
+        "softwareVersion": "3.16.0",
+        "datePublished": "2026-05-23",
+        "dateModified": "2026-10-18",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -168,20 +170,20 @@
           "Encrypted .aph backup and restore, plus email backup composed locally via mailto",
           "Side panel opens instantly in every state (~20-50ms to data on the cached warm path)",
           "Six color themes and a bilingual 中文 / English interface",
-          "Identity vault: ID, bank card and other personal details in a separate encrypted store"
+          "Personal info vault: ID, bank card and other personal details in a separate encrypted store"
         ],
         "description": "Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.",
-        "url": "https://liaolongdong.github.io/account-password-helper/",
+        "url": "https://liaolongdong.github.io/account-password-helper/en.html",
         "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
         "downloadUrl": "https://github.com/liaolongdong/account-password-helper/releases/latest",
         "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png",
         "screenshot": [
-          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-1-one-click-login.png",
-          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-2-totp.png",
-          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-3-multi-env.png",
-          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-4-security-audit.png",
-          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-5-preferences.png",
-          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-6-local-encryption.png"
+          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-1-one-click-login-en.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-2-totp-en.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-3-multi-env-en.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-4-security-audit-en.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-5-preferences-en.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-6-local-encryption-en.png"
         ],
         "license": "https://github.com/liaolongdong/account-password-helper/blob/main/LICENSE",
         "author": {
@@ -315,7 +317,7 @@
             "name": "What if the login fields are not detected and nothing fills?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open \"Site rules\" on the manager page and pin the CSS selectors for that domain's username and password fields (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a \"Shadow DOM penetration\" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file."
+              "text": "Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open \"Site rules\" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a \"Shadow DOM penetration\" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file."
             }
           },
           {
@@ -339,7 +341,7 @@
             "name": "How do I move my passwords to another browser or computer?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "One encrypted backup carries the whole vault. On the source browser, open the manager page and use \"Data Management → Export Encrypted Backup\"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use \"Import Encrypted Backup\", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with \"Remove Duplicates\". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the identity vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine."
+              "text": "One encrypted backup carries the whole vault. On the source browser, open the manager page and use \"Data Management → Export Encrypted Backup\"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use \"Import Encrypted Backup\", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with \"Remove Duplicates\". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the personal info vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine."
             }
           },
           {
@@ -355,7 +357,7 @@
             "name": "Can one account cover every subdomain of a site?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes — and by default it does not. The \"Cross-subdomain matching\" control in the manager page header has three tiers and defaults to \"Exact match only\". \"Exact + wildcard entries\" makes an account saved as *.qq.com surface on any subdomain of that site; \"Same main domain\" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged \"Cross-subdomain\". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row."
+              "text": "Yes — and by default it does not. The \"Cross-subdomain matching\" control in the manager page header has three tiers and defaults to \"Exact match only\". \"Exact + wildcard entries\" makes an account saved as *.qq.com surface on any subdomain of that site; \"Same main domain\" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged \"Cross-subdomain\". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row. The same dialog carries a separate \"port\" axis for services running on different ports of one domain."
             }
           },
           {
@@ -512,6 +514,14 @@
           },
           {
             "@type": "Question",
+            "name": "Do accounts on different ports of one domain mix?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "By default only localhost and 127.0.0.1 are separated by port. To keep services on different ports of a public domain or a private IP apart as well, switch the port option to \"Isolate by port\" inside \"Cross-subdomain matching\" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain's front door and appears only on the scheme's default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. While it is on, the side panel header shows the current port — one click temporarily reveals other ports' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged \"Other port\", sort to the end of the list and offer only copy and \"open site\", so a password from one port is never typed into another port's login form. Auto-save obeys the same ownership rule."
+            }
+          },
+          {
+            "@type": "Question",
             "name": "How do I set the favorites limit?",
             "acceptedAnswer": {
               "@type": "Answer",
@@ -523,7 +533,7 @@
             "name": "How do I configure floating button preferences?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Open the preferences panel via ① the \"Preferences\" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, auto login trigger, password visibility toggle, and opacity."
+              "text": "Open the preferences panel via ① the \"Preferences\" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, personal-field hints, auto login trigger, password visibility toggle, Shadow DOM penetration, and opacity."
             }
           },
           {
@@ -765,6 +775,25 @@
         max-width: var(--container);
         margin: 0 auto;
         padding: 0 24px;
+      }
+
+      /*
+       * JS 缺席时的文字兜底（真身在 body 里那条 `<noscript>`，紧接页头之后）。
+       *
+       * 之前页内唯一的 `<noscript>` 在 head 里，只兜窄屏页头的导航样式，关掉脚本的访客和
+       * 不执行 JS 的爬虫拿不到任何「这个区块需要 JS、其余照常可读」的说明。这条只借
+       * `--text-muted` 与容器宽度，不参与配色，也不遮挡正文。
+       */
+      .noscript-note {
+        padding-top: 16px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--text-muted);
+      }
+
+      .noscript-note a {
+        color: inherit;
+        text-decoration: underline;
       }
 
       section {
@@ -1756,13 +1785,9 @@
         bottom: 124px;
         z-index: 90;
         display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 11px 18px;
+        align-items: stretch;
+        overflow: hidden;
         color: white;
-        font-size: 14px;
-        font-weight: 600;
-        text-decoration: none;
         background: var(--primary);
         border-radius: 999px;
         box-shadow: var(--shadow-md);
@@ -1784,19 +1809,68 @@
       .sticky-cta:hover {
         background: var(--primary-dark);
       }
-      .sticky-cta:focus-visible {
-        outline: 2px solid var(--primary-dark);
-        outline-offset: 2px;
+      .sticky-cta__link {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 11px 10px 11px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        color: inherit;
+        text-decoration: none;
       }
-      .sticky-cta svg {
+      .sticky-cta__toggle {
+        display: grid;
         flex: none;
+        place-items: center;
+        width: 34px;
+        padding: 0;
+        color: inherit;
+        cursor: pointer;
+        background: transparent;
+        border: 0;
+        border-left: 1px solid rgb(255 255 255 / 28%);
+        border-radius: 0 999px 999px 0;
+      }
+      .sticky-cta__toggle:hover {
+        background: rgb(255 255 255 / 12%);
+      }
+      .sticky-cta__link:focus-visible,
+      .sticky-cta__toggle:focus-visible {
+        outline: 2px solid white;
+        outline-offset: -4px;
+      }
+      .sticky-cta__link svg {
+        flex: none;
+      }
+      .sticky-cta__icon--expand {
+        display: none;
+      }
+      /* 收起态：文字让位，下载图标与展开箭头都还在，入口不消失 */
+      .sticky-cta.is-collapsed .sticky-cta__label {
+        display: none;
+      }
+      .sticky-cta.is-collapsed .sticky-cta__link {
+        padding-right: 12px;
+      }
+      .sticky-cta.is-collapsed .sticky-cta__icon--collapse {
+        display: none;
+      }
+      .sticky-cta.is-collapsed .sticky-cta__icon--expand {
+        display: block;
       }
       @media (max-width: 768px) {
         .sticky-cta {
           right: 16px;
-          bottom: 112px;
-          padding: 10px 16px;
+          bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+        }
+        .sticky-cta__link {
+          gap: 6px;
+          padding: 10px 8px 10px 14px;
           font-size: 13px;
+        }
+        .sticky-cta__toggle {
+          width: 32px;
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -2023,6 +2097,277 @@
           background: rgba(78, 136, 255, 0.09);
         }
       }
+
+      /* ============ 多环境匹配模拟器 ============ */
+      /* 演示卡片放在痛点表之后：表格第一行讲「多环境账号」，这里让人当场把三档规则试一遍。
+         控件全部用原生 input / radio / button，键盘可达；结果区挂 aria-live，
+         改主机名或切档位时屏幕阅读器能听到命中数变化。 */
+      .match-demo {
+        padding: clamp(22px, 3vw, 34px);
+        margin-top: 28px;
+        background: radial-gradient(120% 100% at 100% 0%, rgba(78, 136, 255, 0.08), transparent 58%), var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+      }
+      .match-demo-head {
+        max-width: 760px;
+      }
+      .match-eyebrow {
+        margin: 0 0 8px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--primary-ink);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      .match-demo h3 {
+        margin: 0 0 8px;
+        font-size: clamp(22px, 2.4vw, 27px);
+        line-height: 1.3;
+        letter-spacing: -0.02em;
+      }
+      .match-sub {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.75;
+        color: var(--text-muted);
+      }
+      .match-body {
+        display: grid;
+        grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+        gap: clamp(18px, 2.4vw, 28px);
+        margin-top: 24px;
+      }
+      .match-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+      }
+      .match-label {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .match-controls input[type='text'] {
+        width: 100%;
+        padding: 11px 13px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13.5px;
+        color: var(--text);
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        transition:
+          border-color 0.18s ease,
+          box-shadow 0.18s ease;
+      }
+      .match-controls input[type='text']:focus-visible {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(78, 136, 255, 0.18);
+      }
+      .match-quick {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .match-quick button {
+        padding: 4px 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        color: var(--text-muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        transition:
+          color 0.16s ease,
+          border-color 0.16s ease,
+          background-color 0.16s ease;
+      }
+      .match-quick button:hover,
+      .match-quick button:focus-visible {
+        color: var(--primary-ink);
+        background: var(--primary-soft);
+        border-color: var(--primary);
+        outline: none;
+      }
+      .match-tiers {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .match-tier {
+        display: block;
+        padding: 11px 13px;
+        cursor: pointer;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        transition:
+          border-color 0.18s ease,
+          background-color 0.18s ease;
+      }
+      .match-tier:has(input:checked) {
+        background: var(--primary-soft);
+        border-color: var(--primary);
+      }
+      .match-tier:focus-within {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      .match-tier input {
+        margin: 0 8px 0 0;
+        accent-color: var(--primary);
+      }
+      .match-tier-text {
+        display: inline;
+      }
+      .match-tier-text b {
+        font-size: 13px;
+        color: var(--text);
+      }
+      .match-tier-text small {
+        display: block;
+        padding-left: 22px;
+        margin-top: 3px;
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: var(--text-muted);
+      }
+      .match-output {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .match-result {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        padding: 14px;
+        background: var(--surface-tint);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      .match-result-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: baseline;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      .match-result-head b {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        color: var(--text);
+      }
+      .match-result-head em {
+        margin-left: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px;
+        font-style: normal;
+        color: var(--text-muted);
+      }
+      .match-list {
+        max-height: 342px;
+        padding: 0;
+        margin: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        list-style: none;
+      }
+      .match-row {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 9px 2px;
+        border-bottom: 1px dashed var(--border);
+      }
+      .match-row:last-child {
+        border-bottom: none;
+      }
+      .match-avatar {
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--primary-ink);
+        background: var(--primary-soft);
+        border-radius: 7px;
+      }
+      .match-account {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .match-account b {
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .match-account small {
+        overflow: hidden;
+        font-size: 11px;
+        color: var(--text-muted);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .match-badge {
+        padding: 2px 8px;
+        font-size: 10.5px;
+        font-weight: 700;
+        white-space: nowrap;
+        border-radius: 999px;
+      }
+      .match-badge.is-exact {
+        color: var(--success-ink);
+        background: rgba(66, 184, 131, 0.14);
+      }
+      .match-badge.is-wildcard {
+        color: var(--primary-ink);
+        background: rgba(78, 136, 255, 0.14);
+      }
+      .match-badge.is-cross {
+        color: var(--warn-ink);
+        background: rgba(255, 159, 67, 0.16);
+      }
+      .match-empty {
+        padding: 34px 12px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: var(--text-muted);
+        text-align: center;
+      }
+      .match-foot {
+        padding-top: 12px;
+        margin: auto 0 0;
+        font-size: 12px;
+        line-height: 1.7;
+        color: var(--text-muted);
+        border-top: 1px dashed var(--border);
+      }
+      .match-foot code {
+        padding: 1px 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        color: var(--primary-ink);
+        background: var(--primary-soft);
+        border-radius: 5px;
+      }
+
       /* 分类筛选条：整条控件的可见性挂在 html.js 上（基线 display:none）。
          这是「隐形初始态挂 html.js」那条规则的反向用法——原理同一个：没有 JS 就没有行为，
          而这里不能留一份「永远点不动」的死控件给禁 JS 的读者，所以默认收起、由 JS 放开。
@@ -3555,6 +3900,30 @@
         transition-delay: 0.32s;
       }
 
+      /* ============ 打开速度带（工作原理段末） ============ */
+      /* 行式、配色与断点全部复用 priv-perms / .perm：这里只补标题层级与间距，
+         不新增布局规则，因此窄屏不必再写第三份 media query，也不引入新的颜色对。 */
+      .hiw-speed {
+        margin-top: 42px;
+      }
+      .hiw-speed h3 {
+        margin: 0 0 6px;
+        font-size: 18px;
+      }
+      .hiw-speed-sub {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+      .hiw-speed .priv-perms {
+        margin-top: 16px;
+      }
+      .hiw-speed-note {
+        margin: 18px 0 0;
+        color: var(--text-muted);
+        font-size: 13.5px;
+      }
+
       /* ============ Privacy（隐私与权限带） ============ */
       .priv {
         background: var(--bg-soft);
@@ -3768,6 +4137,15 @@
         .feature-card,
         .feature-card-lg {
           grid-column: span 1;
+        }
+        .match-demo {
+          padding: 20px 16px;
+        }
+        .match-body {
+          grid-template-columns: 1fr;
+        }
+        .match-list {
+          max-height: none;
         }
         .step-grid {
           grid-template-columns: 1fr;
@@ -4062,6 +4440,8 @@
           <img
             src="./assets/icons/icon.svg"
             alt="Logo"
+            width="24"
+            height="24"
           />
           <span data-i18n="nav.brand">Account Password Helper</span>
         </a>
@@ -4354,6 +4734,9 @@
       </div>
     </header>
 
+    <!-- prettier-ignore -->
+    <noscript><div class="container noscript-note"><p data-i18n-html="noscript.note">The feature carousel (first frame aside), the multi-environment matching demo, the password-generator demo and the language switch need JavaScript; the prose, install steps and FAQ read in full without it. A plain-text summary of the whole site lives in <a href="./llms.txt">llms.txt</a>.</p></div></noscript>
+
     <!-- ======= Metrics ======= -->
     <section
       class="metrics"
@@ -4362,7 +4745,7 @@
       <div class="container">
         <div class="metrics-inner reveal">
           <div class="metric">
-            <b>2888</b>
+            <b>3912</b>
             <span data-i18n="metrics.cases">automated test cases</span>
             <i aria-hidden="true"></i>
           </div>
@@ -4500,6 +4883,200 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- 多环境匹配模拟器：静态默认结果先写进服务字节，JS 启动后按当前档位重建；
+             禁 JS / AI 爬虫读到的是与默认档一致的三条 admin.example.com 账号。 -->
+        <div
+          class="match-demo reveal"
+          id="matchDemo"
+        >
+          <div class="match-demo-head">
+            <p
+              class="match-eyebrow"
+              data-i18n="match.eyebrow"
+            >Try it</p>
+            <h3 data-i18n="match.title">Which accounts show up for one site's environments?</h3>
+            <p
+              class="match-sub"
+              data-i18n="match.sub"
+            >Type a hostname and switch between the three tiers to see the candidate list change. The data is fictional and the rules match the extension; widening a tier changes what is shown and fillable, never how auto-save deduplicates.</p>
+          </div>
+          <div class="match-body">
+            <div class="match-controls">
+              <label
+                class="match-label"
+                for="matchHost"
+                data-i18n="match.hostLabel"
+                >Current hostname</label
+              >
+              <input
+                id="matchHost"
+                type="text"
+                value="admin.example.com"
+                spellcheck="false"
+                autocomplete="off"
+                aria-describedby="matchHint"
+              />
+              <div
+                class="match-quick"
+                id="matchQuick"
+                aria-label="快速填入示例主机名"
+              >
+                <button
+                  type="button"
+                  data-host="admin.example.com"
+                >
+                  admin.example.com
+                </button>
+                <button
+                  type="button"
+                  data-host="dev-admin.example.com"
+                >
+                  dev-admin.example.com
+                </button>
+                <button
+                  type="button"
+                  data-host="music.qq.com"
+                >
+                  music.qq.com
+                </button>
+                <button
+                  type="button"
+                  data-host="localhost:5173"
+                >
+                  localhost:5173
+                </button>
+              </div>
+              <div
+                class="match-tiers"
+                role="radiogroup"
+                aria-labelledby="matchTierLabel"
+              >
+                <span
+                  class="match-label"
+                  id="matchTierLabel"
+                  data-i18n="match.tierLabel"
+                  >Matching tier</span
+                >
+                <label class="match-tier">
+                  <input
+                    type="radio"
+                    name="matchTier"
+                    value="exact"
+                    checked
+                  />
+                  <span class="match-tier-text">
+                    <b data-i18n="match.tier1">Exact only (default)</b>
+                    <small data-i18n="match.tier1Desc">Only entries whose host matches exactly — environments never cross over</small>
+                  </span>
+                </label>
+                <label class="match-tier">
+                  <input
+                    type="radio"
+                    name="matchTier"
+                    value="wildcard"
+                  />
+                  <span class="match-tier-text">
+                    <b data-i18n="match.tier2">Exact + wildcard entries</b>
+                    <small data-i18n="match.tier2Desc">Entries saved as *.example.com work on any subdomain</small>
+                  </span>
+                </label>
+                <label class="match-tier">
+                  <input
+                    type="radio"
+                    name="matchTier"
+                    value="apex"
+                  />
+                  <span class="match-tier-text">
+                    <b data-i18n="match.tier3">Same apex domain (looser)</b>
+                    <small data-i18n="match.tier3Desc"
+                      >When the current host has no match, offer the apex and sibling subdomains, badged as cross-subdomain</small
+                    >
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="match-output">
+              <div class="match-result">
+                <div
+                  class="match-result-head"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <b
+                    id="matchSummary"
+                    data-i18n="match.summaryStatic"
+                    >admin.example.com · 3 of 11 entries</b
+                  >
+                  <em
+                    id="matchRule"
+                    data-i18n="match.rule.exact"
+                    >Tier 1: only entries whose host matches exactly</em
+                  >
+                </div>
+                <ul
+                  class="match-list"
+                  id="matchList"
+                >
+                  <li class="match-row">
+                    <span
+                      class="match-avatar"
+                      aria-hidden="true"
+                      >D</span
+                    >
+                    <span class="match-account">
+                      <b>demo-admin@example.com</b>
+                      <small><span data-i18n="match.note.prod">Production admin</span> · admin.example.com</small>
+                    </span>
+                    <span
+                      class="match-badge is-exact"
+                      data-i18n="match.kind.exact"
+                      >Exact</span
+                    >
+                  </li>
+                  <li class="match-row">
+                    <span
+                      class="match-avatar"
+                      aria-hidden="true"
+                      >A</span
+                    >
+                    <span class="match-account">
+                      <b>auditor@example.com</b>
+                      <small><span data-i18n="match.note.audit">Production read-only</span> · admin.example.com</small>
+                    </span>
+                    <span
+                      class="match-badge is-exact"
+                      data-i18n="match.kind.exact"
+                      >Exact</span
+                    >
+                  </li>
+                  <li class="match-row">
+                    <span
+                      class="match-avatar"
+                      aria-hidden="true"
+                      >S</span
+                    >
+                    <span class="match-account">
+                      <b>support@example.com</b>
+                      <small><span data-i18n="match.note.support">Production support</span> · admin.example.com</small>
+                    </span>
+                    <span
+                      class="match-badge is-exact"
+                      data-i18n="match.kind.exact"
+                      >Exact</span
+                    >
+                  </li>
+                </ul>
+                <p
+                  class="match-foot"
+                  id="matchHint"
+                  data-i18n-html="match.foot"
+                >Demo data is fictional; <code>localhost</code> and <code>127.0.0.1</code> stay per-port at every tier.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -5049,8 +5626,8 @@
                 />
               </svg>
             </div>
-            <h3 data-i18n="features.f12.title">Identity Vault</h3>
-            <p data-i18n="features.f12.desc">A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open (by default it asks once per manager-page session). Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets, collapse cards one at a time or all at once, sort by updated / created / category / title, or choose Manual and drag the handle on the left of a card (or hold Alt with Up / Down) to set a custom fixed order (remembered on this device), search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; it is not covered by automatic backups, so export an encrypted backup regularly.</p>
+            <h3 data-i18n="features.f12.title">Personal Info Vault</h3>
+            <p data-i18n="features.f12.desc">A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open (by default it asks once per manager-page session). Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets, collapse cards one at a time or all at once, sort by updated / created / category / title, or choose Manual and drag the handle on the left of a card (or hold Alt with Up / Down) to set a custom fixed order (remembered on this device), search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; the vault carries its own trash — deleted records stay restorable or permanently deletable for 30 days before they are cleaned automatically; it is not covered by automatic backups, so export an encrypted backup regularly.</p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -5139,8 +5716,8 @@
                 />
               </svg>
             </div>
-            <h3 data-i18n="features.f14.title">Three Cross-Subdomain Tiers</h3>
-            <p data-i18n="features.f14.desc">By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.</p>
+            <h3 data-i18n="features.f14.title">Domain &amp; Port Isolation</h3>
+            <p data-i18n="features.f14.desc">By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". A separate port axis keeps services on different ports of one domain apart: an entry that declares a port appears only there, and one without a port only on the scheme's default port. Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.</p>
           </article>
         </div>
       </div>
@@ -5169,7 +5746,17 @@
               class="carousel-track"
               id="carouselTrack"
             >
-              <!-- slides injected by JS -->
+              <!-- 首帧静态：非 JS 的消费者（GPTBot / ClaudeBot / 关掉脚本的访客）抓到的不再是空区块。
+                   `renderCarousel()` 起手即 `track.innerHTML = ''`，所以开着 JS 的人永远看不到这一块，
+                   它不会与运行时注入的那 13 屏并存，也不需要第二条渲染路径。
+                   `prettier-ignore` 是必须的：printWidth 120 会把这段长文案在 CJK 之间折行，
+                   而折行在 HTML 里塌成一个空格。 -->
+              <!-- prettier-ignore -->
+              <div class="slide">
+                <div class="slide-shot"><img src="./assets/cws-store/screen-1-one-click-login-en.webp" alt="One-click sign-in: fill, tick, submit" width="2560" height="1600" loading="lazy" /></div>
+                <div class="slide-info"><span class="step-tag">STEP 01</span><h3 data-i18n="showcase.s1.title">One-click sign-in: fill, tick, submit</h3><p data-i18n="showcase.s1.desc">On a login page, pick an entry in the side panel and choose "Fill and sign in" — credentials filled, "remember me" ticked, sign-in clicked. Turn on "Auto-submit login" and Ctrl+Shift+F does the same. The panel lists the current domain first, and the "+" in its header adds an account for this site on the spot.</p></div>
+              </div>
+              <!-- 其余各屏由 JS 注入 -->
             </div>
             <button
               class="carousel-arrow prev"
@@ -5248,6 +5835,35 @@
             <h3 data-i18n="how.s4.title">Fill, then sign in</h3>
             <p data-i18n="how.s4.desc">Fields are written one by one, consent and “remember me” boxes get ticked, and the sign-in button can be clicked for you if you switch that on. A credential seen for the first time always asks before it is saved.</p>
           </article>
+        </div>
+        <div class="hiw-speed">
+          <h3 data-i18n="how.speedTitle">Why it opens without a stall</h3>
+          <p
+            class="hiw-speed-sub"
+            data-i18n="how.speedSub"
+          >All four happen on your own machine — not one of them waits on a server.</p>
+          <div class="priv-perms">
+            <div class="perm reveal reveal-delay-1">
+              <code data-i18n="how.k1.chip">Resident</code>
+              <span data-i18n="how.k1.text">A 20s heartbeat plus a 30s revival alarm keep the background service worker alive on every platform, so the password cache is already in memory — there is no cold start to wait for when you open the panel.</span>
+            </div>
+            <div class="perm reveal reveal-delay-2">
+              <code data-i18n="how.k2.chip">Pre-warmed</code>
+              <span data-i18n="how.k2.text">Window focus, tab switches and the keep-alive tick each warm the side panel’s render resources per platform (throttled to once every 5 minutes), so the first open is not fetching chunks off disk.</span>
+            </div>
+            <div class="perm reveal reveal-delay-3">
+              <code data-i18n="how.k3.chip">Race</code>
+              <span data-i18n="how.k3.text">The in-memory session snapshot, the background data call and the panel’s own storage read run in parallel — whichever returns first is used, and one path failing never blocks the other two.</span>
+            </div>
+            <div class="perm reveal reveal-delay-4">
+              <code data-i18n="how.k4.chip">First batch</code>
+              <span data-i18n="how.k4.text">The list paints one batch of rows on the first frame, then opens up frame by frame as you scroll — so even near the 2000-entry ceiling you never wait for the whole table.</span>
+            </div>
+          </div>
+          <p
+            class="hiw-speed-note"
+            data-i18n="how.speedNote"
+          >We tune “open the side panel” toward “the UI is already there”: with a live session the data comes back from cache in roughly 20-50ms. We deliberately make no single millisecond promise across machines — disk speed and live antivirus scanning vary more than anything we control.</p>
         </div>
       </div>
     </section>
@@ -5938,7 +6554,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>What if the login fields are not detected and nothing fills?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selectors for that domain's username and password fields (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I customize shortcuts?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6006,7 +6622,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I move my passwords to another browser or computer?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the identity vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the personal info vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>Is there a limit on how many entries I can store?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6034,7 +6650,11 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>Can one account cover every subdomain of a site?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row. The same dialog carries a separate "port" axis for services running on different ports of one domain.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Do accounts on different ports of one domain mix?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">By default only localhost and 127.0.0.1 are separated by port. To keep services on different ports of a public domain or a private IP apart as well, switch the port option to "Isolate by port" inside "Cross-subdomain matching" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain's front door and appears only on the scheme's default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. While it is on, the side panel header shows the current port — one click temporarily reveals other ports' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged "Other port", sort to the end of the list and offer only copy and "open site", so a password from one port is never typed into another port's login form. Auto-save obeys the same ownership rule.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I set the favorites limit?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6042,7 +6662,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I configure floating button preferences?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, auto login trigger, password visibility toggle, and opacity.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, personal-field hints, auto login trigger, password visibility toggle, Shadow DOM penetration, and opacity.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I switch the interface language?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6085,7 +6705,7 @@ pnpm lint:style  # Stylelint</code></pre>
               <li><a href="#faq-cat-security"><span class="faq-toc-name">Security &amp; Privacy</span><span class="faq-toc-n">7</span></a></li>
               <li><a href="#faq-cat-basic"><span class="faq-toc-name">Basics</span><span class="faq-toc-n">10</span></a></li>
               <li><a href="#faq-cat-data"><span class="faq-toc-name">Data Management</span><span class="faq-toc-n">11</span></a></li>
-              <li><a href="#faq-cat-config"><span class="faq-toc-name">Advanced</span><span class="faq-toc-n">14</span></a></li>
+              <li><a href="#faq-cat-config"><span class="faq-toc-name">Advanced</span><span class="faq-toc-n">15</span></a></li>
             </ol>
           </nav>
           <div class="faq-rail-card faq-rail-card--key">
@@ -6214,11 +6834,16 @@ pnpm lint:style  # Stylelint</code></pre>
         </div>
         <p class="more-links more-author">
           <a
-            href="https://github.com/liaolongdong"
+            href="./author.en.html"
+            data-i18n="more.author"
+            >About the author and more work</a
+          >
+          <a
+            href="https://liaolongdong.github.io/better-blog/"
             target="_blank"
             rel="noopener noreferrer"
-            data-i18n="more.author"
-            >More open-source work by this author</a
+            data-i18n="more.personalBlog"
+            >Personal blog</a
           >
         </p>
       </div>
@@ -6276,9 +6901,25 @@ pnpm lint:style  # Stylelint</code></pre>
             >
             <span
               ><a
+                href="./author.en.html"
+                data-i18n="footer.author"
+                >About the author</a
+              ></span
+            >
+            <span
+              ><a
                 href="#more"
                 data-i18n="footer.more"
                 >More by the author</a
+              ></span
+            >
+            <!-- llms.txt 是给非 JS 爬虫（GPTBot / ClaudeBot 等）读的纯文本站点摘要；
+                 它此前只被 sitemap 之外的一切引用，页面上没有任何入口指向它。 -->
+            <span
+              ><a
+                href="./llms.txt"
+                data-i18n="footer.llms"
+                >AI summary (llms.txt)</a
               ></span
             >
             <span>
@@ -6301,7 +6942,7 @@ pnpm lint:style  # Stylelint</code></pre>
                 <span data-i18n="footer.repo">GitHub Repo</span>
               </a>
             </span>
-            <span data-i18n="footer.updated">Updated: Oct 2026 · v3.15.2</span>
+            <span data-i18n="footer.updated">Updated: Oct 18, 2026 · v3.16.0</span>
           </div>
         </div>
         <!-- id 是 FAQ 右栏出口卡「微信交流群」那条内链的落点（见 I18N 的 faqRail.help） -->
@@ -6371,35 +7012,84 @@ pnpm lint:style  # Stylelint</code></pre>
     </footer>
 
     <!-- ======= Sticky install CTA（滚动期直达商店） ======= -->
-    <a
+    <!-- 收起态保留下载图标与展开箭头：点图标仍直达商店，点箭头展开文字；
+         这样「收起」不是把入口藏掉，而是把占用宽度降到约一枚图标按钮。 -->
+    <div
       class="sticky-cta"
       id="stickyCta"
-      href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
-      target="_blank"
-      rel="noopener noreferrer"
     >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
+      <a
+        class="sticky-cta__link"
+        id="stickyCtaLink"
+        href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="添加到 Chrome"
       >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="7 10 12 15 17 10" />
-        <line
-          x1="12"
-          y1="15"
-          x2="12"
-          y2="3"
-        />
-      </svg>
-      <span data-i18n="hero.download">Add to Chrome</span>
-    </a>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line
+            x1="12"
+            y1="15"
+            x2="12"
+            y2="3"
+          />
+        </svg>
+        <span
+          class="sticky-cta__label"
+          data-i18n="hero.download"
+          >Add to Chrome</span
+        >
+      </a>
+      <button
+        class="sticky-cta__toggle"
+        id="stickyCtaToggle"
+        type="button"
+        aria-expanded="true"
+        aria-controls="stickyCtaLink"
+        aria-label="收起安装按钮"
+      >
+        <svg
+          class="sticky-cta__icon sticky-cta__icon--collapse"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+        <svg
+          class="sticky-cta__icon sticky-cta__icon--expand"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 15 12 9 18 15" />
+        </svg>
+      </button>
+    </div>
 
     <!-- ======= Scroll Rail（回顶 / 到底） ======= -->
     <div
@@ -6455,7 +7145,13 @@ pnpm lint:style  # Stylelint</code></pre>
       // =================== 国际化 ===================
       const LANG_KEY = 'aph_guide_lang';
 
-      /** 当前语言：URL ?lang 参数优先 > localStorage 持久化 > 缺省跟随浏览器语言 */
+      /**
+       * 当前语言：URL ?lang 参数优先 > localStorage 持久化 > 中文页缺省中文
+       *
+       * 中文页不再跟随浏览器语言：英文内容由独立可索引的 en.html 承担。此前 Googlebot
+       * （en-US 且无 Accept-Language）会在中文 URL 上看到客户端替换后的英文正文，
+       * 与 canonical / hreflang 声明的语言不一致；显式 ?lang / localStorage 选择仍然保留。
+       */
       let lang = (() => {
         const param = new URLSearchParams(location.search).get('lang');
         if (param === 'zh' || param === 'en') return param;
@@ -6463,7 +7159,7 @@ pnpm lint:style  # Stylelint</code></pre>
           const saved = localStorage.getItem(LANG_KEY);
           if (saved === 'zh' || saved === 'en') return saved;
         } catch {
-          /* localStorage 不可用时跟随浏览器语言 */
+          /* localStorage 不可用时保持英文缺省 */
         }
         return 'en';
       })();
@@ -6475,7 +7171,7 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'Open-Source Chrome Password Manager for Developers',
         },
         'meta.description': {
-          zh: '开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。',
+          zh: '开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、个人信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。',
           en: 'Free open-source, local-first password manager for Chrome: one-click login, TOTP 2FA, environment isolation, offline security audit. No account, no server.',
         },
         'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
@@ -6526,6 +7222,35 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '逐字段写入并自动勾选「记住我 / 同意协议」，可选再替你点下登录按钮；网页上新产生的凭证回写前先经你确认。',
           en: 'Fields are written one by one, consent and “remember me” boxes get ticked, and the sign-in button can be clicked for you if you switch that on. A credential seen for the first time always asks before it is saved.',
         },
+        'how.speedTitle': { zh: '为什么它开起来不卡', en: 'Why it opens without a stall' },
+        'how.speedSub': {
+          zh: '四件事全在你自己的机器上完成，没有一步在等服务器',
+          en: 'All four happen on your own machine — not one of them waits on a server.',
+        },
+        'how.k1.chip': { zh: '常驻', en: 'Resident' },
+        'how.k1.text': {
+          zh: '20 秒心跳 + 30 秒复活闹钟让后台 Service Worker 全平台常驻，密码缓存因此一直留在内存里，点开侧边栏不必等冷启动。',
+          en: 'A 20s heartbeat plus a 30s revival alarm keep the background service worker alive on every platform, so the password cache is already in memory — there is no cold start to wait for when you open the panel.',
+        },
+        'how.k2.chip': { zh: '预热', en: 'Pre-warmed' },
+        'how.k2.text': {
+          zh: '窗口聚焦、标签切换与保活心跳都会按平台预热侧边栏要用的渲染资源（5 分钟节流一次），首次打开不必现场去磁盘取 chunk。',
+          en: 'Window focus, tab switches and the keep-alive tick each warm the side panel’s render resources per platform (throttled to once every 5 minutes), so the first open is not fetching chunks off disk.',
+        },
+        'how.k3.chip': { zh: '竞速', en: 'Race' },
+        'how.k3.text': {
+          zh: '会话内存快照、后台取数、侧边栏本地读取三路并行，谁先回来用谁；任何一路失败都不拖累其余两路。',
+          en: 'The in-memory session snapshot, the background data call and the panel’s own storage read run in parallel — whichever returns first is used, and one path failing never blocks the other two.',
+        },
+        'how.k4.chip': { zh: '首批', en: 'First batch' },
+        'how.k4.text': {
+          zh: '列表首帧只画第一批行，之后逐帧放开、滚动到哪铺到哪，接近 2000 条上限时也不必等整张表画完才动手。',
+          en: 'The list paints one batch of rows on the first frame, then opens up frame by frame as you scroll — so even near the 2000-entry ceiling you never wait for the whole table.',
+        },
+        'how.speedNote': {
+          zh: '我们把「点开侧边栏就立刻有界面」当作调优目标：会话有效时数据从缓存取回约 20-50ms。跨机器不给统一的毫秒承诺——磁盘速度与杀毒软件的实时扫描，差别比我们能控制的还大。',
+          en: 'We tune “open the side panel” toward “the UI is already there”: with a live session the data comes back from cache in roughly 20-50ms. We deliberately make no single millisecond promise across machines — disk speed and live antivirus scanning vary more than anything we control.',
+        },
         // ---------- 隐私与权限 ----------
         'priv.title': { zh: '隐私与权限', en: 'Privacy & permissions' },
         'priv.sub': {
@@ -6575,7 +7300,9 @@ pnpm lint:style  # Stylelint</code></pre>
         'footer.pricing': { zh: '永久免费', en: 'Pricing' },
         'footer.compare': { zh: '替代方案对比', en: 'Alternatives' },
         'footer.blog': { zh: '技术博客', en: 'Tech Blog' },
+        'footer.author': { zh: '关于作者', en: 'About the author' },
         'footer.more': { zh: '作者的其他插件', en: 'More by the author' },
+        'footer.llms': { zh: 'AI 摘要（llms.txt）', en: 'AI summary (llms.txt)' },
         'hero.title': {
           zh: '本地加密的密码管理器<br />为开发者与测试人员而做',
           en: 'A local-first password manager<br />built for developers & QA',
@@ -6662,6 +7389,75 @@ pnpm lint:style  # Stylelint</code></pre>
         'problem.r6.after': {
           zh: '一键 0-100 离线体检，按复用 / 弱密码 / 常见泄露 / 长期未更新四维加权，全程本机计算。',
           en: 'One click gives a 0-100 offline score, weighted across reuse / weak / commonly leaked / long-unupdated — every calculation stays on your machine.',
+        },
+        // ---------- 多环境匹配模拟器 ----------
+        'match.eyebrow': { zh: '试一试', en: 'Try it' },
+        'match.title': {
+          zh: '同一站点的多环境账号，扩展会展示哪几个？',
+          en: "Which accounts show up for one site's environments?",
+        },
+        'match.sub': {
+          zh: '输入一个主机名、切换三档匹配规则，看候选列表怎么变。演示数据是虚构的，规则与扩展内一致；放宽档位只改变展示与可填充范围，不改变自动保存的判重口径。',
+          en: 'Type a hostname and switch between the three tiers to see the candidate list change. The data is fictional and the rules match the extension; widening a tier changes what is shown and fillable, never how auto-save deduplicates.',
+        },
+        'match.hostLabel': { zh: '当前主机名', en: 'Current hostname' },
+        'match.quickAria': { zh: '快速填入示例主机名', en: 'Try a sample hostname' },
+        'match.tierLabel': { zh: '匹配档位', en: 'Matching tier' },
+        'match.tier1': { zh: '仅精确匹配（默认）', en: 'Exact only (default)' },
+        'match.tier1Desc': {
+          zh: '只认与当前主机名完全一致的条目，多环境互不串号',
+          en: 'Only entries whose host matches exactly — environments never cross over',
+        },
+        'match.tier2': { zh: '精确 + 通配条目', en: 'Exact + wildcard entries' },
+        'match.tier2Desc': {
+          zh: '网址写成 *.example.com 的条目在该站任意子域可用',
+          en: 'Entries saved as *.example.com work on any subdomain',
+        },
+        'match.tier3': { zh: '同主域名（更宽松）', en: 'Same apex domain (looser)' },
+        'match.tier3Desc': {
+          zh: '当前域名没有账号时，依次带出主域与兄弟子域，并标注「跨子域」',
+          en: 'When the current host has no match, offer the apex and sibling subdomains, badged as cross-subdomain',
+        },
+        'match.summaryStatic': { zh: 'admin.example.com · 命中 3 / 11 条', en: 'admin.example.com · 3 of 11 entries' },
+        'match.summary': { zh: '{host} · 命中 {count} / {total} 条', en: '{host} · {count} of {total} entries' },
+        'match.summaryEmpty': { zh: '请输入一个主机名', en: 'Enter a hostname' },
+        'match.rule.exact': {
+          zh: '档位 ①：只认与当前主机名完全一致的条目',
+          en: 'Tier 1: only entries whose host matches exactly',
+        },
+        'match.rule.wildcard': {
+          zh: '档位 ②：精确命中 + 网址写成通配形的条目',
+          en: 'Tier 2: exact hits plus wildcard entries',
+        },
+        'match.rule.apex': {
+          zh: '档位 ③：在 ② 的结果之上，无精确命中时带出主域与兄弟子域',
+          en: 'Tier 3: tier 2 plus the apex and sibling subdomains when nothing matches exactly',
+        },
+        'match.idle': {
+          zh: '输入一个主机名，候选账号会出现在这里。',
+          en: 'Enter a hostname and the matching accounts appear here.',
+        },
+        'match.empty': {
+          zh: '这一档下没有可用账号。切到「同主域名」看看兜底，或在侧边栏顶栏点「+」就地建档。',
+          en: 'No accounts at this tier. Try "Same apex domain", or use "+" in the side-panel header to save one here.',
+        },
+        'match.note.prod': { zh: '生产环境后台', en: 'Production admin' },
+        'match.note.audit': { zh: '生产环境只读账号', en: 'Production read-only' },
+        'match.note.support': { zh: '生产环境客服账号', en: 'Production support' },
+        'match.note.dev': { zh: '开发环境后台', en: 'Development admin' },
+        'match.note.qa': { zh: '回归测试账号', en: 'Regression testing' },
+        'match.note.wildcard': { zh: '通配条目：整站任意子域可用', en: 'Wildcard entry: any subdomain of the site' },
+        'match.note.apex': { zh: '主域账号', en: 'Apex-domain account' },
+        'match.note.sibling': { zh: '兄弟子域账号', en: 'Sibling-subdomain account' },
+        'match.note.local': { zh: '本地 Vite 环境', en: 'Local Vite environment' },
+        'match.note.localPort': { zh: '另一个端口，任何档位都不串号', en: 'Another port — never mixed at any tier' },
+        'match.kind.exact': { zh: '精确匹配', en: 'Exact' },
+        'match.kind.wildcard': { zh: '通配条目', en: 'Wildcard' },
+        'match.kind.apex': { zh: '主域', en: 'Apex' },
+        'match.kind.sibling': { zh: '跨子域', en: 'Sibling' },
+        'match.foot': {
+          zh: '演示数据为虚构账号；<code>localhost</code> 与 <code>127.0.0.1</code> 在任何档位下都按端口隔离。',
+          en: 'Demo data is fictional; <code>localhost</code> and <code>127.0.0.1</code> stay per-port at every tier.',
         },
         'useCases.title': { zh: '使用场景与对应的做法', en: 'Use Cases and How to Handle Them' },
         'useCases.sub': {
@@ -6861,25 +7657,42 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。',
           en: "6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.",
         },
-        'features.f12.title': { zh: '身份信息库', en: 'Identity Vault' },
+        'features.f12.title': { zh: '个人信息库', en: 'Personal Info Vault' },
         'features.f12.desc': {
-          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验（默认同一管理页会话内只问一次）；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、逐张折叠或一键折叠全部卡片、按最近修改 / 创建时间 / 类别 / 标题排序，或选「手动」后拖拽卡片左侧手柄（或按住 Alt + ↑/↓）排自定义固定顺序（档位记在本机）、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；不参与自动备份，建议定期手动导出加密备份。',
-          en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open (by default it asks once per manager-page session). Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets, collapse cards one at a time or all at once, sort by updated / created / category / title, or choose Manual and drag the handle on the left of a card (or hold Alt with Up / Down) to set a custom fixed order (remembered on this device), search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; it is not covered by automatic backups, so export an encrypted backup regularly.',
+          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验（默认同一管理页会话内只问一次）；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、逐张折叠或一键折叠全部卡片、按最近修改 / 创建时间 / 类别 / 标题排序，或选「手动」后拖拽卡片左侧手柄（或按住 Alt + ↑/↓）排自定义固定顺序（档位记在本机）、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；不参与自动备份，建议定期手动导出加密备份。',
+          en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open (by default it asks once per manager-page session). Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets, collapse cards one at a time or all at once, sort by updated / created / category / title, or choose Manual and drag the handle on the left of a card (or hold Alt with Up / Down) to set a custom fixed order (remembered on this device), search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; the vault carries its own trash — deleted records stay restorable or permanently deletable for 30 days before they are cleaned automatically; it is not covered by automatic backups, so export an encrypted backup regularly.',
         },
         'features.f13.title': { zh: '站点规则兜底', en: 'Site Rules Fallback' },
         'features.f13.desc': {
           zh: '登录框藏在自定义组件里、识别不到输入框？在密码管理页「站点规则」为该域名手写用户名与密码框的 CSS 选择器（规则域名需与登录页域名完全一致），每条规则自带「Shadow DOM 穿透」开关，默认开启、只作用于开放影子根。规则可导出为纯文本 JSON（只含域名与选择器，不含凭据）并按域名合并导入，团队共享一套配置，不必逐台浏览器调。',
           en: 'Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain\'s username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.',
         },
-        'features.f14.title': { zh: '跨子域名匹配三档', en: 'Three Cross-Subdomain Tiers' },
+        'features.f14.title': { zh: '域名与端口两级隔离', en: 'Domain & Port Isolation' },
         'features.f14.desc': {
-          zh: '默认只展示与当前域名完全一致的条目；「精确 + 通配条目」让网址写成 *.qq.com 的账号在该站任意子域出现；「同主域名」再补一层兜底——当前域名没有账号时带出主域与兄弟子域的条目并标注「跨子域」。放宽只改变展示与可填充的账号，自动保存的判重口径不随档位改变。',
-          en: 'By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.',
+          zh: '默认只展示与当前域名完全一致的条目；「精确 + 通配条目」让网址写成 *.qq.com 的账号在该站任意子域出现；「同主域名」再补一层兜底——当前域名没有账号时带出主域与兄弟子域的条目并标注「跨子域」。另一条独立的端口轴可以把同一域名下不同端口的服务也隔开：写了端口的账号只在同端口出现，没写端口的只在该域名协议的默认端口出现。放宽只改变展示与可填充的账号，自动保存的判重口径不随跨子域档位改变。',
+          en: 'By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". A separate port axis keeps services on different ports of one domain apart: an entry that declares a port appears only there, and one without a port only on the scheme\'s default port. Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.',
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
         'showcase.sub': {
           zh: '从初次设置到日常使用，一图看懂每一项功能',
           en: 'From first-time setup to daily use — one image per feature',
+        },
+        // 首帧 slide 的文案是「服务字节」的一部分：`#carouselTrack` 里静态写着这一屏，
+        // 而不是等 JS 注入。真源放字典，`SLIDES[0]` 与静态 DOM 都读这里（由守卫钉住一致）。
+        'showcase.s1.title': {
+          zh: '一键登录：填充 → 勾选 → 提交',
+          en: 'One-click sign-in: fill, tick, submit',
+        },
+        'showcase.s1.desc': {
+          zh: '在登录页打开侧边栏，点「填充并登录」即可填好账号密码、勾选「记住我」并点击登录；开启「自动触发登录」后，快捷键 Ctrl+Shift+F 也能一步到位。侧边栏按当前域名优先展示，顶栏常驻「+」可就地添加本站账号。',
+          en: 'On a login page, pick an entry in the side panel and choose "Fill and sign in" — credentials filled, "remember me" ticked, sign-in clicked. Turn on "Auto-submit login" and Ctrl+Shift+F does the same. The panel lists the current domain first, and the "+" in its header adds an account for this site on the spot.',
+        },
+        // body 里 `<noscript>` 的文字兜底：不执行 JS 的读者需要知道哪些区块受限、去哪儿拿纯文版。
+        // 带 `<a>` 所以走 data-i18n-html；`<noscript>` 的子节点在 JS 开启时不入 DOM，
+        // 运行时 applyLang 永远碰不到它，只有服务字节里的这一份会渲染。
+        'noscript.note': {
+          zh: '本页的功能截图轮播（首帧除外）、多环境匹配模拟器、密码生成器演示与语言切换需要 JavaScript；正文、安装步骤与常见问题无需 JavaScript 即可完整阅读，整站纯文摘要见 <a href="./llms.txt">llms.txt</a>。',
+          en: 'The feature carousel (first frame aside), the multi-environment matching demo, the password-generator demo and the language switch need JavaScript; the prose, install steps and FAQ read in full without it. A plain-text summary of the whole site lives in <a href="./llms.txt">llms.txt</a>.',
         },
         'steps.title': { zh: '四步开始使用', en: 'Get Started in Four Steps' },
         'steps.sub': { zh: '无需注册，无需登录，下载即用', en: 'No sign-up, no login — download and go' },
@@ -7023,13 +7836,14 @@ pnpm lint:style  # Stylelint</code></pre>
         'more.docs': { zh: '使用说明、演示与下载', en: 'Docs, demo & download' },
         'more.repo': { zh: '源码', en: 'Source code' },
         'more.store': { zh: 'Chrome 应用商店', en: 'Chrome Web Store' },
-        'more.author': { zh: '作者的其余开源作品', en: 'More open-source work by this author' },
+        'more.author': { zh: '关于作者与其余开源作品', en: 'About the author and more work' },
+        'more.personalBlog': { zh: '个人博客', en: 'Personal blog' },
         'footer.email': {
           zh: '邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a>',
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
         },
         'footer.repo': { zh: 'GitHub 仓库', en: 'GitHub Repo' },
-        'footer.updated': { zh: '最后更新：2026-10 · v3.15.2', en: 'Updated: Oct 2026 · v3.15.2' },
+        'footer.updated': { zh: '最后更新：2026-10-18 · v3.16.0', en: 'Updated: Oct 18, 2026 · v3.16.0' },
         'wechat.title': { zh: '微信交流群', en: 'WeChat Group' },
         'wechat.desc': {
           zh: '扫码添加作者微信，备注「aph」邀你加入插件交流群',
@@ -7045,6 +7859,8 @@ pnpm lint:style  # Stylelint</code></pre>
         'aria.goto': { zh: '跳转到第 {n} 张', en: 'Go to slide {n}' },
         'aria.toTop': { zh: '回到顶部', en: 'Back to top' },
         'aria.toBottom': { zh: '滚动到底部', en: 'Scroll to bottom' },
+        'aria.stickyCollapse': { zh: '收起安装按钮', en: 'Collapse install button' },
+        'aria.stickyExpand': { zh: '展开安装按钮', en: 'Expand install button' },
         'lightbox.close': { zh: '关闭预览', en: 'Close preview' },
         'lightbox.zoom': { zh: '放大查看：{t}', en: 'Zoom in: {t}' },
         'ph.sample': { zh: '示例预览图', en: 'Sample preview' },
@@ -7057,11 +7873,10 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           file: 'screen-1-one-click-login.png',
           tag: 'STEP 01',
-          title: { zh: '一键登录：填充 → 勾选 → 提交', en: 'One-click sign-in: fill, tick, submit' },
-          desc: {
-            zh: '在登录页打开侧边栏，点「填充并登录」即可填好账号密码、勾选「记住我」并点击登录；开启「自动触发登录」后，快捷键 Ctrl+Shift+F 也能一步到位。侧边栏按当前域名优先展示，顶栏常驻「+」可就地添加本站账号。',
-            en: 'On a login page, pick an entry in the side panel and choose "Fill and sign in" — credentials filled, "remember me" ticked, sign-in clicked. Turn on "Auto-submit login" and Ctrl+Shift+F does the same. The panel lists the current domain first, and the "+" in its header adds an account for this site on the spot.',
-          },
+          // 这一屏的文案在 I18N 字典里：静态首帧 DOM、`pnpm gen:en` 的 alt 替换、这里的运行时
+          // 渲染三条路径共用同一份值。其余各屏只由 JS 注入，仍就地写着。
+          title: I18N['showcase.s1.title'],
+          desc: I18N['showcase.s1.desc'],
         },
         {
           file: 'screen-2-totp.png',
@@ -7270,8 +8085,8 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'What if the login fields are not detected and nothing fills?',
           },
           a: {
-            zh: '先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框与密码框的 CSS 选择器即可（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。规则可导出为纯文本 JSON（只含域名与选择器，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。',
-            en: 'Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selectors for that domain\'s username and password fields (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.',
+            zh: '先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框或密码框的 CSS 选择器即可：只需钉住识别错的那一侧，另一侧留空仍走自动检测（短信验证码登录页没有密码框，密码选择器留空即可）；落点始终以你配的规则为准，但填充回执会写明这次写入来自站点规则，被指认为密码框的输入框看着像验证码 / 动态口令框时还会直接点破（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。规则可导出为纯文本 JSON（只含域名与选择器，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。',
+            en: 'Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.',
           },
         },
         {
@@ -7399,8 +8214,8 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'How do I move my passwords to another browser or computer?',
           },
           a: {
-            zh: '一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），身份信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。',
-            en: 'One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the identity vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.',
+            zh: '一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），个人信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。',
+            en: 'One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the personal info vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.',
           },
         },
 
@@ -7457,8 +8272,18 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'Can one account cover every subdomain of a site?',
           },
           a: {
-            zh: '可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随档位改变，localhost / 127.0.0.1 始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。',
-            en: 'Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.',
+            zh: '可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随这三档改变，侧边栏与内联下拉共用同一套排序、一键填充取首条。同一个弹窗里还有一条独立的「端口」轴，用来区分同一域名下跑在不同端口的服务。',
+            en: 'Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row. The same dialog carries a separate "port" axis for services running on different ports of one domain.',
+          },
+        },
+        {
+          q: {
+            zh: '同一个域名的不同端口，账号会互相串吗？',
+            en: 'Do accounts on different ports of one domain mix?',
+          },
+          a: {
+            zh: '默认只在 localhost 与 127.0.0.1 上按端口区分。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。',
+            en: 'By default only localhost and 127.0.0.1 are separated by port. To keep services on different ports of a public domain or a private IP apart as well, switch the port option to "Isolate by port" inside "Cross-subdomain matching" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain\'s front door and appears only on the scheme\'s default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. While it is on, the side panel header shows the current port — one click temporarily reveals other ports\' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged "Other port", sort to the end of the list and offer only copy and "open site", so a password from one port is never typed into another port\'s login form. Auto-save obeys the same ownership rule.',
           },
         },
         {
@@ -7474,8 +8299,8 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'How do I configure floating button preferences?',
           },
           a: {
-            zh: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：主题换肤（6 款色彩主题）、界面语言（中文 / English）、悬浮按钮显示/隐藏、快速填充方式、自动触发登录、密码可见性切换以及按钮透明度。',
-            en: 'Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, auto login trigger, password visibility toggle, and opacity.',
+            zh: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：主题换肤（6 款色彩主题）、界面语言（中文 / English）、悬浮按钮显示/隐藏、快速填充方式、个人信息字段提示、自动触发登录、密码可见性切换、Shadow DOM 穿透以及按钮透明度。',
+            en: 'Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, personal-field hints, auto login trigger, password visibility toggle, Shadow DOM penetration, and opacity.',
           },
         },
         {
@@ -7615,8 +8440,11 @@ pnpm lint:style  # Stylelint</code></pre>
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
       let carouselInView = true;
 
-      /** 截图分中英两套（英文版文件名带 -en 后缀），按当前语言取对应一套 */
-      const shotFile = f => (lang === 'en' ? f.replace(/\.png$/, '-en.png') : f);
+      /** 截图分中英两套（英文版文件名带 -en 后缀），页面统一取 WebP 伴生图 */
+      const shotFile = f => {
+        const webp = f.replace(/\.png$/, '.webp');
+        return lang === 'en' ? webp.replace(/\.webp$/, '-en.webp') : webp;
+      };
 
       /** 按当前语言（重）渲染全部轮播 slide 与圆点，保留当前所在位置 */
       function renderCarousel() {
@@ -7627,7 +8455,7 @@ pnpm lint:style  # Stylelint</code></pre>
           slide.className = 'slide';
           slide.innerHTML = `
         <div class="slide-shot">
-          <img src="./assets/cws-store/${shotFile(s.file)}" alt="${s.title[lang]}" data-title="${s.title[lang]}" loading="lazy" tabindex="0" role="button" aria-label="${I18N['lightbox.zoom'][lang].replace('{t}', s.title[lang])}" />
+          <img src="./assets/cws-store/${shotFile(s.file)}" alt="${s.title[lang]}" data-title="${s.title[lang]}" width="2560" height="1600" loading="lazy" tabindex="0" role="button" aria-label="${I18N['lightbox.zoom'][lang].replace('{t}', s.title[lang])}" />
         </div>
         <div class="slide-info">
           <span class="step-tag">${s.tag}</span>
@@ -7918,6 +8746,42 @@ pnpm lint:style  # Stylelint</code></pre>
         .filter(Boolean);
       const scrollRail = document.getElementById('scrollRail');
       const stickyCta = document.getElementById('stickyCta');
+      const stickyCtaLink = document.getElementById('stickyCtaLink');
+      const stickyCtaToggle = document.getElementById('stickyCtaToggle');
+      const STICKY_CTA_COLLAPSED_KEY = 'aph-sticky-cta-collapsed';
+      let stickyCtaCollapsed = false;
+      try {
+        stickyCtaCollapsed = localStorage.getItem(STICKY_CTA_COLLAPSED_KEY) === '1';
+      } catch {
+        /* 隐私模式等场景下读取失败时保持展开 */
+      }
+
+      /**
+       * 收起 / 展开悬浮安装入口
+       *
+       * 收起态保留下载图标与展开箭头：点图标仍能安装，点箭头恢复文字，
+       * 不是把入口整个藏掉。选择写进 localStorage，刷新后沿用用户上次的选择。
+       */
+      function setStickyCtaCollapsed(collapsed, persist = true) {
+        if (!stickyCta || !stickyCtaToggle) return;
+        stickyCtaCollapsed = collapsed;
+        stickyCta.classList.toggle('is-collapsed', collapsed);
+        stickyCtaToggle.setAttribute('aria-expanded', String(!collapsed));
+        stickyCtaToggle.setAttribute('aria-label', I18N[collapsed ? 'aria.stickyExpand' : 'aria.stickyCollapse'][lang]);
+        if (stickyCtaLink) stickyCtaLink.setAttribute('aria-label', I18N['hero.download'][lang]);
+        if (!persist) return;
+        try {
+          localStorage.setItem(STICKY_CTA_COLLAPSED_KEY, collapsed ? '1' : '0');
+        } catch {
+          /* 持久化失败不影响本次收起 / 展开 */
+        }
+      }
+
+      if (stickyCtaToggle) {
+        setStickyCtaCollapsed(stickyCtaCollapsed, false);
+        stickyCtaToggle.addEventListener('click', () => setStickyCtaCollapsed(!stickyCtaCollapsed));
+      }
+
       /* 阅读进度条：引擎支持滚动时间线时这件事由 CSS 独立完成（见「阅读进度条」区块的
          @supports），这里只补它缺席的那一档（Safari / 旧 Firefox）。判据取一次即可——
          同一次会话里不会中途变化；而个别老引擎上 CSS.supports 根本不是函数，
@@ -7928,21 +8792,28 @@ pnpm lint:style  # Stylelint</code></pre>
         typeof CSS.supports === 'function' &&
         CSS.supports('animation-timeline', 'scroll()');
 
-      /* 粘性安装入口的让位信号：读到「安装」小节时把浮层收起——那一屏本来就有同款按钮，
-         叠两枚只是遮挡。这里用 IntersectionObserver 而不是像素阈值：#install 的实际高度
-         随语言与断点变化，写死数字必在某一档错位；而「小节进入视口」本身就是判据，无需换算。
+      /* 粘性安装入口的让位信号：读到「安装」小节或页脚时把浮层收起——安装小节本来就有同款
+         按钮，页脚则是微信/联系方式，浮层压在那里只会挡住内容。这里用 IntersectionObserver
+         而不是像素阈值：这些区块的实际高度随语言与断点变化，写死数字必在某一档错位。
          老浏览器没有 IO 时保持「不观测 = 不让位」，入口照常跟随滚动阈值出现，
          不因缺少观测而整个消失（与 .reveal 那套「能力缺席就落终态」是同一取舍）。 */
-      let installInView = false;
+      let ctaSuppressed = false;
+      const ctaSuppressors = new Set();
       if ('IntersectionObserver' in window) {
-        const installObserver = new IntersectionObserver(
+        const ctaObserver = new IntersectionObserver(
           entries => {
-            installInView = entries[entries.length - 1].isIntersecting;
+            entries.forEach(entry => {
+              if (entry.isIntersecting) ctaSuppressors.add(entry.target);
+              else ctaSuppressors.delete(entry.target);
+            });
+            ctaSuppressed = ctaSuppressors.size > 0;
             onScroll();
           },
           { threshold: 0.12 },
         );
-        installObserver.observe(document.getElementById('install'));
+        [document.getElementById('install'), document.querySelector('footer')]
+          .filter(Boolean)
+          .forEach(target => ctaObserver.observe(target));
       }
 
       function onScroll() {
@@ -7966,7 +8837,7 @@ pnpm lint:style  # Stylelint</code></pre>
 
         /* 粘性安装入口：越过首屏 60% 才出现（按视口高而非绝对像素——矮屏上 600px 已经把
            hero 甩在身后很远，高屏上又还没出 hero）。hero 里本来就有这枚按钮，同屏不叠两枚。 */
-        stickyCta.classList.toggle('is-in', window.scrollY > window.innerHeight * 0.6 && !installInView);
+        stickyCta.classList.toggle('is-in', window.scrollY > window.innerHeight * 0.6 && !ctaSuppressed);
 
         if (navEl && !scrollTimelineSupported) {
           navEl.style.setProperty('--scroll-p', max > 0 ? String(Math.min(1, window.scrollY / max)) : '0');
@@ -7993,6 +8864,215 @@ pnpm lint:style  # Stylelint</code></pre>
       navLinksBox.addEventListener('click', e => {
         if (e.target.tagName === 'A') navLinksBox.classList.remove('open');
       });
+
+      // =================== 多环境匹配模拟器 ===================
+      /* 演示夹具：host 写成 `*.x.com` 的条目即通配条目。账号全是虚构值，
+         与商店截图夹具同源；不读取扩展存储，也不发任何请求。 */
+      const MATCH_VAULT = [
+        { user: 'demo-admin@example.com', host: 'admin.example.com', noteKey: 'match.note.prod' },
+        { user: 'auditor@example.com', host: 'admin.example.com', noteKey: 'match.note.audit' },
+        { user: 'support@example.com', host: 'admin.example.com', noteKey: 'match.note.support' },
+        { user: 'dev-admin@example.com', host: 'dev-admin.example.com', noteKey: 'match.note.dev' },
+        { user: 'qa-bot@example.com', host: 'qa.example.com', noteKey: 'match.note.qa' },
+        { user: 'ops@example.com', host: '*.example.com', noteKey: 'match.note.wildcard' },
+        { user: 'qq-openid@qq.com', host: '*.qq.com', noteKey: 'match.note.wildcard' },
+        { user: 'qq-master@qq.com', host: 'qq.com', noteKey: 'match.note.apex' },
+        { user: 'vqq-member@qq.com', host: 'v.qq.com', noteKey: 'match.note.sibling' },
+        { user: 'dev@localhost', host: 'localhost:5173', noteKey: 'match.note.local' },
+        { user: 'e2e@localhost', host: 'localhost:3000', noteKey: 'match.note.localPort' },
+      ];
+      const MATCH_LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
+      /* 演示只需要覆盖常见两段式国家域名；扩展内使用完整的 ccTLD 感知规则。 */
+      const MATCH_TWO_LEVEL_SUFFIXES = new Set([
+        'com.cn',
+        'net.cn',
+        'org.cn',
+        'gov.cn',
+        'edu.cn',
+        'co.uk',
+        'org.uk',
+        'ac.uk',
+        'gov.uk',
+        'co.jp',
+        'ne.jp',
+        'or.jp',
+        'co.kr',
+        'or.kr',
+        'com.au',
+        'net.au',
+        'org.au',
+        'co.nz',
+        'com.hk',
+        'com.tw',
+        'com.sg',
+        'com.br',
+        'com.mx',
+        'com.tr',
+        'com.sa',
+        'com.ae',
+      ]);
+
+      /** 把输入解析成 {host, port}；无端口时 port 为空串 */
+      const matchParseHost = raw => {
+        const value = (raw || '')
+          .trim()
+          .toLowerCase()
+          .replace(/^[a-z]+:\/\//, '')
+          .replace(/\/.*$/, '');
+        if (!value) return { host: '', port: '' };
+        const parsed = /^(.*?)(?::(\d{1,5}))?$/.exec(value);
+        return { host: parsed?.[1] ?? '', port: parsed?.[2] ?? '' };
+      };
+
+      /** 当前页面的可比主机串：localhost / 127.0.0.1 带端口，其它域名忽略端口 */
+      const matchCurrentKey = raw => {
+        const { host, port } = matchParseHost(raw);
+        return MATCH_LOCAL_HOSTS.has(host) && port ? `${host}:${port}` : host;
+      };
+
+      const matchEntryKey = entry => {
+        const { host, port } = matchParseHost(entry.host);
+        return MATCH_LOCAL_HOSTS.has(host) && port ? `${host}:${port}` : host;
+      };
+
+      /** 取「主域名」：常见两段式后缀取三段，其它取末两段；IP / localhost 不参与 */
+      const matchApexOf = host => {
+        const labels = host.split('.');
+        if (labels.length < 2 || labels.some(label => !label)) return null;
+        if (/^\d+$/.test(labels[labels.length - 1])) return null;
+        const lastTwo = labels.slice(-2).join('.');
+        const take = MATCH_TWO_LEVEL_SUFFIXES.has(lastTwo) && labels.length >= 3 ? 3 : 2;
+        return labels.length >= take ? labels.slice(-take).join('.') : null;
+      };
+
+      const MATCH_KIND = {
+        exact: { labelKey: 'match.kind.exact', cls: 'is-exact' },
+        wildcard: { labelKey: 'match.kind.wildcard', cls: 'is-wildcard' },
+        apex: { labelKey: 'match.kind.apex', cls: 'is-cross' },
+        sibling: { labelKey: 'match.kind.sibling', cls: 'is-cross' },
+      };
+
+      /**
+       * 复刻扩展的三档口径：
+       * ① 仅精确；② 精确 + 通配条目；③ 在 ② 之上、当前域名没有精确命中时
+       * 带出主域与兄弟子域。localhost 系在 ③ 不参与兜底，但带端口时严格按端口匹配。
+       */
+      const resolveMatches = (rawHost, tier) => {
+        const parsed = matchParseHost(rawHost);
+        if (!parsed.host) return [];
+        const isLocal = MATCH_LOCAL_HOSTS.has(parsed.host);
+        const host = matchCurrentKey(rawHost);
+        const results = [];
+        const seen = new Set();
+        const push = (entry, kind) => {
+          if (seen.has(entry.user)) return;
+          seen.add(entry.user);
+          results.push({ entry, kind });
+        };
+
+        MATCH_VAULT.filter(entry => {
+          const key = matchEntryKey(entry);
+          // 本地页面不带端口时放行全部本地条目；带端口时只认同端口
+          if (isLocal && !parsed.port) return MATCH_LOCAL_HOSTS.has(matchParseHost(entry.host).host);
+          return key === host;
+        }).forEach(entry => push(entry, MATCH_KIND.exact));
+        const hasExact = results.length > 0;
+
+        if (tier !== 'exact' && !isLocal) {
+          MATCH_VAULT.filter(entry => entry.host.startsWith('*.')).forEach(entry => {
+            const suffix = entry.host.slice(2);
+            if (host === suffix || host.endsWith(`.${suffix}`)) push(entry, MATCH_KIND.wildcard);
+          });
+        }
+
+        if (tier === 'apex' && !hasExact && !isLocal) {
+          const apex = matchApexOf(host);
+          if (apex) {
+            MATCH_VAULT.filter(entry => matchEntryKey(entry) === apex).forEach(entry => push(entry, MATCH_KIND.apex));
+            MATCH_VAULT.filter(entry => {
+              const key = matchEntryKey(entry);
+              return key !== host && key !== apex && key.endsWith(`.${apex}`) && !key.startsWith('*.');
+            }).forEach(entry => push(entry, MATCH_KIND.sibling));
+          }
+        }
+
+        return results;
+      };
+
+      const matchHostInput = document.getElementById('matchHost');
+      const matchList = document.getElementById('matchList');
+      const matchSummary = document.getElementById('matchSummary');
+      const matchRule = document.getElementById('matchRule');
+
+      function matchRow(entry, kind) {
+        const row = document.createElement('li');
+        row.className = 'match-row';
+
+        const avatar = document.createElement('span');
+        avatar.className = 'match-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        avatar.textContent = entry.user.charAt(0).toUpperCase();
+
+        const account = document.createElement('span');
+        account.className = 'match-account';
+        const user = document.createElement('b');
+        user.textContent = entry.user;
+        const note = document.createElement('small');
+        note.textContent = `${I18N[entry.noteKey][lang]} · ${entry.host}`;
+        account.append(user, note);
+
+        const badge = document.createElement('span');
+        badge.className = `match-badge ${kind.cls}`;
+        badge.textContent = I18N[kind.labelKey][lang];
+
+        row.append(avatar, account, badge);
+        return row;
+      }
+
+      function matchEmptyRow(text) {
+        const row = document.createElement('li');
+        row.className = 'match-empty';
+        row.textContent = text;
+        return row;
+      }
+
+      /** 按当前主机名与档位重建候选列表；静态默认三条只在 JS 不运行时留在页面上 */
+      function renderMatch() {
+        if (!matchHostInput || !matchList || !matchSummary || !matchRule) return;
+        const tier = document.querySelector('input[name="matchTier"]:checked')?.value ?? 'exact';
+        const host = matchCurrentKey(matchHostInput.value);
+        const hits = resolveMatches(matchHostInput.value, tier);
+        matchSummary.textContent = host
+          ? I18N['match.summary'][lang]
+              .replace('{host}', host)
+              .replace('{count}', String(hits.length))
+              .replace('{total}', String(MATCH_VAULT.length))
+          : I18N['match.summaryEmpty'][lang];
+        matchRule.textContent = I18N[`match.rule.${tier}`][lang];
+        matchList.textContent = '';
+        if (!host) {
+          matchList.append(matchEmptyRow(I18N['match.idle'][lang]));
+          return;
+        }
+        if (!hits.length) {
+          matchList.append(matchEmptyRow(I18N['match.empty'][lang]));
+          return;
+        }
+        hits.forEach(({ entry, kind }) => matchList.append(matchRow(entry, kind)));
+      }
+
+      if (matchHostInput) {
+        matchHostInput.addEventListener('input', renderMatch);
+        document.querySelectorAll('input[name="matchTier"]').forEach(radio => {
+          radio.addEventListener('change', renderMatch);
+        });
+        document.querySelectorAll('#matchQuick button').forEach(button => {
+          button.addEventListener('click', () => {
+            matchHostInput.value = button.dataset.host ?? '';
+            renderMatch();
+          });
+        });
+      }
 
       // =================== 语言切换 ===================
       const langToggle = document.getElementById('langToggle');
@@ -8032,21 +9112,27 @@ pnpm lint:style  # Stylelint</code></pre>
             .querySelector(`.gen-set[data-set="${name}"]`)
             .setAttribute('aria-label', I18N[`features.f8.demo.aria.${name}`][lang]);
         });
+        document.getElementById('matchQuick').setAttribute('aria-label', I18N['match.quickAria'][lang]);
         // 按钮展示目标语言，点击即切换
         langToggle.textContent = lang === 'zh' ? 'EN' : '中文';
 
         renderCarousel();
         applyFaqs();
+        renderMatch();
+        setStickyCtaCollapsed(stickyCtaCollapsed, false);
       }
 
+      // 切换到独立语言页而不是原地替换正文：canonical / hreflang / OG / JSON-LD
+      // 与 URL 始终指向同一语言，爬虫不需要执行 JS 也能读到对应语言的静态字节。
       langToggle.addEventListener('click', () => {
-        lang = lang === 'zh' ? 'en' : 'zh';
+        const nextLang = lang === 'zh' ? 'en' : 'zh';
         try {
-          localStorage.setItem(LANG_KEY, lang);
+          localStorage.setItem(LANG_KEY, nextLang);
         } catch {
-          /* 隐私模式等场景下持久化失败不影响本次切换 */
+          /* 隐私模式等场景下持久化失败不影响本次跳转 */
         }
-        applyLang();
+        const target = nextLang === 'en' ? './en.html' : './';
+        location.href = `${target}${location.hash}`;
       });
 
       applyLang();

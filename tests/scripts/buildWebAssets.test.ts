@@ -214,6 +214,24 @@ describe('site-dist 组装：真仓库的公开面', () => {
     expect(rewritten).toEqual([]);
   });
 
+  it('运行期轮播的 28 张 WebP 与博客 3 张信息图全部进部署包', () => {
+    const page = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const shots = [...page.matchAll(/file:\s*'(screen-[^']+\.png)'/g)].map(match => match[1]);
+    expect(shots.length, 'index.html 的 SLIDES 截图数量变了，请同步本守卫').toBe(14);
+    const expected = shots.flatMap(file => [
+      `assets/cws-store/${file.replace(/\.png$/, '.webp')}`,
+      `assets/cws-store/${file.replace(/\.png$/, '-en.webp')}`,
+    ]);
+    for (const infographic of [
+      'imgs/01-infographic-core-value.webp',
+      'imgs/02-flowchart-security-pipeline.webp',
+      'imgs/03-infographic-dev-features.webp',
+    ]) {
+      expected.push(infographic);
+    }
+    expect(expected.filter(file => !report.files.includes(file))).toEqual([]);
+  });
+
   it('页面上每条本地引用都能在产物里落地（部署包自足）', () => {
     const broken: string[] = [];
     for (const file of report.files.filter(name => name.endsWith('.html'))) {
@@ -321,18 +339,18 @@ describe('夹具仓库：拒绝表与断链必须判红', () => {
     ].join('\n');
     expect(page).toContain(marker);
     write('index.html', page);
-    write('assets/cws-store/screen-1-one-click-login.png', 'zh');
+    write('assets/cws-store/screen-1-one-click-login.webp', 'zh');
 
     const missingEn = runScript(repo, script, ['--out', 'site-dist']);
     expect(missingEn.status).toBe(1);
-    expect(missingEn.stderr).toContain('assets/cws-store/screen-1-one-click-login-en.png');
+    expect(missingEn.stderr).toContain('assets/cws-store/screen-1-one-click-login-en.webp');
     expect(existsSync(path.join(repo, 'site-dist'))).toBe(false);
 
-    write('assets/cws-store/screen-1-one-click-login-en.png', 'en');
+    write('assets/cws-store/screen-1-one-click-login-en.webp', 'en');
     const result = runScript(repo, script, ['--out', 'site-dist', '--json']);
     expect(result.status).toBe(0);
     const report = JSON.parse(result.stdout) as BuildReport;
-    expect(report.files).toContain('assets/cws-store/screen-1-one-click-login.png');
-    expect(report.files).toContain('assets/cws-store/screen-1-one-click-login-en.png');
+    expect(report.files).toContain('assets/cws-store/screen-1-one-click-login.webp');
+    expect(report.files).toContain('assets/cws-store/screen-1-one-click-login-en.webp');
   });
 });

@@ -18,6 +18,14 @@ interface Props {
   showMatchInfo: boolean;
   /** 本站匹配账号数（0 时转为添加邀请） */
   matchCount: number;
+  /**
+   * 端口芯片文案（如 `:8443`），空串即不渲染
+   *
+   * 由父级按「持久化策略为 strict 且当前页确实带非默认端口」决定，本组件不判域名与端口。
+   */
+  portLabel: string;
+  /** 端口隔离是否已被本站临时放宽（芯片据此切换文案与态） */
+  portRelaxed: boolean;
 }
 
 interface Emits {
@@ -31,6 +39,8 @@ interface Emits {
   openValidity: [];
   /** 点击添加邀请（0 匹配）或常驻「+」（有匹配），打开快速添加弹窗（预填当前站点域名） */
   addSitePassword: [];
+  /** 点击端口芯片：在本站临时显示/收回其他端口的账号（不落盘） */
+  togglePortRelax: [];
 }
 
 const props = defineProps<Props>();
@@ -76,6 +86,22 @@ watch(
           size="small"
           >{{ currentDomain }}</el-text
         >
+        <!-- 端口芯片：端口隔离生效时把「当前页在哪个端口、被挡住了多少」递到手边，
+             一键在本站临时放宽（不落盘），省去为看一眼而进设置弹窗 -->
+        <button
+          v-if="portLabel"
+          type="button"
+          class="port-pill"
+          :class="{ 'port-pill--relaxed': portRelaxed }"
+          :title="t(portRelaxed ? 'sidepanel.scope.portRelaxRestore' : 'sidepanel.scope.portRelaxHint')"
+          :aria-pressed="portRelaxed"
+          @click="$emit('togglePortRelax')"
+        >
+          {{ portLabel }}
+          <span class="port-pill__state">{{
+            t(portRelaxed ? 'sidepanel.scope.portRelaxed' : 'sidepanel.scope.portIsolated')
+          }}</span>
+        </button>
         <!-- 本站匹配数：域名派生指标随域名同行展示（信息就近原则），释放底部列表垂直空间；
              数字主题色高亮（一眼可见“本站有 N 个账号可用”），前后缀文案拆分以兼容中英文语序 -->
         <template v-if="showMatchInfo && matchCount > 0">
@@ -185,7 +211,12 @@ watch(
   background: transparent;
   border: none;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease,
+    outline var(--aph-duration-mid) ease;
 }
 
 .pill-btn:hover {
@@ -260,6 +291,52 @@ watch(
   color: var(--aph-primary);
 }
 
+/* 端口芯片：与匹配数同处域名行（信息就近），等宽数字让 `:8443` 不随宽度跳动 */
+.port-pill {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 3px;
+  align-items: center;
+  padding: 1px 7px;
+  font-family: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  color: var(--aph-text-muted);
+  cursor: pointer;
+  background: var(--aph-surface-2);
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 999px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.port-pill:hover {
+  background: var(--aph-surface-hover);
+}
+
+.port-pill:active {
+  transform: scale(0.96);
+}
+
+.port-pill:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
+}
+
+/* 放宽态用主题色实心：芯片此刻表达的是「正在多显示」，需要比缺省的灰描边更醒目 */
+.port-pill--relaxed {
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border-color: var(--aph-primary-border);
+}
+
+.port-pill__state {
+  font-size: 10px;
+}
+
 /* 0 匹配添加邀请：空屏即方向，点击打开快速添加弹窗 */
 .add-site {
   display: inline-flex;
@@ -305,7 +382,12 @@ watch(
   background: transparent;
   border: 1px solid rgb(var(--aph-primary-rgb) / 45%);
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease,
+    outline var(--aph-duration-mid) ease;
 }
 
 .add-site-plus:hover {

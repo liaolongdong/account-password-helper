@@ -8,6 +8,7 @@ import { getAllPasswordsRaw } from './passwordCrud';
 import { getAllTrashRaw } from './trashManager';
 import { getAllHistoryRaw } from './passwordHistory';
 import { getAllIdentityRaw, reencryptAll } from './identityCrud';
+import { getAllIdentityTrashRaw } from './identityTrashManager';
 import { lazyImport } from '@/utils/lazyImport';
 import type { MasterPasswordConfig } from '@/utils/types';
 
@@ -22,6 +23,32 @@ const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-storage'));
 
 /**
+ * 快照与盘上是否已不一致（只比顺序与身份键，不比密文内容）
+ *
+ * 供 rekey 在整数组覆写前复验：五个数据域的所有写路径都保序（追加或 filter），
+ * 因此长度或同下标的身份键发生变化，就是「快照在重加密期间被并发写过期」的信号。
+ *
+ * **这套键只抓得到一部分并发写，别把它当成全部**：它抓得到增删、重排、条目编辑
+ * （推高 `updateTime`）与回收站重进站（改 `deletedAt`）；抓不到的是收藏 / 备注这类
+ * **刻意传入原 `updateTime`** 的元数据写（见 `passwordCrud.updatePassword` 的注释——
+ * 收藏不该把条目顶到列表前部），内容变了而键没变，第 11 步的整数组覆写照样会把它抹掉。
+ * 要补全这一半，要么给元数据写另设一个明文可比较的版本号，要么把那五个域的覆写改成
+ * 按 id 的增量合并；两条都比本轮的「先止住最坏那种（记录凭空消失 / 已删 PII 复活）」更贵，
+ * 因此如实记在这儿，不当作已解决。
+ *
+ * @param snapshot 步骤 3 读到的快照
+ * @param fresh 覆写前重读到的当前值
+ * @param keyOf 该域的身份键，须能区分同下标上的增删与内容编辑（回收站两域带 `deletedAt`）
+ */
+function isSnapshotStale<T>(snapshot: T[], fresh: T[], keyOf: (item: T) => string): boolean {
+  if (snapshot.length !== fresh.length) return true;
+  for (let i = 0; i < snapshot.length; i++) {
+    if (keyOf(snapshot[i]) !== keyOf(fresh[i])) return true;
+  }
+  return false;
+}
+
+/**
  * 修改主密码（Rekey）
  *
  * 核心编排流程：验证旧密码 → 解密全部数据 → 用新密码重新加密 → 准备新会话密钥 → 原子写入。
@@ -31,6 +58,9 @@ const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-stora
  * - 旧钥解不开的单条历史记录原样保留（仍为旧钥密文），rekey 不删除任何用户数据
  * - 步骤 11 使用单次 `chrome.storage.local.set()` 将数据密文与新会话密钥原子写入，
  *   不存在「新密文 + 旧会话密钥」的中间状态
+ * - 步骤 10.5 在整数组覆写前复验五个域的快照：重加密那几秒里另一张管理页标签若写过
+ *   回收站/条目，本次立即中止并清会话（`code: 'REKEY_CONCURRENT_WRITE'`），
+ *   不用过期快照覆盖那条写入，也不让已彻底删除或已过期的 PII 在新密钥下复活
  * - 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关
  *
  * @param oldPassword 当前主密码（明文）
@@ -58,12 +88,15 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   // 2. 派生旧数据密钥
   const oldKey = await enc.deriveEncryptionKey(oldPw);
 
-  // 3. 读取三块密文数据（身份库为第 4 个加密域，读取置于任何写入之前，
+  // 3. 读取三块密文数据（身份库主列表与身份回收站为第 4、5 个加密域，读取置于任何写入之前，
   //    故读取失败会在任何写入发生前中止整次 rekey）
   const rawPasswords = await getAllPasswordsRaw();
   const rawTrash = await getAllTrashRaw();
   const rawHistory = await getAllHistoryRaw();
   const identityRaw = await getAllIdentityRaw();
+  // 身份回收站必须同批纳入 rekey：漏掉它会让软删除条目在换钥后永久不可解、
+  // 更不可恢复（PII 唯一「可找回通道」被静默销毁），与主列表漏 rekey 同等致命
+  const identityTrashRaw = await getAllIdentityTrashRaw();
 
   // 4. 用旧密钥解密 passwords
   // 条目级并行（批内 64）：结果顺序与 rawPasswords 一致；单条解密失败仍按原样向上抛出，
@@ -129,6 +162,14 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   reEncryptedHistory.push(...unrecoverableHistory);
 
   const reEncryptedIdentity = await reencryptAll(identityRaw, oldKey, newKey);
+  // 回收站同走 reencryptAll（单条失败原样携带）；`reencryptAll` 成功分支会把记录
+  // 归一化为四个标准键，因此换钥后必须按输入顺序回填 `deletedAt`——TTL 与剩余天数
+  // 读数都读这个明文键，漏回填会让到期清理把换钥前的回收站条目当成永不到期的驻留数据。
+  const reEncryptedIdentityTrashRaw = await reencryptAll(identityTrashRaw, oldKey, newKey);
+  const reEncryptedIdentityTrash = reEncryptedIdentityTrashRaw.map((record, i) => ({
+    ...record,
+    deletedAt: identityTrashRaw[i].deletedAt,
+  }));
 
   // 9. 生成新的校验哈希（保留原 salt！）
   // 注意：deriveEncryptionKey 内部从 storage 读取 salt 来派生数据密钥，
@@ -147,6 +188,35 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   const sessionManager = await _getSessionManager();
   const sessionKeysToWrite = await sessionManager.prepareSessionRekey(newKey, validityHours);
 
+  // 10.5 覆写前的快照复验。
+  // 步骤 3 的快照与步骤 11 的落盘之间隔着整库重加密（2000 条量级要跑几秒），
+  // 而 Chrome 允许开两个管理页标签：另一页在这几秒里删/恢复/彻底写回收站或改条目时，
+  // 步骤 11 的**整数组覆写**会把那条写入连根抹掉（两侧皆无，不可恢复），
+  // 或让已彻底删除/已过期的 PII 在新密钥下复活——直接打掉回收站的 30 天承诺。
+  // 只比「顺序 + 身份键」不比密文：所有写路径都保序（追加或 filter），顺序或键一变
+  // 即说明快照过期。宁可让用户重跑一次，也不带过期快照落盘。
+  const [freshPasswords, freshTrash, freshHistory, freshIdentity, freshIdentityTrash] = await Promise.all([
+    getAllPasswordsRaw(),
+    getAllTrashRaw(),
+    getAllHistoryRaw(),
+    getAllIdentityRaw(),
+    getAllIdentityTrashRaw(),
+  ]);
+  if (
+    isSnapshotStale(rawPasswords, freshPasswords, entry => `${entry.id}:${entry.updateTime}`) ||
+    isSnapshotStale(rawTrash, freshTrash, entry => `${entry.id}:${entry.deletedAt}`) ||
+    isSnapshotStale(rawHistory, freshHistory, record => `${record.entryId}:${record.changedAt}`) ||
+    isSnapshotStale(identityRaw, freshIdentity, record => `${record.id}:${record.updateTime}`) ||
+    isSnapshotStale(identityTrashRaw, freshIdentityTrash, record => `${record.id}:${record.deletedAt}`)
+  ) {
+    // 与步骤 11 写失败同一处置：步骤 10 已把会话密钥材料换成新值，
+    // 不清会话就会留下「新密钥 + 旧密文」的不一致状态
+    await sessionManager.clearSession().catch(() => {});
+    throw Object.assign(new Error('检测到其他页面的改动刚刚写入，本次修改已安全取消，请重试'), {
+      code: 'REKEY_CONCURRENT_WRITE',
+    });
+  }
+
   // 11. 原子写入：数据密文 + 校验哈希 + 新会话密钥单次 chrome.storage.local.set()，
   // 全成功或全失败，消除「新密文已落盘、会话密钥仍是旧值」的竞态窗口
   // （各上下文的 storage 监听器会用旧密钥解密新密文全部失败，导致列表被清空）
@@ -156,6 +226,7 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
       [STORAGE_KEYS.TRASH]: reEncryptedTrash,
       [STORAGE_KEYS.PASSWORD_HISTORY]: reEncryptedHistory,
       [STORAGE_KEYS.IDENTITY]: reEncryptedIdentity,
+      [STORAGE_KEYS.IDENTITY_TRASH]: reEncryptedIdentityTrash,
       [STORAGE_KEYS.MASTER_PASSWORD]: {
         hashedPassword: newVerifierHash,
         salt: existingSalt,

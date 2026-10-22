@@ -13,6 +13,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FormDetector } from '@/entrypoints/content/FormDetector';
+import type { InputFiller } from '@/entrypoints/content/InputFiller';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import * as domUtils from '@/entrypoints/content/domUtils';
 import type { SiteRule } from '@/utils/storage/siteRules';
@@ -196,6 +197,251 @@ describe('FormDetector 站点规则消费', () => {
       (detector as any).detectForms();
 
       expect(rootsSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * 规则始终以用户设置为准，来源必须落在回执上。
+   *
+   * 实测事故：短信码登录页没有密码框，而 Options 曾要求选择器成对填写，用户为了钉住账号框只能把
+   * 「密码框」随手指到验证码框上 —— 密码被写进短信码输入框，回执还报「已填充」，用户完全看不出
+   * 这个落点来自自己配的规则。上游成因已由 Options 放开（可只钉一侧）；这里的取舍是**不替用户
+   * 否决落点**：`type="text"` 的密码框（`name="passCode"` 这类真实写法）和有意把口令当密码存的
+   * 掩码框都必须照原样工作，静默作废只会换来「我配的规则没生效」这一更难排查的结论。
+   * 可疑形态只标注、只留日志。
+   */
+  describe('规则落点以用户设置为准，来源写进回执', () => {
+    /** 短信码登录页形状（实测取自 platform.deepseek.com/sign_in）：账号框与 tel 型验证码框 */
+    const buildSmsDom = (): Record<string, HTMLInputElement> => {
+      document.body.innerHTML = `
+        <div><input id="phone" type="tel" placeholder="请输入手机号"></div>
+        <div><input id="code" type="tel" placeholder="请输入验证码" autocomplete="one-time-code" maxlength="6"></div>
+      `;
+      return {
+        phone: document.getElementById('phone') as HTMLInputElement,
+        code: document.getElementById('code') as HTMLInputElement,
+      };
+    };
+
+    /** 截获每一次写入的落点与值，并记下回执档位——「填进了哪个框」只能从写入调用本身取证 */
+    const spyFill = (instance: FormDetector, verified = true) => {
+      const writes: Array<{ to: string; value: string }> = [];
+      const filler = (instance as unknown as { inputFiller: InputFiller }).inputFiller;
+      vi.spyOn(filler, 'setInputValueWithStrategies').mockImplementation(async (input, value) => {
+        writes.push({ to: (input as HTMLInputElement).id, value });
+        return { filled: true, verified, strategy: 'native' };
+      });
+      const ack = vi.spyOn(instance as any, 'showFillAck').mockImplementation(() => {});
+      return { writes, ack };
+    };
+
+    it('规则把密码框指到 tel 型验证码框时照用户的设置写入，回执点破来源与该框像验证码框', async () => {
+      const fields = buildSmsDom();
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#phone', password: '#code' } },
+      });
+      detector = await createDetector();
+      const { writes, ack } = spyFill(detector);
+
+      const result = await (detector as any).fillPasswordWithResult({ username: '13800000000', password: 'p-word' });
+
+      expect(writes).toEqual([
+        { to: 'phone', value: '13800000000' },
+        { to: 'code', value: 'p-word' },
+      ]);
+      expect(result.viaSiteRule).toBe(true);
+      expect(result.ruleTargetCodeLike).toBe(true);
+      // 档位是 ruleCodeLike：这一格最该被看见的不是「填好了」，而是「这是你的规则写的，而且那个框像验证码框」
+      expect(ack.mock.calls[0]).toEqual([fields.code, 'ruleCodeLike']);
+    });
+
+    it('规则把密码框钉在掩码口令框上时照用，只标注来源不误报「像验证码框」', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="pwd" type="password" name="password">
+          <input id="otp" type="password" name="otp" placeholder="动态口令">
+        </form>
+      `;
+      const otp = document.getElementById('otp') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#user', password: '#otp' } },
+      });
+      detector = await createDetector();
+      const { writes, ack } = spyFill(detector);
+
+      const result = await (detector as any).fillPasswordWithResult({ username: 'u-name', password: 'p-word' });
+
+      // 银行口令卡、券商动态密码就是「用户要把存的那串值打进这个掩码框」，判据不得替用户改主意
+      expect(writes).toEqual([
+        { to: 'user', value: 'u-name' },
+        { to: 'otp', value: 'p-word' },
+      ]);
+      expect(result.viaSiteRule).toBe(true);
+      // 掩码框不在「像验证码框」的告警档内：不打码才是配错的信号
+      expect(result.ruleTargetCodeLike).toBeUndefined();
+      expect(ack.mock.calls[0]).toEqual([otp, 'rule']);
+    });
+
+    it('type=text 且名字含 code 的密码框照用户的规则写入', async () => {
+      // `name="passCode"` 这类站点把密码放在明文输入框里（配自带的显示切换）：
+      // 语义判据不能把它判成验证码框而悄悄不填，最多是在回执上提醒一句
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="pw" type="text" name="passCode">
+        </form>
+      `;
+      const pw = document.getElementById('pw') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#user', password: '#pw' } },
+      });
+      detector = await createDetector();
+      const { writes, ack } = spyFill(detector);
+
+      const result = await (detector as any).fillPasswordWithResult({ username: 'u-name', password: 'p-word' });
+
+      expect(writes).toEqual([
+        { to: 'user', value: 'u-name' },
+        { to: 'pw', value: 'p-word' },
+      ]);
+      expect(result.viaSiteRule).toBe(true);
+      expect(ack.mock.calls[0]).toEqual([pw, 'ruleCodeLike']);
+    });
+
+    it('宽选择器命中多个密码框时让位给不像一次性口令的那个', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="otp" type="password" name="otp" placeholder="动态口令">
+          <input id="pwd" type="password" name="password" placeholder="登录密码">
+        </form>
+      `;
+      const passwordFields = Array.from(document.querySelectorAll('input[type="password"]')) as HTMLInputElement[];
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: {
+          domain: DOMAIN,
+          customSelectors: { username: '#user', password: 'input[type="password"]' },
+        },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      // 旧逻辑取文档顺序首个，会把静态密码写进口令框
+      expect((detector as any).passwordFields).toEqual([passwordFields[1]]);
+    });
+
+    it('账号与密码选择器命中同一个框时两条都照用户的规则执行，来源与覆盖都摆在回执上', async () => {
+      const fields = buildLoginDom();
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#a-pwd', password: '#a-pwd' } },
+      });
+      detector = await createDetector();
+      const { writes, ack } = spyFill(detector);
+
+      const result = await (detector as any).fillPasswordWithResult({ username: 'u-name', password: 'p-word' });
+
+      // 不替用户否决：两笔写入都发生，账号值被同框的密码顶掉——这正是回执要标出「来自站点规则」的时刻
+      expect(writes).toEqual([
+        { to: 'a-pwd', value: 'u-name' },
+        { to: 'a-pwd', value: 'p-word' },
+      ]);
+      expect(result.viaSiteRule).toBe(true);
+      expect(result.ruleTargetCodeLike).toBeUndefined();
+      expect(ack.mock.calls[0]).toEqual([fields.aPwd, 'rule']);
+    });
+
+    it('账号选择器唯一候选是 name="code" 的框时仍照钉（学号/工号登录不被砍掉）', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="sid" type="text" name="code">
+          <input id="pwd" type="password" name="password">
+        </form>
+      `;
+      const sid = document.getElementById('sid') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#sid', password: '#pwd' } },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      // 口令语义只约束密码落点：账号侧这种写法是站点的真实命名，拒了就是把可用站点判死
+      expect((detector as any).usernameFields).toEqual([sid]);
+    });
+
+    it('宽选择器命中多个但都不像一次性口令时仍取文档顺序首个（存量规则不变）', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="old" type="password" name="oldPassword">
+          <input id="new" type="password" name="newPassword">
+        </form>
+      `;
+      const old = document.getElementById('old') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#user', password: 'input[type="password"]' } },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      expect((detector as any).passwordFields).toEqual([old]);
+    });
+
+    it('只钉账号一侧时，自动检测选中的密码框不被标成「来自规则」', async () => {
+      const fields = buildLoginDom();
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#a-user', password: '' } },
+      });
+      detector = await createDetector();
+      const { writes, ack } = spyFill(detector);
+
+      const result = await (detector as any).fillPasswordWithResult({ username: 'u-name', password: 'p-word' });
+
+      // 账号那一格来自规则，密码那一格完全是自动检测选的（`pickPasswordField` 取启发式首个非口令框）
+      expect(writes).toEqual([
+        { to: 'a-user', value: 'u-name' },
+        { to: 'h-pwd', value: 'p-word' },
+      ]);
+      // 回执锚在密码框，就不该说「来自站点规则」——否则用户会去改一个自己故意留空的密码选择器
+      expect(result.viaSiteRule).toBeUndefined();
+      expect(ack.mock.calls[0]).toEqual([fields.hPwd, 'filled']);
+      expect((detector as any).rulePasswordField).toBeNull();
+    });
+
+    it('来自规则的写入即使未核验也先报来源，再报请核对', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="pwd" type="password" name="password">
+          <input id="otp" type="password" name="otp" placeholder="动态口令">
+        </form>
+      `;
+      const otp = document.getElementById('otp') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#user', password: '#otp' } },
+      });
+      detector = await createDetector();
+      const { ack } = spyFill(detector, false);
+
+      const result = await (detector as any).fillPasswordWithResult({ username: 'u-name', password: 'p-word' });
+
+      // 站点没登记 input 事件时，「这是你的规则写的」比「请核对」更可行动：前者能永久修掉
+      expect(result.outcome).toBe('unverified');
+      expect(ack.mock.calls[0]).toEqual([otp, 'rule']);
+    });
+
+    it('没有规则的站点不留任何规则落点引用，避免沿用上一轮标记', async () => {
+      buildLoginDom();
+      installChromeMock(makeConfig(), {});
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      const view = detector as any;
+
+      expect(view.ruleUsernameField).toBeNull();
+      expect(view.rulePasswordField).toBeNull();
+      // 没有规则就没有任何一格该被标成来自规则；这两个引用为空是标签不误报的前提
+      expect(view.passwordFields).toHaveLength(2);
     });
   });
 

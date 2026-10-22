@@ -30,6 +30,7 @@ import { getTabIdSync } from '@/entrypoints/background/sidePanelManager';
 import { openOptionsAndSendMessage, openOptionsPage } from '@/entrypoints/background/optionsPageManager';
 import { handleQuickFill, deliverPageNotice } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
+import { handleStartSelectorPick } from '@/entrypoints/background/selectorPickerHandler';
 import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
@@ -76,10 +77,16 @@ vi.mock('@/entrypoints/background/quickAddHandler', () => ({
 vi.mock('@/entrypoints/background/quickFillHandler', () => ({
   handleQuickFill: vi.fn(),
   deliverPageNotice: vi.fn(),
+  showPageNotice: vi.fn(async () => {}),
 }));
 
 vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({
   handleOpenInlineDropdown: vi.fn(),
+}));
+
+vi.mock('@/entrypoints/background/selectorPickerHandler', () => ({
+  handleStartSelectorPick: vi.fn(),
+  handleCancelSelectorPick: vi.fn(),
 }));
 
 vi.mock('@/entrypoints/background/backgroundServices', () => ({
@@ -647,6 +654,97 @@ describe('OPEN_OPTIONS_AND_SEARCH 关键词收口（分发级）', () => {
   });
 });
 
+describe('OPEN_OPTIONS_AND_IDENTITY 搜索词收口（分发级）', () => {
+  beforeEach(() => {
+    vi.mocked(openOptionsAndSendMessage).mockResolvedValue({ success: true });
+  });
+
+  /** 取回路由转发给选项页的载荷 */
+  const forwardedData = () => {
+    const calls = vi.mocked(openOptionsAndSendMessage).mock.calls;
+    return calls[calls.length - 1]?.[1];
+  };
+
+  /**
+   * 深链只带搜索词，不带角色（2026-10-17 改判）
+   *
+   * `role` 原先的唯一消费者是选项页的「按角色预选类别筛选」。但一条身份条目同时携带证件号、
+   * 手机号、地址等多个值，把列表先筛到单一类别反而让该命中的条目看不见（用户原话：「有些内容
+   * 会搜索不到，比如身份证号码之类的别的个人信息」）。现在恒落在「全部」档，只交检索词——
+   * 跨入口载荷随之少一个标签，收口面比改判前更窄。
+   */
+  it('姓名搜索词 trim 后转发，与「到全库找」同一口径', () => {
+    const listener = setupAndCaptureListener();
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '  张三  ' } },
+      contentSender('https://example.com/register'),
+      vi.fn(),
+    );
+
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
+      keyword: '张三',
+    });
+  });
+
+  it('超长搜索词截断到既有上限，不另立长度真源', () => {
+    const listener = setupAndCaptureListener();
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: 'x'.repeat(300) } },
+      contentSender('https://a.com/'),
+      vi.fn(),
+    );
+
+    expect((forwardedData() as { keyword: string }).keyword).toHaveLength(MAX_SEARCH_KEYWORD_LENGTH);
+  });
+
+  it('页面自报的 role 键不穿透：无论取值合法与否，转发的都只有 keyword', () => {
+    const listener = setupAndCaptureListener();
+
+    // 角色这一半已从契约里移除，页面侧继续自报（旧版 content script 残留 / 恶意构造）时
+    // 必须整键丢掉：穿透过去就是一个没人消费的标签，且它曾驱动过一次筛选写入。
+    for (const role of ['idNumber', 'cardNo', '姓名', 12345, null]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role, keyword: '张三' } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toEqual({ keyword: '张三' });
+    }
+
+    // 只有角色、没有词：降级成「打开但不预填」，而不是把角色透过去预选档位
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name' } },
+      contentSender('https://a.com/'),
+      vi.fn(),
+    );
+    expect(forwardedData()).toBeUndefined();
+  });
+
+  it('搜索词非字符串 / 纯空白 / 缺失时整包载荷缺席，不写出空串键', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const bad of ['', '   ', 12345, { keyword: 'zs' }, ['zs'], null, undefined]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: bad } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toBeUndefined();
+    }
+  });
+
+  it('无载荷时不阻断深链（打开但不预填）', () => {
+    const listener = setupAndCaptureListener();
+
+    const result = listener({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY }, contentSender('https://a.com/'), vi.fn());
+
+    expect(result).toBe(true);
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, undefined);
+  });
+});
+
 describe('UI 指令的 sender 归属闸门（分发级）', () => {
   /** 外部扩展形态的发送方：sender.id 非本扩展 */
   const foreignSender = { id: 'abcdefghijklmnopabcdefghijklmnop' } as chrome.runtime.MessageSender;
@@ -668,6 +766,7 @@ describe('UI 指令的 sender 归属闸门（分发级）', () => {
       MessageType.OPEN_OPTIONS_AND_SITE_RULES,
       MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH,
       MessageType.OPEN_OPTIONS_AND_SEARCH,
+      MessageType.OPEN_OPTIONS_AND_IDENTITY,
     ]) {
       expect(EXTENSION_CONTEXT_COMMANDS).toContain(type);
     }
@@ -705,7 +804,7 @@ describe('UI 指令的 sender 归属闸门（分发级）', () => {
     expect(getTabIdSync).toHaveBeenCalled();
   });
 
-  it('扩展内部页照常放行（OPEN_OPTIONS_PAGE / SIDEPANEL_PRELOAD）', () => {
+  it('扩展内部页照常放行（OPEN_OPTIONS_PAGE / SIDEPANEL_PRELOAD）', async () => {
     vi.mocked(openOptionsPage).mockResolvedValue(7);
     const listener = setupAndCaptureListener();
     const sendResponse = vi.fn();
@@ -713,8 +812,46 @@ describe('UI 指令的 sender 归属闸门（分发级）', () => {
     listener({ type: MessageType.OPEN_OPTIONS_PAGE }, internalSender, sendResponse);
     listener({ type: MessageType.SIDEPANEL_PRELOAD }, internalSender, sendResponse);
 
-    expect(openOptionsPage).toHaveBeenCalledTimes(1);
+    // OPEN_OPTIONS_PAGE 现在会先确认会话状态再决定首屏预判，打开动作因此异步一拍
+    await vi.waitFor(() => expect(openOptionsPage).toHaveBeenCalledTimes(1));
     expect(warmPasswordCache).toHaveBeenCalledTimes(1);
+  });
+
+  it('START_SELECTOR_PICK 只放行扩展页面；带 sender.tab 的内容脚本仍被拒', async () => {
+    vi.mocked(handleStartSelectorPick).mockResolvedValue({ success: true, tabId: 2 });
+    const listener = setupAndCaptureListener();
+    const startMessage = {
+      type: MessageType.START_SELECTOR_PICK,
+      data: { domain: 'example.com', field: 'username', requestId: 'req-auth' },
+    } as const;
+
+    // 内容脚本：sender.id 合法、sender.tab 存在，但 url 是站点地址 → 拒绝
+    const contentResponse = vi.fn();
+    listener(
+      startMessage,
+      {
+        id: chrome.runtime.id,
+        tab: { id: 3, url: 'https://example.com/' },
+        url: 'https://example.com/',
+        frameId: 0,
+      } as chrome.runtime.MessageSender,
+      contentResponse,
+    );
+    expect(contentResponse).toHaveBeenCalledWith({ success: false, error: 'UNAUTHORIZED' });
+    expect(handleStartSelectorPick).not.toHaveBeenCalled();
+
+    // Options 页面：sender.tab 存在，但 url 是扩展页面 → 放行
+    const optionsSender = {
+      id: chrome.runtime.id,
+      tab: { id: 9, url: chrome.runtime.getURL('options.html') },
+      url: chrome.runtime.getURL('options.html'),
+    } as chrome.runtime.MessageSender;
+    const pageResponse = vi.fn();
+    const result = listener(startMessage, optionsSender, pageResponse);
+
+    expect(result).toBe(true);
+    await Promise.resolve();
+    expect(handleStartSelectorPick).toHaveBeenCalledWith(startMessage.data);
   });
 });
 

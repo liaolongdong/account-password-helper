@@ -27,9 +27,9 @@
  *
  * 身份记录只有 `id` / `encryptedPayload` / `createTime` / `updateTime` 四个明文键，
  * 没有使用痕迹，所以 `updateTime` 在这里就是可信的变更信号。但仍不能用
- * 「取全库 `max(updateTime)`」代替比对新旧数组——`deleteIdentities` 只删记录，
- * 删掉最新那条后最大值会**变小**，删除因此判不出来。比对 `storage.onChanged`
- * 的 oldValue / newValue 才能同时覆盖增、改、删。
+ * 「取全库 `max(updateTime)`」代替比对新旧数组——`deleteIdentities` 会把记录移出主列表
+ * （软删除进回收站），删掉最新那条后最大值会**变小**，删除因此判不出来。比对
+ * `storage.onChanged` 的 oldValue / newValue 才能同时覆盖增、改、删。
  */
 
 /**

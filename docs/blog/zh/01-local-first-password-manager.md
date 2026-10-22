@@ -3,12 +3,12 @@ title: 零云端、开源、为开发者而生：我从零做了一款浏览器�
 description: 为什么在 Bitwarden、1Password 之外还需要一款本地优先的密码管理器？本文讲述 Account Password Helper 的产品动机、核心设计与安全模型。
 tags: 密码管理器,浏览器扩展,开源项目,Chrome扩展,本地优先
 date: 2026-08-28
-modified: 2026-10-13
+modified: 2026-10-18
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
 
-![Account Password Helper 核心价值一览](imgs/01-infographic-core-value.png)
+![Account Password Helper 核心价值一览](imgs/01-infographic-core-value.webp)
 
 同一个后台系统，我有四套账号：dev、test、staging、prod。域名分别是 `admin-dev.example.com`、`admin-test.example.com`、`admin.example.com`……不对，其实很多团队的多环境是同一主域加子域，或者干脆是 `192.168.1.10:8080` 这种地址。
 
@@ -68,13 +68,13 @@ TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计�
 2. **字段级加密。** 条目的用户名、密码、URL、备注、TOTP 密钥全部单独加密，存储层看到的全是密文。
 3. **标准算法，不发明轮子。** PBKDF2-SHA256（600,000 次迭代）派生密钥，AES-256-GCM 认证加密，全部走浏览器原生 Web Crypto API。下一篇技术文章会展开讲实现细节。
 4. **会话有生命周期。** 默认 24 小时有效期；闲置自动锁定（跟随系统锁屏）与浏览器重启锁定都是可选项、默认关闭；手动一键锁定随时可用。锁定时内存中的密钥句柄与解密快照立即清除。
-5. **代码全开源（GPL-3.0）。** 加密那几行代码、权限声明、每一处网络调用，都可以自己读。2888 项自动化测试覆盖加密、会话、存储与消息路由等关键路径（跑在本地、提交前钩子里，也会在每次 push 与 PR 的仓库 CI 中自动执行）。
+5. **代码全开源（GPL-3.0）。** 加密那几行代码、权限声明、每一处网络调用，都可以自己读。3912 项自动化测试覆盖加密、会话、存储与消息路由等关键路径（跑在本地、提交前钩子里，也会在每次 push 与 PR 的仓库 CI 中自动执行）。
 
 同时也要把话说在前面：**这款工具的定位是开发、测试与日常登录场景，不建议在任何浏览器扩展里存放银行、支付类高敏感凭证**；主密码遗忘无法找回，请善用加密备份。诚实的边界声明，是安全产品该有的样子。
 
 ## 写给谁
 
-![面向开发者与测试工程师的特性全景](imgs/03-infographic-dev-features.png)
+![面向开发者与测试工程师的特性全景](imgs/03-infographic-dev-features.webp)
 
 - **开发者**：多环境账号隔离 + 一键登录，每天少点几十次鼠标；
 - **测试工程师**：快速切换测试账号，跨环境效率翻倍；

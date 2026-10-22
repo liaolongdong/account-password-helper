@@ -34,5 +34,14 @@
       "customSyntax": "postcss-html"
     }
   ],
-  "ignoreFiles": ["node_modules/**/*", ".output/**/*", ".wxt/**/*", "dist/**/*", "build/**/*", "coverage/**/*"]
+  "ignoreFiles": [
+    "node_modules/**/*",
+    ".output/**/*",
+    ".wxt/**/*",
+    "dist/**/*",
+    "build/**/*",
+    "coverage/**/*",
+    "playwright-report/**/*",
+    "test-results/**/*"
+  ]
 }

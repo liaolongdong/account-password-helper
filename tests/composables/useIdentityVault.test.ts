@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { useIdentityVault } from '@/composables/useIdentityVault';
-import { currentLocale } from '@/utils/i18n';
+import { currentLocale, registerMessages, type Messages } from '@/utils/i18n';
+import { warmPinyinMatcher } from '@/utils/searchMatch/core';
+import zhIdentity from '@/utils/i18n/locales/zh-CN/identity.json';
+import enIdentity from '@/utils/i18n/locales/en/identity.json';
 import {
   getAllIdentity,
   getIdentityManualOrder,
@@ -24,8 +27,26 @@ import type { IdentityEntry, IdentityPayload, IdentitySortMode } from '@/utils/i
  * - 切换过滤不整体清空，保留被过滤掉的既有展开 / 折叠项（对齐 selectAllVisible 语义）；
  * - clearFilters 仅清过滤，保留显隐 / 折叠 / 勾选；resetViewState 清空全部视图态（档位属落盘偏好，不在其内）；
  * - teardown 连解密明文（rows）一起释放，列表弹窗关闭后 PII 不再驻留内存。
- * copy 等涉及 clipboard / ElMessage 的路径不在此覆盖（另有纯函数单测）。
+ * copy 等涉及 clipboard 的路径不在此覆盖（另有纯函数单测）。
  */
+
+/**
+ * 注册身份库命名空间（中英文）
+ *
+ * 「按字段名检索」这一族的判据就是语言包里的那 11 个译名，而 `t()` 对未注册 key 直接返回
+ * key 本身——不注册的话测的是 `identity.field.idNumber` 这串字符，不是屏上「证件号码」那三个字。
+ * options 入口的 bundle 静态注册同一份包（`utils/i18n/bundles/options.ts`），这里对齐它。
+ */
+registerMessages('zh-CN', zhIdentity as Messages);
+registerMessages('en', enIdentity as Messages);
+
+/**
+ * `ElMessage` 桩：WxtVitest 不套 Element Plus 的 AutoImport 解析器，运行时它是裸标识符
+ * （同 `useSidepanelFill.totpClipboard.test.ts` 的打桩理由）。手动排序落盘失败那一例
+ * 会真的走到 `ElMessage.warning`，不打桩就是 unhandled rejection 而不是断言失败。
+ */
+const elMessage = { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() };
+Object.assign(globalThis, { ElMessage: elMessage });
 
 vi.mock('@/utils/storage/identityCrud', () => ({
   getAllIdentity: vi.fn(async () => ({ entries: [], skippedIds: [] })),
@@ -54,6 +75,7 @@ beforeEach(() => {
   vi.mocked(getIdentityManualOrder).mockResolvedValue([]);
   vi.mocked(saveIdentityManualOrder).mockReset();
   vi.mocked(saveIdentityManualOrder).mockResolvedValue(undefined);
+  elMessage.warning.mockReset();
 });
 
 function entry(
@@ -439,6 +461,14 @@ describe('manual 档与 moveIdentity（手排换位）', () => {
     vault.moveIdentity('c', 'a', 'before');
     await Promise.resolve();
     expect(vault.filteredRows.value.map(r => r.id)).toEqual(['c', 'a', 'b']);
+    // 静默失败是这一例原本的形状：卡片已跟着手势落位，落盘却没成功，用户下次打开弹窗
+    // 会看到顺序"复活"。不回滚内存顺序（弹回去比留一条提示更糟），但必须留下提示。
+    // 断的是渲染后的文案：本文件顶部注册了身份库语言包（与 options 入口一致），生产里
+    // `ElMessage.warning` 拿到的就是这句中文，而不是 `identity.sort.saveFailed` 这个 key。
+    expect(elMessage.warning).toHaveBeenCalledTimes(1);
+    // 取语言包真值，不取 `t(key)`：未注册时 `t()` 原样回吐 key，自指断言会恒成立——
+    // 直接读那份包既证「warning 收到的是渲染后的中文」，也证这棵树真的注册上了。
+    expect(elMessage.warning).toHaveBeenCalledWith((zhIdentity as Messages)['identity.sort.saveFailed']);
   });
 
   it('切走档位再切回、以及 teardown 之后，序位数组都保留', () => {
@@ -456,6 +486,255 @@ describe('manual 档与 moveIdentity（手排换位）', () => {
 
     vault.setSortMode('manual');
     expect(vault.filteredRows.value.map(r => r.id)).toEqual(['b', 'a']);
+  });
+});
+
+/**
+ * 自定义字段是检索命中面
+ *
+ * 页面侧气泡「编号族」那一档的深链把**这一格叫什么**当搜索词发过来（用例见
+ * `tests/content/identityHint.test.ts`），而库里根本没有「学历证书编号」「社保电脑号」
+ * 那一格——用户唯一能存下它的地方就是自定义字段。这一组钉住「字段名本身就能搜到」这条
+ * 落点承诺，是对既有实现的特征刻画（本轮改动前就该通过），不是新行为。
+ */
+describe('自定义字段按字段名可检索（气泡深链的落点）', () => {
+  /** 一张只有自定义字段、内置字段全空的条目——深链过来时库里能命中它的只有这一格 */
+  const customOnly = (id: string, label: string, value: string, secret = false): IdentityEntry =>
+    entry(id, { customFields: [{ id: 'c1', label, value, secret }] });
+
+  it('按字段名检索命中只写了自定义字段的条目，内置字段全空不影响命中', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [customOnly('serial', '学历证书编号', 'JX-2019-0001'), entry('other', { name: '张三' })];
+    vault.keyword.value = '学历证书编号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['serial']);
+  });
+
+  it('字段值同样是命中面：同一条目，深链的字段名和用户手输的值前缀都能到', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [customOnly('serial', '学历证书编号', 'JX-2019-0001')];
+    vault.keyword.value = 'JX-2019';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['serial']);
+  });
+
+  it('勾了「机密」的自定义字段照样参与检索（只是渲染时默认打码）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [customOnly('serial', '社保电脑号', 'SB-2019-0001', true)];
+    vault.keyword.value = '社保电脑号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['serial']);
+  });
+});
+
+/**
+ * 内置字段名进检索面
+ *
+ * 自定义字段的「名称」早在检索面里，内置字段却只有「值」——同一片列表两套规则，
+ * 于是「搜银行卡号」这种最自然的用法在内置格子上是零命中，而零命中那一屏会建议用户
+ * 「建一条同名自定义字段」（见 `identity.noMatchHint`），把一个本来就有的格子指成了没有。
+ * 这一组把口径拉平成一句话：**列表上看得见的字，就是搜得到的字**。
+ * 名字只在对应字段有值时进集合，语义是「哪些条目有这一格」，空格子的名字不拉宽结果。
+ */
+describe('内置字段名可检索（屏上看得见的字都搜得到）', () => {
+  it('按内置字段名检索命中只填了那一格的条目', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('id', { idNumber: '440300' }), entry('other', { name: '张三' })];
+    vault.keyword.value = '证件号码';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['id']);
+  });
+
+  it('有值才进检索面：缺字段与空串两种形状都不因「银行卡号」这个名字被搜出来', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [
+      entry('name', { name: '张三' }), // 整格缺席（undefined）
+      entry('blank', { name: '李四', cardNo: '' }), // 空串——只有导入路径造得出来（utils/identity/backup.ts 收 '')
+      entry('addr', { address: '深圳市' }),
+    ];
+    vault.keyword.value = '银行卡号';
+    expect(vault.filteredRows.value).toEqual([]);
+  });
+
+  it('名字与值同一条目内各自都是命中面（搜名字和搜值前缀拿到同一张卡）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('card', { cardNo: '622202' })];
+    vault.keyword.value = '发卡行';
+    expect(vault.filteredRows.value).toEqual([]);
+    vault.keyword.value = '银行卡号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+    vault.keyword.value = '6222';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+  });
+
+  it('严格检索的名字面跟屏走，中文写法在英文界面经放宽命中（两条通道各自可辨）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('card', { cardNo: '622202' })];
+
+    // 英文界面上打屏上那串译名：严格通道就够，放宽不参与
+    currentLocale.value = 'en';
+    vault.keyword.value = 'Card number';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+    expect(vault.searchRelaxed.value).toBe(false);
+
+    // 打中文写法：严格通道搜不到（那一列显示的是英文），由放宽通道接住
+    vault.keyword.value = '银行卡号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+    expect(vault.searchRelaxed.value).toBe(true);
+    expect([...vault.relaxedNameKeys.value]).toEqual(['cardNo']);
+
+    // 而「谁的名字都不像」的一句话，在两种语言下都该是空态
+    vault.keyword.value = 'e2e-no-such-field';
+    expect(vault.filteredRows.value).toEqual([]);
+    currentLocale.value = 'zh-CN';
+    expect(vault.filteredRows.value).toEqual([]);
+  });
+
+  it('字段名的首字母缩写也能命中（拼音预热后与值同一套匹配口径）', async () => {
+    await warmPinyinMatcher();
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('card', { cardNo: '622202' }), entry('other', { name: '张三' })];
+    vault.keyword.value = 'kh';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+  });
+});
+
+/**
+ * 零命中时按字段名放宽
+ *
+ * 上一组把「屏上那串名字」放进了检索面，但口径是「关键词 ⊆ 名字」——真实表单写的是
+ * `联系电话号码` / `社会保障号码` / `Contact Number`，那一路在 102 行写法语料上命中 0 行。
+ * 这一组钉的是补上的另一半：**只在严格检索为空时**，把这句话认成「我要某一格」。
+ * 放在最后才放宽，是为了让 `备注` / `姓名` 这类两三个字的短名字撞不进用户粘贴的长句——
+ * 严格检索有结果时这条通道根本不打开。
+ */
+describe('零命中时按字段名放宽（把页面那行字认成某一格）', () => {
+  /** 值都是数字串：任何页面写法都搜不到值，放宽与否只看这句话是不是在要某一格 */
+  const phoneEntry = entry('p', { name: '张三', phone: '13800001234' });
+  const idEntry = entry('i', { name: '李四', idNumber: '440300' });
+
+  it('严格检索有结果时绝不放宽', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [phoneEntry, idEntry];
+    vault.keyword.value = '1380000';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['p']);
+    expect(vault.searchRelaxed.value).toBe(false);
+    expect([...vault.relaxedNameKeys.value]).toEqual([]);
+  });
+
+  it('零命中且这句话是在要某一格时，放宽到「填过那一格的条目」', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [phoneEntry, idEntry];
+    vault.keyword.value = '联系电话号码';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['p']);
+    expect(vault.searchRelaxed.value).toBe(true);
+    expect([...vault.relaxedNameKeys.value]).toEqual(['phone']);
+  });
+
+  it('零命中且这句话不是任何一格的名字时仍走空态，放宽标记不起', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [phoneEntry, idEntry];
+    vault.keyword.value = 'e2e-no-such-field';
+    expect(vault.filteredRows.value).toEqual([]);
+    expect(vault.searchRelaxed.value).toBe(false);
+  });
+
+  it('放宽只列出真填过那一格的条目：一个手机号都没有时仍然是空，标记也不会亮着', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [idEntry];
+    vault.keyword.value = '手机号';
+    expect(vault.filteredRows.value).toEqual([]);
+    expect(vault.searchRelaxed.value).toBe(false);
+  });
+
+  it('自定义字段的名字也能反向认出来（用户存的短，打的是页面上那行长字）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [
+      entry('c', {
+        customFields: [
+          { id: 'c1', label: '学历证书编号', value: 'JX-2019-0001', secret: false },
+          // 起了名字但没填值：这一格既不该被搜出来，也不该被高亮成「你要的就是它」
+          { id: 'c2', label: '学位证书编号', value: '', secret: false },
+        ],
+      }),
+    ];
+    vault.keyword.value = '学位证书编号';
+    expect(vault.filteredRows.value).toEqual([]);
+    expect(vault.searchRelaxed.value).toBe(false);
+
+    vault.keyword.value = '学历证书编号（复印件）';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['c']);
+    expect([...vault.relaxedNameKeys.value]).toEqual(['custom:c1']);
+  });
+
+  it('一句话既是值又是格子名时，严格那一半优先（放宽不许盖掉真实命中）', () => {
+    const vault = useIdentityVault();
+    // A 填了手机号但备注里没有「电话」二字；B 没填手机号，备注里写着「电话」
+    const a = entry('a', { phone: '13800001234', remark: '办公室' });
+    const b = entry('b', { name: '李四', remark: '前台电话' });
+    vault.rows.value = [a, b];
+    vault.keyword.value = '电话';
+    // 严格检索里「电话」是 B 的备注值的子串；若把放宽排在前面，这一屏会变成「有手机号的那几条」＝A
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['b']);
+    expect(vault.searchRelaxed.value).toBe(false);
+  });
+
+  it('自定义字段的名字与值同一条条目内各自都是命中面（搜名字和搜值前缀拿到同一条）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [
+      entry('c', {
+        customFields: [
+          { id: 'c1', label: '学历证书编号', value: 'JX-2019-0001', secret: false },
+          { id: 'c2', label: '学位证书编号', value: '', secret: false },
+        ],
+      }),
+    ];
+    // 一句话同时含两格的名字：空着的那一格不进认中集合
+    vault.keyword.value = '学历证书编号与学位证书编号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['c']);
+    expect([...vault.relaxedNameKeys.value]).toEqual(['custom:c1']);
+  });
+
+  it('类别筛选照旧生效：放宽只动文本这一半', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [phoneEntry, entry('b', { category: 'bank_card', phone: '13900005678' })];
+    vault.categoryFilter.value = 'bank_card';
+    vault.keyword.value = '联系电话号码';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['b']);
+  });
+
+  it('换关键词与复位时，放宽标记和认中的格子一起收掉', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [phoneEntry, idEntry];
+    vault.keyword.value = '联系电话号码';
+    expect(vault.searchRelaxed.value).toBe(true);
+    vault.keyword.value = '';
+    expect(vault.searchRelaxed.value).toBe(false);
+    vault.keyword.value = '社会保障号码';
+    expect([...vault.relaxedNameKeys.value]).toEqual(['idNumber']);
+    vault.resetViewState();
+    expect(vault.relaxedNameKeys.value.size).toBe(0);
+  });
+
+  it('英文界面同一套：词表不分语言，认中的是屏上那一串译名所属的格子', () => {
+    currentLocale.value = 'en';
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('bank', { cardBank: '招商银行' })];
+    vault.keyword.value = '开户银行';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['bank']);
+    expect([...vault.relaxedNameKeys.value]).toEqual(['cardBank']);
+  });
+
+  it('名字通道不认拼音缩写：放宽回答的是「这行字是不是某一格的名字」', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [phoneEntry];
+    vault.keyword.value = 'lxdh';
+    expect(vault.filteredRows.value).toEqual([]);
+    expect(vault.searchRelaxed.value).toBe(false);
+  });
+
+  it('放宽不替机密字段显形：认中证件号那一格时，参与匹配的仍是名字而非值', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [idEntry];
+    vault.keyword.value = '军官证号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['i']);
+    expect([...vault.relaxedNameKeys.value]).toEqual(['idNumber']);
   });
 });
 

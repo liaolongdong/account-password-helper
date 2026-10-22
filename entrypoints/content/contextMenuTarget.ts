@@ -12,7 +12,7 @@
  * @module entrypoints/content/contextMenuTarget
  */
 
-import type { ContextMenuFillData } from '@/utils/types';
+import type { ContextMenuFillData, FillOutcome } from '@/utils/types';
 import { tl } from '@/utils/i18n-lite';
 import { logger } from '@/utils/logger';
 import { InputFiller, type FillableFormControl } from '@/entrypoints/content/InputFiller';
@@ -22,6 +22,8 @@ import { isElementVisible } from './domUtils';
 export interface ContextMenuFillResult {
   success: boolean;
   message?: string;
+  /** 写入档位：站点未登记 input 事件（写后复检没保住值）时为 `unverified`，供页面回执分档 */
+  outcome?: FillOutcome;
 }
 
 /** 最近一次右键点击的可编辑目标（每个 frame 独立） */
@@ -102,7 +104,9 @@ export async function fillContextMenuTarget(data: ContextMenuFillData): Promise<
   try {
     const result = await inputFiller.setInputValueWithStrategies(target, data.value);
     if (result.filled) {
-      return { success: true };
+      // 档位必须透出到边界：回执胶囊靠它区分「已填充」与「已填充，请核对」，
+      // 只回 success 会让站点改写值后仍报乐观回执（与账号密码 / 动态码两条路径口径分叉）
+      return { success: true, outcome: result.verified ? 'verified' : 'unverified' };
     }
     return { success: false, message: tl('cs.cm.fillFailed') };
   } catch (error) {
