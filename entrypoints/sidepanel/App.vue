@@ -527,15 +527,17 @@ const OTHER_PORT_PRIORITY = 6;
 /**
  * 列表排序的域名优先级
  *
- * 双缺省档（`off` + `loose`，也就是端口隔离功能存在之前的口径）沿用既有的二值口径
- * （命中 0 / 其余 1），保证与引入跨子域之前的顺序逐条一致；
+ * 双缺省档（`off` + `loose`，也就是端口隔离功能存在之前的口径）在**公网主机**上沿用既有的
+ * 二值口径（命中 0 / 其余 1），保证与引入跨子域之前的顺序逐条一致；
  * 放宽后才返回 tier，使「精确 → 通配 → 主域 → 兄弟子域 → 通用」在「全站」范围下依次靠前。
- * `loose` 档下的本地开发域名按既有端口口径过滤、当前页无域名时不筛站点，两者档位不参与，故仍走二值分支。
+ * 环回主机即便处在双缺省档也直接返回 tier：它现在先过主机门，别名与通配条目要能分出先后，
+ * 而结果集里已不含外站条目，二值口径会把它们与通用条目混在一起。
+ * 当前页无域名时不筛站点，仍走二值分支。
  * 临时放宽带出的其他端口条目一律沉到 {@link OTHER_PORT_PRIORITY}，与「首条即可填充」的约定对齐。
  *
- * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成 `off` + `loose`，
- * 若在此处读展示策略，那条「双缺省走二值」的短路会被误命中，其他端口的条目于是
- * 不再沉底——实测过一次：同域名的门面地址排到了首位，而它并不可填充。
+ * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成只存在于显示层的
+ * `relaxed`，而填充与沉底必须继续按用户所选的端口档判定；若在此处读展示策略，其他端口的
+ * 条目于是不再沉底——实测过一次：同域名的门面地址排到了首位，而它并不可填充。
  */
 const domainPriorityOf = (entry: PasswordEntry): number => {
   const domain = currentDomain.value;
@@ -641,7 +643,7 @@ const showPortChip = computed(() => {
 const crossDomainIds = computed<ReadonlySet<string>>(() => {
   const domain = currentDomain.value;
   if (domainMatchMode.value === DEFAULT_DOMAIN_MATCH_MODE) return EMPTY_ID_SET;
-  if (!domain || isLoopbackHost(domain)) return EMPTY_ID_SET;
+  if (!domain) return EMPTY_ID_SET;
 
   const mode = domainMatchMode.value;
   const ids = new Set<string>();
@@ -981,10 +983,11 @@ const openDomainMatchSetting = async () => {
 };
 
 /**
- * 头部端口芯片文案
+ * 头部端口芯片文案（当前端口，如 `:3000`）
  *
- * 只在「端口隔离已开启且当前页确实带着非默认端口」时给出，其余情形为空串（芯片不渲染）：
- * 处于默认端口时端口隔离不改变任何可见集合，摆一个点不动的芯片只会让人以为它坏了。
+ * `strict` 下只在当前页确实带着非默认端口时给出——处于默认端口时端口隔离不改变任何可见集合，
+ * 摆一个点不动的芯片只会让人以为它坏了；环回主机在 `loose` 下则由「本页是否真有条目被端口挡住」
+ * 决定（见 `showPortChip`），芯片本身只报端口号与被挡住的数量在哪能看见，数字出现在空态那句里。
  */
 const portChipLabel = computed(() => {
   if (!showPortChip.value) return '';

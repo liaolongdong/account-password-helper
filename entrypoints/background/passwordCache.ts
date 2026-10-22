@@ -470,8 +470,8 @@ export async function getCachedSortConfig(): Promise<{ prop: string; order: stri
  * 获取缓存的站点匹配策略（SW 内存镜像）
  *
  * 读取失败时回落缺省策略（`off` + `loose`）：与配置存储层口径一致，
- * 宁可少显示条目，也不静默放宽匹配；`loose` 更是「端口隔离功能存在之前」的行为，
- * 因此镜像读失败不会让任何用户的可见集合发生变化。
+ * 宁可少显示条目，也不静默放宽匹配。回落后的可见集对用户所选档位而言只会更窄或相同
+ * （`off` 是最严的主机档），因此镜像读失败不会把条目带进用户本来看不到的页面。
  */
 export async function getCachedSitePolicy(): Promise<SitePolicy> {
   if (_cachedSitePolicy !== undefined) return _cachedSitePolicy;

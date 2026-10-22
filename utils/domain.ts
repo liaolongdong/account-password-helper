@@ -278,8 +278,8 @@ const LOOPBACK_CANONICAL_HOST = 'localhost';
 /**
  * 判断是否为环回（本机）主机
  *
- * 命中的主机改走 {@link matchesLocalDevSite}：主机门照旧不可绕开，端口门用本地既有的
- * 「同端点才算本站」口径，让开发人员在同一台机器的多个本地项目间快速填充，
+ * 命中的主机改走 {@link matchesSiteEndpoint}：主机门照旧不可绕开，端口门在 `loose` 档下用
+ * 本地既有的「同端点才算本站」口径，让开发人员在同一台机器的多个本地项目间快速填充，
  * 同时不把不同端口的本地账号混成一堆。
  *
  * @param hostname - 当前页面 hostname
@@ -414,17 +414,21 @@ export function splitHostAndPortDecl(value: string | undefined | null): HostPort
   const raw = value?.trim().toLowerCase() ?? '';
   if (!raw) return NO_PORT_DECL;
   const schemeless = raw.includes('://') ? raw.slice(raw.indexOf('://') + 3) : raw;
+  // 先剥凭据：`*` 不是合法端口，带 `:*` 的 URL 走不到 WHATWG 解析器，若不在此处切掉
+  // `user:pw@`，`https://user:pw@localhost:*` 会得到 `user:pw@localhost` 这个永远匹配不上
+  // 任何站点的主机串——条目存进去就成了死条目。能解析的 URL 由解析器代剥，两侧口径对齐。
   const authority = schemeless.split(/[/?#]/)[0];
-  const colonIdx = authority.lastIndexOf(':');
-  if (colonIdx < 0) return { host: authority, port: '', anyPort: false };
-  const portPart = authority.slice(colonIdx + 1);
-  if (portPart === PORT_WILDCARD) return { host: authority.slice(0, colonIdx), port: '', anyPort: true };
-  if (/^\d{1,5}$/.test(portPart)) return { host: authority.slice(0, colonIdx), port: portPart, anyPort: false };
-  return { host: authority, port: '', anyPort: false };
+  const hostPart = authority.slice(authority.lastIndexOf('@') + 1);
+  const colonIdx = hostPart.lastIndexOf(':');
+  if (colonIdx < 0) return { host: hostPart, port: '', anyPort: false };
+  const portPart = hostPart.slice(colonIdx + 1);
+  if (portPart === PORT_WILDCARD) return { host: hostPart.slice(0, colonIdx), port: '', anyPort: true };
+  if (/^\d{1,5}$/.test(portPart)) return { host: hostPart.slice(0, colonIdx), port: portPart, anyPort: false };
+  return { host: hostPart, port: '', anyPort: false };
 }
 
 /**
- * 本地端点的端口轴规则（**不含主机判定**，主机门由 {@link matchesLocalDevSite} 负责）
+ * 本地端点的端口轴规则（**不含主机判定**，主机门见 {@link matchesSiteEndpoint}）
  *
  * 匹配规则（仅用于环回主机的 `loose` 档）：
  * - 当前页面无端口（如纯 localhost）→ 始终匹配（保持原有行为，展示全部）
@@ -447,29 +451,6 @@ export function matchesPortForLocalDev(storedUrl: string | undefined | null, cur
   const storedPort = extractPort(storedUrl);
   // 存储的 URL 无端口（通用条目）或端口匹配当前页面端口
   return !storedPort || storedPort === currentPort;
-}
-
-/**
- * 本地开发端点的完整站点判定：主机门 ∧ 端口门
- *
- * 存在理由：`localhost` / `127.0.0.1` 曾直接跳过主机门，只做端口比较，于是
- * `127.0.0.1:3000` 页面上 `example.com`（未写端口）与 `example.com:3000`（端口恰好相同）
- * 都被判成本站且被判成可填充——那是跨 origin 的凭证外填；同时同主机的 `:4000` 条目
- * 又静默消失。两条门都必须过，缺一即错。
- *
- * @param currentHost - 当前页面 hostname（调用方已确认 {@link isLoopbackHost} 为真）
- * @param storedUrl - 条目存储的 URL/域名
- * @param currentPort - 当前页面的原始 `URL.port` 口径（见 {@link rawPortOf}）
- * @param mode - 跨子域档位（通配/同主域条目同样要过主机门）
- * @returns 是否属于当前本地端点
- */
-export function matchesLocalDevSite(
-  currentHost: string,
-  storedUrl: string | undefined | null,
-  currentPort: string,
-  mode: DomainMatchMode = 'off',
-): boolean {
-  return resolveMatchTier(currentHost, storedUrl, mode) >= 0 && matchesPortForLocalDev(storedUrl, currentPort);
 }
 
 /** 通配条目前缀（写在 `PasswordEntry.url` 里，形如 `*.qq.com`） */
@@ -1073,8 +1054,8 @@ export function countSameMainDomainCandidates(
  * 本句回答「关掉端口隔离能看到多少」。二者共用「tier ≥ 0 且端口门通过」这一显示判据，
  * 保证提示里的数字与点进去之后的列表条数不会各说各话。
  *
- * `loose` 档或取不到端口上下文时恒为 0——那种情况下不存在被端口挡住的条目，
- * 端口芯片也因此不渲染，默认路径零额外遍历。
+ * 公网主机在 `loose` / `relaxed` 下恒为 0：那两档不比端口，默认路径因此零额外遍历。
+ * 环回主机在 `loose` 下仍按端点过滤，那里恰恰是「悄悄少了几条」的高发场景，必须数。
  *
  * @param entries - 仅需携带 `url` 字段的条目集合（全库，非过滤后的子集）
  * @param currentHost - 当前页面 hostname，空串表示无域名场景

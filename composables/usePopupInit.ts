@@ -51,8 +51,9 @@ export function usePopupInit() {
    *
    * 按用户所选档位与端口范围统计，但继续排除空 URL 条目：这个数字表达的是「此站已有账号数」，
    * 不限站点的通用账号不算此站账号（与侧边栏的可见集口径有意不同）。
-   * 判据与侧边栏 `matchesSiteScope` 同源：主机轴经 `resolveMatchTier`，端口轴经 `matchesPortScope`，
-   * `loose` 档下的本地开发域名沿用精确 host 口径（其端口过滤由侧边栏列表负责，此处与之同结果）。
+   * 判据与侧边栏 `matchesSiteScope` 同源（`matchesSiteEndpoint`：主机门 ∧ 端口门），
+   * 因此环回主机上也按端点计数——改前这里只看主机、侧边栏只看端口，同一页面上两个入口
+   * 会给出相反的结论。
    */
   const domainMatchCount = computed(() => {
     const domain = currentDomain.value;

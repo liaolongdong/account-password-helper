@@ -133,18 +133,20 @@ export function sortPasswordEntries(
 /**
  * 按域名过滤并按侧边栏展示顺序排序密码条目（纯函数）
  *
- * 过滤规则：纳入 `resolveMatchTier` 判定为匹配（tier ≥ 0）**且**通过端口门
- * （`matchesPortScope`）的条目——
- * - `loose` 档下的本地开发域名（localhost 等）：沿用既有端口口径，档位不参与
+ * 过滤规则：纳入 `resolveMatchTier` 判定为匹配（tier ≥ 0）**且**通过端口门的条目，
+ * 两道门由 `matchesSiteEndpoint` 合成——
  * - 当前域名为空（如非 http 页面）：仅纳入空 URL 通用条目，档位与端口不参与
- * - 其余按档位分层：`off`（缺省）= 精确主机 + 空 URL；`wildcard` 追加通配条目；
- *   `sameMainDomain` 再追加 apex 与同主域其他子域；`strict` 端口档在此之上再收窄
+ * - 主机按档位分层：`off`（缺省）= 精确主机（环回别名视为同一主机）+ 空 URL；`wildcard` 追加
+ *   通配条目；`sameMainDomain` 再追加 apex 与同主域其他子域
+ * - 端口：`strict` 按 `matchesPortScope` 收窄；`loose` 下公网不比端口，而环回主机仍按端点过滤
+ *   （`localhost:*` 逐条覆盖本机所有端口）
  *
  * 排序规则：匹配层级（0 精确 → 4 通用）→ 收藏置顶 → 指定排序字段（与侧边栏展示顺序一致，
  * 结果首条即侧边栏列表第一条）。供 quickFillHandler（填充首条）与
  * getMatchingAccounts（内联下拉列表）共用。
  *
- * 策略两项均取缺省时，集合与顺序与引入端口隔离之前逐条一致。
+ * 策略两项均取缺省时，**公网主机**的集合与顺序与引入端口隔离之前逐条一致；
+ * 环回主机则比那时更窄——外站条目不再混进本地页面，这正是本模块修掉的那条缺陷。
  *
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）

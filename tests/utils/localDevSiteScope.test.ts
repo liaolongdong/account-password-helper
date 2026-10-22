@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   canonicalSiteHost,
   countPortHiddenCandidates,
+  isExactHostMatch,
   isHiddenByPortOnly,
   isLoopbackHost,
-  matchesLocalDevSite,
   matchesPortScope,
   matchesSiteEndpoint,
   normalizeToHostname,
@@ -141,6 +141,14 @@ describe('不变量 2：环回写法折叠为同一主体', () => {
     expect(resolveMatchTier('[::1]', 'localhost:3000', 'off')).toBe(0);
   });
 
+  it('Popup 计数用的 isExactHostMatch 同样认别名（否则两个入口又会各说一套）', () => {
+    expect(isExactHostMatch('localhost', '127.0.0.1:3000')).toBe(true);
+    expect(isExactHostMatch('127.0.0.1', 'localhost:3000')).toBe(true);
+    expect(isExactHostMatch('127.0.0.1', '[::1]:3000')).toBe(true);
+    expect(isExactHostMatch('localhost', 'myapp.localhost:3000')).toBe(false);
+    expect(isExactHostMatch('localhost', 'example.com:3000')).toBe(false);
+  });
+
   it('wildcard 档下 `*.localhost` 条目终于覆盖 127.0.0.1 页面', () => {
     expect(resolveMatchTier('127.0.0.1', '*.localhost', 'wildcard')).toBe(1);
     expect(resolveMatchTier('localhost', '*.localhost', 'wildcard')).toBe(1);
@@ -164,9 +172,16 @@ describe('不变量 3：`<host>:*` 端口通配是逐条显式授权', () => {
     expect(splitHostAndPortDecl('localhost:3000')).toEqual({ host: 'localhost', port: '3000', anyPort: false });
     expect(splitHostAndPortDecl('http://[::1]:8080/api')).toEqual({ host: '[::1]', port: '8080', anyPort: false });
     expect(splitHostAndPortDecl('https://user:pw@example.com/')).toEqual({
-      host: 'user:pw@example.com',
+      host: 'example.com',
       port: '',
       anyPort: false,
+    });
+    // 凭据必须先剥掉：`https://user:pw@localhost:*` 走的是 URL 解析抛错后的文本口径，
+    // 若不剥就会得到 `user:pw@localhost` 这个匹配不上任何站点的死条目
+    expect(splitHostAndPortDecl('https://user:pw@localhost:*')).toEqual({
+      host: 'localhost',
+      port: '',
+      anyPort: true,
     });
     expect(splitHostAndPortDecl('')).toEqual({ host: '', port: '', anyPort: false });
   });
@@ -189,8 +204,9 @@ describe('不变量 3：`<host>:*` 端口通配是逐条显式授权', () => {
     const ctx: ScopeContext = { domain: 'localhost', page: pageOf('http://localhost:3000/') };
     expect(matchesSiteScope(entry({ url: 'localhost:*' }), ctx, LOOSE)).toBe(true);
     expect(matchesSiteScope(entry({ url: 'example.com:*' }), ctx, LOOSE)).toBe(false);
-    expect(matchesLocalDevSite('localhost', 'localhost:*', '3000', 'off')).toBe(true);
-    expect(matchesLocalDevSite('localhost', 'example.com:*', '3000', 'off')).toBe(false);
+    // 同一判据在域名之外也成立：`:*` 只放开端口轴，不放开主机轴
+    expect(matchesSiteEndpoint('localhost:*', 'localhost', ctx.page, LOOSE)).toBe(true);
+    expect(matchesSiteEndpoint('example.com:*', 'localhost', ctx.page, LOOSE)).toBe(false);
   });
 
   it('录入校验接受 `:*`，仍拒绝非法端口与既有非法形态', () => {
@@ -201,6 +217,7 @@ describe('不变量 3：`<host>:*` 端口通配是逐条显式授权', () => {
       '*.localhost:*',
       'example.com:*',
       'https://example.com:*/login',
+      'https://user:pw@localhost:*',
     ]) {
       expect(passes(validate, value), `${value} 应通过`).toBe(true);
     }

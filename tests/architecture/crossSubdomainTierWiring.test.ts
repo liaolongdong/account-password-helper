@@ -201,8 +201,8 @@ describe('端口范围接线', () => {
       false,
     );
 
-    // 排序同样不行：放宽时展示口径恰好降成 `off` + `loose`，会误命中「双缺省走二值优先级」的短路，
-    // 让其他端口的条目不再沉底（真机实测过一次：门面地址排到首位，而回车并不会填它）
+    // 排序同样不行：放宽时展示口径降成只存在于显示层的 `relaxed`（端口轴整体不参与），
+    // 会让其他端口的条目不再沉底（真机实测过一次：门面地址排到首位，而回车并不会填它）
     const priorityFn = SIDEPANEL_SRC.match(/const domainPriorityOf =[\s\S]*?\n};/)?.[0] ?? '';
     expect(priorityFn, '未从侧边栏抽到 domainPriorityOf，本条判据成了空转').not.toBe('');
     expect(priorityFn).toContain('sitePolicy');

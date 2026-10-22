@@ -280,7 +280,7 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
     expect(ids).toEqual(['exact', 'wild', 'generic']);
   });
 
-  it('本地开发域名仍走端口过滤，三档结果一致（档位不参与）', () => {
+  it('本地端点上端口轴与档位无关；环回通配条目改由档位放行，排序按 tier 分层', () => {
     const localdev = [entry({ id: 'p3000', url: 'localhost:3000' }), entry({ id: 'p8080', url: 'localhost:8080' })];
     const localPage = page('http://localhost:3000');
     for (const mode of ['off', 'wildcard', 'sameMainDomain'] as const) {
@@ -290,5 +290,25 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
         ),
       ).toEqual(['p3000']);
     }
+    // 别名 + 通配：`*.localhost` 只在 wildcard 起放行，且排在精确条目之后（tier 1 > 0）
+    const withWildcard = [
+      entry({ id: 'exact', url: 'localhost:3000' }),
+      entry({ id: 'wc', url: '*.localhost' }),
+      entry({ id: 'generic', url: '' }),
+    ];
+    expect(
+      filterAndSortEntriesForDomain(
+        withWildcard,
+        '127.0.0.1',
+        DEFAULT_SIDEPANEL_SORT,
+        localPage,
+        policy('wildcard'),
+      ).map(p => p.id),
+    ).toEqual(['exact', 'wc', 'generic']);
+    expect(
+      filterAndSortEntriesForDomain(withWildcard, '127.0.0.1', DEFAULT_SIDEPANEL_SORT, localPage, policy('off')).map(
+        p => p.id,
+      ),
+    ).toEqual(['exact', 'generic']);
   });
 });

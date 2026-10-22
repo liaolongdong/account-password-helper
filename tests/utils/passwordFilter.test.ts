@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyListFilters, filterEntriesByScope, matchesSiteScope, type ScopeContext } from '@/utils/passwordFilter';
 import { sortPasswordEntries } from '@/utils/passwordSort';
-import {
-  isExactHostMatch,
-  parsePagePortContext,
-  type DomainMatchMode,
-  type PortScope,
-  type SitePolicy,
-} from '@/utils/domain';
+import { parsePagePortContext, type DomainMatchMode, type PortScope, type SitePolicy } from '@/utils/domain';
 import type { PasswordEntry } from '@/utils/types';
 import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
 
@@ -85,9 +79,11 @@ describe('matchesSiteScope 跨子域档位', () => {
 
   it('off 档与迁移前口径逐条一致（空 URL 或精确 host）', () => {
     const current = ctx('mail.qq.com');
+    // 期望集手写，而不是拿 `isExactHostMatch` 当 oracle：那个函数本次被加上了环回折叠，
+    // 用它当参照就等于用被测代码验被测代码，折叠折错方向时这条断言什么都抓不到
+    const legacyVisible = new Set(['mail.qq.com', '']);
     for (const url of URLS) {
-      const legacy = url.trim() === '' || isExactHostMatch(current.domain, url);
-      expect(matchesSiteScope(entry({ url }), current, policy())).toBe(legacy);
+      expect(matchesSiteScope(entry({ url }), current, policy()), url).toBe(legacyVisible.has(url));
     }
   });
 
@@ -110,14 +106,20 @@ describe('matchesSiteScope 跨子域档位', () => {
     }
   });
 
-  it('本地开发域名按端口过滤，三档结果与档位无关', () => {
+  it('本地端点上端口轴与档位无关，但环回通配条目只随档位放行', () => {
     const current = ctx('localhost', 'http://localhost:3000');
+    // 外站通配 / apex 在任何档位下都不属于这台机器；别的端口同理被端口轴挡住；空 URL 恒可见
     for (const url of ['http://localhost:8080', '*.qq.com', 'qq.com', '']) {
       const expected = matchesSiteScope(entry({ url }), current, policy('off'));
       expect(matchesSiteScope(entry({ url }), current, policy('wildcard'))).toBe(expected);
       expect(matchesSiteScope(entry({ url }), current, policy('sameMainDomain'))).toBe(expected);
     }
     expect(matchesSiteScope(entry({ url: 'http://localhost:8080' }), current, policy('sameMainDomain'))).toBe(false);
+    // 环回通配条目是这次别名带来的新能力：它随档位放行，因此「档位不参与」不再成立
+    for (const url of ['*.localhost']) {
+      expect(matchesSiteScope(entry({ url }), current, policy('off'))).toBe(false);
+      expect(matchesSiteScope(entry({ url }), current, policy('wildcard'))).toBe(true);
+    }
   });
 
   it('filterEntriesByScope 把档位透传给本站范围判定', () => {
