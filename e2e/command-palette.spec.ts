@@ -1,4 +1,4 @@
-import { expect, expectSuccessToast, test } from './harness';
+import { expect, expectSuccessToast, openHeaderMenu, test } from './harness';
 import { anchoredTextOf, textOf } from './i18n';
 
 /**
@@ -48,7 +48,9 @@ test.describe('命令面板执行入口', () => {
   });
 
   test('关于 → 分享给同事复制带 UTM 的产品页与商店链接', async ({ optionsPage: page }) => {
-    await page.getByRole('button', { name: textOf('options.header.about') }).click();
+    // 「关于」自 2026-10-22 起收在头部「帮助」下拉里，不再是常驻按钮
+    await openHeaderMenu(page, 'options.header.help');
+    await page.getByRole('menuitem', { name: textOf('options.header.about') }).click();
     const drawer = page.getByRole('dialog').filter({ hasText: textOf('options.about.title') });
     await expect(drawer).toBeVisible();
 

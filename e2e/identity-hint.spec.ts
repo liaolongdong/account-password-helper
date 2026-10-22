@@ -18,7 +18,7 @@ import {
   addIdentity,
   cards,
   closeVault,
-  openVaultFromMenu,
+  openVaultFromHeader,
   searchInput,
   vaultDialog,
   verifyDialog,
@@ -443,7 +443,7 @@ test('深链带筛选词：点「从身份库选择」时把本人姓名框的�
   const OTHER_NAME = 'e2e-other-person';
 
   // 前置：库里两条「个人信息」档的身份。这一趟是本文档会话第一次开库 ⇒ perSession 必问
-  await openVaultFromMenu(optionsPage, true);
+  await openVaultFromHeader(optionsPage, true);
   await addIdentity(optionsPage, SELF_NAME, '13800002222');
   await addIdentity(optionsPage, OTHER_NAME, '13900003333');
   await expect(cards(optionsPage)).toHaveCount(2);
@@ -491,7 +491,7 @@ test('深链带筛选词：点「从身份库选择」时把本人姓名框的�
   // 一次性：关闭即由 teardown 清掉明文搜索词，下一轮从菜单进来必须回到全量列表
   // （这一句同时把「姓名只活在搜索框这一层」钉成可验收的动作，而不是注释里的承诺）
   await closeVault(optionsPage);
-  await openVaultFromMenu(optionsPage, false);
+  await openVaultFromHeader(optionsPage, false);
   await expect(searchInput(optionsPage)).toHaveValue('');
   await expect(cards(optionsPage)).toHaveCount(2);
 
@@ -519,7 +519,7 @@ test('深链带字段名：编号族那一格点「从身份库选择」时，�
 
   // 前置：先经菜单开一次库（本会话第一次 ⇒ 必问复验），顺带种两条身份，
   // 于是「卡片 0」只可能是被字段名筛掉的，而不是库本来就空
-  await openVaultFromMenu(optionsPage, true);
+  await openVaultFromHeader(optionsPage, true);
   await addIdentity(optionsPage, 'e2e-vault-holder-a', '13800004444');
   await addIdentity(optionsPage, 'e2e-vault-holder-b', '13900005555');
   await expect(cards(optionsPage)).toHaveCount(2);
@@ -558,7 +558,7 @@ test('深链带字段名：编号族那一格点「从身份库选择」时，�
 
   // 一次性：关掉库之后检索词必须跟着清，下一轮进来回到全量列表
   await closeVault(optionsPage);
-  await openVaultFromMenu(optionsPage, false);
+  await openVaultFromHeader(optionsPage, false);
   await expect(searchInput(optionsPage)).toHaveValue('');
   await expect(cards(optionsPage)).toHaveCount(2);
 

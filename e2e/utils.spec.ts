@@ -56,9 +56,9 @@ const DUP_OTHER_SITE = { username: 'e2e-dup', password: 'Synthetic!DupOther', ur
 const HISTORY_ENTRY = { username: 'e2e-history', password: 'Synthetic!HistoryOld' };
 const HISTORY_NEW_PASSWORD = 'Synthetic!HistoryNew';
 
-/** 「数据管理」/「安全设置」两个下拉的按钮文案 key */
+/** 「数据管理」/「帮助」两个下拉的按钮文案 key */
 const DATA_MENU = 'options.header.data';
-const SECURITY_MENU = 'options.header.securitySettings';
+const HELP_MENU = 'options.header.help';
 
 /** 二次确认框：ElMessageBox 不是 dialog 角色，只能按容器类定位 */
 const messageBox = (page: Page): Locator => page.locator('.el-message-box');
@@ -191,7 +191,7 @@ test.describe('导入导出与工具入口', () => {
   });
 
   test('快捷键一览：逐条展示 manifest 命令的真实绑定状态，未绑定才给指引', async ({ optionsPage: page }) => {
-    const dialog = await openHeaderDialog(page, SECURITY_MENU, 'options.header.shortcuts');
+    const dialog = await openHeaderDialog(page, HELP_MENU, 'options.header.shortcuts');
 
     /**
      * 命令标识与展示文案 key 成对列出：标识与 `wxt.config.ts` 的 manifest.commands 键名

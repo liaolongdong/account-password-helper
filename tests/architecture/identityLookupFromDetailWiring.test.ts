@@ -140,8 +140,9 @@ describe('详情抽屉到身份库的跳转接线', () => {
     expect(abortAt, '预填必须晚于「复验失败即返回」，否则取消也会把词留在内存里').toBeLessThan(prefillAt);
     expect(prefillAt, '开窗必须晚于预填，否则弹窗首帧按空关键词渲染再重排').toBeLessThan(openAt);
     expect(APP_SRC).toMatch(/const openIdentityVaultWithVerify = async \(presetKeyword = ''\): Promise<boolean>/);
-    // 菜单那个既有入口仍按「不预填」调用，共用同一道门槛
-    expect(APP_SRC).toMatch(/case 'identityVault':\n\s*openIdentityVaultWithVerify\(\);/);
+    // 头部那个既有入口仍按「不预填」调用，共用同一道门槛
+    // （2026-10-22 起它是一级按钮透出的 `open-identity`，此前是「数据管理」下拉的 command 分支）
+    expect(APP_SRC).toMatch(/@open-identity="openIdentityVaultWithVerify\(\)"/);
   });
 
   it('问不问只由策略模块说了算，策略现读、已复验凭据只在复验成功后置位', () => {

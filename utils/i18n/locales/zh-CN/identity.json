@@ -1,5 +1,6 @@
 {
   "identity.title": "个人信息库",
+  "identity.vaultEntryTitle": "打开个人信息库（需要验证主密码）",
   "identity.verifyTitle": "验证主密码",
   "identity.verifyPrompt": "查看个人信息需要验证主密码，请输入主密码：",
   "identity.add": "添加个人信息",

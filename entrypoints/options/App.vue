@@ -51,9 +51,13 @@
         :health-score="passwords.length ? healthReport.score : undefined"
         :health-grade="passwords.length ? healthReport.grade : undefined"
         :last-verified-backup-at="lastVerifiedBackupAt"
+        :lock-loading="clearSessionLoading"
         @add-password="openAddDialogWithActiveTab"
         @open-health="openHealthDialog"
         @open-validity="openValiditySetting"
+        @lock-now="handleClearSession"
+        @open-identity="openIdentityVaultWithVerify()"
+        @open-shortcuts="showShortcutDialog = true"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
@@ -768,9 +772,6 @@ const handleDataCommand = (command: string) => {
     case 'trash':
       openTrashWithVerify();
       break;
-    case 'identityVault':
-      openIdentityVaultWithVerify();
-      break;
   }
 };
 
@@ -809,9 +810,6 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'passwordHistory':
       showPasswordHistoryDialog.value = true;
-      break;
-    case 'shortcuts':
-      showShortcutDialog.value = true;
       break;
   }
 };
@@ -1467,11 +1465,11 @@ const {
  * 每项 `run` 复用 HeaderBar 菜单/按钮已有的处理函数，走完全相同的落码路径，不新增业务行为；
  * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）——但别往里写
  * 属于另一条命令的词：匹配方向是「输入必须是别名的子串」，借词会把那个词的首位结果抢过来。
- * 每次面板打开时按当前语言重新求值标签，语言切换后重开即生效。
- *
- * `entry` 组跟随头部右侧那一排辅助入口的相对顺序（新手引导 → 使用指引 → 关于；偏好设置在
- * `preferences` 组）。清单会在 `useCommandPalette` 里 `watch(filtered)` 的初次求值时跑一遍，
+ * 清单会在 `useCommandPalette` 里 `watch(filtered)` 的初次求值时跑一遍，
  * 所以引用声明在本清单之后的 handler 必须包一层箭头（`run: () => foo()`），写函数名会撞 TDZ。
+ *
+ * `entry` 组跟随头部的实际排布：左组的两个核心动作（添加密码 → 安全体检），
+ * 再是「帮助」下拉里的四项（新手引导 → 使用指引 → 快捷键 → 关于）；偏好设置在 `preferences` 组。
  * 增删条目要同轮改 14 个对外文件里的 20 处条数文案；这两条判据都在 `tests/architecture/commandPaletteCopy.test.ts`。
  */
 const buildPaletteActions = () => [
@@ -1502,6 +1500,13 @@ const buildPaletteActions = () => [
     label: t('options.header.guide'),
     keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
     run: () => openGuide(),
+  },
+  {
+    id: 'shortcuts',
+    group: 'entry',
+    label: t('options.header.shortcuts'),
+    keywords: ['shortcuts', 'shortcut', 'hotkey', 'key'],
+    run: () => (showShortcutDialog.value = true),
   },
   {
     id: 'about',
@@ -1588,6 +1593,17 @@ const buildPaletteActions = () => [
     run: () => (showChangeMasterPasswordDialog.value = true),
   },
   {
+    id: 'lockNow',
+    group: 'security',
+    label: t('options.header.lockNow'),
+    // 别名里刻意不写 `session`：那条词已归「有效期设置」，借过来会把 `session` 的首位结果
+    // 从「调有效期」抢给「锁掉会话」。`locknow` 是给 `commandPaletteCopy` 那条抢位守卫用的
+    // ——它拿 id 当检索词，而匹配方向是「输入必须是单个别名的子串」，只写 `lock` + `now`
+    // 会零命中、这条命令被守卫静默跳过；`clear` 兜住从旧文案「清除会话」找来的人。
+    keywords: ['locknow', 'lock', 'now', 'clear'],
+    run: handleClearSession,
+  },
+  {
     id: 'validity',
     group: 'security',
     label: t('options.header.validity'),
@@ -1649,13 +1665,6 @@ const buildPaletteActions = () => [
     label: t('options.historySetting.title'),
     keywords: ['history'],
     run: () => (showPasswordHistoryDialog.value = true),
-  },
-  {
-    id: 'shortcuts',
-    group: 'security',
-    label: t('options.header.shortcuts'),
-    keywords: ['shortcut', 'hotkey', 'key'],
-    run: () => (showShortcutDialog.value = true),
   },
   {
     id: 'personalization',

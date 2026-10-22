@@ -188,8 +188,8 @@
 
 ⚙️ 界面与效率
 🎨 6 款色彩主题、中英文界面即时切换，注入页面的浮层同步跟随
-⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 27 条常用命令，主密码未验证时不响应按键
-🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「新手引导」按钮可随时重播；有密码后还会出现安全起步清单，提示备份与体检（可暂不提醒）；版本升级后弹窗展示一次更新要点，保存的密码多于 1 条、成功用快速填充过一次且首次填充满 7 天后才会询问一次是否去商店评价，可稍后再说或不再提醒，「关于」抽屉里也常驻评价入口；「关于」里可一键复制同事分享文案与商店链接
+⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 28 条常用命令，主密码未验证时不响应按键
+🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「帮助 → 新手引导」可随时重播；有密码后还会出现安全起步清单，提示备份与体检（可暂不提醒）；版本升级后弹窗展示一次更新要点，保存的密码多于 1 条、成功用快速填充过一次且首次填充满 7 天后才会询问一次是否去商店评价，可稍后再说或不再提醒，「关于」抽屉里也常驻评价入口；「关于」里可一键复制同事分享文案与商店链接
 🔧 四个默认快捷键 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 💡 细节体验：主密码输入框实时提示大写锁定；网站图标取自浏览器本地缓存，不发起外部请求
 
@@ -323,8 +323,8 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 ⚙️ Interface and efficiency
 🎨 6 color themes and an instant Chinese/English switch, followed by the UI injected into pages.
-⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 27 commands by Chinese, pinyin or initials, inert until the master password is verified.
-🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the "Tour" button in the header replays it any time. Once a password exists, a short getting-started checklist nudges an encrypted backup and a health check (snoozable). After an update a one-time dialog summarises what changed; the review ask appears only once you have more than one saved password and your first successful autofill is at least 7 days old, with Later (silent for 30 days) and Don't-ask-again options. The About drawer also keeps a permanent review link. About offers a ready-to-copy teammate share message with the store link.
+⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 28 commands by Chinese, pinyin or initials, inert until the master password is verified.
+🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the header's "Help" menu replays it any time via "Tour". Once a password exists, a short getting-started checklist nudges an encrypted backup and a health check (snoozable). After an update a one-time dialog summarises what changed; the review ask appears only once you have more than one saved password and your first successful autofill is at least 7 days old, with Later (silent for 30 days) and Don't-ask-again options. The About drawer also keeps a permanent review link. About offers a ready-to-copy teammate share message with the store link.
 🔧 Ctrl+Shift+P management / L side panel / F quick fill / K inline dropdown; rebind them on the browser's own extensions-shortcuts page.
 💡 A live Caps Lock hint on master-password fields, and site icons read from the browser's local cache with no external request.
 
@@ -412,7 +412,7 @@ public/icon/128.png
 > | 13   | `screen-13-generator.png`       | 密码生成器     | 密码生成器双模式：随机字符或助记词组                     |
 > | 14   | `screen-14-trash.png`           | 回收站         | 回收站与修改历史：误删可恢复，改错能回滚                 |
 >
-> 📐 **第 12 张刻意只拍「数据管理」下拉，不拍导入弹窗**：导入弹窗的格式单选里有「Chrome 密码」这一项，属商店图片文字禁用的竞品品牌名；下拉里的九个入口（导入 / 下载模板 / 导出 / 导出 JSON / 加密备份导出 / 加密备份导入 / 备份到邮箱 / 一键去重 / 回收站）不含品牌名，且一屏覆盖导出与备份两个能力。
+> 📐 **第 12 张刻意只拍「数据管理」下拉，不拍导入弹窗**：导入弹窗的格式单选里有「Chrome 密码」这一项，属商店图片文字禁用的竞品品牌名；下拉里的九个入口（下载模板 / 导入 / 导出 / 导出 JSON / 加密备份导出 / 加密备份导入 / 备份到邮箱 / 一键去重 / 回收站）不含品牌名，且一屏覆盖导出与备份两个能力。
 >
 > ⚠️ **每个语言页的截图上限是 5 张**，上表有 14 张候选，**最终选哪 5 张由上传时定**。脚本侧建议取 `1 / 2 / 3 / 4 / 9`（前四张各占一个独立卖点，第 9、10 张是仅有的两张展示**页内**体验的构图，与其余「侧边栏 / 管理页」互补）；要换就换 `7`（收藏 + 标签 + 网站图标）、`8`（信息密度最高的详情抽屉）或 `13`（生成器面板）。**若要砍一张，先砍第 6 张**（本地加密画面最朴素，且该主张在摘要与说明里已有文字承载）。
 >
@@ -845,7 +845,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单；密码较弱或与其它账号共用时弹窗内联预警，只提醒不拦截。
 
-快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（快速填充，只填充与勾选，登录需「填充并登录」或开启「自动触发登录」）/ K（内联），均可在 chrome://extensions/shortcuts 自定义——密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗均列出四组按键及其当前生效状态，会标注未生效的按键并可一键直达该页。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
+快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（快速填充，只填充与勾选，登录需「填充并登录」或开启「自动触发登录」）/ K（内联），均可在 chrome://extensions/shortcuts 自定义——密码管理页「帮助 → 快捷键」与侧边栏「帮助」弹窗均列出四组按键及其当前生效状态，会标注未生效的按键并可一键直达该页。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
 ```
 
 **指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。**

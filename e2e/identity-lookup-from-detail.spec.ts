@@ -6,7 +6,7 @@ import {
   addIdentity,
   cards,
   closeVault,
-  openVaultFromMenu,
+  openVaultFromHeader,
   searchInput,
   vaultDialog,
   verifyDialog,
@@ -68,7 +68,7 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
 
   // 前置：库里先有一条「手机号命中」和一条「不命中」的身份信息
   // 这一趟是本文档会话里的第一次打开，默认档 perSession 下必须问
-  await openVaultFromMenu(page, true);
+  await openVaultFromHeader(page, true);
   await addIdentity(page, NAME_HIT, PHONE_HIT);
   await addIdentity(page, NAME_MISS, PHONE_MISS);
   await expect(cards(page)).toHaveCount(2);
@@ -93,7 +93,7 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   // 不在关闭态就地读那颗输入框——EP 收起对话框时整层 `display:none`，节点已退出无障碍树，
   // `getByRole('dialog')` 根本解析不到（实测「element(s) not found」），要读只能等它重新可见。
   await closeVault(page);
-  await openVaultFromMenu(page, false);
+  await openVaultFromHeader(page, false);
   await expect(searchInput(page)).toHaveValue('');
   await expect(cards(page)).toHaveCount(2);
   await expect(vaultDialog(page).locator('.identity-selectbar__matched')).toHaveCount(0);
