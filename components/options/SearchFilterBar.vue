@@ -107,7 +107,7 @@
         -->
         <div
           class="facet-option"
-          :title="item.label"
+          :title="item.title"
         >
           <span class="facet-option__text">{{ item.label }}</span>
           <span class="facet-option__count">{{ item.count }}</span>
@@ -195,12 +195,27 @@ const { t } = useI18n();
  * 闭合态的选中标签、`filterable` 的键入过滤和面板宽度测量（calculateLabelMaxWidth）
  * 全都读 `label`，只在插槽里换文案会让这三处仍显示哨兵串。
  * `value` 保持站点键，所以 `filterSites` 里存的值与语言无关，切语言不会让已选条件失效。
+ *
+ * 两处刻意的详略分工：
+ * - 被折叠的环回写法进 `label`（`localhost（含 127.0.0.1 / [::1]）`），这样打 `127` 也搜得到
+ *   这一桶——折叠之后「127.0.0.1」不再是可勾选项，看不见就等于不能筛；
+ * - 端口分布只进 `title`：面板宽度按最长 label 量出，把 `:3000 / :4000 / *` 塞进 label
+ *   会让整列候选被最活跃的那一桶挤窄，而它是「顺手一看」的信息。
  */
 const siteOptions = computed(() =>
-  props.availableSites.map(option => ({
-    ...option,
-    label: option.site === GENERIC_SITE_KEY ? t('options.filter.siteGenericOption') : option.site,
-  })),
+  props.availableSites.map(option => {
+    if (option.site === GENERIC_SITE_KEY) {
+      const label = t('options.filter.siteGenericOption');
+      return { ...option, label, title: label };
+    }
+    const label = option.aliases?.length
+      ? t('options.filter.siteWithAliases', { site: option.site, hosts: option.aliases.join(' / ') })
+      : option.site;
+    const title = option.ports?.length
+      ? `${label} · ${t('options.filter.sitePorts', { ports: option.ports.join(' / ') })}`
+      : label;
+    return { ...option, label, title };
+  }),
 );
 </script>
 

@@ -152,18 +152,16 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
     expect(result.map(e => e.id)).toEqual(['match', 'noUrl']);
   });
 
-  it('本地开发域名放行全部条目', () => {
+  it('本地域名不再放行外站条目（主机门先于端口门）', () => {
     const list = [
       entry({ id: 'a', url: 'https://a.example.com', lastUsedAt: 1 }),
       entry({ id: 'b', url: 'https://b.example.com', lastUsedAt: 2 }),
     ];
-    const result = filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy());
-    expect(result).toHaveLength(2);
-    // localhost 下两条均不精确匹配（优先级相同），按侧边栏默认 lastUsedAt 降序
-    expect(result.map(e => e.id)).toEqual(['b', 'a']);
+    // 改前取不到页面端口时两条外站条目一律放行，一键填充会把外站凭证填进本地登录框
+    expect(filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy())).toEqual([]);
   });
 
-  it('本地域名仍保持精确匹配优先级，且优先级高于远程收藏和空 URL', () => {
+  it('本地域名精确条目优先于空 URL，外站条目根本不进结果集', () => {
     const list = [
       entry({ id: 'remoteFav', url: 'https://remote.example.com', favorite: true, lastUsedAt: 999 }),
       entry({ id: 'empty', url: '', lastUsedAt: 1000 }),
@@ -172,7 +170,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
 
     expect(
       filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy()).map(item => item.id),
-    ).toEqual(['local', 'remoteFav', 'empty']);
+    ).toEqual(['local', 'empty']);
   });
 
   it('重复 id 不会共享优先级缓存，排序按条目对象语义执行', () => {
@@ -282,7 +280,7 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
     expect(ids).toEqual(['exact', 'wild', 'generic']);
   });
 
-  it('本地开发域名仍走端口过滤，三档结果一致（档位不参与）', () => {
+  it('本地端点上端口轴与档位无关；环回通配条目改由档位放行，排序按 tier 分层', () => {
     const localdev = [entry({ id: 'p3000', url: 'localhost:3000' }), entry({ id: 'p8080', url: 'localhost:8080' })];
     const localPage = page('http://localhost:3000');
     for (const mode of ['off', 'wildcard', 'sameMainDomain'] as const) {
@@ -292,5 +290,25 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
         ),
       ).toEqual(['p3000']);
     }
+    // 别名 + 通配：`*.localhost` 只在 wildcard 起放行，且排在精确条目之后（tier 1 > 0）
+    const withWildcard = [
+      entry({ id: 'exact', url: 'localhost:3000' }),
+      entry({ id: 'wc', url: '*.localhost' }),
+      entry({ id: 'generic', url: '' }),
+    ];
+    expect(
+      filterAndSortEntriesForDomain(
+        withWildcard,
+        '127.0.0.1',
+        DEFAULT_SIDEPANEL_SORT,
+        localPage,
+        policy('wildcard'),
+      ).map(p => p.id),
+    ).toEqual(['exact', 'wc', 'generic']);
+    expect(
+      filterAndSortEntriesForDomain(withWildcard, '127.0.0.1', DEFAULT_SIDEPANEL_SORT, localPage, policy('off')).map(
+        p => p.id,
+      ),
+    ).toEqual(['exact', 'generic']);
   });
 });

@@ -163,11 +163,18 @@ describe('端口范围接线', () => {
   const PASSWORD_SORT_SRC = readFileSync(path.join(ROOT, 'utils/passwordSort.ts'), 'utf8');
   const AUTO_SAVE_SRC = readFileSync(path.join(ROOT, 'utils/storage/autoSaveManager.ts'), 'utf8');
   const POPUP_SRC = readFileSync(path.join(ROOT, 'composables/usePopupInit.ts'), 'utf8');
+  const DOMAIN_SRC = readFileSync(path.join(ROOT, 'utils/domain.ts'), 'utf8');
 
   it('显示判据的两处真源都同时过主机门与端口门', () => {
-    // 少了这一句，strict 档下端口不一致的条目会重新出现在本站列表，并被一键填充取作首条
-    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再调用 matchesPortScope').toContain('matchesPortScope(');
-    expect(PASSWORD_SORT_SRC, 'passwordSort 不再调用 matchesPortScope').toContain('matchesPortScope(');
+    // 两处真源现在共用同一个合成判据：少了它，strict 档下端口不一致的条目会重新出现在本站列表
+    // 并被一键填充取作首条，本地域名也会重新绕开主机门把外站条目当本站可填充
+    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再调用 matchesSiteEndpoint').toContain('matchesSiteEndpoint(');
+    expect(PASSWORD_SORT_SRC, 'passwordSort 不再调用 matchesSiteEndpoint').toContain('matchesSiteEndpoint(');
+    // 合成判据自身必须两道门都在：抽到 domain.ts 之后，这里是唯一能拦住「只抄了一门」的地方
+    const endpointFn = /export function matchesSiteEndpoint\([\s\S]*?\n}/.exec(DOMAIN_SRC)?.[0] ?? '';
+    expect(endpointFn, '未能定位 matchesSiteEndpoint，本用例空跑').not.toBe('');
+    expect(endpointFn, 'matchesSiteEndpoint 不再过主机门').toContain('resolveMatchTier(');
+    expect(endpointFn, 'matchesSiteEndpoint 不再过端口门').toContain('matchesPortScope(');
   });
 
   it('写入侧归属门与显示门同判据，避免「弹窗说新增、实际改写另一端口」', () => {
@@ -176,8 +183,10 @@ describe('端口范围接线', () => {
     );
   });
 
-  it('Popup 的本站计数也感知端口', () => {
-    expect(POPUP_SRC, 'usePopupInit 不再调用 matchesPortScope，计数会比侧边栏列表多').toContain('matchesPortScope(');
+  it('Popup 的本站计数与侧边栏共用同一判据', () => {
+    expect(POPUP_SRC, 'usePopupInit 不再调用 matchesSiteEndpoint，计数会比侧边栏列表多').toContain(
+      'matchesSiteEndpoint(',
+    );
   });
 
   it('侧边栏把端口策略同时用于列表、降级集与空态计数', () => {
@@ -186,14 +195,24 @@ describe('端口范围接线', () => {
     }
   });
 
+  it('排序权重的唯一真源是 siteRankOf，侧边栏不再自行分层', () => {
+    const priorityFn = SIDEPANEL_SRC.match(/const domainPriorityOf =[\s\S]*?\n};/)?.[0] ?? '';
+    expect(priorityFn, '未从侧边栏抽到 domainPriorityOf，本条判据成了空转').not.toBe('');
+    expect(priorityFn, '侧边栏排序不再经 siteRankOf，关联度会与内联下拉及各入口分叉').toContain('siteRankOf(');
+    expect(
+      SIDEPANEL_SRC,
+      '侧边栏里还留着写死的排序权重常量，等于第二个排序真源（关联度层级只在 domain.ts 定义一次）',
+    ).not.toMatch(/const (NOT_ON_SITE|OTHER_PORT)_PRIORITY =/);
+  });
+
   it('临时放宽只放宽显示：填充与排序判据必须用持久化策略', () => {
     // `matchesSiteScope(..., displayPolicy)` 会把别的端口的凭证填进眼前这个登录框
     expect(/matchesSiteScope\([^)]*displayPolicy/.test(SIDEPANEL_SRC), '侧边栏用临时放宽的策略判定能否填充').toBe(
       false,
     );
 
-    // 排序同样不行：放宽时展示口径恰好降成 `off` + `loose`，会误命中「双缺省走二值优先级」的短路，
-    // 让其他端口的条目不再沉底（真机实测过一次：门面地址排到首位，而回车并不会填它）
+    // 排序同样不行：放宽时展示口径降成只存在于显示层的 `relaxed`（端口轴整体不参与），
+    // 会让其他端口的条目不再沉底（真机实测过一次：门面地址排到首位，而回车并不会填它）
     const priorityFn = SIDEPANEL_SRC.match(/const domainPriorityOf =[\s\S]*?\n};/)?.[0] ?? '';
     expect(priorityFn, '未从侧边栏抽到 domainPriorityOf，本条判据成了空转').not.toBe('');
     expect(priorityFn).toContain('sitePolicy');

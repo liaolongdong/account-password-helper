@@ -5,9 +5,10 @@
  * 过滤判定，使其可被单元测试独立覆盖，同时作为侧边栏「搜索范围」与「能否填充当前页」
  * 的唯一判据来源，避免这两处在侧边栏内部各自演化出分歧。
  *
- * 域名匹配语义完全复用 `utils/domain.ts` 的 `resolveMatchTier`（档位化分层匹配），
- * 端口维度复用同模块的 `matchesPortScope`（正交的第二道门），两者合成 `SitePolicy` 传入；
- * 策略里两项的缺省值合起来即「端口隔离功能存在之前」的行为，逐条一致。
+ * 域名匹配语义完全复用 `utils/domain.ts` 的 `matchesSiteEndpoint`（内部即 `resolveMatchTier`
+ * 的主机门叠加端口轴的门），本模块不再自行判定任何主机或端口规则；
+ * 策略里两项的缺省值合起来对**公网主机**即「端口隔离功能存在之前」的行为，逐条一致，
+ * 对环回主机则比那时更窄（外站条目不再混进本地页面）。
  *
  * 作用边界：本模块只服务侧边栏。内联下拉与一键填充走
  * `utils/passwordSort.ts` 的 `filterAndSortEntriesForDomain`，两者仅在「当前页无域名」
@@ -16,15 +17,7 @@
  * 就是它的降级形态；而下拉需要贴在当前页上，展示外站条目没有可填充的目标。
  */
 import type { PasswordEntry } from '@/utils/types';
-import {
-  isLocalDevDomain,
-  matchesPortForLocalDev,
-  matchesPortScope,
-  rawPortOf,
-  resolveMatchTier,
-  type PagePortContext,
-  type SitePolicy,
-} from '@/utils/domain';
+import { matchesSiteEndpoint, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
 import { filterByKeyword, type KeywordMatcher } from '@/utils/keywordMatch';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { parseTags } from '@/utils/tagUtils';
@@ -74,12 +67,9 @@ export interface ListFilterOptions {
  * 域名或端口不匹配的条目填充必然失败（或把另一个服务上的凭证填进眼前这个登录框），
  * 故两者共用同一判定。
  *
- * 匹配规则（与内联下拉 / 一键填充同源）：
- * - 无域名（新标签页等）→ 放行全部，与 `filterAndSortEntriesForDomain` 的
- *   「只留空 URL 通用条目」刻意不同：侧边栏此刻是全库浏览入口，没有「当前站」可收敛
- * - `loose` 档下的本地开发域名（localhost / 127.0.0.1）→ 沿用既有端口过滤，档位不参与
- * - 其余走两道门：主机轴按档位分层判定（`off` = 精确 hostname + 空 URL；`wildcard` 追加通配条目；
- *   `sameMainDomain` 再追加主域名与同主域其他子域），端口轴按 `portScope` 判定
+ * 匹配规则全部下沉到 `utils/domain.ts` 的 `matchesSiteEndpoint`（主机门 ∧ 端口门），
+ * 与内联下拉 / 一键填充同源；本模块只保留「当前页无域名」这一支的侧边栏语义：
+ * 此刻没有「本站」可收敛，全库列表本身就是它的降级形态，故放行全部。
  *
  * @param entry - 待判定的密码条目
  * @param ctx - 当前标签页域名上下文
@@ -87,13 +77,9 @@ export interface ListFilterOptions {
  *                 而缺陷只在非默认档下暴露，让编译器拦住比靠自觉可靠
  * @returns 是否属于本站范围
  */
-export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, policy: SitePolicy): boolean {
+export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, policy: EffectiveSitePolicy): boolean {
   if (!ctx.domain) return true;
-  if (isLocalDevDomain(ctx.domain) && policy.portScope === 'loose') {
-    return matchesPortForLocalDev(entry.url, rawPortOf(ctx.page));
-  }
-  if (resolveMatchTier(ctx.domain, entry.url, policy.mode) < 0) return false;
-  return matchesPortScope(entry.url, ctx.page, policy.portScope);
+  return matchesSiteEndpoint(entry.url, ctx.domain, ctx.page, policy);
 }
 
 /**
@@ -112,7 +98,7 @@ export function filterEntriesByScope(
   entries: readonly PasswordEntry[],
   scope: SearchScope,
   ctx: ScopeContext,
-  policy: SitePolicy,
+  policy: EffectiveSitePolicy,
 ): PasswordEntry[] {
   if (scope === 'all') return [...entries];
   return entries.filter(entry => matchesSiteScope(entry, ctx, policy));

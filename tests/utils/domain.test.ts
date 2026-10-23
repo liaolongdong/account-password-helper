@@ -4,7 +4,7 @@ import {
   getMainDomain,
   registrableScope,
   isSameMainDomain,
-  isLocalDevDomain,
+  isLoopbackHost,
   normalizeToHostname,
   normalizeToHostAndPort,
   isExactHostMatch,
@@ -73,11 +73,14 @@ describe('getMainDomain 未显式收录的 ccTLD（启发式兜底）', () => {
   });
 });
 
-describe('isLocalDevDomain', () => {
-  it('仅 localhost 与 127.0.0.1 判为本地开发域名', () => {
-    expect(isLocalDevDomain('localhost')).toBe(true);
-    expect(isLocalDevDomain('127.0.0.1')).toBe(true);
-    expect(isLocalDevDomain('example.com')).toBe(false);
+describe('isLoopbackHost', () => {
+  it('认三种环回字面写法，内网 IP 与自定义主机不算本机', () => {
+    expect(isLoopbackHost('localhost')).toBe(true);
+    expect(isLoopbackHost('127.0.0.1')).toBe(true);
+    expect(isLoopbackHost('[::1]')).toBe(true);
+    expect(isLoopbackHost('myapp.localhost')).toBe(false);
+    expect(isLoopbackHost('192.168.1.5')).toBe(false);
+    expect(isLoopbackHost('example.com')).toBe(false);
   });
 });
 

@@ -9,7 +9,7 @@
       <SidepanelHeader
         :current-domain="currentDomain"
         :is-authenticated="isAuthenticated"
-        :show-match-info="isAuthenticated && !!currentDomain && !isLocalDevDomain(currentDomain)"
+        :show-match-info="isAuthenticated && !!currentDomain && !isLoopbackHost(currentDomain)"
         :match-count="domainFilteredPasswords.length"
         :port-label="portChipLabel"
         :port-relaxed="portRelaxedTemporarily"
@@ -173,17 +173,19 @@ import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/us
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import {
-  isLocalDevDomain,
+  isLoopbackHost,
   toNavigableUrl,
   resolveMatchTier,
   isCrossSubdomainTier,
   isDomainMatchMode,
   isPortScope,
-  matchesPortScope,
+  isHiddenByPortOnly,
+  siteRankOf,
   rawPortOf,
   countSameMainDomainCandidates,
   countPortHiddenCandidates,
   type DomainMatchMode,
+  type EffectiveSitePolicy,
   type PortScope,
   type SitePolicy,
 } from '@/utils/domain';
@@ -463,18 +465,15 @@ const sitePolicy = computed<SitePolicy>(() => ({
 }));
 
 /**
- * 展示策略：持久化策略在「本站临时放宽」时把端口轴降为 `loose`
+ * 展示策略：持久化策略在「本站临时放宽」时把端口轴降为 `relaxed`
  *
  * 只有列表可见性读它；任何「能不能填到当前页」的判定一律用 `sitePolicy`，
  * 否则放宽一次显示就会顺带放宽填充，把两个语义不同的东西绑在一起。
+ * 刻意不复用 `loose`：环回主机在 `loose` 下仍按端点过滤（那是本地既有的缺省意图），
+ * 用 `loose` 表达放宽会让本地页面上的这个开关点了没反应。
  */
-const displayPolicy = computed<SitePolicy>(() =>
-  portRelaxedTemporarily.value ? { mode: sitePolicy.value.mode, portScope: 'loose' } : sitePolicy.value,
-);
-
-/** 端口芯片是否该出现：持久化 strict + 当前页确实带着非默认端口 + 尚未放宽 */
-const showPortChip = computed(
-  () => portScope.value === 'strict' && !!currentPagePort.value && !currentPagePort.value.atDefaultPort,
+const displayPolicy = computed<EffectiveSitePolicy>(() =>
+  portRelaxedTemporarily.value ? { mode: sitePolicy.value.mode, portScope: 'relaxed' } : sitePolicy.value,
 );
 
 /**
@@ -514,44 +513,24 @@ const availableTags = computed(() => {
   return [...set].sort((a, b) => a.localeCompare(b));
 });
 
-/** 全站范围下「与当前域名无关」条目的优先级，排在所有档位之后 */
-const NOT_ON_SITE_PRIORITY = 5;
-
-/**
- * 「同域名其他端口」条目的优先级（仅在临时放宽后可见）
- *
- * 排在所有主机层级与外站条目之后：它们不是能填到本页的候选，若与精确条目混排，
- * 「列表首条 = 一键填充首条」这条同源约定会把别的端口的凭证填进眼前这个登录框。
- */
-const OTHER_PORT_PRIORITY = 6;
-
 /**
  * 列表排序的域名优先级
  *
- * 双缺省档（`off` + `loose`，也就是端口隔离功能存在之前的口径）沿用既有的二值口径
- * （命中 0 / 其余 1），保证与引入跨子域之前的顺序逐条一致；
- * 放宽后才返回 tier，使「精确 → 通配 → 主域 → 兄弟子域 → 通用」在「全站」范围下依次靠前。
- * `loose` 档下的本地开发域名按既有端口口径过滤、当前页无域名时不筛站点，两者档位不参与，故仍走二值分支。
- * 临时放宽带出的其他端口条目一律沉到 {@link OTHER_PORT_PRIORITY}，与「首条即可填充」的约定对齐。
+ * 权重来自 `utils/domain.ts` 的 `siteRankOf`：**关联度决定先后，档位决定可见**，两者互不越界。
+ * 层级为 精确(含环回别名) → 通配 → 主域 apex → 同主域其他子域 → 空 URL 通用 → 无关站点，
+ * 于是「全站」范围里 `dev.example.com` 不会再被 `github.com` 压在上面；「本站」可见集里只有
+ * 精确与通用两类，相对顺序与改动前逐字一致，「首条即可填充」这条同源约定不受影响。
+ * 「同主机其他端口」的条目按持久化端口档沉到最末（{@link siteRankOf} 内部），与「首条即可填充」对齐。
+ * 当前页无域名时没有「本站」可收敛，退回二值口径。
  *
- * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成 `off` + `loose`，
- * 若在此处读展示策略，那条「双缺省走二值」的短路会被误命中，其他端口的条目于是
- * 不再沉底——实测过一次：同域名的门面地址排到了首位，而它并不可填充。
+ * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成只存在于显示层的
+ * `relaxed`，若在此处读展示策略，其他端口的条目于是不再沉底——实测过一次：同域名的门面地址
+ * 排到了首位，而它并不可填充。
  */
 const domainPriorityOf = (entry: PasswordEntry): number => {
   const domain = currentDomain.value;
-  const policy = sitePolicy.value;
-  if (!domain || (isLocalDevDomain(domain) && policy.portScope === 'loose')) return getDomainPriority(entry);
-  if (policy.mode === DEFAULT_DOMAIN_MATCH_MODE && policy.portScope === DEFAULT_PORT_SCOPE) {
-    return getDomainPriority(entry);
-  }
-  const tier = resolveMatchTier(domain, entry.url, policy.mode);
-  if (tier === -1) return NOT_ON_SITE_PRIORITY;
-  // 端口门按持久化策略判：放宽只放宽显示，不改变「这条属不属于当前端点」的事实
-  if (!matchesPortScope(entry.url, scopeContext.value.page, policy.portScope)) {
-    return OTHER_PORT_PRIORITY;
-  }
-  return tier;
+  if (!domain) return getDomainPriority(entry);
+  return siteRankOf(entry.url, domain, scopeContext.value.page, sitePolicy.value);
 };
 
 /** 搜索 + 范围过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
@@ -594,12 +573,39 @@ const crossDomainHintCount = computed(() => {
  *
  * 只数「主机已经匹配、纯粹栽在端口门上」的条目，与 `crossDomainHintCount` 互补：
  * 前者说明「放宽跨子域能看到多少」，本数说明「放宽端口限制能看到多少」。
- * 同样惰性求值，且只在持久化策略确实是 strict 时才算——`loose` 档下不存在被端口挡住的条目。
+ * 同样惰性求值；公网 + `loose` 结构上不存在被端口挡住的条目，计数函数自己就返回 0。
  */
 const portHiddenHintCount = computed(() => {
   if (searchScope.value === 'all' || globalMatchCount.value === 0) return 0;
   if (portRelaxedTemporarily.value) return 0;
   return countPortHiddenCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
+});
+
+/**
+ * 被端口轴挡在本站外的条目数（芯片是否出现的判据）
+ *
+ * 与上面的 `portHiddenHintCount` 刻意分开：那一句属于**空态引导**，只在「本站一条都不剩」时
+ * 才数（`globalMatchCount` 那一支决定这件事），列表有结果时恒为 0。芯片要的判据是
+ * 「这一页到底有没有东西可放宽」，而列表非空时恰恰最需要它——真机实测过一次：本地开发页面上
+ * `:3000` 的账号正常显示着，被端口挡掉的 `:4000` 账号因此一个提示都没有，因为芯片复用了空态计数、
+ * 永远数出 0。
+ */
+const portHiddenTotal = computed(() => {
+  if (portRelaxedTemporarily.value || searchScope.value === 'all') return 0;
+  return countPortHiddenCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
+});
+
+/**
+ * 端口芯片是否该出现
+ *
+ * - `strict`：沿用既有判据（当前页确实带着非默认端口），公网场景的呈现逐条不变；
+ * - 环回主机 + `loose`：本地端点同样会按端口把同主机条目挡在站外，那正是「悄悄少了几条
+ *   且无处可问」的高发场景，因此数出有被挡住的条目时才出现；
+ * - 放宽态自身必须继续渲染，否则用户没有收回的入口（此时计数已归零）。
+ */
+const showPortChip = computed(() => {
+  if (portScope.value === 'strict') return !!currentPagePort.value && !currentPagePort.value.atDefaultPort;
+  return portRelaxedTemporarily.value || (isLoopbackHost(currentDomain.value) && portHiddenTotal.value > 0);
 });
 
 /**
@@ -612,7 +618,7 @@ const portHiddenHintCount = computed(() => {
 const crossDomainIds = computed<ReadonlySet<string>>(() => {
   const domain = currentDomain.value;
   if (domainMatchMode.value === DEFAULT_DOMAIN_MATCH_MODE) return EMPTY_ID_SET;
-  if (!domain || isLocalDevDomain(domain)) return EMPTY_ID_SET;
+  if (!domain) return EMPTY_ID_SET;
 
   const mode = domainMatchMode.value;
   const ids = new Set<string>();
@@ -639,8 +645,7 @@ const portMismatchIds = computed<ReadonlySet<string>>(() => {
   const page = currentPagePort.value;
   const ids = new Set<string>();
   for (const entry of filteredPasswords.value) {
-    if (resolveMatchTier(domain, entry.url, policy.mode) < 0) continue;
-    if (!matchesPortScope(entry.url, page, policy.portScope)) ids.add(entry.id);
+    if (isHiddenByPortOnly(entry.url, domain, page, policy)) ids.add(entry.id);
   }
   return ids;
 });
@@ -953,10 +958,11 @@ const openDomainMatchSetting = async () => {
 };
 
 /**
- * 头部端口芯片文案
+ * 头部端口芯片文案（当前端口，如 `:3000`）
  *
- * 只在「端口隔离已开启且当前页确实带着非默认端口」时给出，其余情形为空串（芯片不渲染）：
- * 处于默认端口时端口隔离不改变任何可见集合，摆一个点不动的芯片只会让人以为它坏了。
+ * `strict` 下只在当前页确实带着非默认端口时给出——处于默认端口时端口隔离不改变任何可见集合，
+ * 摆一个点不动的芯片只会让人以为它坏了；环回主机在 `loose` 下则由「本页是否真有条目被端口挡住」
+ * 决定（见 `showPortChip`），芯片本身只报端口号与被挡住的数量在哪能看见，数字出现在空态那句里。
  */
 const portChipLabel = computed(() => {
   if (!showPortChip.value) return '';

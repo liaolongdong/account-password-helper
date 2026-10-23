@@ -397,7 +397,7 @@ describe('站点匹配策略镜像与 tier 下发', () => {
     ]);
   });
 
-  it('本地开发域名按端口过滤，tier 一律下发 0（不参与档位语义）', async () => {
+  it('本地端点先过主机门再按端口过滤，外站条目不进下拉', async () => {
     await setMode('sameMainDomain');
     updatePasswordCache(
       [
@@ -410,18 +410,14 @@ describe('站点匹配策略镜像与 tier 下发', () => {
     );
 
     const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
-    // 8080 被端口口径挡掉；无端口的 remote 按既有行为放行，但不获跨子域放行（tier 0）
-    expect(accounts.map(a => [a.id, a.tier])).toEqual([
-      ['p3000', 0],
-      ['remote', 0],
-    ]);
+    // 8080 被端口口径挡掉；外站 remote 被主机门挡掉——改前它因「未写端口」被判成本站且下发 tier 0
+    expect(accounts.map(a => [a.id, a.tier])).toEqual([['p3000', 0]]);
 
-    // 当前页无端口时放行全部条目（既有行为）：外站条目按 0 下发，不渲染来源标识
+    // 当前页无端口时同主机的其它端口条目照常放行（既有行为），外站条目仍不进本站
     const all = await getMatchingAccounts('localhost', page('http://localhost'));
     expect(all.accounts.map(a => [a.id, a.tier])).toEqual([
       ['p3000', 0],
       ['p8080', 0],
-      ['remote', 0],
     ]);
   });
 });

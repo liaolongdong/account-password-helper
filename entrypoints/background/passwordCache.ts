@@ -470,8 +470,8 @@ export async function getCachedSortConfig(): Promise<{ prop: string; order: stri
  * 获取缓存的站点匹配策略（SW 内存镜像）
  *
  * 读取失败时回落缺省策略（`off` + `loose`）：与配置存储层口径一致，
- * 宁可少显示条目，也不静默放宽匹配；`loose` 更是「端口隔离功能存在之前」的行为，
- * 因此镜像读失败不会让任何用户的可见集合发生变化。
+ * 宁可少显示条目，也不静默放宽匹配。回落后的可见集对用户所选档位而言只会更窄或相同
+ * （`off` 是最严的主机档），因此镜像读失败不会把条目带进用户本来看不到的页面。
  */
 export async function getCachedSitePolicy(): Promise<SitePolicy> {
   if (_cachedSitePolicy !== undefined) return _cachedSitePolicy;
@@ -628,8 +628,9 @@ export async function getMatchingAccounts(
   /**
    * 条目匹配层级（供内容脚本呈现来源标识）
    *
-   * 本地开发域名 loose 档下「无端口时放行全部」会带出与当前 host 不同的条目，该路径不参与档位语义，
-   * 按 0（无来源标识）返回，避免把 -1 透出成第三种状态。
+   * 结果集已按 `matchesSiteEndpoint` 过滤，进入这里的条目 tier 恒 ≥ 0（环回主机同样先过主机门）。
+   * 保留 -1 → 0 的映射只为挡住「过滤判据与层级判据将来分叉」这一种状态，
+   * 不让未知档位透出成第三种呈现。
    */
   const tierOf = (url: string): MatchTier => {
     const tier = resolveMatchTier(domain, url, policy.mode);

@@ -17,7 +17,7 @@
   "sidepanel.scope.portHiddenHint": "同域名其他端口还有 {count} 条账号，点击显示",
   "sidepanel.scope.portIsolated": "已按端口隔离",
   "sidepanel.scope.portRelaxed": "已显示全部端口",
-  "sidepanel.scope.portRelaxHint": "端口隔离已开启：点击在此页临时显示同域名其他端口的账号（不会保存该选择）",
+  "sidepanel.scope.portRelaxHint": "本页按端点隔离显示账号：点击可临时显示同域名其他端口的账号（该选择不会保存，切走标签页即收回）",
   "sidepanel.scope.portRelaxRestore": "点击收回其他端口的账号，只看当前端口",
   "sidepanel.sessionRemainingTitle": "会话剩余时间，点击调整有效期",
   "sidepanel.sortBy": "排序方式",
