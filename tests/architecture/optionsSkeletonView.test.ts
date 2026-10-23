@@ -16,6 +16,7 @@ const AUTH = readSource('composables/useAuthFlow.ts');
 const APP_READY = readSource('entrypoints/options/appReady.ts');
 const MAIN = readSource('entrypoints/options/main.ts');
 const HTML = readSource('entrypoints/options/index.html');
+const HEADER = readSource('components/options/HeaderBar.vue');
 const APP = readSource('entrypoints/options/App.vue');
 const VIEW_UTIL = readSource('utils/optionsFirstView.ts');
 const PREFLIGHT = readSource('public/options-first-view.js');
@@ -105,6 +106,26 @@ describe('Options 首屏骨架的视图切换', () => {
     const meta = HTML.slice(metaAt, HTML.indexOf('<div class="sk-header-row">', metaAt));
     expect(meta.match(/class="sk-session"/g), '会话胶囊必须只有一个').toHaveLength(1);
     expect([...meta.matchAll(/class="sk-block sk-btn/g)], '会话徽标旁缺了「立即锁定」占位').toHaveLength(1);
+
+    /**
+     * 备份徽标占位（2026-10-24 补）
+     *
+     * 头部加了备份徽标那天，骨架没跟着加：淡出那一帧整组右端向左顶开约 130px，
+     * 正是本文件注释里 2026-10-22「左 4 + 右 5 → 左 6 + 右 2」那次的同一类回归。
+     * 顺序也要对——真实头部是「备份 → 会话 → 锁定」，反了会在淡出瞬间左右互换。
+     */
+    expect(meta.match(/class="sk-backup"/g), '备份徽标必须只有一枚（真实头部只有一枚）').toHaveLength(1);
+    for (const part of ['sk-backup__dot', 'sk-backup__icon', 'sk-backup__text']) {
+      expect(meta, `备份徽标缺了 \`${part}\` 占位`).toContain(part);
+    }
+    expect(meta.indexOf('sk-backup'), '骨架里备份徽标与会话胶囊的顺序与真实头部相反').toBeLessThan(
+      meta.indexOf('sk-session'),
+    );
+
+    // 真实头部若改掉这三枚控件的类名（增删/改名），先在这里露出来，再去看骨架要不要跟
+    for (const cls of ['backup-chip', 'session-chip', 'lock-btn']) {
+      expect(HEADER, `真实头部不再有 .${cls}，骨架占位需要同步`).toContain(`class="${cls}"`);
+    }
   });
 
   it('有效期入口与侧边栏 / 悬浮按钮的管理入口都按会话状态预判首屏', () => {

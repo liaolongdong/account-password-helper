@@ -248,7 +248,48 @@
 
       .sk-header-meta {
         display: flex;
+        gap: 10px;
         align-items: center;
+      }
+
+      /* 与 HeaderBar 的备份徽标对齐：状态灯 + 文件夹图标 + 时长文字。
+         缺了它就会在骨架淡出的那一帧把整组右端向左顶开约 130px——
+         骨架的全部意义正是「首帧形状 = 落地形状」，见
+         tests/architecture/optionsSkeletonView.test.ts 记的 2026-10-22 同类回归。 */
+      .sk-backup {
+        display: flex;
+        flex: none;
+        gap: 7px;
+        align-items: center;
+        width: 124px;
+        height: 28px;
+        padding: 0 14px;
+        background: rgb(255 255 255 / 15%);
+        border: 1px solid rgb(255 255 255 / 25%);
+        border-radius: 999px;
+      }
+
+      .sk-backup .sk-block {
+        flex: none;
+        background: rgb(255 255 255 / 40%);
+      }
+
+      .sk-backup__dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+
+      .sk-backup__icon {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+      }
+
+      .sk-backup__text {
+        width: 46px;
+        height: 10px;
+        border-radius: 3px;
       }
 
       /* 与 HeaderBar 的单个会话胶囊对齐：状态灯 + 计时图标 + 剩余时间 */
@@ -578,6 +619,12 @@
               <div class="sk-block sk-version"></div>
             </div>
             <div class="sk-header-meta">
+              <!-- 备份徽标占位：状态灯 + 图标 + 时长，与真实头部第一行右端的顺序一致 -->
+              <div class="sk-backup">
+                <span class="sk-block sk-backup__dot"></span>
+                <span class="sk-block sk-backup__icon"></span>
+                <span class="sk-block sk-backup__text"></span>
+              </div>
               <div class="sk-session">
                 <span class="sk-block sk-session__dot"></span>
                 <span class="sk-block sk-session__timer"></span>
