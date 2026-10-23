@@ -474,9 +474,15 @@
             完全关闭浏览器后密钥材料即被清除，重新打开必须输入主密码。
           </p>
           <p>
-            <strong>一处明文例外：</strong
+            <strong>明文例外之一（到期提醒的账号名）：</strong
             >为某条密码设置到期提醒时，该条的账号名会以明文冗余记录在本地的到期提醒表中（提醒由系统在任意时刻发出桌面通知，
             含已锁定状态，账号名用于让通知指明是哪个账号），它同时会留下「哪个账号将在何时到期」这一信息；删除该条提醒、删除对应条目或清空回收站都会连带清除这条明文记录。
+          </p>
+          <p>
+            <strong>明文例外之二（主密码提示语）：</strong
+            >设置主密码时您可以自愿留一句提示语，它以<strong>明文</strong>保存在本机的 <code>master_password_config</code>
+            里，用途是在您忘记主密码、连续输错几次后帮自己回想——用主密码加密它就等于「忘了才需要看、看了却解不开」，因此明文是这项功能的前提而非疏漏。
+            提示语不参与任何密钥派生，也不包含主密码材料；它只是帮您回想，<strong>不构成找回机制</strong>。建议不要写入主密码本身或其变形，共用电脑上请勿设置，或只写只有您能解读的间接线索。
           </p>
           <p>
             个人信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
@@ -636,8 +642,9 @@
               >删除该条提醒、删除对应条目或清空回收站，都会一并清除提醒表里那条明文的账号名记录（见第 3 节）
             </li>
             <li>
-              <strong>「忘记密码？重置所有数据」：</strong
-              >主密码无法找回，重置会清空本机全部密码数据且不可撤销——这是忘记主密码时唯一的路径，操作前有二次确认
+              <strong>「忘记密码？查看找回方法」：</strong
+              >主密码本身无法被扩展替你找回或重置。忘记时先试两条退路——解锁页连续输错几次后会显示您留下的提示语；加密备份
+              <code>.aph</code> 用的是<strong>导出当时输入的密码</strong>，与现在忘掉的这把无关（先前导出的 CSV / JSON 同理可直接导入）。两条都不成立时才只剩「重置所有数据」：它会清空本机全部密码数据且不可撤销，操作前有二次确认
             </li>
             <li>
               <strong>卸载扩展：</strong>扩展被移除时，Chrome 会一并清除它在 <code>chrome.storage.local</code> 中的数据
@@ -865,11 +872,21 @@
             fully closing the browser then clears the key material, and reopening requires the master password.
           </p>
           <p>
-            <strong>One plaintext exception:</strong> when you set an expiry reminder for an entry, that entry's
+            <strong>Plaintext exception 1 (expiry-reminder account names):</strong> when you set an expiry reminder for an entry, that entry's
             username is redundantly recorded in plaintext in the local reminder table, because reminders fire as desktop
             notifications at any moment — including while locked — and the username is what makes the notice name an
             account. It also leaves behind which account is expiring and when. Deleting that reminder, deleting the
             entry, or emptying the trash clears the record.
+          </p>
+          <p>
+            <strong>Plaintext exception 2 (the master password hint):</strong> you may optionally leave a hint when
+            setting the master password. It is stored <strong>in plain text</strong> in
+            <code>master_password_config</code> on this machine so that it can still be read after you forget the
+            password — encrypting it with that password would make it useless exactly when it is needed, so plaintext is
+            the feature's premise rather than an oversight. The hint takes no part in key derivation and contains no
+            password material; it only helps you recall, and it is <strong>not a recovery mechanism</strong>. Do not put
+            the master password itself or a variation of it in the hint, and on shared computers either leave it empty or
+            write only an indirect cue only you can decode.
           </p>
           <p>
             Personal information (name, ID number, phone, email, address, bank card details and custom fields) is kept
@@ -1052,9 +1069,13 @@
               trash all clear the plaintext account-name record kept in the reminder table (see Section 3)
             </li>
             <li>
-              <strong>"Forgot password? Reset all data":</strong> the master password cannot be recovered, and resetting
-              wipes all local password data irreversibly — it is the only path when the master password is lost, and it
-              requires a confirmation step
+              <strong>"Forgot password? See recovery options":</strong> the extension itself can never recover or reset
+              the master password for you, but two ways out come first: after a few wrong attempts the unlock screen
+              shows the hint you left, and an encrypted
+              <code>.aph</code> backup opens with the password entered <strong>at export time</strong>, which is
+              unrelated to the one you forgot (a CSV / JSON sheet you exported earlier imports the same way). Only when
+              neither works does "Reset all data" remain: it wipes all local password data irreversibly and asks for
+              confirmation first
             </li>
             <li>
               <strong>Uninstalling the Extension:</strong> Chrome clears the extension's

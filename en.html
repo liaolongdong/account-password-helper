@@ -246,7 +246,7 @@
             "name": "What if I forget the master password?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The master password cannot be recovered. You can only use \"Reset\" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss."
+              "text": "The extension can never recover or reset the master password for you, but forgetting it is not automatically a wipe: after a few wrong attempts the unlock screen shows the hint you left when setting the password, and Forgot password? See recovery options opens a wizard. An encrypted .aph backup opens with the password you used at export time, which is unrelated to the one you forgot, and a CSV / JSON sheet you exported earlier is plain text you can import directly. Only when neither route works do you reset and erase the whole vault. Keep exporting encrypted backups."
             }
           },
           {
@@ -6519,7 +6519,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>What if I forget the master password?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">The master password cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">The extension can never recover or reset the master password for you, but forgetting it is not automatically a wipe: after a few wrong attempts the unlock screen shows the hint you left when setting the password, and Forgot password? See recovery options opens a wizard. An encrypted .aph backup opens with the password you used at export time, which is unrelated to the one you forgot, and a CSV / JSON sheet you exported earlier is plain text you can import directly. Only when neither route works do you reset and erase the whole vault. Keep exporting encrypted backups.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I change the master password?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -8016,8 +8016,8 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           q: { zh: '忘记主密码了怎么办？', en: 'What if I forget the master password?' },
           a: {
-            zh: '主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。',
-            en: 'The master password cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss.',
+            zh: '主密码本身无法被扩展替你找回或重置，但忘记时并不只剩「清空」一条路：解锁页连续输错几次后，会显示你设置主密码时留下的提示语，点「忘记密码？查看找回方法」进入找回向导——加密备份 .aph 用的是导出当时的密码（与现在忘掉的这把无关），导出过的 CSV / JSON 表格是明文可直接导入；两条退路都不成立时，才需要重置并清空整库。请定期导出加密备份。',
+            en: 'The extension can never recover or reset the master password for you, but forgetting it is not automatically a wipe: after a few wrong attempts the unlock screen shows the hint you left when setting the password, and Forgot password? See recovery options opens a wizard. An encrypted .aph backup opens with the password you used at export time, which is unrelated to the one you forgot, and a CSV / JSON sheet you exported earlier is plain text you can import directly. Only when neither route works do you reset and erase the whole vault. Keep exporting encrypted backups.',
           },
         },
         {

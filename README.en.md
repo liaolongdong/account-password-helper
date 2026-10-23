@@ -113,7 +113,7 @@ One fill takes four steps, all on your own machine:
   <br />
   <b>🔒 Local encryption</b>
   <br />
-  <sub>The master password is the only key: if it is forgotten it <b>cannot be recovered</b> and resetting wipes the data, so take an encrypted (.aph) backup first.</sub>
+  <sub>The master password is the only key: the extension <b>cannot recover or reset it</b> for you. Leave yourself a hint when you set it, and remember that an encrypted (.aph) backup opens with the password you used <i>at export time</i> — both are cheaper than a wipe, so prepare them in advance.</sub>
 </p>
 
 <p align="center">
@@ -260,7 +260,7 @@ Your vault travels in one encrypted file — no sync service, and no third-party
 - **Has its own export, so move it separately**: the personal info vault exports an `.aphid` encrypted backup; site rules export as plain JSON (domains and selectors only, never accounts or passwords) and merge by domain on import, reporting added / updated / ignored.
 - **Does not travel — set it again on the new machine**: the master password itself, session validity and idle auto-lock, auto-submit login, clipboard auto-clear, language and theme, page size and sorting, the cross-subdomain matching tier, per-entry change reminders, plus the Trash and password history, neither of which has an export.
 
-> ⚠️ Three things to know: **the import appends instead of merging** — no deduplication, and it shares the 2,000-entry cap with adding entries and page auto-save; when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and leftovers can be cleared afterwards with "Remove Duplicates" (same username + same URL counts as one group; the favorited entry is the one kept, and when a group holds several favorites, the most recently updated of them). **Runtime**: desktop Chrome / Edge are the verified targets — the `.aph` itself is browser-agnostic, so any Chromium browser that can run the extension behaves the same, while the Firefox build ships MV2 and both release and verification are Chrome-based. And **keep that `.aph` until you have checked the entry count on the new machine** — a forgotten master password cannot be recovered, and resetting wipes the data.
+> ⚠️ Three things to know: **the import appends instead of merging** — no deduplication, and it shares the 2,000-entry cap with adding entries and page auto-save; when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and leftovers can be cleared afterwards with "Remove Duplicates" (same username + same URL counts as one group; the favorited entry is the one kept, and when a group holds several favorites, the most recently updated of them). **Runtime**: desktop Chrome / Edge are the verified targets — the `.aph` itself is browser-agnostic, so any Chromium browser that can run the extension behaves the same, while the Firefox build ships MV2 and both release and verification are Chrome-based. And **keep that `.aph` until you have checked the entry count on the new machine** — its key is derived from the password you entered at export time, so it stays a way back even after you forget the current master password; only when no backup exists does resetting wipe the data.
 
 ### Shortcut Cheat Sheet
 
@@ -291,7 +291,7 @@ No. Data lives only in your browser's local storage, with sensitive fields encry
 <details>
 <summary><strong>What if I forget the master password?</strong></summary>
 
-It cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or an encrypted (.aph) backup to avoid data loss.
+The extension can never recover or reset the master password for you, but forgetting it is not automatically a wipe. After a few wrong attempts the manager's unlock screen shows the hint you left when setting the password, and "Forgot password? See recovery options" opens a wizard ordered by likelihood of success: ① an encrypted `.aph` backup is decrypted with the password you entered **at export time**, which is unrelated to the one you forgot — if you remember an older master password, start there; ② a CSV / JSON sheet you exported earlier is plain text and imports directly; ③ only when neither works is "Reset all data" left, and that erases the vault irreversibly. So export encrypted backups regularly, and leave yourself a hint only you can understand.
 
 </details>
 

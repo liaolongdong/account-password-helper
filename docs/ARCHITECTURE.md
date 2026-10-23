@@ -95,6 +95,7 @@ graph TB
 - **一处例外的明文：到期提醒表的账号名**。`password_reminders` 表按 `entryId` 冗余保存该条的 `username`（按码点截断到 `PASSWORD_FIELD_LIMITS.username`，见 [reminderManager.ts](../utils/storage/reminderManager.ts)），因为提醒由 `chrome.alarms` 在任意时刻发出桌面通知（含锁定态），去掉它就等于让通知退化成不含账号的通用文案。它额外泄露的信息是「哪个账号将在何时到期」——按上一条「保持登录 = 磁盘可解」的同一攻击面衡量并不新增防线，但确实是一处需要单独披露的明文；移除该条提醒、删除条目或清空回收站都会连带清除。
 - 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理——认证标签使篡改可检测，无静默回退。
 - **主密码从不落盘**。磁盘上只有校验哈希：`deriveVerifierHash` 同样是 PBKDF2-SHA256 / 600,000 次，但对盐值做了域分离（前缀 `aph-verify|`），使校验值与解密密钥在密码学上互相独立，存储中的校验值无法反推为密钥；比对使用常量时间。旧版单轮 SHA-256 校验值在验证成功时透明升级。
+- **第二处刻意的明文：`master_password_config.hint`**。设置主密码时可留一句提示语，去首尾空白后按 120 码位截断，**明文**存在同一配置对象里。明文是本质约束而非疏漏：提示语的作用恰恰是「忘记主密码之后还能看」，用主密码加密它就形成「忘了才需要看、看了却解不开」的死循环。它不参与任何密钥派生（`deriveVerifierHash` 只吃主密码与盐值），缺失该字段的存量配置读出空串即「未设置」，无需迁移；解锁页只在连续输错达 `MAX_FAIL_BEFORE_HINT` 后才显示，且只在管理页（Options）呈现——侧边栏开在任意站点页面上，把明文提示语放到那里会放大旁观与录屏泄露面。注意它只是帮你回想的提示，**不构成找回机制**：主密码仍然无法被扩展替你找回或重置。
 - **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者必须在同一次 `chrome.storage.local.set()` 中原子落盘，避免多上下文并发写入时「A 的包裹密钥 + B 的密文」错配。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清）。
 - **HKDF 只存在于旧版迁移路径**：`deriveSessionKey(salt)`（HKDF-SHA256，salt `aph-session-salt`、info `session-encryption-v2`）仅用于解包历史遗留的 `session_master_password` blob。它的输入是明文可读的盐值，因此不提供任何抗磁盘访问的机密性，新版会话流程不使用它。
 - `ensurePasswordsEncryptedAtRest` 在每个 SW 生命周期内幂等地维护「磁盘即密文」不变量，并由 storage 监听器兜底发现明文异常。
@@ -168,7 +169,8 @@ graph TB
 │   │   ├── PasswordHealthDialog.vue    # 安全体检仪表盘弹窗
 │   │   ├── PasswordStrengthPopover.vue # 密码强度可视化弹窗
 │   │   ├── PasswordTable.vue           # 密码列表表格
-│   │   ├── PasswordVerifyView.vue      # 主密码验证视图
+│   │   ├── PasswordVerifyView.vue      # 主密码验证视图（含提示语展示与找回向导入口）
+│   │   ├── ForgotPasswordDialog.vue   # 忘记密码找回向导（提示语 / .aph / CSV / 重置）
 │   │   ├── SearchFilterBar.vue         # 搜索过滤栏
 │   │   ├── ShortcutSettingDialog.vue   # 快捷键一览对话框（只读 + 未生效预警 + 跳转管理页）
 │   │   ├── TrashDialog.vue             # 回收站对话框（检索/恢复/彻底删除/清空）
@@ -300,6 +302,9 @@ graph TB
 - 会话恢复后自动检测并修复加密状态不一致的数据。
 - 会话检查器 `sessionManager.ts` 的 60 秒轮询**只在 Options 页**启动（`initSessionManager()`），且只在会话从「有效 → 无效」跳变时触发过期事件；SidePanel 与 Popup 不等这个轮询，由 [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `visibilitychange` 监听在页面重新可见时重跑认证检查。详见「会话生命周期」。
 - **大写锁定实时提示**：主密码相关输入框（首次设置、解锁验证视图、验证弹窗、修改主密码、加密备份导入）通过 `KeyboardEvent.getModifierState('CapsLock')` 在 keydown/keyup 实时判定大写锁定状态（见 [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)），开启时在输入框下方展示琥珀色警示行（见 [CapsLockHint.vue](../components/CapsLockHint.vue)），避免大小写误输入被当成「密码错误」；提示行用 `role="status"` 让屏幕阅读器非打断播报，失焦即复位，不留残留提示。
+
+- **密码提示语**：设置主密码时可选填一句提示（`master_password_config.hint`，明文、上限 120 码位，见 [masterPassword.ts](../utils/storage/masterPassword.ts) 的 `MAX_MASTER_PASSWORD_HINT_LENGTH`），解锁页在连续输错达 `MAX_FAIL_BEFORE_HINT`（定义于 [useAuthFlow.ts](../composables/useAuthFlow.ts)，与敏感操作复验弹窗共用同一档位）后把它显示在错误提示下方；点「重置全部数据」的入口不直接清空，而是先打开找回向导。
+- **忘记密码找回向导**（[ForgotPasswordDialog.vue](../components/options/ForgotPasswordDialog.vue)）：纯展示的退路清单，按成功率排列——回想提示语 → 用 `.aph` 加密备份（其密钥由**导出那一刻**输入的密码派生，与当前主密码无关，所以记得旧主密码就能解开旧备份）→ 用导出过的 CSV/JSON → 最后才是「仍然重置全部数据」。终点复用既有的 `useAuthFlow.resetMasterPassword`（`lockSession → clearAllData` 与二次确认一律不改），向导自身不 import 存储与加密模块。边界要说全：找回的是备份时刻的快照、导入是追加不去重、个人信息库需单独的 `.aphid`、回收站与修改历史不回滚。
 
 ### 2. 表单识别与填充
 
