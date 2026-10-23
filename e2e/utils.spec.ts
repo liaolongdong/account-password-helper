@@ -211,7 +211,13 @@ test.describe('导入导出与工具入口', () => {
       return Object.fromEntries(commands.map(command => [command.name ?? '', Boolean(command.shortcut)]));
     });
 
-    const items = dialog.locator('.shortcut-item');
+    /**
+     * 弹窗里有两组 `.shortcut-item`，共用同一个类名：第一组是 manifest 命令，第二组是
+     * 应用内快捷键（⌘K）。因此按 `.shortcut-list` 的实例定位，不能从 dialog 直接数
+     * `.shortcut-item`——那样 4 条会变成 5 条。
+     */
+    const lists = dialog.locator('.shortcut-list');
+    const items = lists.first().locator('.shortcut-item');
     await expect(items).toHaveCount(commands.length);
     for (const [index, command] of commands.entries()) {
       const item = items.nth(index);
@@ -225,6 +231,17 @@ test.describe('导入导出与工具入口', () => {
         await expect(item.locator('.shortcut-item__hint')).toBeVisible();
       }
     }
+
+    /**
+     * 第二组的承诺是「刻意不给状态」：`chrome.commands.getAll()` 读不到应用内按键，
+     * 标任何生效状态都是假数据。这里把这条注释变成可判定的——只允许 1 条、且组内无 `el-text`。
+     */
+    const inAppItems = lists.nth(1).locator('.shortcut-item');
+    await expect(inAppItems).toHaveCount(1);
+    await expect(inAppItems.nth(0).locator('.shortcut-item__name')).toHaveText(
+      textOf('options.shortcuts.label.commandPalette'),
+    );
+    await expect(lists.nth(1).locator('.el-text')).toHaveCount(0);
   });
 
   test('密码历史：改密后旧值只以密文入库，详情抽屉里默认掩码', async ({ optionsPage: page }) => {
