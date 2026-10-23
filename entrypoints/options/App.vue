@@ -51,9 +51,13 @@
         :health-score="passwords.length ? healthReport.score : undefined"
         :health-grade="passwords.length ? healthReport.grade : undefined"
         :last-verified-backup-at="lastVerifiedBackupAt"
+        :lock-loading="clearSessionLoading"
         @add-password="openAddDialogWithActiveTab"
         @open-health="openHealthDialog"
         @open-validity="openValiditySetting"
+        @lock-now="handleClearSession"
+        @open-identity="openIdentityVaultWithVerify()"
+        @open-shortcuts="showShortcutDialog = true"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
@@ -317,6 +321,7 @@
       v-model:active-index="paletteActiveIndex"
       :filtered="paletteFiltered"
       @run="paletteRunAt"
+      @open-shortcuts="openShortcutsFromPalette"
     />
 
     <!-- 删除回执：5 秒内可撤销，复用回收站的恢复链路 -->
@@ -449,6 +454,33 @@ import {
 } from '@/utils/storage/reviewPrompt';
 import { GITHUB_RELEASES_PAGE_URL, REVIEW_PROMPT_URL } from '@/utils/urls';
 import { readHealthHistory } from '@/utils/healthHistory';
+import {
+  Aim,
+  Brush,
+  Clock,
+  Compass,
+  Connection,
+  CopyDocument,
+  Delete,
+  Document,
+  DocumentCopy,
+  Download,
+  FolderChecked,
+  InfoFilled,
+  Key,
+  Link,
+  Lock,
+  Message,
+  Operation,
+  Plus,
+  Postcard,
+  Reading,
+  Star,
+  Timer,
+  Unlock,
+  Upload,
+} from '@element-plus/icons-vue';
+import type { CommandAction } from '@/utils/commandPalette';
 
 /**
  * 标签页标题跟随语言
@@ -759,7 +791,7 @@ const handleDataCommand = (command: string) => {
     case 'backupImport':
       showBackupImportDialog.value = true;
       break;
-    case 'backup':
+    case 'emailBackup':
       openEmailBackupDialog();
       break;
     case 'removeDuplicates':
@@ -767,9 +799,6 @@ const handleDataCommand = (command: string) => {
       break;
     case 'trash':
       openTrashWithVerify();
-      break;
-    case 'identityVault':
-      openIdentityVaultWithVerify();
       break;
   }
 };
@@ -809,9 +838,6 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'passwordHistory':
       showPasswordHistoryDialog.value = true;
-      break;
-    case 'shortcuts':
-      showShortcutDialog.value = true;
       break;
   }
 };
@@ -1467,18 +1493,21 @@ const {
  * 每项 `run` 复用 HeaderBar 菜单/按钮已有的处理函数，走完全相同的落码路径，不新增业务行为；
  * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）——但别往里写
  * 属于另一条命令的词：匹配方向是「输入必须是别名的子串」，借词会把那个词的首位结果抢过来。
- * 每次面板打开时按当前语言重新求值标签，语言切换后重开即生效。
- *
- * `entry` 组跟随头部右侧那一排辅助入口的相对顺序（新手引导 → 使用指引 → 关于；偏好设置在
- * `preferences` 组）。清单会在 `useCommandPalette` 里 `watch(filtered)` 的初次求值时跑一遍，
+ * 清单会在 `useCommandPalette` 里 `watch(filtered)` 的初次求值时跑一遍，
  * 所以引用声明在本清单之后的 handler 必须包一层箭头（`run: () => foo()`），写函数名会撞 TDZ。
+ *
+ * **分组与组内顺序逐字镜像头部**：`entry` = 左组三颗核心动作（添加密码 → 安全体检 → 个人信息库），
+ * `data` / `security` 与两个下拉同序（`security` 首位是头部的「立即锁定」，它不在下拉里），
+ * `preferences` = 偏好设置按钮，`help` = 「帮助」下拉四项（新手引导 → 使用指引 → 快捷键 → 关于）。
+ * 这条镜像由 `tests/architecture/headerActionInventory.test.ts` 按下拉与分组的同序同集钉住。
  * 增删条目要同轮改 14 个对外文件里的 20 处条数文案；这两条判据都在 `tests/architecture/commandPaletteCopy.test.ts`。
  */
-const buildPaletteActions = () => [
+const buildPaletteActions = (): CommandAction[] => [
   {
     id: 'add',
     group: 'entry',
     label: t('options.header.addPassword'),
+    icon: Plus,
     keywords: ['add', 'new', 'create'],
     run: openAddDialogWithActiveTab,
   },
@@ -1486,34 +1515,23 @@ const buildPaletteActions = () => [
     id: 'health',
     group: 'entry',
     label: t('options.header.healthCheck'),
+    icon: Aim,
     keywords: ['health', 'audit', 'score'],
     run: () => void openHealthDialog(),
   },
   {
-    id: 'tour',
+    id: 'identityVault',
     group: 'entry',
-    label: t('options.header.tour'),
-    keywords: ['tour', 'onboarding', 'walkthrough', 'replay'],
-    run: () => replayTour(),
-  },
-  {
-    id: 'guide',
-    group: 'entry',
-    label: t('options.header.guide'),
-    keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
-    run: () => openGuide(),
-  },
-  {
-    id: 'about',
-    group: 'entry',
-    label: t('options.header.about'),
-    keywords: ['about', 'version', 'info', 'privacy', 'link'],
-    run: () => (showAboutDrawer.value = true),
+    label: t('identity.title'),
+    icon: Postcard,
+    keywords: ['identity', 'vault', 'pii'],
+    run: () => openIdentityVaultWithVerify(),
   },
   {
     id: 'downloadTemplate',
     group: 'data',
     label: t('options.header.downloadTemplate'),
+    icon: Document,
     keywords: ['template', 'csv', 'excel'],
     run: downloadTemplate,
   },
@@ -1521,6 +1539,7 @@ const buildPaletteActions = () => [
     id: 'import',
     group: 'data',
     label: t('options.header.importData'),
+    icon: Upload,
     keywords: ['import', 'csv', 'json', 'excel'],
     run: () => (showImportDialog.value = true),
   },
@@ -1528,6 +1547,7 @@ const buildPaletteActions = () => [
     id: 'export',
     group: 'data',
     label: t('options.header.exportData'),
+    icon: Download,
     keywords: ['export', 'csv'],
     run: exportPasswords,
   },
@@ -1535,6 +1555,7 @@ const buildPaletteActions = () => [
     id: 'exportJson',
     group: 'data',
     label: t('options.header.exportJson'),
+    icon: Download,
     keywords: ['export', 'json'],
     run: exportPasswordsJson,
   },
@@ -1542,6 +1563,7 @@ const buildPaletteActions = () => [
     id: 'backupExport',
     group: 'data',
     label: t('options.header.backupExport'),
+    icon: Lock,
     keywords: ['backup', 'export', 'aph'],
     run: handleEncryptedBackupExport,
   },
@@ -1549,6 +1571,7 @@ const buildPaletteActions = () => [
     id: 'backupImport',
     group: 'data',
     label: t('options.header.backupImport'),
+    icon: Unlock,
     keywords: ['backup', 'import', 'restore', 'aph'],
     run: () => (showBackupImportDialog.value = true),
   },
@@ -1556,13 +1579,15 @@ const buildPaletteActions = () => [
     id: 'emailBackup',
     group: 'data',
     label: t('options.header.emailBackup'),
-    keywords: ['email', 'mail', 'backup'],
+    icon: Message,
+    keywords: ['email', 'mail', 'backup', 'emailBackup'],
     run: openEmailBackupDialog,
   },
   {
     id: 'removeDuplicates',
     group: 'data',
     label: t('options.header.removeDuplicates'),
+    icon: CopyDocument,
     keywords: ['dedup', 'duplicate'],
     run: removeDuplicates,
   },
@@ -1570,20 +1595,23 @@ const buildPaletteActions = () => [
     id: 'trash',
     group: 'data',
     label: t('options.header.trash'),
+    icon: Delete,
     keywords: ['trash', 'deleted'],
     run: openTrashWithVerify,
   },
   {
-    id: 'identityVault',
-    group: 'data',
-    label: t('identity.title'),
-    keywords: ['identity', 'vault', 'pii'],
-    run: openIdentityVaultWithVerify,
+    id: 'lockNow',
+    group: 'security',
+    label: t('options.header.lockNow'),
+    icon: Lock,
+    keywords: ['locknow', 'lock', 'now', 'clear'],
+    run: handleClearSession,
   },
   {
     id: 'changeMasterPassword',
     group: 'security',
     label: t('options.header.changeMasterPassword'),
+    icon: Key,
     keywords: ['master', 'password', 'change'],
     run: () => (showChangeMasterPasswordDialog.value = true),
   },
@@ -1591,6 +1619,7 @@ const buildPaletteActions = () => [
     id: 'validity',
     group: 'security',
     label: t('options.header.validity'),
+    icon: Timer,
     keywords: ['validity', 'session', 'expire'],
     run: openValiditySetting,
   },
@@ -1598,6 +1627,7 @@ const buildPaletteActions = () => [
     id: 'idleLock',
     group: 'security',
     label: t('options.header.idleLock'),
+    icon: Clock,
     keywords: ['idle', 'lock', 'auto'],
     run: () => (showIdleLockDialog.value = true),
   },
@@ -1605,6 +1635,7 @@ const buildPaletteActions = () => [
     id: 'identityAccess',
     group: 'security',
     label: t('options.header.identityAccess'),
+    icon: Postcard,
     keywords: ['identity', 'vault', 'verify', 'master', '个人信息库', '身份信息库', '身份库', '复验'],
     run: () => (showIdentityAccessDialog.value = true),
   },
@@ -1612,6 +1643,7 @@ const buildPaletteActions = () => [
     id: 'autoSave',
     group: 'security',
     label: t('options.header.autoSave'),
+    icon: FolderChecked,
     keywords: ['autosave', 'auto', 'save'],
     run: () => (showAutoSaveDialog.value = true),
   },
@@ -1619,6 +1651,7 @@ const buildPaletteActions = () => [
     id: 'siteRules',
     group: 'security',
     label: t('options.header.siteRules'),
+    icon: Link,
     keywords: ['site', 'rule', 'selector', 'shadow'],
     run: () => openSiteRules(),
   },
@@ -1626,6 +1659,7 @@ const buildPaletteActions = () => [
     id: 'domainMatch',
     group: 'security',
     label: t('options.header.domainMatch'),
+    icon: Connection,
     keywords: ['domain', 'subdomain', 'wildcard', 'match'],
     run: () => openDomainMatchSetting(),
   },
@@ -1633,36 +1667,65 @@ const buildPaletteActions = () => [
     id: 'clipboard',
     group: 'security',
     label: t('options.header.clipboard'),
+    icon: DocumentCopy,
     keywords: ['clipboard', 'copy'],
     run: () => (showClipboardDialog.value = true),
-  },
-  {
-    id: 'favoriteLimit',
-    group: 'security',
-    label: t('options.header.favoriteLimit'),
-    keywords: ['favorite', 'limit', 'star'],
-    run: () => (showFavoriteLimitDialog.value = true),
   },
   {
     id: 'passwordHistory',
     group: 'security',
     label: t('options.historySetting.title'),
+    icon: Document,
     keywords: ['history'],
     run: () => (showPasswordHistoryDialog.value = true),
   },
   {
-    id: 'shortcuts',
+    id: 'favoriteLimit',
     group: 'security',
-    label: t('options.header.shortcuts'),
-    keywords: ['shortcut', 'hotkey', 'key'],
-    run: () => (showShortcutDialog.value = true),
+    label: t('options.header.favoriteLimit'),
+    icon: Star,
+    keywords: ['favorite', 'limit', 'star'],
+    run: () => (showFavoriteLimitDialog.value = true),
   },
   {
     id: 'personalization',
     group: 'preferences',
     label: t('options.header.personalization'),
+    icon: Brush,
     keywords: ['preference', 'theme', 'language'],
     run: openPersonalizationDialog,
+  },
+  {
+    id: 'tour',
+    group: 'help',
+    label: t('options.header.tour'),
+    icon: Compass,
+    keywords: ['tour', 'onboarding', 'walkthrough', 'replay'],
+    run: () => replayTour(),
+  },
+  {
+    id: 'guide',
+    group: 'help',
+    label: t('options.header.guide'),
+    icon: Reading,
+    keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
+    run: () => openGuide(),
+  },
+  {
+    id: 'shortcuts',
+    group: 'help',
+    label: t('options.header.shortcuts'),
+    icon: Operation,
+    keywords: ['shortcuts', 'shortcut', 'hotkey', 'key'],
+    run: () => (showShortcutDialog.value = true),
+  },
+  {
+    id: 'about',
+    group: 'help',
+    label: t('options.header.about'),
+    icon: InfoFilled,
+    keywords: ['about', 'version', 'info', 'privacy', 'link'],
+    run: () => (showAboutDrawer.value = true),
   },
 ];
 
@@ -1673,6 +1736,7 @@ const {
   activeIndex: paletteActiveIndex,
   filtered: paletteFiltered,
   open: paletteOpen,
+  close: paletteClose,
   runAt: paletteRunAt,
 } = useCommandPalette({
   getActions: buildPaletteActions,
@@ -1683,6 +1747,17 @@ const {
   // `tour` 与 `guideActive` 在下方声明：这里传的是回调，setup 同步跑完后才可能被按键触发，不存在前置引用问题。
   canOpen: () => isAuthenticated.value && !tour.isActive.value && !guideActive.value,
 });
+
+/**
+ * 从面板 footer 的「快捷键」入口打开快捷键一览
+ *
+ * 先收面板再开弹窗，与 `runAt` 的收尾顺序一致（面板遮罩压在弹窗上面会既挡视又抢焦点）；
+ * 打开的仍是清单里 `shortcuts` 那条用的同一个弹窗、同一个 flag，不另开第二份状态。
+ */
+const openShortcutsFromPalette = (): void => {
+  paletteClose();
+  showShortcutDialog.value = true;
+};
 
 /** Storage 与可见性变化监听 */
 useStorageWatcher({

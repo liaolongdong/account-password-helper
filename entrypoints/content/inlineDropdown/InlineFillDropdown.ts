@@ -314,6 +314,17 @@ const inlineStyles = `
   border-radius: 4px;
 }
 
+/*
+ * 环境来源标识：本地页声明「这一页其实是某环境的前端」后带出的条目。
+ * 与跨子域 chip 用同一形状、主题色区分：两者回答的是同一个问题（这条为什么在这里），
+ * 但只有环境 chip 需要读出主机名，因此给它更实一点的底色，避免被当成中性备注。
+ */
+.aph-scope-chip--env {
+  color: var(--aph-primary, #409eff);
+  background: var(--aph-primary-bg, rgba(64, 158, 255, 0.1));
+  border-color: var(--aph-primary-border, rgba(64, 158, 255, 0.35));
+}
+
 /* 搜索命中高亮：重置 mark 默认黄底，主题色加重；标签内沿用标签自身配色仅加粗，与侧边栏高亮策略一致 */
 .aph-hit {
   padding: 0;
@@ -1551,14 +1562,21 @@ export class InlineFillDropdown {
         const scopeChip = isCrossSubdomainTier(acc.tier)
           ? `<span class="aph-scope-chip">${tl('cs.inline.scopeCrossSubdomain')}</span>`
           : '';
+        // 环境来源 chip：本地页声明了「这一页其实是某环境的前端」，被绑定带出的条目必须在这里
+        // 说明自己来自哪个主机——下拉贴在登录框上，用户看不见侧边栏头部那颗芯片。
+        const envChip = acc.envHost
+          ? `<span class="aph-scope-chip aph-scope-chip--env">${tl('cs.inline.scopeEnv', {
+              host: escapeHtml(acc.envHost),
+            })}</span>`
+          : '';
         const supplementText = acc.remark || acc.url || '';
         const supplementClass = acc.remark ? 'aph-remark' : 'aph-url';
         const supplement = supplementText
           ? `<span class="${supplementClass}">${highlightHtml(supplementText, highlightKw)}</span>`
           : '';
         const sub =
-          tagsHtml || supplement || scopeChip
-            ? `<div class="aph-row-sub">${scopeChip}${tagsHtml}${supplement}</div>`
+          tagsHtml || supplement || scopeChip || envChip
+            ? `<div class="aph-row-sub">${scopeChip}${envChip}${tagsHtml}${supplement}</div>`
             : '';
         const titleAttr = acc.remark
           ? ` title="${tl('cs.inline.remarkTitle', { remark: escapeHtml(acc.remark) })}"`

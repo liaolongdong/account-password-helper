@@ -69,6 +69,14 @@ interface Props {
   crossDomainIds: ReadonlySet<string>;
   /** 「同域名但端口不同」的条目 ID 集（仅临时放宽后非空，徽章据此查表） */
   portMismatchIds: ReadonlySet<string>;
+  /**
+   * 仅因本地页环境绑定才出现在本站的条目 ID 集
+   *
+   * 徽章文案由父级给（`envBadgeLabel`）：环境只有一个，没必要把整份候选集传进来查表。
+   */
+  envOnlyIds: ReadonlySet<string>;
+  /** 环境徽章文案（如 `fat · example.com`）；未绑定时为空串 */
+  envBadgeLabel: string;
   /** 放宽到「同主域名」档可额外带出的条目数（仅空态引导使用） */
   crossDomainHintCount: number;
   /** 被端口隔离挡在本站之外的同域名条目数（仅空态引导使用） */
@@ -175,6 +183,14 @@ const isCrossDomain = (entry: PasswordEntry): boolean => props.crossDomainIds.ha
  * `fat.example.com:9090` 上可以同时带这两枚徽章。
  */
 const isPortMismatch = (entry: PasswordEntry): boolean => props.portMismatchIds.has(entry.id);
+
+/**
+ * 条目是否只由环境绑定带入（徽章依据）
+ *
+ * 一枚徽章回答的是「这条为什么出现在这一页」：本机端口挡不住的那条是「其他端口」，
+ * 属于另一个主机但被用户声明成当前环境的才是「环境」，两者判据不同、可并存展示。
+ */
+const isEnvOnly = (entry: PasswordEntry): boolean => props.envOnlyIds.has(entry.id);
 
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
@@ -632,6 +648,8 @@ onUnmounted(() => {
             canFill(password),
             isCrossDomain(password),
             isPortMismatch(password),
+            isEnvOnly(password),
+            envBadgeLabel,
           ]"
           :password="password"
           :is-active="activeIndex === index"
@@ -640,6 +658,8 @@ onUnmounted(() => {
           :can-fill="canFill(password)"
           :cross-domain="isCrossDomain(password)"
           :port-mismatch="isPortMismatch(password)"
+          :env-bound="isEnvOnly(password)"
+          :env-label="envBadgeLabel"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
           @open-site="p => emit('openSite', p)"

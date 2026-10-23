@@ -458,7 +458,7 @@ export const parkPointer = async (page: Page): Promise<void> => {
 };
 
 /**
- * 展开 HeaderBar 的某个下拉菜单（「数据管理」/「安全设置」）
+ * 展开 HeaderBar 的某个下拉菜单（「数据管理」/「安全设置」/「帮助」）
  *
  * Element Plus 的 popper 懒渲染，未展开时菜单项根本不在 DOM 里，
  * 因此以「首个 menuitem 可见」为展开信号，而不是给固定等待时长。

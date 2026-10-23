@@ -4,6 +4,7 @@ import type { DomainMatchMode } from '@/utils/domain';
 import { parsePagePortContext } from '@/utils/domain';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
+import { resetEnvBindingMirror, setEnvBinding } from '@/entrypoints/background/environmentBinding';
 
 /**
  * passwordCache.applyMetadataOnlyUpdate 单元测试
@@ -222,6 +223,74 @@ describe('getMatchingAccounts 下发给内容脚本的字段口径', () => {
   });
 });
 
+describe('getMatchingAccounts 的环境绑定（本地页）', () => {
+  /** 本机端点、被绑定环境的条目、以及一条与两者都无关的外站条目 */
+  const vault = () => [
+    makePasswordEntry({ id: 'local', url: 'localhost:3000' }),
+    makePasswordEntry({ id: 'fat', url: 'fat.example.com' }),
+    makePasswordEntry({ id: 'foreign', url: 'github.com' }),
+  ];
+
+  beforeEach(async () => {
+    resetEnvBindingMirror();
+    await chrome.storage.session.clear();
+  });
+
+  // 绑定表与内存镜像都是模块级状态：不清就会顺着文件顺序漏给后面的用例，
+  // 让「localhost 页面」那些既有断言莫名多出一条远端条目。
+  afterEach(async () => {
+    resetEnvBindingMirror();
+    await chrome.storage.session.clear();
+  });
+
+  it('未绑定时该环境的条目不进下拉：本地页不因「同是开发机」捞远端凭证', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
+    expect(accounts.map(a => a.id)).toEqual(['local']);
+  });
+
+  it('绑定后条目进下拉、按精确层级下发，并带来源主机', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
+    expect(accounts.map(a => a.id).sort()).toEqual(['fat', 'local']);
+    expect(accounts.find(a => a.id === 'fat')).toMatchObject({ tier: 0, envHost: 'fat.example.com' });
+    // 本机条目不打环境标签：徽章只说「这条为什么出现在这里」，本机那条没有「为什么」要解释
+    expect(accounts.find(a => a.id === 'local')!.envHost).toBeUndefined();
+  });
+
+  it('别名写法读到同一份绑定（127.0.0.1 与 localhost 是同一端点）', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('127.0.0.1', page('http://127.0.0.1:3000'));
+    expect(accounts.some(a => a.id === 'fat')).toBe(true);
+  });
+
+  it('换端口即另一份作用域：5173 的 dev server 不会带上 3000 的绑定', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:5173'));
+    expect(accounts.map(a => a.id)).toEqual([]);
+  });
+
+  it('公网页面即使带着同名条目也不受影响：绑定只在环回页面参与判定', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('uat.example.com', page('https://uat.example.com/'));
+    expect(accounts.map(a => a.id)).toEqual([]);
+  });
+});
+
 describe('getMatchingAccounts 的关键词检索（内联下拉的拼音档）', () => {
   /**
    * 三条目同 host，检索字段分布在用户名 / 标签 / 备注三个不同字段上，
@@ -397,7 +466,7 @@ describe('站点匹配策略镜像与 tier 下发', () => {
     ]);
   });
 
-  it('本地开发域名按端口过滤，tier 一律下发 0（不参与档位语义）', async () => {
+  it('本地端点先过主机门再按端口过滤，外站条目不进下拉', async () => {
     await setMode('sameMainDomain');
     updatePasswordCache(
       [
@@ -410,18 +479,14 @@ describe('站点匹配策略镜像与 tier 下发', () => {
     );
 
     const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
-    // 8080 被端口口径挡掉；无端口的 remote 按既有行为放行，但不获跨子域放行（tier 0）
-    expect(accounts.map(a => [a.id, a.tier])).toEqual([
-      ['p3000', 0],
-      ['remote', 0],
-    ]);
+    // 8080 被端口口径挡掉；外站 remote 被主机门挡掉——改前它因「未写端口」被判成本站且下发 tier 0
+    expect(accounts.map(a => [a.id, a.tier])).toEqual([['p3000', 0]]);
 
-    // 当前页无端口时放行全部条目（既有行为）：外站条目按 0 下发，不渲染来源标识
+    // 当前页无端口时同主机的其它端口条目照常放行（既有行为），外站条目仍不进本站
     const all = await getMatchingAccounts('localhost', page('http://localhost'));
     expect(all.accounts.map(a => [a.id, a.tier])).toEqual([
       ['p3000', 0],
       ['p8080', 0],
-      ['remote', 0],
     ]);
   });
 });

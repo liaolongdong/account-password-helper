@@ -35,6 +35,7 @@
           class="cp-list"
           role="listbox"
           :aria-label="t('options.commandPalette.listLabel')"
+          @mousemove="onPointerMove"
         >
           <!--
             分组以 `role="group"` 包裹：`role="listbox"` 的合法子元素只有 `option` 与
@@ -63,9 +64,15 @@
               :data-index="item.index"
               role="option"
               :aria-selected="item.index === activeIndex"
-              @mouseenter="emit('update:activeIndex', item.index)"
               @click="emit('run', item.index)"
             >
+              <!-- 图标取自头部同名菜单项，纯装饰：无障碍名仍由同行文本承担 -->
+              <el-icon
+                class="cp-item-icon"
+                aria-hidden="true"
+              >
+                <component :is="item.action.icon" />
+              </el-icon>
               <SearchHighlight
                 class="cp-item-label"
                 :text="item.action.label"
@@ -83,7 +90,28 @@
         </div>
 
         <div class="cp-footer">
-          {{ t('options.commandPalette.hint') }}
+          <span class="cp-hint">
+            <ShortcutKeyCap text="↑↓" />
+            {{ t('options.commandPalette.hintNavigate') }}
+          </span>
+          <span class="cp-hint">
+            <ShortcutKeyCap text="Enter" />
+            {{ t('options.commandPalette.hintSelect') }}
+          </span>
+          <span class="cp-hint">
+            <ShortcutKeyCap text="Esc" />
+            {{ t('options.commandPalette.hintClose') }}
+          </span>
+          <!-- 面板里本来就有「快捷键」这条命令，但从这里用到它要走 3 步（关面板 → 帮助 → 快捷键）；
+               入口摆在提示条上，省掉那 3 步。文案复用头部那颗菜单项的 key，与清单里同源。 -->
+          <button
+            type="button"
+            class="cp-footer__action"
+            @keydown.enter.stop.prevent="emit('openShortcuts')"
+            @click="emit('openShortcuts')"
+          >
+            {{ t('options.header.shortcuts') }}
+          </button>
         </div>
       </div>
     </div>
@@ -97,6 +125,7 @@ import type { CommandAction } from '@/utils/commandPalette';
 import { useFocusTrap } from '@/composables/useFocusTrap';
 import { useI18n } from '@/utils/i18n';
 import SearchHighlight from '@/components/SearchHighlight.vue';
+import ShortcutKeyCap from '@/components/ShortcutKeyCap.vue';
 
 /**
  * 命令面板覆盖层组件（Options 页 Ctrl/Cmd+K）
@@ -130,6 +159,13 @@ const emit = defineEmits<{
   'update:activeIndex': [value: number];
   /** 点击某条动作 */
   run: [index: number];
+  /**
+   * 请求打开「快捷键一览」
+   *
+   * 与清单里 `id: 'shortcuts'` 那条指向同一个弹窗，但收尾要由调用方补齐（先收面板再开弹窗）——
+   * 面板本身不知道弹窗的存在，这里只负责把意图报上去。
+   */
+  openShortcuts: [];
 }>();
 
 const { t } = useI18n();
@@ -169,6 +205,24 @@ const grouped = computed(() => {
 const activeDescendantId = computed(() =>
   props.filtered[props.activeIndex] ? `cp-option-${props.activeIndex}` : undefined,
 );
+
+/**
+ * 指针**真的移动**时才接管活动项
+ *
+ * 此前是逐行 `@mouseenter`，而活动项一变就 `scrollIntoView()`：列表一滚，另一行被搬到静止
+ * 的指针底下，Chromium 重算 hover 并补发 `mouseenter`，把键盘游标改回指针那一行——实测连按
+ * ↓ 会 `4 → 3`、`5 → 4` 地倒退。滚动**不会**补发 `mousemove`，所以把判定收在容器的
+ * `mousemove` 上：鼠标真的动了照样接管游标（鼠标用户不损失任何便利），键盘导航引起的滚动
+ * 则改不动它。索引未变时不写 ref，免得高频事件触发无谓重渲染。
+ */
+const onPointerMove = (event: MouseEvent) => {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  const item = target?.closest<HTMLElement>('[data-index]');
+  if (!item) return;
+  const index = Number(item.dataset.index);
+  if (!Number.isInteger(index) || index === props.activeIndex) return;
+  emit('update:activeIndex', index);
+};
 
 // 打开时聚焦输入框（Tab 陷阱与焦点归还由 useFocusTrap 承担）
 watch(visible, isVisible => {
@@ -234,6 +288,30 @@ watch(
   overflow-y: auto;
 }
 
+/*
+ * 4px 细条，与偏好设置弹窗同一口径。macOS 默认下滚动条是 overlay（不占位、只在滚动时浮现），
+ * 而 `::-webkit-scrollbar` 会把这一处改回经典渲染：常驻占 4px，换来一个不滚动也看得见的
+ * 「下面还有」信号。刻意与弹窗取同色值，两处注入式/扩展式面板共用一套滚动条观感。
+ */
+.cp-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cp-list::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.cp-list::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* 分组之间给一条断点：30 条一屏滚下来，只有灰字标题时五个组会糊成一片 */
+.cp-group + .cp-group {
+  margin-top: 4px;
+  border-top: 1px solid var(--aph-surface-line);
+}
+
 .cp-group-title {
   padding: 8px 10px 4px;
   font-size: 12px;
@@ -248,6 +326,18 @@ watch(
   color: var(--aph-text-primary);
   cursor: pointer;
   border-radius: 8px;
+}
+
+/* 图标取自头部同名菜单项，未选中时退到次要色，选中才跟文字一起走主色 */
+.cp-item-icon {
+  flex-shrink: 0;
+  margin-right: 9px;
+  font-size: 15px;
+  color: var(--aph-icon-muted);
+}
+
+.cp-item--active .cp-item-icon {
+  color: var(--aph-primary);
 }
 
 .cp-item:hover {
@@ -267,10 +357,46 @@ watch(
 }
 
 .cp-footer {
+  display: flex;
+  gap: 14px;
+  align-items: center;
   padding: 8px 14px;
   font-size: 12px;
   color: var(--aph-text-muted);
   border-top: 1px solid var(--aph-surface-line);
+}
+
+.cp-hint {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/*
+ * footer 里的「快捷键」入口：与提示文字同权重，但必须看得出可点。
+ * 只换颜色与描边，不做位移——hover 位移在这种密集提示条里会被读成抖动，
+ * 也不属于需要 `prefers-reduced-motion` 兜底的那一档运动量。
+ */
+.cp-footer__action {
+  padding: 2px 8px;
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--aph-text-secondary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 5px;
+}
+
+.cp-footer__action:hover {
+  color: var(--aph-primary);
+  border-color: var(--aph-primary-border);
+}
+
+.cp-footer__action:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 1px;
 }
 
 @keyframes cp-fade {

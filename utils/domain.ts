@@ -267,24 +267,57 @@ export function getMainDomain(hostname: string): string {
   return parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
 }
 
-// ── 本地开发域名判断 ──
+// ── 本地开发（环回）主机 ──
+
+/** 指向本机的字面主机写法：三者互为别名 */
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+/** 环回别名折叠后的规范主机键 */
+const LOOPBACK_CANONICAL_HOST = 'localhost';
 
 /**
- * 判断是否为本地开发环境域名
+ * 判断是否为环回（本机）主机
  *
- * 命中该判定的域名改走 {@link matchesPortForLocalDev} 的端口过滤（而非精确 host 匹配），
- * 方便开发人员在多个本地项目间快速填充密码，同时避免不同端口的本地账号互相混淆。
+ * 命中的主机改走 {@link matchesSiteEndpoint}：主机门照旧不可绕开，端口门在 `loose` 档下用
+ * 本地既有的「同端点才算本站」口径，让开发人员在同一台机器的多个本地项目间快速填充，
+ * 同时不把不同端口的本地账号混成一堆。
  *
- * @param domain - 当前页面域名（hostname）
- * @returns 是否为本地开发域名
+ * @param hostname - 当前页面 hostname
+ * @returns 是否指向本机环回
  *
  * @example
- * isLocalDevDomain('localhost')       // → true
- * isLocalDevDomain('127.0.0.1')       // → true
- * isLocalDevDomain('example.com')     // → false
+ * isLoopbackHost('localhost')         // → true
+ * isLoopbackHost('127.0.0.1')         // → true
+ * isLoopbackHost('[::1]')             // → true
+ * isLoopbackHost('myapp.localhost')   // → false（同机不同虚拟主机）
+ * isLoopbackHost('192.168.1.5')       // → false（内网可被他人访问）
  */
-export function isLocalDevDomain(domain: string): boolean {
-  return domain === 'localhost' || domain === '127.0.0.1';
+export function isLoopbackHost(hostname: string): boolean {
+  return LOOPBACK_HOSTS.has(hostname.trim().toLowerCase());
+}
+
+/**
+ * 把主机折叠为参与相等判定的规范键
+ *
+ * 存在理由：`localhost`、`127.0.0.1`、`[::1]` 是同一台机器的三种字面写法，同一端口上
+ * 通常就是同一个监听进程。浏览器按 origin 把三者隔开，但「这条凭证是不是本站的」这一问
+ * 需要把三者折成同一主体才符合本地开发的直觉，也让 `*.localhost` 这类显式通配条目真正生效
+ * （改动前实测：`*.localhost` 条目在 `127.0.0.1` 页面上任何档位都不命中）。
+ * 只折叠环回：`myapp.localhost`（同机不同 vhost）、内网与公网主机逐字不变，
+ * 因此这一折叠不会把任何远端主体并进来。
+ *
+ * @param hostname - 已归一（或原始）的 hostname
+ * @returns 规范主机键
+ *
+ * @example
+ * canonicalSiteHost('127.0.0.1')         // → 'localhost'
+ * canonicalSiteHost('[::1]')             // → 'localhost'
+ * canonicalSiteHost('myapp.localhost')   // → 'myapp.localhost'
+ * canonicalSiteHost('sub.example.com')   // → 'sub.example.com'
+ */
+export function canonicalSiteHost(hostname: string): string {
+  const host = hostname.trim().toLowerCase();
+  return LOOPBACK_HOSTS.has(host) ? LOOPBACK_CANONICAL_HOST : host;
 }
 
 // ── 同主域名校验 ──
@@ -345,24 +378,76 @@ export function extractPort(value: string): string {
   }
 }
 
+/** 端口通配标记：条目网址写成 `localhost:*` 表示「该主机的所有端口」 */
+const PORT_WILDCARD = '*';
+
+/** 空输入的解析结果（复用常量对象，避免热路径每次新建） */
+const NO_PORT_DECL: HostPortDecl = { host: '', port: '', anyPort: false };
+
+/** {@link splitHostAndPortDecl} 的返回值 */
+export interface HostPortDecl {
+  /** 不含端口的主机（保留最左通配段 `*.qq.com`） */
+  host: string;
+  /** 显式写下的数字端口；未写端口或写 `:*` 时为空串 */
+  port: string;
+  /** 是否显式写了 `:*`（逐条跨端口授权） */
+  anyPort: boolean;
+}
+
 /**
- * 本地开发场景下判断密码条目的 URL 是否与当前页面端口匹配
+ * 纯文本解析「主机 + 显式端口声明」
  *
- * 匹配规则（仅适用于 isLocalDevDomain 为 true 的域名）：
+ * 与 {@link declaredPortOf} 同一口径（文本而不是 `new URL`），但额外认出 `:*`：
+ * `*` 不是合法端口，带端口通配的 URL 用 WHATWG 解析会直接抛错，
+ * 所以端口通配只能靠文本口径识别。凭据形态（`user:pw@host`）的末段非纯数字，
+ * 自然退回「未声明端口」，host 原样返回交由 URL 解析路径处理。
+ *
+ * @param value - 条目存储的 URL/域名，可含 `:*` 端口通配
+ * @returns `host` 不含端口；`port` 为显式写下的数字端口；`anyPort` 标记 `:*`
+ *
+ * @example
+ * splitHostAndPortDecl('localhost:*')              // → { host: 'localhost', port: '', anyPort: true }
+ * splitHostAndPortDecl('localhost:3000')           // → { host: 'localhost', port: '3000', anyPort: false }
+ * splitHostAndPortDecl('http://[::1]:8080/api')    // → { host: '[::1]', port: '8080', anyPort: false }
+ */
+export function splitHostAndPortDecl(value: string | undefined | null): HostPortDecl {
+  const raw = value?.trim().toLowerCase() ?? '';
+  if (!raw) return NO_PORT_DECL;
+  const schemeless = raw.includes('://') ? raw.slice(raw.indexOf('://') + 3) : raw;
+  // 先剥凭据：`*` 不是合法端口，带 `:*` 的 URL 走不到 WHATWG 解析器，若不在此处切掉
+  // `user:pw@`，`https://user:pw@localhost:*` 会得到 `user:pw@localhost` 这个永远匹配不上
+  // 任何站点的主机串——条目存进去就成了死条目。能解析的 URL 由解析器代剥，两侧口径对齐。
+  const authority = schemeless.split(/[/?#]/)[0];
+  const hostPart = authority.slice(authority.lastIndexOf('@') + 1);
+  const colonIdx = hostPart.lastIndexOf(':');
+  if (colonIdx < 0) return { host: hostPart, port: '', anyPort: false };
+  const portPart = hostPart.slice(colonIdx + 1);
+  if (portPart === PORT_WILDCARD) return { host: hostPart.slice(0, colonIdx), port: '', anyPort: true };
+  if (/^\d{1,5}$/.test(portPart)) return { host: hostPart.slice(0, colonIdx), port: portPart, anyPort: false };
+  return { host: hostPart, port: '', anyPort: false };
+}
+
+/**
+ * 本地端点的端口轴规则（**不含主机判定**，主机门见 {@link matchesSiteEndpoint}）
+ *
+ * 匹配规则（仅用于环回主机的 `loose` 档）：
  * - 当前页面无端口（如纯 localhost）→ 始终匹配（保持原有行为，展示全部）
  * - 条目 URL 为空 → 始终匹配（无 URL 条目始终展示）
+ * - 条目写了 `:*` → 匹配（用户逐条显式声明「本机所有端口」）
  * - 条目 URL 无端口 → 匹配（通用条目不限端口）
  * - 条目 URL 有端口 → 仅当端口与当前页面端口一致时匹配
  *
  * @param storedUrl 密码条目中存储的 URL（可能为空、纯域名或完整 URL）
  * @param currentPort 当前页面的端口号（空串表示无端口）
- * @returns 是否匹配
+ * @returns 端口轴是否匹配
  */
 export function matchesPortForLocalDev(storedUrl: string | undefined | null, currentPort: string): boolean {
   // 当前页面无端口 → 展示全部（保持原有行为）
   if (!currentPort) return true;
   // 条目 URL 为空 → 始终展示
   if (!storedUrl || storedUrl.trim() === '') return true;
+  // 显式跨端口条目（`localhost:*`）不受当前端口约束
+  if (splitHostAndPortDecl(storedUrl).anyPort) return true;
   const storedPort = extractPort(storedUrl);
   // 存储的 URL 无端口（通用条目）或端口匹配当前页面端口
   return !storedPort || storedPort === currentPort;
@@ -405,6 +490,10 @@ export function normalizeToHostname(value: string): string {
   try {
     return restoreWildcardMarker(new URL(s.includes('://') ? s : `https://${s}`).hostname);
   } catch {
+    // `:*` 端口通配不是合法端口，URL 解析必然抛错：先剥掉通配端口段，
+    // 否则 `localhost:*` 会带着 `:*` 脏尾参与主机相等判定而永远命中不了
+    const { host, anyPort } = splitHostAndPortDecl(s);
+    if (anyPort) return restoreWildcardMarker(host);
     return restoreWildcardMarker(s.split('/')[0].split('?')[0].split('#')[0]);
   }
 }
@@ -492,7 +581,7 @@ export function isExactHostMatch(currentDomain: string, storedUrl: string): bool
   const b = normalizeToHostname(storedUrl);
   if (!a || !b) return false;
 
-  return a === b;
+  return canonicalSiteHost(a) === canonicalSiteHost(b);
 }
 
 // ── 跨子域分层匹配 ──
@@ -567,8 +656,9 @@ function memoizedScope(hostname: string): string {
  * 站点可见性与填充可行性的唯一判据：侧边栏本站范围、内联下拉、一键填充、右键菜单与
  * Popup 计数全部经它，杜绝「下拉里有、侧边栏没有」或两处排序分歧。
  *
- * 前置约束：`localhost` / `127.0.0.1` 的端口过滤与「当前页无域名」两条特殊路径由调用方
- * 在调用本函数**之前**处理，本函数不参与本地开发端口语义。
+ * 前置约束：环回主机（`localhost` / `127.0.0.1` / `[::1]`）在 `loose` 档下**同样先过本函数**，
+ * 再叠一层端口过滤（见 {@link matchesSiteEndpoint}）；本函数不参与端口语义，但认识环回别名。
+ * 「当前页无域名」一支仍由调用方在处理。
  *
  * 通配命中刻意不使用 `endsWith('.qq.com')`（会被 `evil-qq.com` 之类前缀碰撞绕过），
  * 而是复用既有的可信边界「注册主体范围相等」（{@link registrableScope}），
@@ -595,7 +685,7 @@ function memoizedScope(hostname: string): string {
  */
 export function resolveMatchTier(
   currentHost: string,
-  storedUrl: string | undefined,
+  storedUrl: string | undefined | null,
   mode: DomainMatchMode = 'off',
 ): MatchTier | -1 {
   const raw = storedUrl?.trim();
@@ -606,13 +696,14 @@ export function resolveMatchTier(
   const storedHost = normalizeToHostname(raw);
   if (!storedHost) return -1;
   const host = normalizeCurrentHostCached(currentHost);
-  if (storedHost === host) return 0;
+  // 环回别名折叠后才比：`localhost` 页面认得 `127.0.0.1:3000`，反向亦然
+  if (canonicalSiteHost(storedHost) === canonicalSiteHost(host)) return 0;
 
   if (storedHost.startsWith(WILDCARD_PREFIX)) {
     if (mode === 'off') return -1;
     const base = storedHost.slice(WILDCARD_PREFIX.length);
     if (!base) return -1;
-    return memoizedScope(host) === memoizedScope(base) ? 1 : -1;
+    return canonicalSiteHost(memoizedScope(host)) === canonicalSiteHost(memoizedScope(base)) ? 1 : -1;
   }
 
   if (mode !== 'sameMainDomain') return -1;
@@ -639,6 +730,163 @@ export function isCrossSubdomainTier(tier: MatchTier | -1): boolean {
   return tier >= 1 && tier <= 3;
 }
 
+// ── 排序关联度 ──
+
+/** 「与当前站点无关」条目的排序权重，排在最后 */
+export const NOT_ON_SITE_RANK = 6;
+
+/** 「同主机、其他端口」条目的排序权重：本机另一个服务，比任何跨主机关系都更相关 */
+export const SAME_HOST_OTHER_PORT_RANK = 1;
+
+/**
+ * 列表排序用的站点关联度权重（数值越小越靠前）
+ *
+ * 分工是刻意的两件事：**档位决定「看不看得到」，关联度只决定「谁排在前面」**。所以它恒按
+ * 最宽的 `sameMainDomain` 口径取主机层级，不受用户所选档位影响。阶梯为：
+ * `0` 当前端点 → `1` 同主机其他端口 → `2` 通配条目 → `3` 同主域 apex → `4` 同主域其他子域
+ * → `5` 网址留空 → `6` 与当前站点无关。
+ *
+ * 两条来历：
+ * - `fat.example.com` 页面在默认档的「全站」范围里，`dev.example.com` 与 `github.com` 曾同为
+ *   二值权重 `1`，先后只由收藏置顶与最后使用时间决定 —— 关联最强的反而可能被陌生站点压住；
+ * - 「同主机其他端口」曾被放到绝对末位（比无关站点还低），那是为「本站临时放宽不抢首条」
+ *   设计的，串到全站范围就把相关度排反了：`localhost:3000` 页面上 `localhost:4000`
+ *   落在 `github.com` 之后（实测）。本机另一个服务显然比陌生站点更相关，因此给它 `1`。
+ *
+ * 「本站」列表的相对顺序不变：可见集只含 `0`（同主机且端口一致）与 `5`（留空通用）两类，
+ * 与改前的 `0 / 1` 同序；「首条即可填充」仍由 `filterAndSortEntriesForDomain` 的可见集过滤
+ * 保证（它根本不放入非本站条目），而非依赖排序把别的端口压到最后。
+ *
+ * 入参必须是**持久化**策略：`0` 与 `1` 的分界问的是「这条按用户选的端口档属不属于当前端点」，
+ * 读展示策略（`relaxed`）会把同机其他端口的凭证抬到当前端点之前。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 当前页面 hostname（非空；无域名场景由调用方另行处理）
+ * @param page - 页面端口上下文
+ * @param policy - 持久化的站点匹配策略
+ * @returns 排序权重（越小越靠前）
+ */
+export function siteRankOf(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+): number {
+  const hostTier = resolveMatchTier(currentHost, storedUrl, 'sameMainDomain');
+  if (hostTier === -1) return NOT_ON_SITE_RANK;
+  if (hostTier === 0) {
+    // 同一台主机（含环回别名）：端口对得上就是「当前端点」，对不上也只是「本机另一个服务」
+    return matchesSiteEndpoint(storedUrl, currentHost, page, policy) ? 0 : SAME_HOST_OTHER_PORT_RANK;
+  }
+  // 通配 / apex / 兄弟子域 / 留空通用各让出一位给「同主机其他端口」
+  return hostTier + 1;
+}
+
+// ── 本地开发环境绑定 ──
+
+/**
+ * 把「本地页声明的远端环境主机」收敛成实际生效的绑定主机
+ *
+ * 存在理由：绑定这条信息来自用户点选，但它能换来的权限是「让另一个主机的凭证出现在
+ * 眼前这一页并可被填充」，所以这一问不能交给调用方自觉——判据收在这里，公网页面传入
+ * `envHost` 也一律当作没绑定。只有环回主机（`isLoopbackHost` 的四种精确写法）可绑定，
+ * 与端口芯片、别名折叠同一条门禁，公网站点的口径逐字不变。
+ *
+ * @param currentHost - 页面真实 hostname
+ * @param envHost - 用户声明的环境主机（`fat.example.com` 这类），未声明传 null
+ * @returns 生效的绑定主机；不可绑定时为 null
+ */
+export function effectiveEnvHost(currentHost: string, envHost: string | null | undefined): string | null {
+  if (!envHost || !isLoopbackHost(currentHost)) return null;
+  if (canonicalSiteHost(envHost) === canonicalSiteHost(currentHost)) return null;
+  return envHost;
+}
+
+/**
+ * 本站判定：真实端点 ∧ 策略，或「绑定端点 ∧ 策略」
+ *
+ * 两个轴是**并集**而不是替换：绑定 `fat.example.com` 之后，`localhost:3000` 自己的条目
+ * 仍然算本站。若把真实端点整条换掉，本地页上原先能用的账号会凭空消失——用户只是想
+ * 「顺便把 fat 的账号也带进来」，不是想把这一页改成 fat。
+ *
+ * 绑定轴不比端口：本地页的 `:3000` 是前端 dev server 的监听端口，与远端环境的端口无关，
+ * 拿它去卡 `fat.example.com:8443` 只会得到「绑了却少几条」的玄学问题。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 页面真实 hostname（非空）
+ * @param page - 页面端口上下文
+ * @param policy - 站点匹配策略（可为显示层的 `relaxed`）
+ * @param envHost - 用户声明的环境主机；非环回页面下自动失效（见 {@link effectiveEnvHost}）
+ * @returns 条目是否属于本站
+ */
+export function matchesSiteWithEnv(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null | undefined,
+): boolean {
+  if (matchesSiteEndpoint(storedUrl, currentHost, page, policy)) return true;
+  const bound = effectiveEnvHost(currentHost, envHost);
+  return bound !== null && matchesSiteEndpoint(storedUrl, bound, null, policy);
+}
+
+/**
+ * 关联度排序的并集版本：取两个轴里更相关的那一个
+ *
+ * 绑定轴上「精确命中环境主机」同样是 0，于是 fat 的账号和本机当前端点的账号并列在最前，
+ * 而库里其他站点仍按原阶梯沉底。刻意不给绑定轴额外加权：谁更该填进眼前这一页，
+ * 由既有的「收藏置顶 → 排序字段」决定，比再发明一层权重更可预期。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 页面真实 hostname
+ * @param page - 页面端口上下文
+ * @param policy - **持久化**策略（读展示策略会把别的端口捞回前排）
+ * @param envHost - 用户声明的环境主机
+ * @returns 排序权重（越小越靠前）
+ */
+export function siteRankWithEnv(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null | undefined,
+): number {
+  const real = siteRankOf(storedUrl, currentHost, page, policy);
+  if (real === 0) return 0;
+  const bound = effectiveEnvHost(currentHost, envHost);
+  if (!bound) return real;
+  const byBound = siteRankOf(storedUrl, bound, null, policy);
+  return byBound < real ? byBound : real;
+}
+
+/**
+ * 条目是否**只**因环境绑定才属于本站
+ *
+ * 这一判据只服务一件事：给这类条目挂上「fat 环境」徽章，让「另一个主机的凭证为什么出现在
+ * 这一页」在行内可读，而不是只有头部那颗芯片在说话。徽章判据与放开门禁必须同源，
+ * 否则会出现「标了环境却是本机条目」的错位。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 页面真实 hostname
+ * @param page - 页面端口上下文
+ * @param policy - 站点匹配策略
+ * @param envHost - 用户声明的环境主机
+ * @returns 是否仅由绑定轴带入
+ */
+export function isAdmittedByEnvOnly(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null | undefined,
+): boolean {
+  const bound = effectiveEnvHost(currentHost, envHost);
+  if (!bound) return false;
+  if (matchesSiteEndpoint(storedUrl, currentHost, page, policy)) return false;
+  return matchesSiteEndpoint(storedUrl, bound, null, policy);
+}
+
 // ── 站点匹配策略 ──
 
 /**
@@ -655,14 +903,34 @@ export interface SitePolicy {
   portScope: PortScope;
 }
 
+/**
+ * 端口轴的有效取值
+ *
+ * 持久化的两档之外，多出一个只存在于显示层的 `relaxed`：芯片「临时显示同域名其他端口」
+ * 需要的是「这一轮不比端口」，而 `loose` 在环回主机上仍然比端口（那是本地端点的既有口径），
+ * 复用 `loose` 会让那个开关在本机页面上点了没反应。`relaxed` 不落盘、不进 `isPortScope`，
+ * 用户下一次打开设置弹窗时看到的仍是自己选的 `loose` / `strict`。
+ */
+export type EffectivePortScope = PortScope | 'relaxed';
+
+/** {@link SitePolicy} 的显示层版本：只由侧边栏的临时放宽开关产生 `relaxed` */
+export interface EffectiveSitePolicy {
+  /** 跨子域匹配档位 */
+  mode: DomainMatchMode;
+  /** 端口匹配范围（可为仅显示层的 `relaxed`） */
+  portScope: EffectivePortScope;
+}
+
 // ── 端口隔离 ──
 
 /**
  * 端口匹配范围
  *
- * - `loose`（缺省）：公网域名不比较端口（引入端口隔离前的口径）；`localhost` / `127.0.0.1`
- *   继续走 {@link matchesPortForLocalDev} 既有的端口过滤，两处行为逐条不变。
- * - `strict`：所有主机（含本地开发域名）统一按 {@link matchesPortScope} 判定，本地特例取消。
+ * - `loose`（缺省）：公网域名不比较端口（引入端口隔离前的口径）；环回主机继续走
+ *   {@link matchesPortForLocalDev} 既有的端口过滤，两处行为逐条不变。
+ * - `strict`：所有主机（含环回）统一按 {@link matchesPortScope} 判定。
+ * - `relaxed`：只存在于显示层（见 {@link EffectivePortScope}），不比端口，用于「本站临时
+ *   显示其他端口」；它让条目现身的同时不改变填充判据（后者恒用持久化策略）。
  *
  * 刻意单调：`strict` 的结果集恒为 `loose` 的子集，只会更少地显示条目、绝不新增匹配——
  * 与 {@link registrableScope} 那条「只收窄不放宽」的口径同构，因此开启它不会把别人的账号带进本站。
@@ -808,8 +1076,9 @@ export function pagePortFromHostLike(hostLike: string, protocol?: string): PageP
 /**
  * 判定条目的端口是否落在当前页可见范围内
  *
- * 规则（仅 `strict` 档生效）：
+ * 规则（仅 `strict` 档生效，`loose` 与显示层的 `relaxed` 都放行）：
  * - 条目网址为空 → 恒可见：不限站点的通用条目不受端口维度约束（与 `resolveMatchTier` 的 tier 4 同口径）。
+ * - 条目写了 `:*` → 恒可见：用户逐条声明「该主机所有端口」，这一显式意图比档位更具体。
  * - 条目未声明端口 → 仅当页面处于协议默认端口时可见：把「只写域名」解释成「这就是域名的门面地址」，
  *   而不是「该域名下的所有端口」——后者会让 `:8443` 管理后台的账号出现在 `https://example.com` 上，
  *   正是本功能要消除的混淆。
@@ -833,14 +1102,69 @@ export function pagePortFromHostLike(hostLike: string, protocol?: string): PageP
 export function matchesPortScope(
   storedUrl: string | undefined | null,
   page: PagePortContext | null,
-  scope: PortScope,
+  scope: EffectivePortScope,
 ): boolean {
-  if (scope === 'loose' || !page) return true;
+  if (scope !== 'strict' || !page) return true;
   const raw = storedUrl?.trim();
   if (!raw) return true;
+  // 显式 `:*` 是用户对这一条的跨端口授权，比档位更具体
+  if (splitHostAndPortDecl(raw).anyPort) return true;
   const port = declaredPortOf(raw);
   if (!port) return page.atDefaultPort;
   return port === page.port;
+}
+
+/**
+ * 站点可见性与填充可行性的合成判定：主机门 ∧ 端口门
+ *
+ * 存在理由：四处调用方（侧边栏本站范围、内联下拉与一键填充、排序优先级、Popup 计数）
+ * 各自复制过一份「本地域名只看端口」的分支，且复制得并不完整——本地分支少抄了主机、
+ * Popup 少抄了端口，于是同一批条目在两个入口里结论相反。合成一个函数，分叉就无处发生。
+ *
+ * 「当前页无域名」这一支刻意不在这里处理：侧边栏要放行全库、下拉要只留通用条目，两处语义
+ * 本就相反，交由调用方各自决定（见 `utils/passwordFilter` 与 `utils/passwordSort`）。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 当前页面 hostname（非空）
+ * @param page - 页面端口上下文，null 表示取不到
+ * @param policy - 站点匹配策略（档位 + 端口范围，端口范围可为显示层的 `relaxed`）
+ * @returns 条目是否属于当前端点
+ */
+export function matchesSiteEndpoint(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+): boolean {
+  if (resolveMatchTier(currentHost, storedUrl, policy.mode) < 0) return false;
+  if (policy.portScope === 'relaxed') return true;
+  if (isLoopbackHost(currentHost) && policy.portScope === 'loose') {
+    return matchesPortForLocalDev(storedUrl, rawPortOf(page));
+  }
+  return matchesPortScope(storedUrl, page, policy.portScope);
+}
+
+/**
+ * 判定条目是否「主机对得上、只是被端口轴挡住」
+ *
+ * 端口芯片上的数字与列表里「其他端口」徽章必须出自同一判据，否则会出现
+ * 「提示说另有 3 条，点开只多出 2 条」的自相矛盾。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 当前页面 hostname
+ * @param page - 页面端口上下文
+ * @param policy - **持久化**策略（`relaxed` 下没有条目被挡住，本函数恒 false）
+ * @returns 是否仅因端口轴而未显示
+ */
+export function isHiddenByPortOnly(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+): boolean {
+  if (!currentHost) return false;
+  if (resolveMatchTier(currentHost, storedUrl, policy.mode) < 0) return false;
+  return !matchesSiteEndpoint(storedUrl, currentHost, page, policy);
 }
 
 /**
@@ -867,7 +1191,7 @@ export function countSameMainDomainCandidates(
   policy: SitePolicy,
   page: PagePortContext | null,
 ): number {
-  if (!currentHost || policy.mode === 'sameMainDomain' || isLocalDevDomain(currentHost)) return 0;
+  if (!currentHost || policy.mode === 'sameMainDomain' || isLoopbackHost(currentHost)) return 0;
   let count = 0;
   for (const entry of entries) {
     const widened = resolveMatchTier(currentHost, entry.url, 'sameMainDomain');
@@ -887,8 +1211,8 @@ export function countSameMainDomainCandidates(
  * 本句回答「关掉端口隔离能看到多少」。二者共用「tier ≥ 0 且端口门通过」这一显示判据，
  * 保证提示里的数字与点进去之后的列表条数不会各说各话。
  *
- * `loose` 档或取不到端口上下文时恒为 0——那种情况下不存在被端口挡住的条目，
- * 端口芯片也因此不渲染，默认路径零额外遍历。
+ * 公网主机在 `loose` / `relaxed` 下恒为 0：那两档不比端口，默认路径因此零额外遍历。
+ * 环回主机在 `loose` 下仍按端点过滤，那里恰恰是「悄悄少了几条」的高发场景，必须数。
  *
  * @param entries - 仅需携带 `url` 字段的条目集合（全库，非过滤后的子集）
  * @param currentHost - 当前页面 hostname，空串表示无域名场景
@@ -899,14 +1223,15 @@ export function countSameMainDomainCandidates(
 export function countPortHiddenCandidates(
   entries: readonly { url?: string }[],
   currentHost: string,
-  policy: SitePolicy,
+  policy: EffectiveSitePolicy,
   page: PagePortContext | null,
 ): number {
-  if (!currentHost || policy.portScope === 'loose' || !page) return 0;
+  // 公网 + `loose` 结构上不存在被端口挡住的条目，省掉一整轮遍历；
+  // 环回主机在 `loose` 下仍按端点过滤，那里恰恰是「悄悄少了几条」的高发场景，必须数
+  if (!currentHost || (policy.portScope === 'loose' && !isLoopbackHost(currentHost))) return 0;
   let count = 0;
   for (const entry of entries) {
-    if (resolveMatchTier(currentHost, entry.url, policy.mode) < 0) continue;
-    if (!matchesPortScope(entry.url, page, policy.portScope)) count += 1;
+    if (isHiddenByPortOnly(entry.url, currentHost, page, policy)) count += 1;
   }
   return count;
 }
@@ -981,7 +1306,7 @@ const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
  */
 function inferDefaultScheme(value: string): 'http' | 'https' {
   const host = normalizeToHostname(value);
-  return isLocalDevDomain(host) || IPV4_RE.test(host) ? 'http' : 'https';
+  return isLoopbackHost(host) || IPV4_RE.test(host) ? 'http' : 'https';
 }
 
 /**

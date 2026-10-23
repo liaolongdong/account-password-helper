@@ -1,5 +1,5 @@
 import { expect, test } from './harness';
-import { addIdentity, cards, openVaultFromMenu } from './identityVaultDom';
+import { addIdentity, cards, openVaultFromHeader } from './identityVaultDom';
 import { textOf } from './i18n';
 
 /**
@@ -12,7 +12,7 @@ import { textOf } from './i18n';
  *    在源码层看不到，只能在真实 DOM 上造一次选区再点。
  */
 test('标题区整行切换折叠，复选框与动作行不误触', async ({ optionsPage: page }) => {
-  await openVaultFromMenu(page, true);
+  await openVaultFromHeader(page, true);
   await addIdentity(page, 'e2e-card-toggle', '13800009999');
 
   const card = cards(page).first();

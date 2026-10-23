@@ -183,4 +183,21 @@ export const SESSION_MEMORY_KEYS = {
    * sessionStorage 自身的作用域边界，同站导航后新文档可解回、跨站与跨标签页不可。
    */
   PENDING_CIPHER_KEYS: 'pending_cipher_keys',
+  /**
+   * 本地开发页的环境绑定（`"<host>:<port>"` → `{ env, at }` 聚合对象）
+   *
+   * 用户在侧边栏芯片上声明「这个 localhost:3000 页面其实是 fat.example.com 环境的前端」，
+   * 后台据此把该环境的条目并入本站判定。只存主机名，不含任何凭证。
+   *
+   * 选 storage.session 而不是 storage.local 是刻意的安全取舍：绑定等于「让另一个主机的
+   * 凭证可被填进眼前这一页」，这类授权不该活过浏览器重启。落盘的话，一次为临时联调点的
+   * 「prod」会在下次开机后仍然把线上账号摆在本地页首位。
+   */
+  ENV_BINDINGS: 'env_bindings',
+  /**
+   * 本会话内已确认过「把线上环境账号带到本地页」的环境主机（字符串数组）
+   *
+   * 与 ENV_BINDINGS 同生命周期：确认只对这一次开机有效，下次再选 prod 仍需确认。
+   */
+  ENV_PROD_ACKS: 'env_prod_acks',
 };

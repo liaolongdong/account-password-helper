@@ -245,6 +245,17 @@ export enum MessageType {
    */
   GET_MATCHING_ACCOUNTS = 'GET_MATCHING_ACCOUNTS',
   /**
+   * 本地开发页：查询这一页当前绑定的远端环境主机（会话级，无绑定返回 null）
+   *
+   * 事实来源在后台的 `chrome.storage.session`，侧边栏与内联下拉都向它取，
+   * 避免两个入口各自持有一份而给出不同的可填充集合。
+   */
+  GET_ENV_BINDING = 'GET_ENV_BINDING',
+  /**
+   * 本地开发页：设置或清除这一页的远端环境绑定
+   */
+  SET_ENV_BINDING = 'SET_ENV_BINDING',
+  /**
    * 内联下拉：按条目 ID 触发填充（由 background 取明文后复用 FILL_PASSWORD 下发）
    */
   FILL_BY_ID = 'FILL_BY_ID',
@@ -426,6 +437,8 @@ export type RuntimeMessage =
   | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
   | { type: MessageType.SIDEPANEL_PRELOAD }
   | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string; keyword?: string } }
+  | { type: MessageType.GET_ENV_BINDING; data: EnvBindingQueryData }
+  | { type: MessageType.SET_ENV_BINDING; data: EnvBindingData }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
   | { type: MessageType.GET_INLINE_TOTP; data: InlineTotpByIdData }
   | { type: MessageType.FILL_TOTP_BY_ID; data: InlineTotpByIdData }
@@ -611,6 +624,13 @@ export interface MatchingAccountMeta {
    * 不再自行做域名判断（避免两处口径分歧）。
    */
   tier: MatchTier;
+  /**
+   * 仅因「本地页环境绑定」才出现在这一页的条目所对应的环境主机（其余为 undefined）
+   *
+   * 由 background 单点判定并下发，内容脚本据此渲染「fat 环境」来源标签：
+   * 一个不属于本页主机的凭证出现在登录框下拉里，必须行内可读，而不是只有侧边栏头部在说。
+   */
+  envHost?: string;
 }
 
 /**
@@ -680,6 +700,65 @@ export interface FillByIdData {
   id: string;
   /** 是否填充后自动触发登录 */
   autoLogin?: boolean;
+}
+
+/**
+ * 环境绑定查询数据（GET_ENV_BINDING）
+ *
+ * 键是**页面端点**而不是标签页：同一台机器上 `localhost:3000` 与 `localhost:5173` 是两个
+ * 不同的前端，各自连不同后端，绑定必须分开记。
+ */
+export interface EnvBindingQueryData {
+  /** 页面 hostname（仅环回主机可绑定） */
+  host: string;
+  /** 页面端口；null 表示默认端口或取不到 */
+  port: string | null;
+}
+
+/**
+ * 环境绑定写入数据（SET_ENV_BINDING）
+ *
+ * `envHost` 为 null 即清除该端点的绑定。这里传的是主机名（`fat.example.com`），
+ * 不含任何凭证，可安全留在会话存储里。
+ */
+export interface EnvBindingData extends EnvBindingQueryData {
+  /** 目标环境主机；null 表示清除 */
+  envHost: string | null;
+  /**
+   * 用户已确认「把线上环境账号带到本地页」
+   *
+   * 确认必须由后台判定而不是芯片自己决定：界面漏一次确认就等于没有确认。
+   * 未带确认写线上主机时后台拒绝并回 `needsAck`，前端弹一次确认再重发。
+   */
+  ack?: boolean;
+}
+
+/** 环境绑定读写结果 */
+export interface EnvBindingResultData {
+  /** 生效中的环境主机；未绑定或该页面不可绑定时为 null */
+  envHost: string | null;
+  /** 本次请求因「线上环境未确认」被拒绝，调用方据此发起确认 */
+  needsAck?: boolean;
+  /**
+   * 存储没收下这次写入（镜像已回滚）
+   *
+   * 与 `needsAck` 区分开：那一次是「等用户确认」，这一次是「操作失败」，
+   * 混成一个返回值就会把失败显示成「绑上了」。
+   */
+  failed?: boolean;
+}
+
+/**
+ * 环境绑定消息的统一响应信封
+ *
+ * 侧边栏此前没有「读后台响应」的先例（其它消息都是 fire-and-forget），因此这里显式命名，
+ * 而不是在 UI 里裸写断言。`success: false` 时 UI 一律按「未绑定」处理：
+ * 读不到绑定的后果是少显示条目，而不是多显示。
+ */
+export interface EnvBindingResponse {
+  success: boolean;
+  data?: EnvBindingResultData;
+  error?: string;
 }
 
 /**

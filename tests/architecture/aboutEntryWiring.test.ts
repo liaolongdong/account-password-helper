@@ -8,7 +8,8 @@
  * （`siteFillEntryOverrideWiring`、`siteFilterWiring`），故此处同样做扫描而不是指望 review。
  *
  * 各条分别守住一个真实漂移方向：
- * 1. 头部菜单项必须存在并发出 `openAbout`，且 `defineEmits` 里有这一位（缺声明时事件不透出）；
+ * 1. 「帮助」下拉里必须有 `about` 那一项，分派函数把它透成 `openAbout`，且 `defineEmits` 里有这
+ *    一位（缺声明时事件不透出）；入口自 2026-10-22 起从常驻按钮改为下拉项，两段都在本文件里；
  * 2. App.vue 必须同时具备监听、挂载与 `v-model` 三处，缺任一处抽屉永不出现；
  * 3. 抽屉必须是异步组件——它进首屏 chunk 就是在给管理页 `preRowMs` 加重量；
  * 4. 外链必须逐条取自 `utils/urls.ts` 常量并带 `rel="noopener noreferrer"`：地址一旦散回
@@ -36,8 +37,11 @@ describe('「关于」抽屉的入口接线', () => {
     }
   });
 
-  it('头部菜单项发出 openAbout，且 emits 声明了同一位', () => {
-    expect(header).toContain("$emit('openAbout')");
+  it('「帮助」下拉里有 about 项，且分派透出 openAbout', () => {
+    // 菜单项本身：少了它，下拉里就没有这一行
+    expect(header).toMatch(/command="about"/);
+    // 命令 → 事件的分派：这两句缺任意一句，点「关于」都不再有反应，而界面上不会报错
+    expect(header).toMatch(/case 'about':\s*emit\('openAbout'\);/);
     // 没有这一行时模板照旧点得动，但事件不会向上透出：抽屉永远不出现
     expect(header).toMatch(/openAbout:\s*\[\s*\]/);
   });

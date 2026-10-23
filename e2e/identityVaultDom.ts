@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, expectSuccessToastFor, runHeaderCommand, verifyMasterPassword } from './harness';
+import { expect, expectSuccessToastFor, verifyMasterPassword } from './harness';
 import { anchoredTextOf, textOf } from './i18n';
 
 /**
@@ -75,16 +75,18 @@ export async function addIdentity(page: Page, name: string, phone: string): Prom
 }
 
 /**
- * 经数据管理菜单打开身份库，返回前库已处于已解锁态
+ * 经头部一级按钮打开身份库，返回前库已处于已解锁态
  *
  * `expectRecheck` 必须显式传：默认档 `perSession` 的语义是「同一管理页文档会话内第一次打开问、
  * 之后不再问」（`entrypoints/options/App.vue` 的 `identityVaultVerifiedThisSession`）。写成
  * 「有弹窗就填、没弹窗就跳过」会把这条语义整个测没了，所以两种预期各走各的断言。
  * 不问那一趟的判据顺序是**先等库可见**：复验若弹，库被挡在它后面打不开，这一步就超时判红；
- * 反过来先断言「复验层不在」是恒真——`runHeaderCommand` 只负责点菜单、不等任何弹窗落地。
+ * 反过来先断言「复验层不在」是恒真——点按钮那一手只负责触发、不等任何弹窗落地。
+ * 入口自 2026-10-22 起是头部的独立一级按钮（此前蜷在「数据管理」下拉最后一项），
+ * 按钮名与菜单项同源 `identity.title`，因此仍按角色 + 文案定位，不写死第几颗。
  */
-export async function openVaultFromMenu(page: Page, expectRecheck: boolean): Promise<void> {
-  await runHeaderCommand(page, 'options.header.data', 'identity.title');
+export async function openVaultFromHeader(page: Page, expectRecheck: boolean): Promise<void> {
+  await page.getByRole('button', { name: textOf('identity.title') }).click();
   if (!expectRecheck) {
     await expect(vaultDialog(page)).toBeVisible();
     await expect(verifyDialog(page)).toBeHidden();

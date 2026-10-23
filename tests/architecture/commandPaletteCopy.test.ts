@@ -27,7 +27,7 @@ import { filterActions, type CommandAction } from '@/utils/commandPalette';
 /** 取数：`buildPaletteActions` 返回的数组字面量里的 `id: '...'` 列表 */
 function paletteIds(): string[] {
   const source = readSource('entrypoints/options/App.vue');
-  const start = source.indexOf('const buildPaletteActions = () => [');
+  const start = source.indexOf('const buildPaletteActions = (');
   if (start === -1) return [];
   const end = source.indexOf('\n];', start);
   if (end === -1) return [];
@@ -48,7 +48,7 @@ interface PaletteKeywordSet {
  */
 function paletteKeywords(): PaletteKeywordSet[] {
   const source = readSource('entrypoints/options/App.vue');
-  const start = source.indexOf('const buildPaletteActions = () => [');
+  const start = source.indexOf('const buildPaletteActions = (');
   const end = source.indexOf('\n];', start);
   if (start === -1 || end === -1) return [];
   const slice = source.slice(start, end);
@@ -221,6 +221,7 @@ describe('命令面板的源码扫描守卫', () => {
       id: set.id,
       group: 'entry',
       label: '',
+      icon: {} as CommandAction['icon'],
       keywords: set.keywords,
       run: () => {},
     }));

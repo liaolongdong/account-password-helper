@@ -56,9 +56,9 @@ const DUP_OTHER_SITE = { username: 'e2e-dup', password: 'Synthetic!DupOther', ur
 const HISTORY_ENTRY = { username: 'e2e-history', password: 'Synthetic!HistoryOld' };
 const HISTORY_NEW_PASSWORD = 'Synthetic!HistoryNew';
 
-/** 「数据管理」/「安全设置」两个下拉的按钮文案 key */
+/** 「数据管理」/「帮助」两个下拉的按钮文案 key */
 const DATA_MENU = 'options.header.data';
-const SECURITY_MENU = 'options.header.securitySettings';
+const HELP_MENU = 'options.header.help';
 
 /** 二次确认框：ElMessageBox 不是 dialog 角色，只能按容器类定位 */
 const messageBox = (page: Page): Locator => page.locator('.el-message-box');
@@ -191,7 +191,7 @@ test.describe('导入导出与工具入口', () => {
   });
 
   test('快捷键一览：逐条展示 manifest 命令的真实绑定状态，未绑定才给指引', async ({ optionsPage: page }) => {
-    const dialog = await openHeaderDialog(page, SECURITY_MENU, 'options.header.shortcuts');
+    const dialog = await openHeaderDialog(page, HELP_MENU, 'options.header.shortcuts');
 
     /**
      * 命令标识与展示文案 key 成对列出：标识与 `wxt.config.ts` 的 manifest.commands 键名
@@ -211,7 +211,13 @@ test.describe('导入导出与工具入口', () => {
       return Object.fromEntries(commands.map(command => [command.name ?? '', Boolean(command.shortcut)]));
     });
 
-    const items = dialog.locator('.shortcut-item');
+    /**
+     * 弹窗里有两组 `.shortcut-item`，共用同一个类名：第一组是 manifest 命令，第二组是
+     * 应用内快捷键（⌘K）。因此按 `.shortcut-list` 的实例定位，不能从 dialog 直接数
+     * `.shortcut-item`——那样 4 条会变成 5 条。
+     */
+    const lists = dialog.locator('.shortcut-list');
+    const items = lists.first().locator('.shortcut-item');
     await expect(items).toHaveCount(commands.length);
     for (const [index, command] of commands.entries()) {
       const item = items.nth(index);
@@ -225,6 +231,17 @@ test.describe('导入导出与工具入口', () => {
         await expect(item.locator('.shortcut-item__hint')).toBeVisible();
       }
     }
+
+    /**
+     * 第二组的承诺是「刻意不给状态」：`chrome.commands.getAll()` 读不到应用内按键，
+     * 标任何生效状态都是假数据。这里把这条注释变成可判定的——只允许 1 条、且组内无 `el-text`。
+     */
+    const inAppItems = lists.nth(1).locator('.shortcut-item');
+    await expect(inAppItems).toHaveCount(1);
+    await expect(inAppItems.nth(0).locator('.shortcut-item__name')).toHaveText(
+      textOf('options.shortcuts.label.commandPalette'),
+    );
+    await expect(lists.nth(1).locator('.el-text')).toHaveCount(0);
   });
 
   test('密码历史：改密后旧值只以密文入库，详情抽屉里默认掩码', async ({ optionsPage: page }) => {

@@ -24,22 +24,35 @@
           </a>
         </h1>
       </div>
-      <!-- 会话剩余时间徽标：一级界面常驻可见，紧迫态（≤10 分钟）转警示橙、危急态（≤1 分钟）转警示红，点击直达有效期设置 -->
-      <button
-        v-if="remainingText"
-        type="button"
-        class="session-chip"
-        :class="{ 'session-chip--urgent': isUrgent, 'session-chip--critical': isCritical }"
-        :title="t('options.header.sessionChipTitle')"
-        @click="$emit('openValidity')"
-      >
-        <span
-          class="session-chip__pulse"
-          aria-hidden="true"
-        ></span>
-        <el-icon><Timer /></el-icon>
-        <span class="session-chip__time">{{ remainingText }}</span>
-      </button>
+      <!-- 会话区：剩余时间徽标 + 一键锁定。两者都是「当前会话」的直接操控，
+           按邻近原则同处一行右端；锁定刻意不进任何下拉——离座前锁掉是高频安全动作，
+           原来只能从「安全设置 → 有效期设置 → 清除会话」三步抵达。 -->
+      <div class="header-session">
+        <button
+          v-if="remainingText"
+          type="button"
+          class="session-chip"
+          :class="{ 'session-chip--urgent': isUrgent, 'session-chip--critical': isCritical }"
+          :title="t('options.header.sessionChipTitle')"
+          @click="$emit('openValidity')"
+        >
+          <span
+            class="session-chip__pulse"
+            aria-hidden="true"
+          ></span>
+          <el-icon><Timer /></el-icon>
+          <span class="session-chip__time">{{ remainingText }}</span>
+        </button>
+        <el-button
+          class="lock-btn"
+          :icon="Lock"
+          :loading="lockLoading"
+          :title="t('options.header.lockNowTitle')"
+          @click="$emit('lockNow')"
+        >
+          {{ t('options.header.lockNow') }}
+        </el-button>
+      </div>
     </div>
 
     <!-- 第二行：操作按钮 -->
@@ -68,6 +81,16 @@
             :aria-label="t('options.header.healthScore', { score: healthScore ?? 0 })"
           ></span>
         </el-button>
+        <!-- 个人信息库是第二份数据域（独立复验门槛、独立回收站与表单），
+             此前蜷在「数据管理」菜单最后一项，与「导出 CSV」同级；提为一级入口后，
+             「数据管理」回归迁移 / 备份 / 维护三件事，不再承载另一个库 -->
+        <el-button
+          :icon="Postcard"
+          :title="t('identity.vaultEntryTitle')"
+          @click="$emit('openIdentity')"
+        >
+          {{ t('identity.title') }}
+        </el-button>
         <el-dropdown
           trigger="click"
           @command="(cmd: string) => $emit('dataCommand', cmd)"
@@ -82,7 +105,7 @@
             <el-dropdown-menu>
               <!-- 已验证备份状态：菜单顶部的只读状态条（左标题 / 右数值）。刻意不用菜单项的
                    14px 字号与 32px 行高，避免这行说明反过来决定整个菜单的宽度，
-                   把下方 10 个操作项挤出一列空白。disabled 不是「置灰的按钮」而是
+                   把下方九个操作项挤出一列空白。disabled 不是「置灰的按钮」而是
                    「不参与交互」：EP 的 hover / focus 高亮只作用于 :not(.is-disabled)，
                    且它会被移出 roving focus 环，展开菜单时不再被误标成当前选中项 -->
               <el-dropdown-item
@@ -93,17 +116,22 @@
                 <span class="backup-status-bar__value">{{ backupStatusText }}</span>
               </el-dropdown-item>
 
-              <el-dropdown-item
-                command="import"
-                :icon="Upload"
-              >
-                {{ t('options.header.importData') }}
-              </el-dropdown-item>
+              <!-- 四组按旅程排列，组内只有一个意图：取模板并灌入 → 明文导出给人看 →
+                   加密备份的导出与回灌 → 库内维护。
+                   「下载模板」是导入的前置件，因此排在「导入数据」之前；
+                   明文导出与 .aph 加密备份刻意分成两组，前者是「给别人用的表」、
+                   后者是「给自己回滚的快照」，混在一组会让用户在导出簇里误点备份导出 -->
               <el-dropdown-item
                 command="downloadTemplate"
                 :icon="Document"
               >
                 {{ t('options.header.downloadTemplate') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="import"
+                :icon="Upload"
+              >
+                {{ t('options.header.importData') }}
               </el-dropdown-item>
               <el-dropdown-item
                 divided
@@ -119,6 +147,7 @@
                 {{ t('options.header.exportJson') }}
               </el-dropdown-item>
               <el-dropdown-item
+                divided
                 command="backupExport"
                 :icon="Lock"
               >
@@ -131,15 +160,17 @@
                 {{ t('options.header.backupImport') }}
               </el-dropdown-item>
               <el-dropdown-item
-                command="backup"
+                command="emailBackup"
                 :icon="Message"
               >
                 {{ t('options.header.emailBackup') }}
               </el-dropdown-item>
+              <!-- 去重与回收站同为「整理既有数据」，但图标必须区分：两者此前共用 Delete，
+                   展开前完全看不出哪个是动作、哪个是查看已删除 -->
               <el-dropdown-item
                 divided
                 command="removeDuplicates"
-                :icon="Delete"
+                :icon="CopyDocument"
               >
                 {{ t('options.header.removeDuplicates') }}
               </el-dropdown-item>
@@ -148,13 +179,6 @@
                 :icon="Delete"
               >
                 {{ t('options.header.trash') }}
-              </el-dropdown-item>
-              <el-dropdown-item
-                divided
-                command="identityVault"
-                :icon="Postcard"
-              >
-                {{ t('identity.title') }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -171,6 +195,9 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
+              <!-- 四组各管一件事：主密码本身 → 会话与锁定 → 填充与保存行为 → 隐私留痕与容量。
+                   「快捷键」是一览型内容而非可配置策略，已移到「帮助」下拉；
+                   「收藏上限」与剪贴板、密码历史同属「留痕与容量」，不再单独占一组 -->
               <el-dropdown-item
                 command="changeMasterPassword"
                 :icon="Key"
@@ -216,10 +243,17 @@
                 {{ t('options.header.domainMatch') }}
               </el-dropdown-item>
               <el-dropdown-item
+                divided
                 command="clipboard"
                 :icon="DocumentCopy"
               >
                 {{ t('options.header.clipboard') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="passwordHistory"
+                :icon="Document"
+              >
+                {{ t('options.historySetting.title') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="favoriteLimit"
@@ -227,25 +261,26 @@
               >
                 {{ t('options.header.favoriteLimit') }}
               </el-dropdown-item>
-              <el-dropdown-item
-                divided
-                command="passwordHistory"
-                :icon="Document"
-              >
-                {{ t('options.historySetting.title') }}
-              </el-dropdown-item>
-              <el-dropdown-item
-                divided
-                command="shortcuts"
-                :icon="Operation"
-              >
-                {{ t('options.header.shortcuts') }}
-              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <!-- 偏好设置紧贴「安全设置」：两个配置入口分居工具条两端时，用户要先做一次
+             「这条算安全还是算偏好」的归类判断；物理相邻让这扇门只需要被找到一次。
+             `data-tour="personalize"` 是引导剧本第 9 步的锚点，键名不可改 -->
+        <el-button
+          data-tour="personalize"
+          :icon="Brush"
+          @click="$emit('openPersonalization')"
+        >
+          {{ t('options.header.personalization') }}
+        </el-button>
       </div>
-      <!-- 右侧辅助入口：空间不足时整组换行到下一行右侧，不与左组换行后的基线错位 -->
+      <!-- 右侧工具区：只留「查找功能」这一件事的两颗按钮。
+           帮助下拉收敛了 新手引导 / 使用指引 / 快捷键 / 关于 四个低频元入口——它们此前与
+           「添加密码」同权重常驻，占掉工具条一半以上的实面积；收起来不损失可达性，
+           四项在命令面板里仍可按名字检索到。
+           这里刻意保留文字标签而不是收成图标：放大镜单独出现会被读成「搜索密码列表」
+           （真正的检索框就在下方），而「帮助 / Help」两个字比纯图标 + 下拉箭头还窄。 -->
       <div class="header-actions-right">
         <el-button
           :icon="Search"
@@ -254,35 +289,52 @@
           @click="$emit('openCommandPalette')"
         >
           {{ t('options.header.commandPalette') }}
+          <kbd
+            class="cp-kbd"
+            aria-hidden="true"
+            >{{ t('options.header.commandPaletteKbd') }}</kbd
+          >
         </el-button>
-        <el-button
-          :icon="Compass"
-          :title="t('options.header.tourTitle')"
-          @click="$emit('openTour')"
+        <el-dropdown
+          trigger="click"
+          @command="handleHelpCommand"
         >
-          {{ t('options.header.tour') }}
-        </el-button>
-        <el-button
-          :icon="Reading"
-          :title="t('options.header.guideTitle')"
-          @click="$emit('openGuide')"
-        >
-          {{ t('options.header.guide') }}
-        </el-button>
-        <el-button
-          data-tour="personalize"
-          :icon="Brush"
-          @click="$emit('openPersonalization')"
-        >
-          {{ t('options.header.personalization') }}
-        </el-button>
-        <el-button
-          :icon="InfoFilled"
-          :title="t('options.header.aboutTitle')"
-          @click="$emit('openAbout')"
-        >
-          {{ t('options.header.about') }}
-        </el-button>
+          <el-button
+            :icon="QuestionFilled"
+            :title="t('options.header.helpTitle')"
+          >
+            {{ t('options.header.help') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                command="tour"
+                :icon="Compass"
+              >
+                {{ t('options.header.tour') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="guide"
+                :icon="Reading"
+              >
+                {{ t('options.header.guide') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="shortcuts"
+                :icon="Operation"
+              >
+                {{ t('options.header.shortcuts') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                divided
+                command="about"
+                :icon="InfoFilled"
+              >
+                {{ t('options.header.about') }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
   </div>
@@ -318,6 +370,8 @@ import {
   Postcard,
   InfoFilled,
   Search,
+  QuestionFilled,
+  CopyDocument,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -328,11 +382,16 @@ import { useSessionCountdown } from '@/composables/useSessionCountdown';
 /**
  * Options 页面头部组件
  *
- * 包含标题、版本号、会话剩余时间徽标、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置/关于按钮。
- * 「安全设置」聚焦主密码、会话安全与填充行为（含站点规则）及快捷键一览，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
- * 「新手引导」与「使用指引」常驻在右侧入口组，让已看过一次的用户仍有一条明确的回头路
- * （自动弹出终生仅一次，指引则是页内 `#guide` 一级视图、离线可读）。
- * 语言切换已迁移至「偏好设置」面板（与主题风格同组，三入口可达）。
+ * 两行结构：第一行是身份与会话（标题 / 版本 / 会话剩余时间 / 一键锁定），
+ * 第二行左侧是「做事与配置」（添加密码 → 安全体检 → 个人信息库 → 数据管理 → 安全设置 → 偏好设置），
+ * 右侧是「查找功能」（命令面板、帮助）。
+ *
+ * 排布判据：常驻控件压到 8 颗，低频元入口收进「帮助」下拉；两个配置入口（安全设置 / 偏好设置）
+ * 物理相邻，省掉用户「这条算安全还是算偏好」的归类判断；命令面板与「帮助」里的四项在
+ * 命令面板中仍可检索到，收敛不损失可达性。
+ * 「安全设置」管主密码、会话与填充行为，「偏好设置」面板管外观与填充交互，图标区分避免混淆
+ * （Brush 与齿轮刻意不同族）。快捷键是只读一览、属查找型内容，因此落在「帮助」而非「安全设置」。
+ * 语言切换在「偏好设置」面板（与主题风格同组，三入口可达）。
  *
  * 带 `data-tour` 的按钮是聚光引导的锚点，键名与 `utils/onboardingTour.ts` 的剧本一一对应；
  * 删除或改名会静默让对应步骤消失（锚点缺失即跳步），改动时请同步剧本。
@@ -346,9 +405,11 @@ const props = defineProps<{
   healthGrade?: HealthGrade;
   /** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
   lastVerifiedBackupAt?: number | null;
+  /** 一键锁定进行中（复用有效期设置里的清除会话链路的加载态） */
+  lockLoading?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   /** 点击添加密码按钮 */
   addPassword: [];
   /** 打开安全体检弹窗 */
@@ -361,10 +422,16 @@ defineEmits<{
   openPersonalization: [];
   /** 点击会话徽标，打开有效期设置弹窗 */
   openValidity: [];
+  /** 一键锁定当前会话（与有效期设置里的「清除会话」同一条链路） */
+  lockNow: [];
+  /** 打开个人信息库列表弹窗 */
+  openIdentity: [];
   /** 重温新手引导 */
   openTour: [];
   /** 打开页内「使用指引」文档中页 */
   openGuide: [];
+  /** 打开快捷键一览弹窗（只读） */
+  openShortcuts: [];
   /** 打开命令面板 */
   openCommandPalette: [];
   /** 打开「关于」抽屉 */
@@ -372,6 +439,42 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/**
+ * 命令面板按钮上的快捷键键帽（文案在语言包里，取跨平台写法 `Ctrl/⌘K`）
+ *
+ * 刻意**不做**平台嗅探：`utils/platform.ts` 同时被后台预热与快捷键清单引用，
+ * 让管理页再静态引它一次，Rollup 会把这份共享代码切成独立 chunk，
+ * 于是 popup 首屏的 eager 预加载多出一个文件（被 `sidepanelClosure` 的预算守卫挡下）。
+ * 为一个键帽 glyph 给另一个入口的首屏加一次请求不值得，故与既有 tooltip
+ * 「打开命令面板（Ctrl/Cmd+K）」保持同一口径。
+ *
+ * 键帽 `aria-hidden`：无障碍名仍由按钮的 `aria-label` 承载，避免读屏把「命令面板」
+ * 与快捷键念两遍；可见文字「命令面板」是 aria-label 的子串，满足 WCAG 2.5.3。
+ */
+
+/**
+ * 「帮助」下拉的命令分派
+ *
+ * 四项各自透出一个既有事件，父层监听与业务行为完全不变——收敛的只是入口形态，
+ * 不是能力。未知命令不落任何动作（EP 只会回抛本组件写出的 command）。
+ */
+const handleHelpCommand = (command: string): void => {
+  switch (command) {
+    case 'tour':
+      emit('openTour');
+      break;
+    case 'guide':
+      emit('openGuide');
+      break;
+    case 'shortcuts':
+      emit('openShortcuts');
+      break;
+    case 'about':
+      emit('openAbout');
+      break;
+  }
+};
 
 // 会话倒计时：HeaderBar 仅在认证态挂载，挂载即启动；作用域销毁自动停止
 const { remainingText, isUrgent, isCritical, start: startCountdown } = useSessionCountdown();
@@ -426,8 +529,18 @@ const backupStatusText = computed(() => {
 
 .header-title-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
+}
+
+/* 会话区：剩余时间徽标 + 一键锁定，同一视觉域内相邻，窄屏一起换行而不挤压标题 */
+.header-session {
+  display: flex;
+  flex-shrink: 0;
+  gap: 10px;
+  align-items: center;
 }
 
 .header-title h1 {
@@ -508,10 +621,10 @@ const backupStatusText = computed(() => {
 /* 工具条行内间距的唯一真源是上面两条 `gap: 12px`，此处抵消 Element Plus 的
    `.el-button + .el-button { margin-left: 12px }`（2.14.4 index.css，特异性 (0,2,0)）。
    它按「相邻兄弟恰好都是 .el-button」命中，而本行两组结构并不一致：左组只有
-   「添加密码→安全体检」是直接相邻的按钮，「数据管理」「安全设置」的按钮包在
-   `.el-dropdown` 里、`+` 不命中。于是接管前左组实测 24/12/12、右组 24/24/24。
-   与 SearchFilterBar / TrashDialog / SidepanelAuthView 同一处理方式，
-   由 tests/architecture/headerToolbarDensity.test.ts 守卫两侧同值 */
+   「添加密码→安全体检→个人信息库」这一段是直接相邻的按钮，「数据管理」「安全设置」
+   「偏好设置」的按钮包在 `.el-dropdown` 里或紧随其后、`+` 命中情况各不相同；右组
+   则是「直接按钮 + 下拉包裹」的混合。与 SearchFilterBar / TrashDialog / SidepanelAuthView
+   同一处理方式，由 tests/architecture/headerToolbarDensity.test.ts 守卫两侧同值 */
 .header-actions :deep(.el-button + .el-button),
 .header-actions-right :deep(.el-button + .el-button) {
   margin-left: 0;
@@ -526,6 +639,19 @@ const backupStatusText = computed(() => {
   vertical-align: middle;
   border-radius: 50%;
   box-shadow: 0 0 0 2px rgb(255 255 255 / 35%);
+}
+
+/* 命令面板按钮内的快捷键键帽：与版本徽标同族的「弱化的可点击线索」，
+   不额外抢注意力，但让 Ctrl/Cmd+K 在鼠标悬停之前就能被看见 */
+.cp-kbd {
+  padding: 0 5px;
+  margin-left: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: rgb(255 255 255 / 88%);
+  background: rgb(255 255 255 / 14%);
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 4px;
 }
 
 /* 会话剩余时间徽标：半透明 chip，与头部渐变背景融合；点击直达有效期设置。
@@ -638,6 +764,22 @@ const backupStatusText = computed(() => {
   }
 }
 
+/* 一键锁定：与会话徽标同族的玻璃态按钮，但保留原生按钮语义（可聚焦、可回车、可回填 loading） */
+:deep(.header-session .el-button.lock-btn) {
+  font-weight: 400;
+  color: white;
+  background: rgb(255 255 255 / 15%);
+  border: 1px solid rgb(255 255 255 / 25%);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+:deep(.header-session .el-button.lock-btn:hover) {
+  background: rgb(255 255 255 / 22%);
+  border-color: rgb(255 255 255 / 45%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+}
+
 /* 下拉菜单触发按钮样式 */
 :deep(.header-actions .el-dropdown .el-button) {
   font-weight: 400;
@@ -690,8 +832,11 @@ const backupStatusText = computed(() => {
   transform: translateY(-1px);
 }
 
-/* 右侧按钮组（偏好设置 / 站点规则）：半透明蓝样式，与数据管理/设置按钮视觉一致 */
-:deep(.header-actions-right > .el-button) {
+/* 右侧工具区（命令面板 / 帮助）：玻璃态，与左组的下拉触发按钮同族。
+   帮助那颗包在 `.el-dropdown` 里，直接子选择器命中不到它，必须单独覆盖，
+   否则同一行上会出现两种不同质地的按钮 */
+:deep(.header-actions-right > .el-button),
+:deep(.header-actions-right .el-dropdown .el-button) {
   font-weight: 400;
   color: white;
   background: rgb(255 255 255 / 15%);
@@ -700,7 +845,8 @@ const backupStatusText = computed(() => {
   transition: all 0.2s ease;
 }
 
-:deep(.header-actions-right > .el-button:hover) {
+:deep(.header-actions-right > .el-button:hover),
+:deep(.header-actions-right .el-dropdown .el-button:hover) {
   background: rgb(255 255 255 / 20%);
   border-color: rgb(255 255 255 / 40%);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);

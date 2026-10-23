@@ -159,6 +159,7 @@
           "一键登录：自动填充 + 勾选「记住我 / 同意条款」+ 点击登录",
           "精确域名匹配隔离 dev/test/staging/prod 多环境账号",
           "跨子域名匹配三档可选：仅精确 / 精确+通配条目（*.qq.com）/ 同主域名；另有端口隔离一档，区分同域名下不同端口的服务",
+          "本地开发页一键选环境：把 localhost 页面绑定到 dev / fat / uat / prod 任一后端环境，直接复用该环境已存的账号",
           "内置 TOTP 两步验证（RFC 6238），支持扫码或图片添加密钥",
           "逐字段 AES-256-GCM 本地加密（PBKDF2 600,000 次迭代）",
           "离线安全体检：0-100 四维加权评分，全程不联网",
@@ -284,7 +285,7 @@
             "name": "如何自定义快捷键？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。"
+              "text": "Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「帮助 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。"
             }
           },
           {
@@ -412,7 +413,7 @@
             "name": "为什么快捷键默认没有生效，需要手动设置？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。"
+              "text": "Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「帮助 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。"
             }
           },
           {
@@ -516,7 +517,7 @@
             "name": "同一个域名的不同端口，账号会互相串吗？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "默认只在 localhost 与 127.0.0.1 上按端口区分。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。"
+              "text": "默认只在 localhost 与 127.0.0.1、[::1] 上按端口区分（这三种写法互认为同一台机器，同一端口的账号在三种写法之间都能填）。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。想让一条账号覆盖本机所有端口，把网址写成 localhost:*，它比留空网址精准，不会把本机账号带到公网站点上。无论哪一档，本地页面只列本机的账号、公网页面只列该站点的账号；确实有同主机账号被端口挡住时，侧边栏头部会亮起当前端口芯片（如 :3000），点一下即可临时显示；本站一条都不剩时，空态会直接写出还有几条。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。"
             }
           },
           {
@@ -4778,7 +4779,7 @@
             <i aria-hidden="true"></i>
           </div>
           <div class="metric">
-            <b>27</b>
+            <b>28</b>
             <span data-i18n="metrics.commands">条命令面板命令</span>
             <i aria-hidden="true"></i>
           </div>
@@ -5136,7 +5137,8 @@
                   id="matchHint"
                   data-i18n-html="match.foot"
                 >
-                  演示数据为虚构账号；<code>localhost</code> 与 <code>127.0.0.1</code> 在任何档位下都按端口隔离。
+                  演示数据为虚构账号；<code>localhost</code>、<code>127.0.0.1</code>、<code>[::1]</code>
+                  视为同一台机器，在任何档位下都按端口隔离。
                 </p>
               </div>
             </div>
@@ -6247,7 +6249,9 @@
                 <td data-i18n="useCases.r3.how">
                   再放宽到「同主域名（更宽松）」，当前域名没有时依次带出主域与同主域其他子域。
                 </td>
-                <td data-i18n="useCases.r3.where">同上（localhost 始终按端口区分）</td>
+                <td data-i18n="useCases.r3.where">
+                  同上（本机地址始终按端口区分，localhost / 127.0.0.1 / [::1] 互认）
+                </td>
               </tr>
               <tr data-cat="login">
                 <th
@@ -6832,7 +6836,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>如何自定义快捷键？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「帮助 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>一键填充快捷键（Ctrl+Shift+F）是怎么工作的？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6840,7 +6844,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>为什么快捷键默认没有生效，需要手动设置？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「帮助 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>插件会自动检测更新吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6928,7 +6932,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>同一个域名的不同端口，账号会互相串吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">默认只在 localhost 与 127.0.0.1 上按端口区分。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">默认只在 localhost 与 127.0.0.1、[::1] 上按端口区分（这三种写法互认为同一台机器，同一端口的账号在三种写法之间都能填）。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。想让一条账号覆盖本机所有端口，把网址写成 localhost:*，它比留空网址精准，不会把本机账号带到公网站点上。无论哪一档，本地页面只列本机的账号、公网页面只列该站点的账号；确实有同主机账号被端口挡住时，侧边栏头部会亮起当前端口芯片（如 :3000），点一下即可临时显示；本站一条都不剩时，空态会直接写出还有几条。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>如何设置收藏上限？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -7743,8 +7747,8 @@ pnpm lint:style  # Stylelint</code></pre>
         'match.kind.apex': { zh: '主域', en: 'Apex' },
         'match.kind.sibling': { zh: '跨子域', en: 'Sibling' },
         'match.foot': {
-          zh: '演示数据为虚构账号；<code>localhost</code> 与 <code>127.0.0.1</code> 在任何档位下都按端口隔离。',
-          en: 'Demo data is fictional; <code>localhost</code> and <code>127.0.0.1</code> stay per-port at every tier.',
+          zh: '演示数据为虚构账号；<code>localhost</code>、<code>127.0.0.1</code>、<code>[::1]</code> 视为同一台机器，在任何档位下都按端口隔离。',
+          en: 'Demo data is fictional; <code>localhost</code>, <code>127.0.0.1</code> and <code>[::1]</code> count as one machine and stay per-port at every tier.',
         },
         'useCases.title': { zh: '使用场景与对应的做法', en: 'Use Cases and How to Handle Them' },
         'useCases.sub': {
@@ -7785,8 +7789,8 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'Widen again to "same apex domain (loosest)": when the current hostname has no match, the apex domain and its other subdomains are offered in order.',
         },
         'useCases.r3.where': {
-          zh: '同上（localhost 始终按端口区分）',
-          en: 'Same place (localhost always stays per-port)',
+          zh: '同上（本机地址始终按端口区分，localhost / 127.0.0.1 / [::1] 互认）',
+          en: 'Same place (loopback hosts always stay per-port, and localhost / 127.0.0.1 / [::1] count as one machine)',
         },
         'useCases.r4.scene': { zh: '回归测试反复登录', en: 'Regression tests that log in repeatedly' },
         'useCases.r4.how': {
@@ -8379,8 +8383,8 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           q: { zh: '如何自定义快捷键？', en: 'How do I customize shortcuts?' },
           a: {
-            zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。',
-            en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically. You can also open the read-only overview under "Security Settings → Keyboard Shortcuts" on the manager page to see the live status of all four bindings — its "Edit Shortcuts" button links straight there; the "Keyboard Shortcuts" group in the side panel Help dialog offers the same overview and entry point.',
+            zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「帮助 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。',
+            en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically. You can also open the read-only overview under "Help → Keyboard Shortcuts" on the manager page to see the live status of all four bindings — its "Edit Shortcuts" button links straight there; the "Keyboard Shortcuts" group in the side panel Help dialog offers the same overview and entry point.',
           },
         },
         {
@@ -8399,8 +8403,8 @@ pnpm lint:style  # Stylelint</code></pre>
             en: "Why aren't shortcuts bound by default?",
           },
           a: {
-            zh: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。',
-            en: 'For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts; the "Security Settings → Keyboard Shortcuts" overview on the manager page and the shortcut group in the side panel Help dialog flag exactly which keys are currently inactive, so a dead keystroke is never a mystery.',
+            zh: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「帮助 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。',
+            en: 'For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts; the "Help → Keyboard Shortcuts" overview on the manager page and the shortcut group in the side panel Help dialog flag exactly which keys are currently inactive, so a dead keystroke is never a mystery.',
           },
         },
         {
@@ -8569,8 +8573,8 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'Do accounts on different ports of one domain mix?',
           },
           a: {
-            zh: '默认只在 localhost 与 127.0.0.1 上按端口区分。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。',
-            en: 'By default only localhost and 127.0.0.1 are separated by port. To keep services on different ports of a public domain or a private IP apart as well, switch the port option to "Isolate by port" inside "Cross-subdomain matching" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain\'s front door and appears only on the scheme\'s default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. While it is on, the side panel header shows the current port — one click temporarily reveals other ports\' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged "Other port", sort to the end of the list and offer only copy and "open site", so a password from one port is never typed into another port\'s login form. Auto-save obeys the same ownership rule.',
+            zh: '默认只在 localhost 与 127.0.0.1、[::1] 上按端口区分（这三种写法互认为同一台机器，同一端口的账号在三种写法之间都能填）。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。想让一条账号覆盖本机所有端口，把网址写成 localhost:*，它比留空网址精准，不会把本机账号带到公网站点上。无论哪一档，本地页面只列本机的账号、公网页面只列该站点的账号；确实有同主机账号被端口挡住时，侧边栏头部会亮起当前端口芯片（如 :3000），点一下即可临时显示；本站一条都不剩时，空态会直接写出还有几条。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。',
+            en: 'By default only localhost, 127.0.0.1 and [::1] are separated by port (those three spellings count as one machine, so an account on a given port fills on all of them). To keep services on different ports of a public domain or a private IP apart as well, switch the port option to "Isolate by port" inside "Cross-subdomain matching" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain\'s front door and appears only on the scheme\'s default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. To let one account cover every port on your own machine, write its URL as localhost:* — more precise than leaving the URL empty, since that makes the account visible on every site. At every tier a local page lists only your machine\'s accounts and a public site lists only that site\'s accounts, and when the port really does keep same-host accounts off the page, the side panel header lights up with the current port (e.g. :3000) and one click reveals them, and if nothing is left for this site the empty state spells out how many are waiting. While isolation is on, the side panel header shows the current port — one click temporarily reveals other ports\' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged "Other port", sort to the end of the list and offer only copy and "open site", so a password from one port is never typed into another port\'s login form. Auto-save obeys the same ownership rule.',
           },
         },
         {

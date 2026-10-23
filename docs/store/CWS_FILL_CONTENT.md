@@ -133,6 +133,8 @@
 
 > 🔌 **十八修订（2026-10-21，端口隔离回灌中文说明）**：【功能全览】新增一行「🔌 同域名不同端口各留各的账号」，陈述新上线的端口隔离能力（同一域名的不同端口服务各自命中自己的条目，侧边栏顶部可一键临时看回其他端口）——依据 [utils/domain.ts](../../utils/domain.ts) 的 `matchesPortScope` 与 [docs/ARCHITECTURE.md](../ARCHITECTURE.md) §29。**只陈述已实现的事实，不新增营销口号，也不改既有行**；名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算，新能力一律不进）。说明长度 中文 **5417 → 5475**（+58 码点） / 英文 **13510（未动）**。⚠️ **英文本轮刻意不回填**：按上文记录的长度口径复测，英文说明现为 13510 码点，而十七修订之前的批注曾记到 15827——两个数不是同一把尺子（本指南「快速校验命令」要求只认 `len(blocks[i].strip())` 的 Unicode 码点数）。在按该尺子重新确认英文预算之前，向英文说明追加内容有可能顶破 16,000 上限，因此本轮只动中文，英文口径与中文的这条差异留待下一次发版按实测预算回填。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零，四个 `_locales` 值与粘贴块逐字一致。
 
+> 🏕 **十九修订（2026-10-23，本地环境绑定回灌中文说明）**：【功能全览】新增一行「🏕 本地页一键选环境」，陈述本轮上线的能力（在 `localhost` / `127.0.0.1` / `[::1]` 页面用侧边栏头部芯片声明「这一页其实是某环境的前端」，该环境已存的账号随即在本站可填；并集而非替换、不比端口、按 host + 端口分键、只存 `chrome.storage.session`、公网页面一律不接受绑定、线上或认不出环境标签的主机由后台要求确认一次）——依据 [utils/envFamily.ts](../../utils/envFamily.ts) 与 [docs/ARCHITECTURE.md](../ARCHITECTURE.md) 的「本地环境绑定（第三条轴）」。**只陈述已实现的事实，不新增营销口号，也不改既有行**；名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算，新能力一律不进）。本轮中文说明 +109 码点；⚠️ **英文本轮刻意不回填**，理由与十八修订相同：英文说明的预算必须先按「第五步 → 快速校验命令」的 `len(blocks[i].strip())` 口径实测确认，才能决定是否追加以及追加多少。
+
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
@@ -154,6 +156,7 @@
 ✅ 只勾该勾的那一个：页面有好几个复选框时，按标签文字和它到账号 / 密码框的距离打分，只选中得分最高的那一个，带「订阅 / 推送 / 通知 / 广告 / 营销」字样的降权
 🌐 跨子域名三档：默认精确匹配，一个账号确实要覆盖整站子域时，可在管理页头部切成「精确 + 通配条目」或「同主域名」按需放宽
 🔌 同域名不同端口各留各的账号：可切到按端口隔离，写了端口的条目只在同端口出现，侧边栏顶部一键即可临时看回其他端口
+🏕 本地页一键选环境：localhost 页面点一下芯片即可声明这一页其实是 dev / fat / uat / prod 哪个环境的前端，直接复用那套已存好的账号；绑定只对这个 host + 端口生效，关掉浏览器即清
 ⌨️ 键盘走完全流程：侧边栏与页内迷你面板同一套流程，上下键选条目、回车即填、Ctrl+C 复制账号、Esc 收起，面板打开即默认选中首条
 🖱 页面悬浮填充按钮：出现在登录页上，可拖拽并自动吸附屏幕边缘，透明度 10%~100% 可调，浮层自带设置面板
 📇 分享卡片：一键把「用户名 / 密码 / 网址」合成一段纯文本复制走，方便一次性交给同事或另一台设备
@@ -188,8 +191,8 @@
 
 ⚙️ 界面与效率
 🎨 6 款色彩主题、中英文界面即时切换，注入页面的浮层同步跟随
-⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 27 条常用命令，主密码未验证时不响应按键
-🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「新手引导」按钮可随时重播；有密码后还会出现安全起步清单，提示备份与体检（可暂不提醒）；版本升级后弹窗展示一次更新要点，保存的密码多于 1 条、成功用快速填充过一次且首次填充满 7 天后才会询问一次是否去商店评价，可稍后再说或不再提醒，「关于」抽屉里也常驻评价入口；「关于」里可一键复制同事分享文案与商店链接
+⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 28 条常用命令，主密码未验证时不响应按键
+🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「帮助 → 新手引导」可随时重播；有密码后还会出现安全起步清单，提示备份与体检（可暂不提醒）；版本升级后弹窗展示一次更新要点，保存的密码多于 1 条、成功用快速填充过一次且首次填充满 7 天后才会询问一次是否去商店评价，可稍后再说或不再提醒，「关于」抽屉里也常驻评价入口；「关于」里可一键复制同事分享文案与商店链接
 🔧 四个默认快捷键 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 💡 细节体验：主密码输入框实时提示大写锁定；网站图标取自浏览器本地缓存，不发起外部请求
 
@@ -323,8 +326,8 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 ⚙️ Interface and efficiency
 🎨 6 color themes and an instant Chinese/English switch, followed by the UI injected into pages.
-⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 27 commands by Chinese, pinyin or initials, inert until the master password is verified.
-🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the "Tour" button in the header replays it any time. Once a password exists, a short getting-started checklist nudges an encrypted backup and a health check (snoozable). After an update a one-time dialog summarises what changed; the review ask appears only once you have more than one saved password and your first successful autofill is at least 7 days old, with Later (silent for 30 days) and Don't-ask-again options. The About drawer also keeps a permanent review link. About offers a ready-to-copy teammate share message with the store link.
+⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 28 commands by Chinese, pinyin or initials, inert until the master password is verified.
+🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the header's "Help" menu replays it any time via "Tour". Once a password exists, a short getting-started checklist nudges an encrypted backup and a health check (snoozable). After an update a one-time dialog summarises what changed; the review ask appears only once you have more than one saved password and your first successful autofill is at least 7 days old, with Later (silent for 30 days) and Don't-ask-again options. The About drawer also keeps a permanent review link. About offers a ready-to-copy teammate share message with the store link.
 🔧 Ctrl+Shift+P management / L side panel / F quick fill / K inline dropdown; rebind them on the browser's own extensions-shortcuts page.
 💡 A live Caps Lock hint on master-password fields, and site icons read from the browser's local cache with no external request.
 
@@ -412,7 +415,7 @@ public/icon/128.png
 > | 13   | `screen-13-generator.png`       | 密码生成器     | 密码生成器双模式：随机字符或助记词组                     |
 > | 14   | `screen-14-trash.png`           | 回收站         | 回收站与修改历史：误删可恢复，改错能回滚                 |
 >
-> 📐 **第 12 张刻意只拍「数据管理」下拉，不拍导入弹窗**：导入弹窗的格式单选里有「Chrome 密码」这一项，属商店图片文字禁用的竞品品牌名；下拉里的九个入口（导入 / 下载模板 / 导出 / 导出 JSON / 加密备份导出 / 加密备份导入 / 备份到邮箱 / 一键去重 / 回收站）不含品牌名，且一屏覆盖导出与备份两个能力。
+> 📐 **第 12 张刻意只拍「数据管理」下拉，不拍导入弹窗**：导入弹窗的格式单选里有「Chrome 密码」这一项，属商店图片文字禁用的竞品品牌名；下拉里的九个入口（下载模板 / 导入 / 导出 / 导出 JSON / 加密备份导出 / 加密备份导入 / 备份到邮箱 / 一键去重 / 回收站）不含品牌名，且一屏覆盖导出与备份两个能力。
 >
 > ⚠️ **每个语言页的截图上限是 5 张**，上表有 14 张候选，**最终选哪 5 张由上传时定**。脚本侧建议取 `1 / 2 / 3 / 4 / 9`（前四张各占一个独立卖点，第 9、10 张是仅有的两张展示**页内**体验的构图，与其余「侧边栏 / 管理页」互补）；要换就换 `7`（收藏 + 标签 + 网站图标）、`8`（信息密度最高的详情抽屉）或 `13`（生成器面板）。**若要砍一张，先砍第 6 张**（本地加密画面最朴素，且该主张在摘要与说明里已有文字承载）。
 >
@@ -783,7 +786,7 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists, plus a non-blocking inline warning when the password is weak or shared with other accounts.
 
-Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (quick fill — fills and ticks, login only via "Fill and sign in" or "Auto-submit login") / K (inline). All customizable at chrome://extensions/shortcuts — the manager page ("Security Settings → Keyboard Shortcuts") and the side panel Help dialog both list all four bindings with their live status, flag any key that is currently inactive, and link straight to that page. Right-click an input to fill username/password/2FA code or generate a strong password.
+Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (quick fill — fills and ticks, login only via "Fill and sign in" or "Auto-submit login") / K (inline). All customizable at chrome://extensions/shortcuts — the manager page ("Help → Keyboard Shortcuts") and the side panel Help dialog both list all four bindings with their live status, flag any key that is currently inactive, and link straight to that page. Right-click an input to fill username/password/2FA code or generate a strong password.
 ```
 
 **Indicate any other products, platforms, or restricted websites (e.g., Netflix account, Adobe Creative Suite account, banking, intranet domains, etc.) that your extension requires access to in order to fulfill its purpose.（指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。）**
@@ -845,7 +848,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单；密码较弱或与其它账号共用时弹窗内联预警，只提醒不拦截。
 
-快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（快速填充，只填充与勾选，登录需「填充并登录」或开启「自动触发登录」）/ K（内联），均可在 chrome://extensions/shortcuts 自定义——密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗均列出四组按键及其当前生效状态，会标注未生效的按键并可一键直达该页。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
+快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（快速填充，只填充与勾选，登录需「填充并登录」或开启「自动触发登录」）/ K（内联），均可在 chrome://extensions/shortcuts 自定义——密码管理页「帮助 → 快捷键」与侧边栏「帮助」弹窗均列出四组按键及其当前生效状态，会标注未生效的按键并可一键直达该页。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
 ```
 
 **指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。**

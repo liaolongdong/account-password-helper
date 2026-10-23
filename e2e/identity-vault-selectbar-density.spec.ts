@@ -1,6 +1,6 @@
 import type { Locator } from '@playwright/test';
 import { expect, expectSuccessToastFor, test } from './harness';
-import { identityField, identityFormDialog, openVaultFromMenu, vaultDialog } from './identityVaultDom';
+import { identityField, identityFormDialog, openVaultFromHeader, vaultDialog } from './identityVaultDom';
 import { MAX_IDENTITIES } from '../utils/identity/constants';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import { templatedOf, textOf } from './i18n';
@@ -57,7 +57,7 @@ const setLocale = (page: import('@playwright/test').Page, locale: 'zh-CN' | 'en'
   );
 
 test('全选行一行装下全部读数，批量按钮净间距 8px / 可见间距 14px，中英两态均不换行', async ({ optionsPage: page }) => {
-  await openVaultFromMenu(page, true);
+  await openVaultFromHeader(page, true);
 
   // 建一条带机密字段的条目：没有机密字段时「显示全部机密」整枚按钮不出现，
   // 就没有两枚按钮的间距可量。护照形态的证件号（非 18 位）不做校验位检查，落库最省事。
