@@ -17,6 +17,7 @@ import {
   hasPendingIdentityBackup,
   isBackupRelevantIdentityChange,
   isBackupRelevantPasswordChange,
+  isKeyRotationBatch,
 } from '@/utils/backup/changeDetection';
 import { isMetadataOnlyChange } from '@/utils/storage/passwordCrud';
 
@@ -150,6 +151,25 @@ describe('isBackupRelevantIdentityChange（身份库无可忽略字段）', () =
     const b = idRecord({ id: 'b' });
     expect(isBackupRelevantIdentityChange([a, b], [b, a])).toBe(true);
     expect(isBackupRelevantIdentityChange(undefined, [idRecord()])).toBe(true);
+  });
+});
+
+describe('isKeyRotationBatch（换钥匙批次不算内容变更）', () => {
+  it('同批带上新包裹数据密钥 = rekey，判 true（不该刷新待备份时间戳）', () => {
+    expect(isKeyRotationBatch({ oldValue: 'old-wrap', newValue: 'new-wrap' })).toBe(true);
+  });
+
+  it('该键被移除是锁定语义，判 false（否则上锁会吞掉紧随其后的真实变更）', () => {
+    expect(isKeyRotationBatch({ oldValue: 'old-wrap', newValue: undefined })).toBe(false);
+  });
+
+  it('该键不在这一批里（普通增删改）判 false', () => {
+    expect(isKeyRotationBatch(undefined)).toBe(false);
+  });
+
+  it('只看「有没有被换成新值」，不看新值真假：空串/null 也算换过', () => {
+    expect(isKeyRotationBatch({ newValue: '' })).toBe(true);
+    expect(isKeyRotationBatch({ newValue: null })).toBe(true);
   });
 });
 

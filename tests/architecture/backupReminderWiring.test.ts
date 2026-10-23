@@ -167,6 +167,19 @@ describe('备份提醒的接线', () => {
     expect(keysBlock).not.toContain('STORAGE_KEYS.IDENTITY');
   });
 
+  it('SW 侧：换钥匙批次不刷新待备份时间戳（rekey 只是换钥匙，不是内容变更）', () => {
+    const background = readSource(BACKGROUND);
+    const recorderAt = background.indexOf('async function recordBackupRelevantChanges');
+    expect(recorderAt).toBeGreaterThan(-1);
+    const recorderBody = background.slice(recorderAt, recorderAt + 1600);
+
+    // 早退必须排在两条 setLast*ChangeAt 之前，否则 rekey 仍会把戳往前推
+    const guardAt = recorderBody.indexOf('isKeyRotationBatch(changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY])');
+    expect(guardAt, 'rekey 早退判据不见了：用户每改一次主密码就会凭空欠一次备份').toBeGreaterThan(-1);
+    expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastPasswordChangeAt(now)'));
+    expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastIdentityChangeAt(now)'));
+  });
+
   it('SW 侧：备份判据只读主列表键，回收站单独变化不点亮提醒（与密码库同口径）', () => {
     const background = readSource(BACKGROUND);
     const recorderAt = background.indexOf('async function recordBackupRelevantChanges');

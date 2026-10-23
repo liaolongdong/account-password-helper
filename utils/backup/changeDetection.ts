@@ -101,6 +101,36 @@ export function isBackupRelevantIdentityChange(oldValue: unknown, newValue: unkn
   return hasRelevantArrayChange(oldValue, newValue, IDENTITY_IGNORABLE_FIELDS);
 }
 
+/** `chrome.storage.StorageChange` 的最小结构镜像：本模块不引入 chrome 类型依赖 */
+export interface StorageChangeLike {
+  oldValue?: unknown;
+  newValue?: unknown;
+}
+
+/**
+ * 一批 `storage.onChanged` 变更是否由「换钥匙」引起（rekey）
+ *
+ * 修改主密码会把五个加密域整库重加密，并与新的包裹数据密钥**同批**落盘
+ * （见 `changeMasterPassword` 第 11 步那次 `chrome.storage.local.set()`）。逐字段比对的
+ * `isBackupRelevantPasswordChange` 因此会看到「每条密文都变了」并判为变更，把待备份时间戳
+ * 往前推一格——可那只是同一份内容换了一把钥匙加密：`.aph` 用的是导出当时的密码与容器自带
+ * salt，与当前主密码无关，备份内容一个字节都没变。不排掉它，用户每改一次主密码就凭空欠一次备份，
+ * 徽标与桌面通知会一起报出这个假「待备份」。
+ *
+ * 判据取「这批 changes 里 `session_wrapped_data_key` 带着新值出现」：
+ * - 有 `newValue` = 密钥被换成新值，即 rekey；
+ * - 该键被移除（`newValue === undefined`）是**锁定**语义，绝不能算在这里，
+ *   否则一次上锁会吞掉紧随其后的真实变更；
+ * - 普通解锁也写这个键，但那次 `set()` 不含 `PASSWORDS` / `IDENTITY`，走不到本判据，
+ *   因此不必再区分「首次建会话」与「换钥匙」。
+ *
+ * @param wrappedDataKeyChange 该批 changes 中 `session_wrapped_data_key` 那一项（可缺省）
+ * @returns true 表示这批变更由换钥匙引起，不应刷新待备份时间戳
+ */
+export function isKeyRotationBatch(wrappedDataKeyChange: StorageChangeLike | undefined): boolean {
+  return wrappedDataKeyChange?.newValue !== undefined;
+}
+
 /** 密码备份提醒的判定输入（全部来自 storage 时间戳，无条目内容） */
 export interface PasswordBackupReminderInput {
   /** 最近一次「与备份相关」的密码变更时间戳；本功能上线前的存量数据为 null */

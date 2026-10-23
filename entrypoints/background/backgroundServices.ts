@@ -34,6 +34,7 @@ import {
   decidePasswordBackupReminder,
   isBackupRelevantIdentityChange,
   isBackupRelevantPasswordChange,
+  isKeyRotationBatch,
 } from '@/utils/backup/changeDetection';
 import {
   markBrowserStartupRelockCurrentSessionReady,
@@ -347,12 +348,21 @@ async function setupAutoBackupAlarm() {
  * 写入的是另外三个键，不在 `relevantKeys` 内，因此本函数触发的 `onChanged`
  * 不会再回到这里，无自激循环。失败只记 warn：提醒退化回纯时间驱动，不影响任何数据。
  *
+ * 换钥匙（修改主密码）单独排除在外：那一批写入会把五个加密域整库重加密，逐字段比对
+ * 必然判成「内容变了」，但备份文件与当前主密码无关，用户并没有真的欠一次备份。
+ * 判据与理由见 `isKeyRotationBatch` 的注释。
+ *
  * @param changes `storage.onChanged` 的变更集
  */
 async function recordBackupRelevantChanges(changes: Record<string, chrome.storage.StorageChange>): Promise<void> {
   try {
     const StorageUtils = await _getStorageUtils();
     const now = Date.now();
+
+    if (isKeyRotationBatch(changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY])) {
+      logger.debug('Background: 该批变更来自换钥匙（rekey），内容未变，不刷新待备份时间戳');
+      return;
+    }
 
     const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
     if (passwordsChange && isBackupRelevantPasswordChange(passwordsChange.oldValue, passwordsChange.newValue)) {
