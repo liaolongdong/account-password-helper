@@ -179,3 +179,153 @@ export function hasPendingIdentityBackup(input: IdentityBackupPendingInput): boo
 
   return input.lastChangeAt !== null && input.lastChangeAt > input.lastBackupAt;
 }
+
+// ==================== 头部备份徽标 ====================
+
+/** 一天的毫秒数（徽标按「天」表达时长，与既有 `backupStatusDays` 文案同一口径） */
+const DAY_MS = 86_400_000;
+
+/**
+ * 徽标档位：严重度只由「有没有备份」与「备份后是否又改过」决定
+ *
+ * 档位刻意只到三档有色 + 一档隐藏，**不做「超过 2×下限再升红」**：红色在本仓已被
+ * 体检与危急会话占用，留给「从未备份」这一唯一真正不可挽回的状态；
+ * 超期只把文案从「N 天前已备份」换成「N 天未备份」，靠文字而非颜色区分，
+ * 满足「不能只用颜色表达状态」。
+ */
+export type BackupChipLevel = 'critical' | 'urgent' | 'warning' | 'ok';
+
+/** 单个库的备份档位（`hidden` 表示该库无条目，不参与徽标） */
+export type BackupVaultVerdict = 'hidden' | 'never' | 'pending' | 'stale' | 'ok';
+
+/** 徽标输入：两库各自的三个事实，全部来自 `chrome.storage.local` 的时间戳与条目存在性 */
+export interface BackupVaultInput {
+  /** 该库是否有条目。空库不参与判定——没有可备份的东西就不该有提醒 */
+  hasData: boolean;
+  /** 最近一次通过完整性自检的备份导出时间戳（密码 `.aph` / 身份 `.aphid` 各自独立） */
+  lastBackupAt: number | null;
+  /** 最近一次「与备份相关」的变更时间戳，由 Service Worker 的 `storage.onChanged` 写入 */
+  lastChangeAt: number | null;
+}
+
+/** 单个库在徽标明细里的呈现要素 */
+export interface BackupVaultChipDetail {
+  /** 该库档位 */
+  verdict: BackupVaultVerdict;
+  /** 距该库上次备份的整天数（从未备份时为 null） */
+  ageDays: number | null;
+}
+
+/** 徽标判定结果 */
+export interface BackupChipState {
+  /** 是否展示（两库皆空即隐藏） */
+  visible: boolean;
+  /** 徽标档位，取两库里最严重的一档 */
+  level: BackupChipLevel;
+  /** 决定档位的那一库，供文案与 `aria-label` 指明范围 */
+  worstVault: 'passwords' | 'identity';
+  /** 最差库的备份时间戳（从未备份时为 null），供「N 天」计算 */
+  worstLastBackupAt: number | null;
+  /** 两库各自档位与天数，供 tooltip / `aria-label` 分行陈述，不让徽标替两个库撒一个统一的谎 */
+  perVault: { passwords: BackupVaultChipDetail; identity: BackupVaultChipDetail };
+  /** 距最差库上次备份的整天数；从未备份时为 null */
+  ageDays: number | null;
+}
+
+/**
+ * 判定单个库的备份档位
+ *
+ * 只看时间戳，**绝不为徽标解密身份库**：`hasPendingIdentityBackup` 需要解密后的
+ * `records`，那是弹窗打开时才付的成本；这里走 `lastChangeAt` 一条信号即可覆盖增 / 改 / 删
+ * （删除会让记录消失、`records` 反而「看起来都已备份」，而 `LAST_IDENTITY_CHANGE_AT`
+ * 存在的理由正是补这个盲区）。
+ *
+ * @param vault 该库的条目存在性与两个时间戳
+ * @param floorMs 兜底下限，沿用 `autoBackupIntervalDays`（与 `decidePasswordBackupReminder` 同源）
+ * @param now 当前时间（由调用方注入，便于测试）
+ * @returns 该库档位
+ */
+export function decideVaultBackupVerdict(vault: BackupVaultInput, floorMs: number, now: number): BackupVaultVerdict {
+  if (!vault.hasData) return 'hidden';
+  if (vault.lastBackupAt === null) return 'never';
+  if (vault.lastChangeAt !== null && vault.lastChangeAt > vault.lastBackupAt) return 'pending';
+  if (now - vault.lastBackupAt > floorMs) return 'stale';
+  return 'ok';
+}
+
+/** 档位严重度序（越大越严重），供两库取最差 */
+const VERDICT_SEVERITY: Record<BackupVaultVerdict, number> = {
+  hidden: -1,
+  ok: 0,
+  stale: 1,
+  pending: 2,
+  never: 3,
+};
+
+/** 档位 → 徽标颜色档 */
+const VERDICT_TO_LEVEL: Record<Exclude<BackupVaultVerdict, 'hidden'>, BackupChipLevel> = {
+  ok: 'ok',
+  stale: 'warning',
+  pending: 'urgent',
+  never: 'critical',
+};
+
+/**
+ * 判定头部备份徽标
+ *
+ * 徽标只取两库里更严重的一档：一库「从未备份」一库「今日已备份」时显示绿色就是撒谎。
+ * 时间戳缺失或非有限值一律按「无该库备份记录」保守处理——提醒漏报的代价是用户丢数据，
+ * 误报的代价只是多一条橙色徽标，与本模块既有判据同一取向。
+ *
+ * @param input 两库输入、兜底下限与当前时间
+ * @returns 徽标状态
+ */
+export function decideBackupChipState(input: {
+  passwords: BackupVaultInput;
+  identity: BackupVaultInput;
+  floorMs: number;
+  now: number;
+}): BackupChipState {
+  const passwords = decideVaultBackupVerdict(input.passwords, input.floorMs, input.now);
+  const identity = decideVaultBackupVerdict(input.identity, input.floorMs, input.now);
+  const detail = (verdict: BackupVaultVerdict, lastBackupAt: number | null): BackupVaultChipDetail => ({
+    verdict,
+    ageDays: verdict === 'hidden' || lastBackupAt === null ? null : Math.floor((input.now - lastBackupAt) / DAY_MS),
+  });
+
+  if (passwords === 'hidden' && identity === 'hidden') {
+    return {
+      visible: false,
+      level: 'ok',
+      worstVault: 'passwords',
+      worstLastBackupAt: null,
+      perVault: { passwords: detail(passwords, null), identity: detail(identity, null) },
+      ageDays: null,
+    };
+  }
+
+  const passwordSeverity = VERDICT_SEVERITY[passwords];
+  const identitySeverity = VERDICT_SEVERITY[identity];
+  // 同档时取「更久没备份」的那一库：徽标只有一枚，展示的天数必须是最坏情况，不能粉饰。
+  // 从未备份（null）在同档里不会发生（`never` 恒为最高档），故按 +∞ 排在最新一侧即可。
+  const identityIsWorst =
+    identitySeverity > passwordSeverity ||
+    (identitySeverity === passwordSeverity &&
+      (input.identity.lastBackupAt ?? Number.POSITIVE_INFINITY) <
+        (input.passwords.lastBackupAt ?? Number.POSITIVE_INFINITY));
+  const worstVault: 'passwords' | 'identity' = identityIsWorst ? 'identity' : 'passwords';
+  const worstVerdict = identityIsWorst ? identity : passwords;
+  const worstBackupAt = (identityIsWorst ? input.identity : input.passwords).lastBackupAt;
+
+  return {
+    visible: true,
+    level: VERDICT_TO_LEVEL[worstVerdict as Exclude<BackupVaultVerdict, 'hidden'>],
+    worstVault,
+    worstLastBackupAt: worstBackupAt,
+    perVault: {
+      passwords: detail(passwords, input.passwords.lastBackupAt),
+      identity: detail(identity, input.identity.lastBackupAt),
+    },
+    ageDays: worstBackupAt === null ? null : Math.floor((input.now - worstBackupAt) / DAY_MS),
+  };
+}

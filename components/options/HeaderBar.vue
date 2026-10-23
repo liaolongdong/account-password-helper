@@ -24,10 +24,28 @@
           </a>
         </h1>
       </div>
-      <!-- 会话区：剩余时间徽标 + 一键锁定。两者都是「当前会话」的直接操控，
-           按邻近原则同处一行右端；锁定刻意不进任何下拉——离座前锁掉是高频安全动作，
-           原来只能从「安全设置 → 有效期设置 → 清除会话」三步抵达。 -->
-      <div class="header-session">
+      <!-- 状态区：备份徽标 + 会话剩余时间徽标 + 一键锁定。三者都是「看一眼就知道现在安不安全」
+           的常驻状态，按邻近原则同处一行右端；锁定刻意不进任何下拉——离座前锁掉是高频安全动作，
+           原来只能从「安全设置 → 有效期设置 → 清除会话」三步抵达。
+           备份徽标排在最左：它表达的是库的健康（天级），与会话（秒级）分属两种时间尺度，
+           放一起时先读更慢变的那个。 -->
+      <div class="header-status">
+        <button
+          v-if="backupChip.visible"
+          type="button"
+          class="backup-chip"
+          :class="`backup-chip--${backupChip.level}`"
+          :title="backupChipDetail"
+          :aria-label="t('options.header.backupChipAria', { detail: backupChipDetail })"
+          @click="$emit('dataCommand', 'backupExport')"
+        >
+          <span
+            class="backup-chip__dot"
+            aria-hidden="true"
+          ></span>
+          <el-icon><FolderChecked /></el-icon>
+          <span class="backup-chip__text">{{ backupChipText }}</span>
+        </button>
         <button
           v-if="remainingText"
           type="button"
@@ -103,19 +121,8 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <!-- 已验证备份状态：菜单顶部的只读状态条（左标题 / 右数值）。刻意不用菜单项的
-                   14px 字号与 32px 行高，避免这行说明反过来决定整个菜单的宽度，
-                   把下方九个操作项挤出一列空白。disabled 不是「置灰的按钮」而是
-                   「不参与交互」：EP 的 hover / focus 高亮只作用于 :not(.is-disabled)，
-                   且它会被移出 roving focus 环，展开菜单时不再被误标成当前选中项 -->
-              <el-dropdown-item
-                class="backup-status-bar"
-                disabled
-              >
-                <span>{{ t('options.header.backupStatusLabel') }}</span>
-                <span class="backup-status-bar__value">{{ backupStatusText }}</span>
-              </el-dropdown-item>
-
+              <!-- 备份状态已上移到头部徽标（唯一事实来源），菜单这里不再重复展示一份：
+                   同一屏两处显示同一事实，早晚漂移。 -->
               <!-- 四组按旅程排列，组内只有一个意图：取模板并灌入 → 明文导出给人看 →
                    加密备份的导出与回灌 → 库内维护。
                    「下载模板」是导入的前置件，因此排在「导入数据」之前；
@@ -374,6 +381,7 @@ import {
   CopyDocument,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
+import type { BackupChipState, BackupVaultChipDetail } from '@/utils/backup/changeDetection';
 import BrandLogo from '@/components/BrandLogo.vue';
 import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 import { useI18n } from '@/utils/i18n';
@@ -403,8 +411,8 @@ const props = defineProps<{
   healthScore?: number;
   /** 健康等级，空库时不传（决定是否显示体检小圆点） */
   healthGrade?: HealthGrade;
-  /** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
-  lastVerifiedBackupAt?: number | null;
+  /** 备份徽标状态（档位判据在 `utils/backup/changeDetection` 的纯函数里，本组件只负责呈现） */
+  backupChip: BackupChipState;
   /** 一键锁定进行中（复用有效期设置里的清除会话链路的加载态） */
   lockLoading?: boolean;
 }>();
@@ -498,20 +506,52 @@ const healthDotColor = computed(() => {
 });
 
 /**
- * 「数据管理」顶部状态条的数值部分（标题由 backupStatusLabel 单独承载）
+ * 单库档位 → 该库的状态文案
  *
- * 口径：最近一次「通过完整性自检」的加密 .aph 导出。无时间戳 → 尚无已验证备份；
- * 不足一天 → 今日已完成；1 天 / N 天分别取对应文案（自定义 i18n 无复数引擎，故分档）。
- * 数值刻意保持短词，避免撑宽菜单。
+ * `stale` 与 `ok` 都带天数，区别在颜色与「未 / 已」两个字的语义，不靠颜色单独表达状态。
  */
-const backupStatusText = computed(() => {
-  const at = props.lastVerifiedBackupAt;
-  if (typeof at !== 'number' || !Number.isFinite(at)) return t('options.header.backupStatusNone');
-  const days = Math.floor((Date.now() - at) / 86_400_000);
-  if (days <= 0) return t('options.header.backupStatusToday');
-  if (days === 1) return t('options.header.backupStatusOne');
-  return t('options.header.backupStatusDays', { days });
+const vaultStateText = (detail: BackupVaultChipDetail): string => {
+  switch (detail.verdict) {
+    case 'never':
+      return t('options.header.backupChipNever');
+    case 'pending':
+      return t('options.header.backupChipPending');
+    case 'stale':
+      return t('options.header.backupChipStale', { days: detail.ageDays ?? 0 });
+    case 'ok':
+      return (detail.ageDays ?? 0) <= 0
+        ? t('options.header.backupChipToday')
+        : t('options.header.backupChipDays', { days: detail.ageDays ?? 0 });
+    default:
+      return t('options.header.backupChipEmpty');
+  }
+};
+
+/** 徽标可见文字：取最差库的状态 */
+const backupChipText = computed(() => {
+  const chip = props.backupChip;
+  const state = vaultStateText(chip.perVault[chip.worstVault]);
+  // 最差库不是默认被读到的「密码库」时才补库名标签——否则「个人信息库从未备份」
+  // 会被读成整库都没备份，而反过来一库绿一库红时，徽标也必须说清红在哪。
+  if (chip.worstVault === 'identity' && chip.perVault.identity.verdict !== chip.perVault.passwords.verdict) {
+    return `${t('options.header.backupChipIdentityTag')} · ${state}`;
+  }
+  return state;
 });
+
+/** 徽标 `title` 与 `aria-label`：两库各自陈述，空库也写出来，不让徽标替它报平安 */
+const backupChipDetail = computed(() =>
+  [
+    t('options.header.backupChipVaultState', {
+      vault: t('options.header.backupChipPasswordsLabel'),
+      state: vaultStateText(props.backupChip.perVault.passwords),
+    }),
+    t('options.header.backupChipVaultState', {
+      vault: t('options.header.backupChipIdentityLabel'),
+      state: vaultStateText(props.backupChip.perVault.identity),
+    }),
+  ].join(' · '),
+);
 </script>
 
 <style scoped>
@@ -535,12 +575,106 @@ const backupStatusText = computed(() => {
   justify-content: space-between;
 }
 
-/* 会话区：剩余时间徽标 + 一键锁定，同一视觉域内相邻，窄屏一起换行而不挤压标题 */
-.header-session {
+/* 状态区：备份徽标 + 会话徽标 + 一键锁定，同一视觉域内相邻，窄屏一起换行而不挤压标题 */
+.header-status {
   display: flex;
   flex-shrink: 0;
   gap: 10px;
   align-items: center;
+}
+
+/* 备份徽标：与会话徽标同族的半透明 chip，四档颜色由 level 类名切换。
+   与会话徽标的关键差别是**不脉冲**——它表达的是天级状态，常驻动画只会变成噪音；
+   只有 `critical`（从未备份）允许一次轻呼吸，且随 reduced-motion 关闭。
+   档位同时改文字（从未备份 / 待备份 / N 天未备份 / N 天前已备份），颜色不是唯一通道。 */
+.backup-chip {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(255 255 255 / 90%);
+  cursor: pointer;
+  background: rgb(255 255 255 / 15%);
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+.backup-chip:hover {
+  background: rgb(255 255 255 / 22%);
+  border-color: rgb(255 255 255 / 40%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+}
+
+.backup-chip:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 70%);
+  outline-offset: 2px;
+}
+
+.backup-chip .el-icon {
+  font-size: 14px;
+}
+
+.backup-chip__text {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 状态灯三档色，取值与体检圆点同一组（tokens.css 无状态语义令牌，沿用 EP 调色板常量才一致） */
+.backup-chip__dot {
+  width: 6px;
+  height: 6px;
+  background: #67c23a;
+  border-radius: 50%;
+  box-shadow: 0 0 6px 1px rgb(103 194 58 / 55%);
+}
+
+.backup-chip--warning .backup-chip__dot {
+  background: #e6a23c;
+  box-shadow: 0 0 6px 1px rgb(230 162 60 / 55%);
+}
+
+/* 紧迫与危急两档改整枚 chip 的底色，必须写在 `--warning` 之后以覆盖同名属性 */
+.backup-chip--urgent {
+  color: #fff;
+  background: rgb(230 162 60 / 85%);
+  border-color: rgb(255 255 255 / 45%);
+}
+
+.backup-chip--urgent .backup-chip__dot {
+  background: #fff;
+  box-shadow: none;
+}
+
+.backup-chip--critical {
+  color: #fff;
+  background: rgb(245 108 108 / 85%);
+  border-color: rgb(255 255 255 / 45%);
+  animation: backup-chip-breathe 3s ease-in-out infinite;
+}
+
+.backup-chip--critical .backup-chip__dot {
+  background: #fff;
+  box-shadow: none;
+}
+
+@keyframes backup-chip-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(245 108 108 / 35%);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px rgb(245 108 108 / 0%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backup-chip--critical {
+    animation: none;
+  }
 }
 
 .header-title h1 {
@@ -853,35 +987,7 @@ const backupStatusText = computed(() => {
   transform: translateY(-1px);
 }
 
-/* 已验证备份状态：菜单顶部的只读状态条。左标题右数值 + 浅底色带，形态上与下方操作项分开，
-   不会被误读成可点击项；字号与行高都低于菜单项，说明文字因此不再决定整个菜单的宽度。
-   margin-top 抵掉 .el-dropdown-menu 的 5px 上内边距，让色带贴住弹层圆角。
-   必须走 :global：弹层 teleport 到 body，且 el-dropdown-item 的根 <li> 由 ElRovingFocusItem
-   渲染、拿不到本组件的 data-v 作用域属性，scoped 选择器永不命中（实测只有插槽内的 span 带属性）。
-   前缀 li 把特异性抬到 (0,2,1)，压过 EP 的 .el-dropdown-menu__item.is-disabled (0,2,0)，
-   不依赖两份样式的加载顺序 */
-:global(li.el-dropdown-menu__item.backup-status-bar) {
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 6px 16px;
-  margin-top: -5px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--aph-text-secondary, #6b7280);
-  white-space: nowrap;
-  cursor: default;
-  user-select: none;
-  background: var(--el-fill-color-light);
-  border-radius: var(--el-border-radius-base) var(--el-border-radius-base) 0 0;
-}
-
-.backup-status-bar__value {
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--el-text-color-primary);
-}
+/* 已验证备份状态条已随菜单项一起下线（状态上移到头部徽标），此处不再保留样式 */
 
 /* 响应式 */
 @media (width <= 768px) {

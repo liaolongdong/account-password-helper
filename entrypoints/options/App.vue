@@ -52,7 +52,7 @@
         :current-version="currentVersion"
         :health-score="passwords.length ? healthReport.score : undefined"
         :health-grade="passwords.length ? healthReport.grade : undefined"
-        :last-verified-backup-at="lastVerifiedBackupAt"
+        :backup-chip="backupChip"
         :lock-loading="clearSessionLoading"
         @add-password="openAddDialogWithActiveTab"
         @open-health="openHealthDialog"
@@ -88,6 +88,16 @@
         @backup="handleActivationBackup"
         @health="handleActivationHealth"
         @dismiss="handleActivationDismiss"
+      />
+
+      <!-- 会话内备份轻提醒：从未备份，或本次会话刚改过数据且尚未备份时出一次，
+           关闭只作用于本页；清单在场时不叠第二条横幅（判据见上方 backupNudge 计算属性） -->
+      <BackupNudgeBanner
+        v-if="backupNudge"
+        :state="backupNudge.state"
+        :days="backupNudge.days"
+        @backup="handleDataCommand('backupExport')"
+        @dismiss="backupNudgeDismissed = true"
       />
 
       <!-- 一次性评价引导：密码多于 1 条、成功填充过且首次填充满 7 天后出现，可延后或永久关闭 -->
@@ -416,6 +426,7 @@ import HeaderBar from '@/components/options/HeaderBar.vue';
 import UndoDeleteToast from '@/components/options/UndoDeleteToast.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import ActivationChecklist from '@/components/options/ActivationChecklist.vue';
+import BackupNudgeBanner from '@/components/options/BackupNudgeBanner.vue';
 import ReviewPrompt from '@/components/options/ReviewPrompt.vue';
 import WhatsNewDialog from '@/components/options/WhatsNewDialog.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
@@ -424,6 +435,7 @@ import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
 import { usePasswordManagement, UNDO_DELETE_WINDOW_MS } from '@/composables/usePasswordManagement';
 import { useStorageWatcher } from '@/composables/useStorageWatcher';
+import { useBackupChip } from '@/composables/useBackupChip';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
@@ -668,8 +680,19 @@ const { currentVersion } = useVersionUpdate();
 /** 加密备份导入弹窗可见性 */
 const showBackupImportDialog = ref(false);
 
-/** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
-const lastVerifiedBackupAt = ref<number | null>(null);
+/**
+ * 头部备份徽标（档位判据在 `utils/backup/changeDetection`，这里只装配）
+ *
+ * `lastVerifiedBackupAt` 由本 composable 持有：安全起步清单与徽标读的是同一个时间戳，
+ * 不再各读一遍。条目数由下方 watcher 写入，避免为「有没有密码」再整包读一次 `PASSWORDS`。
+ */
+const {
+  backupChip,
+  lastVerifiedBackupAt,
+  refresh: refreshBackupChip,
+  setPasswordCount,
+  mutatedThisSession,
+} = useBackupChip();
 
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
@@ -685,8 +708,8 @@ const handleEncryptedBackupExport = async () => {
   try {
     await exportEncryptedBackup(passwords.value, masterPassword);
     ElMessage.success(t('options.backup.exportSuccess'));
-    // 导出内部已在自检通过后落库，回读以反映真实持久态（而非乐观当前时间）
-    lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
+    // 导出内部已在自检通过后落库，重读以反映真实持久态（而非乐观当前时间）
+    await refreshBackupChip();
   } catch (error) {
     logger.error('加密备份导出失败:', error);
     if ((error as { name?: string })?.name === 'BackupVerifyError') {
@@ -910,6 +933,10 @@ const {
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
+
+// 把已在手的条目数交给备份徽标（`immediate` 覆盖「会话有效、列表已解密」的直达场景），
+// 徽标因此不需要为「有没有密码」再整包读一次 PASSWORDS
+watch(() => passwords.value.length, setPasswordCount, { immediate: true });
 
 /**
  * 回收站弹窗关闭后，让主表跟上弹窗里改过的档位
@@ -1202,6 +1229,26 @@ const showActivationChecklist = computed(
     activationDoneCount.value < ACTIVATION_TOTAL_STEPS,
 );
 
+/**
+ * 会话内备份轻提醒（R1）
+ *
+ * 出声条件刻意收紧：徽标已到「待备份」档不代表**刚**改过数据（可能只是上月那次改动一直没备份），
+ * 那种情况下头部徽标已经常驻说同一件事，再叠一条横幅就是噪音。因此只认两种情形：
+ * - `critical`：一次都没通过自检导出过（换机 / 重装 / 误删时零退路），清单不在场时持续提示；
+ * - `urgent` + 本次页面会话内确实发生过变更：即用户「刚添加 / 刚改完密码」这个时间点。
+ *
+ * 关闭只作用于本页会话（不新增持久化键、不加闹钟与桌面通知），
+ * 与「安全起步清单」互斥：清单在场时它已经把备份列为待办之一。
+ */
+const backupNudgeDismissed = ref(false);
+const backupNudge = computed<{ state: 'never' | 'stale'; days: number } | null>(() => {
+  if (backupNudgeDismissed.value || showActivationChecklist.value || !isAuthenticated.value) return null;
+  const chip = backupChip.value;
+  if (!chip.visible) return null;
+  if (chip.level === 'critical') return { state: 'never', days: 0 };
+  if (chip.level === 'urgent' && mutatedThisSession.value) return { state: 'stale', days: chip.ageDays ?? 0 };
+  return null;
+});
 /** 读取清单唯一需要异步补齐的两项：暂不提醒时间与体检趋势是否存在 */
 const loadActivationState = async (): Promise<void> => {
   const [state, history] = await Promise.all([getActivationChecklistState(), readHealthHistory()]);
@@ -1946,8 +1993,8 @@ onMounted(async () => {
   // 整表重排付两遍（本页最贵的单项操作）。它是纯视图偏好，单键读取，不依赖会话态。
   await restorePageSizeConfig();
   await checkAuth();
-  // 读取「最近一次已验证备份」时间戳，供 HeaderBar 展示备份健康提示（时间戳非敏感，读取无需会话态）
-  lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
+  // 备份徽标与清单共用的时间戳：非敏感、单键读取，不挡首帧（徽标在数据到位后自己亮）
+  void refreshBackupChip();
   // 安全起步清单的暂不提醒状态与体检趋势；两项都只读非敏感摘要，失败时降级为未完成
   void loadActivationState();
   // 更新提示与一次性评价引导；版本/关闭标记都只读非敏感数据

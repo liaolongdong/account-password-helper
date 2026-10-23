@@ -251,7 +251,7 @@ One fill takes four steps, all on your own machine:
 
 Your vault travels in one encrypted file — no sync service, and no third-party authorization anywhere in the chain:
 
-1. **Export on the source machine**: "Data Management → Export Encrypted Backup" on the manager page, confirm the master password, and you get `backup_YYYYMMDD_HHmmss.aph`. Before that file is written, the extension decrypts the container it just produced and checks it round-trip; only a pass lets the file out, and the manager header records the "Verified backup" date — make sure that line is not "Never" before you start moving.
+1. **Export on the source machine**: "Data Management → Export Encrypted Backup" on the manager page, confirm the master password, and you get `backup_YYYYMMDD_HHmmss.aph`. Before that file is written, the extension decrypts the container it just produced and checks it round-trip; only a pass lets the file out, and the backup chip in the manager header flips to "Backed up today" — before you start moving, make sure it is not the red "Never backed up".
 2. **Any carrier will do**: a cloud drive, a USB stick, an email to yourself. Where you put it does not matter — what lands there is only `salt + IV + AES-256-GCM ciphertext`, with the key derived from your master password through 600,000 PBKDF2 rounds, so nothing opens without that password. That is precisely why this extension ships no cloud sync.
 3. **Install and set a master password on the new machine**: it may be a different one — **it does not have to match**.
 4. **Import**: "Data Management → Import Encrypted Backup", upload the `.aph`, enter **the master password used at export**, decrypt to a preview, then confirm. Entries land re-encrypted field by field with that machine's current key.

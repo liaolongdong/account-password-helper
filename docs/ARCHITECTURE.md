@@ -366,6 +366,10 @@ graph TB
 - 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](../utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD_HHmmss.aph`。
 - 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](../components/options/BackupImportDialog.vue)）。
 - 加密方案：PBKDF2（600,000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
+- **头部备份徽标**：管理页头部第一行右侧常驻一枚徽标（[HeaderBar.vue](../components/options/HeaderBar.vue) + [useBackupChip.ts](../composables/useBackupChip.ts)），把密码库与个人信息库两份备份状态合成一个结论——`critical` 从未备份（红）/ `urgent` 有变更待备份（橙）/ `warning` 超期未备份（橙，只动状态灯）/ `ok` 期限内已备份（绿）。档位由纯函数 `decideBackupChipState`（[utils/backup/changeDetection.ts](../utils/backup/changeDetection.ts)）判定，两库取更严重的一档、同档取更久没备份的那一库，UI 只消费结果；兜底下限沿用 `autoBackupIntervalDays`，与桌面通知那条链路共用同一个用户设置，不另起第二套阈值。
+- **徽标的成本边界**：只读 4 个时间戳与 `IDENTITY` 数组长度，**不为它解密任何数据、也不整包读 `PASSWORDS`**（密码条目数由管理页已在手的解密列表回填），且不轮询——`storage.onChanged` 命中那几个键时就地更新，监听器随组件作用域回收。悬停明细分行陈述两个库（`.aph` 与 `.aphid` 互不覆盖，一库绿一库红时不能报平安），两库皆空则整枚隐藏。
+- **出口与轻提醒**：点击徽标直达加密备份导出（复用菜单同一条 `backupExport` 命令，不另起链路）；「从未备份」或「本次页面会话内确实改过数据且尚未备份」时，管理页再出一条可关闭的轻提醒（[BackupNudgeBanner.vue](../components/options/BackupNudgeBanner.vue)，只作用于本页会话，不新增持久化键、闹钟与通知），并与「安全起步清单」互斥出现。状态由文字、状态灯与 `aria-label` 三通道表达，颜色不是唯一通道。
+- 旧口径下线：备份状态此前是「数据管理」菜单顶部一条 disabled 的只读状态条，现上移到头部成为唯一事实来源，菜单里不再重复一份（`options.header.backupStatus*` 文案键一并删除）。
 
 ### 7. 密码可见性切换
 

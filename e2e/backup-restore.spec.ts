@@ -41,17 +41,19 @@ const BACKUP_EMAIL = 'e2e-backup@example.com';
 const dataButton = (page: Page) => page.getByRole('button', { name: textOf('options.header.data') });
 
 /**
- * 菜单顶部的「最近验证备份」数值
+ * 头部的备份徽标可见文字
  *
- * 它是 disabled 的只读状态条而非操作项，断言取数值那一截，标题由
- * backupStatusLabel 单独承载，整行一起读会把「从未导出」这类文案和标题混在一起。
+ * 备份状态原先是「数据管理」菜单顶部一条 disabled 的只读状态条，现上移到头部常驻
+ * （唯一事实来源，菜单里不再重复一份）。徽标只在两库皆有条目为空时隐藏，
+ * 因此「空库不显示」本身就是这条链路的一条可断言行为。
  */
-const backupStatusValue = (page: Page) => page.locator('.backup-status-bar__value');
+const backupChip = (page: Page) => page.locator('.backup-chip');
+const backupChipText = (page: Page) => page.locator('.backup-chip__text');
 
-/** 打开「数据管理」菜单：EP 的 popper 懒渲染，展开后状态条才在 DOM 里 */
+/** 打开「数据管理」菜单：EP 的 popper 懒渲染，展开后菜单项才在 DOM 里 */
 async function openDataMenu(page: Page): Promise<void> {
   await dataButton(page).click();
-  await expect(backupStatusValue(page)).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: textOf('options.header.backupExport') })).toBeVisible();
 }
 
 /** 选中「数据管理」菜单里的某条命令（dropdown item 是 role=menuitem，选中后菜单自动收起） */
@@ -114,20 +116,22 @@ async function importBackupFile(page: Page, filename: string, buffer: Buffer): P
 }
 
 test.describe('加密备份导出与导入', () => {
-  test('空库时拒绝导出：给出可读提示，「最近验证备份」仍停在从未导出', async ({ optionsPage: page }) => {
+  test('空库时拒绝导出：给出可读提示，两库皆空则备份徽标不显示', async ({ optionsPage: page }) => {
     await runDataCommand(page, 'options.header.backupExport');
     await expect(toast(page, 'message.noDataToBackup')).toBeVisible();
     // 没有数据就不该弹主密码验证框：验证本身要跑一次 PBKDF2，而这次导出根本不会发生
     await expect(page.getByRole('dialog').filter({ hasText: textOf('options.backup.exportPrompt') })).toBeHidden();
 
-    await openDataMenu(page);
-    await expect(backupStatusValue(page)).toHaveText(textOf('options.header.backupStatusNone'));
+    // 空库不报「从未备份」：没有可丢的东西，就不该有一条红色状态常驻头部
+    await expect(backupChip(page)).toBeHidden();
   });
 
   test('导出前必须过主密码：错密码原地拒绝，对密码才产出 .aph 并记下备份时间', async ({ optionsPage: page }) => {
     await createEntry(page, ROUND_TRIP);
 
-    await runDataCommand(page, 'options.header.backupExport');
+    // 有条目、一次都没备份 → 徽标亮在最重的一档，且点击它就是导出（不必再去菜单里找）
+    await expect(backupChipText(page)).toHaveText(textOf('options.header.backupChipNever'));
+    await backupChip(page).click();
     const verify = page.getByRole('dialog').filter({ hasText: textOf('options.backup.exportPrompt') });
     await expect(verify).toBeVisible();
     const passwordInput = verify.getByPlaceholder(textOf('auth.verifyPasswordPlaceholder'));
@@ -151,8 +155,7 @@ test.describe('加密备份导出与导入', () => {
     const recordedAt = await readStoredConfig(page, STORAGE_KEYS.LAST_VERIFIED_BACKUP_AT);
     expect(typeof recordedAt).toBe('number');
 
-    await openDataMenu(page);
-    await expect(backupStatusValue(page)).toHaveText(textOf('options.header.backupStatusToday'));
+    await expect(backupChipText(page)).toHaveText(textOf('options.header.backupChipToday'));
   });
 
   test('导出 → 删除 → 导入回环：条目按原样解回，库里依然只有密文', async ({ optionsPage: page }) => {
