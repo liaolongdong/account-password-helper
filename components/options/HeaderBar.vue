@@ -622,18 +622,22 @@ const backupChipDetail = computed(() =>
   font-variant-numeric: tabular-nums;
 }
 
-/* 状态灯三档色，取值与体检圆点同一组（tokens.css 无状态语义令牌，沿用 EP 调色板常量才一致） */
+/* 状态灯三档色。取值全部来自本文件既有先例，不新造调色板：
+   - `ok` 绿用会话徽标状态灯的 #86efac（同一枚半透明蓝底 chip 上，#67c23a 那种中绿会被
+     背景吃掉、和紧邻的会话绿灯明显不同族）；
+   - `warning` 橙保留 #e6a23c 但加一圈体检圆点同款的白色描边，让它在渐变蓝上分得开；
+   - `urgent` / `critical` 直接把整枚 chip 换成橙底 / 红底，状态灯转为纯白点。 */
 .backup-chip__dot {
   width: 6px;
   height: 6px;
-  background: #67c23a;
+  background: #86efac;
   border-radius: 50%;
-  box-shadow: 0 0 6px 1px rgb(103 194 58 / 55%);
+  box-shadow: 0 0 6px 1px rgb(134 239 172 / 60%);
 }
 
 .backup-chip--warning .backup-chip__dot {
   background: #e6a23c;
-  box-shadow: 0 0 6px 1px rgb(230 162 60 / 55%);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 35%);
 }
 
 /* 紧迫与危急两档改整枚 chip 的底色，必须写在 `--warning` 之后以覆盖同名属性 */
@@ -899,7 +903,7 @@ const backupChipDetail = computed(() =>
 }
 
 /* 一键锁定：与会话徽标同族的玻璃态按钮，但保留原生按钮语义（可聚焦、可回车、可回填 loading） */
-:deep(.header-session .el-button.lock-btn) {
+:deep(.header-status .el-button.lock-btn) {
   font-weight: 400;
   color: white;
   background: rgb(255 255 255 / 15%);
@@ -908,7 +912,7 @@ const backupChipDetail = computed(() =>
   transition: all 0.2s ease;
 }
 
-:deep(.header-session .el-button.lock-btn:hover) {
+:deep(.header-status .el-button.lock-btn:hover) {
   background: rgb(255 255 255 / 22%);
   border-color: rgb(255 255 255 / 45%);
   box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
