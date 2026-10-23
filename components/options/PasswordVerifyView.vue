@@ -58,6 +58,17 @@
               >
                 {{ verifyError }}
               </div>
+              <!--
+                提示语刻意等连续输错到达阈值才亮：第一次输错就甩出提示，
+                等于把「回想」这条最低成本的路径跳过，也放大了本机旁观者读到提示的机会。
+              -->
+              <div
+                v-if="hint && failCount >= MAX_FAIL_BEFORE_HINT"
+                class="verify-hint-inline"
+              >
+                <span class="verify-hint-inline__label">{{ t('auth.hintShown') }}</span>
+                {{ hint }}
+              </div>
             </el-form-item>
 
             <el-form-item
@@ -99,13 +110,23 @@
                   size="small"
                   type="danger"
                   link
-                  @click="$emit('reset')"
+                  @click="showForgotDialog = true"
                 >
                   {{ t('auth.forgotPassword') }}
                 </el-button>
               </div>
             </el-form-item>
           </el-form>
+          <!--
+            找回向导：把「先想退路、再谈清空」的顺序固化下来。
+            挂在锁定页内部而不是 App 顶层，是因为它只在 `showPasswordVerify` 为真时可达，
+            且向导的终点直接复用父级既有的 `reset` 事件（清空与二次确认逻辑一律不改）。
+          -->
+          <ForgotPasswordDialog
+            v-model="showForgotDialog"
+            :has-hint="Boolean(hint)"
+            @reset="handleConfirmReset"
+          />
           <!-- 免责声明 -->
           <div class="disclaimer-compact">
             <DisclaimerInfo />
@@ -123,8 +144,9 @@ import { View, Hide } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import DisclaimerInfo from '@/components/options/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/options/ValidityHoursSelect.vue';
+import ForgotPasswordDialog from './ForgotPasswordDialog.vue';
 import CapsLockHint from '@/components/CapsLockHint.vue';
-import { SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
+import { SHAKE_DURATION_MS, MAX_FAIL_BEFORE_HINT } from '@/composables/useAuthFlow';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
 
@@ -147,6 +169,10 @@ const props = defineProps<{
   verifyShake: boolean;
   /** 是否为开发环境 */
   isDev: boolean;
+  /** 主密码提示语（空串表示用户未设置） */
+  hint: string;
+  /** 本次解锁已连续输错的次数 */
+  failCount: number;
 }>();
 
 const emit = defineEmits<{
@@ -158,6 +184,18 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/** 找回向导可见性 */
+const showForgotDialog = ref(false);
+
+/**
+ * 向导终点「仍然重置全部数据」：先收起向导，再把清空动作交回父级的 `reset` 事件。
+ * 父级 `useAuthFlow.resetMasterPassword` 内已带 lockSession → clearAllData 与二次确认，此处不复制。
+ */
+const handleConfirmReset = () => {
+  showForgotDialog.value = false;
+  emit('reset');
+};
 
 /** 主密码输入框大写锁定检测（误开大写锁定时即时提示） */
 const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
@@ -274,6 +312,19 @@ defineExpose({ formRef: localVerifyFormRef });
   font-size: 12px;
   line-height: 1.4;
   color: #f56c6c;
+}
+
+/* 主密码提示语（连续输错达阈值后出现，与复验弹窗的忘记密码提示同一口径） */
+.verify-hint-inline {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
+}
+
+.verify-hint-inline__label {
+  font-weight: 600;
+  color: var(--el-text-color-regular);
 }
 
 /* 密码输入框抖动动画 */

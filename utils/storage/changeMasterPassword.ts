@@ -231,6 +231,9 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
         hashedPassword: newVerifierHash,
         salt: existingSalt,
         kdf: 'pbkdf2-sha256' as const,
+        // 这里是整对象覆写：不显式带上 hint，用户改一次主密码提示语就被静默抹掉。
+        // 空串按「未设置」处理，与 setMasterPassword 的省略该字段口径一致。
+        ...(existingConfig.hint ? { hint: existingConfig.hint } : {}),
       },
       ...sessionKeysToWrite,
     });

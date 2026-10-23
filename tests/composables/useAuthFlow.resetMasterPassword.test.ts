@@ -44,4 +44,12 @@ describe('B7 重置主密码流程源码形状', () => {
   it('onSessionExpired 回调被触发，向其它上下文广播会话过期', () => {
     expect(body).toMatch(/options\.onSessionExpired\?\.\(\)/);
   });
+
+  it('确认弹窗的确认按钮走危险档（与清除会话、明文导出同口径）', () => {
+    // 重置是全库不可逆清空，严重度不低于这两项；按钮若退回默认蓝，
+    // 用户在同一条找回流程里会先看到红色入口、再看到蓝色确认，严重度视觉跳水。
+    expect(body).toMatch(/confirmButtonClass:\s*'el-button--danger'/);
+    // 图标档位全仓统一为 warning，不在这里单点发明第二套口径
+    expect(body).toMatch(/type:\s*'warning'/);
+  });
 });

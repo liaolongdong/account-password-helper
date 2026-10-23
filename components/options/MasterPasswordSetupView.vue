@@ -93,6 +93,24 @@
             </el-form-item>
 
             <el-form-item
+              :label="t('auth.hintLabel')"
+              prop="hint"
+            >
+              <el-input
+                v-model="formModel.hint"
+                type="text"
+                :placeholder="t('auth.hintPlaceholder')"
+                :maxlength="MAX_MASTER_PASSWORD_HINT_LENGTH"
+                show-word-limit
+                size="large"
+                :disabled="setupLoading"
+                autocomplete="off"
+                @keyup.enter="handleSubmit"
+              />
+              <div class="form-tip">{{ t('auth.hintTip', { count: MAX_FAIL_BEFORE_HINT }) }}</div>
+            </el-form-item>
+
+            <el-form-item
               :label="t('auth.validityLabel')"
               prop="validityHours"
             >
@@ -158,7 +176,9 @@ import ValidityHoursSelect from '@/components/options/ValidityHoursSelect.vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
 import CapsLockHint from '@/components/CapsLockHint.vue';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
+import { MAX_FAIL_BEFORE_HINT } from '@/composables/useAuthFlow';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import { MAX_MASTER_PASSWORD_HINT_LENGTH } from '@/utils/storage/masterPassword';
 import { useI18n } from '@/utils/i18n';
 import { PRODUCT_DOCS_URL } from '@/utils/urls';
 
@@ -170,7 +190,7 @@ import { PRODUCT_DOCS_URL } from '@/utils/urls';
  */
 const props = defineProps<{
   /** 设置表单数据 */
-  setupForm: { password: string; confirmPassword: string; validityHours: number };
+  setupForm: { password: string; confirmPassword: string; validityHours: number; hint: string };
   /** 表单校验规则 */
   setupRules: FormRules;
   /** 提交加载状态 */
@@ -184,7 +204,7 @@ const props = defineProps<{
 /** 表单提交事件 */
 const emit = defineEmits<{
   submit: [];
-  'update:setupForm': [value: { password: string; confirmPassword: string; validityHours: number }];
+  'update:setupForm': [value: { password: string; confirmPassword: string; validityHours: number; hint: string }];
 }>();
 
 const { t } = useI18n();
@@ -223,6 +243,7 @@ const formModel = reactive({
   password: props.setupForm.password,
   confirmPassword: props.setupForm.confirmPassword,
   validityHours: props.setupForm.validityHours,
+  hint: props.setupForm.hint,
 });
 
 /** props -> local 同步（父组件重置时生效） */
@@ -232,6 +253,7 @@ watch(
     formModel.password = val.password;
     formModel.confirmPassword = val.confirmPassword;
     formModel.validityHours = val.validityHours;
+    formModel.hint = val.hint;
   },
 );
 

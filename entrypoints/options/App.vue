@@ -32,6 +32,8 @@
       :verify-error="verifyError"
       :verify-shake="verifyShake"
       :is-dev="isDev"
+      :hint="masterPasswordHint"
+      :fail-count="verifyFailCount"
       @submit="handleVerifySubmit"
       @debug="debugPassword"
       @reset="resetMasterPassword"
@@ -1115,6 +1117,8 @@ const {
   setupRules,
   verifyForm,
   verifyRules,
+  masterPasswordHint,
+  verifyFailCount,
   checkAuth,
   handleSetupSubmit,
   handleVerifySubmit,

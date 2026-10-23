@@ -518,5 +518,20 @@
   "options.guide.pointFill": "<b>Four ways to fill</b> Pick the side panel, the inline dropdown, the one-keystroke shortcut or the context menu. Search matches username, tags, notes and URL, and understands full pinyin as well as initials. Cross-subdomain matching comes in three tiers, and when auto-detection picks the wrong fields you can pin CSS selectors for that site.",
   "options.guide.pointAudit": "<b>Security checkup</b> One click scans for weak passwords, reuse, common leaked passwords (offline dictionary) and entries that haven't been rotated, then produces a 0-100 score. Every finding has a \"Fix\" action, and stale entries can raise an expiry reminder.",
   "options.guide.pointBackup": "<b>Backup and migration</b> Import and export CSV or JSON, with automatic recognition of exports from Chrome, LastPass, Bitwarden and 1Password. The encrypted .aph backup and .aphid personal info backup can be stored offline, and deleted entries stay in the trash for 30 days.",
-  "options.guide.pointWarn": "<b>The master password cannot be recovered</b> It is only used to derive the decryption key on this machine; the extension never stores it and cannot reset it for you. If it is lost, the only way forward is to erase the data and set it again, so export encrypted backups regularly."
+  "options.guide.pointWarn": "<b>The master password cannot be recovered</b> It is only used to derive the decryption key on this machine; the extension never stores it and cannot reset it for you. If it is lost, first try the password hint you left when setting it up, then reopen an encrypted backup (.aph) using the password that was current when you exported it. Only when neither route works can you erase the data and start over — so keep exporting encrypted backups.",
+  "options.forgot.title": "Forgot your master password?",
+  "options.forgot.lead": "This extension never stores the master password and cannot reset it for you. The options below are ordered by likelihood of success: only the first two get your data back, the last one erases the vault.",
+  "options.forgot.recallTitle": "Go back to the unlock screen and read your hint",
+  "options.forgot.recallBody": "You saved a password hint. After a few failed attempts it appears under the input field — follow it to recall the master password before wiping anything.",
+  "options.forgot.backupTitle": "Restore from an encrypted backup (.aph)",
+  "options.forgot.backupBody": "A .aph file is decrypted with the password you entered at export time, not the one you forgot. If you remember an older master password, it still opens the backup made while it was current.",
+  "options.forgot.backupStep1": "Choose \"Reset anyway\" at the bottom right to rebuild an empty vault with a new master password;",
+  "options.forgot.backupStep2": "In the manager header, open \"Data → Restore from backup\" and pick the .aph file;",
+  "options.forgot.backupStep3": "Enter the password that was used when that backup was exported, then confirm the import.",
+  "options.forgot.backupWarn": "You get back the snapshot from export time: anything added or changed afterwards is lost; import appends without deduplication; the personal info vault is not inside a .aph file and needs its own .aphid backup; trash and change history are not rolled back.",
+  "options.forgot.csvTitle": "Restore from a CSV / JSON export",
+  "options.forgot.csvBody": "If you ever used \"Export data\" or \"Backup to email\", that file holds plain-text accounts and passwords — import it through \"Import\" with the matching format (same snapshot limit, and it does not include the personal info vault).",
+  "options.forgot.resetTitle": "No backup at all: reset is the only option",
+  "options.forgot.resetBody": "Reset erases every password, personal record, trash entry and setting on this computer, and it cannot be undone. You will still have to keep the next master password yourself.",
+  "options.forgot.resetBtn": "Reset anyway"
 }

@@ -518,5 +518,20 @@
   "options.guide.pointFill": "<b>四种填充入口</b> 侧边栏、页面内联下拉、一键填充快捷键与右键菜单任选；搜索认账号 / 标签 / 备注 / 网址多字段，支持拼音全拼与首字母缩写；跨子域匹配提供三档口径，识别认错登录框时还可为站点钉死 CSS 选择器。",
   "options.guide.pointAudit": "<b>安全体检</b> 一键扫描弱密码、密码复用、常见泄露密码（离线字典）与长时间未更新，生成 0~100 综合评分，问题条目逐条「去处理」，陈旧条目可设到期提醒。",
   "options.guide.pointBackup": "<b>备份与迁移</b> CSV / JSON 导入导出并自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式；加密备份 .aph 与个人信息备份 .aphid 可离线保存，删除的条目进回收站保留 30 天。",
-  "options.guide.pointWarn": "<b>主密码无法找回</b> 主密码只用于在本机派生解密密钥，扩展不保存它，也无法替你重置。忘记主密码只能清空数据后重新设置，请务必定期导出加密备份。"
+  "options.guide.pointWarn": "<b>主密码无法找回</b> 主密码只用于在本机派生解密密钥，扩展不保存它，也无法替你重置。忘记后先回想设置时留下的提示语，再用「导出那一刻的密码」解开加密备份（.aph）；两条退路都没有时，只能清空数据后重新设置，所以请务必定期导出加密备份。",
+  "options.forgot.title": "忘记主密码，怎么办",
+  "options.forgot.lead": "本扩展不保存主密码，也无法替你重置。下面按成功率从高到低排列：只有前两条能把数据找回来，最后一条会清空整库。",
+  "options.forgot.recallTitle": "先回到解锁页看提示语",
+  "options.forgot.recallBody": "你设置过密码提示语。连续输错几次后，输入框下方会把它显示出来——先顺着它把主密码想回来，别急着清空。",
+  "options.forgot.backupTitle": "用加密备份（.aph）恢复",
+  "options.forgot.backupBody": ".aph 用「导出那一刻输入的密码」解密，与现在忘掉的这把无关。如果你记得更早以前用过的主密码，用它就能解开当年那份备份。",
+  "options.forgot.backupStep1": "点本向导右下角「仍然重置全部数据」，用新主密码重建一个空库；",
+  "options.forgot.backupStep2": "在管理页「数据管理 → 从备份恢复」选择 .aph 文件；",
+  "options.forgot.backupStep3": "输入导出那份备份时使用的密码，确认导入。",
+  "options.forgot.backupWarn": "找回的是备份时刻的快照：此后的新增与修改会丢失；导入是追加、不去重；个人信息库不在 .aph 里，需要用 .aphid 单独恢复；回收站与修改历史不回滚。",
+  "options.forgot.csvTitle": "用导出过的 CSV / JSON 表格恢复",
+  "options.forgot.csvBody": "如果你用过「数据导出」或「备份到邮箱」，那份文件里就是明文账号与密码，直接在「导入」里选对应格式即可（同样只覆盖导出时刻，且不含个人信息库）。",
+  "options.forgot.resetTitle": "两条退路都没有：只能重置",
+  "options.forgot.resetBody": "重置会清空本机全部密码、个人信息、回收站与设置，且不可撤销；此后主密码仍需你自己保管。",
+  "options.forgot.resetBtn": "仍然重置全部数据"
 }

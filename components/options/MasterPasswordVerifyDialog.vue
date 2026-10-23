@@ -84,12 +84,9 @@ import {
   _resolveVerifyDialog,
   _rejectVerifyDialog,
 } from '@/utils/masterPasswordVerifyController';
-import { SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
+import { SHAKE_DURATION_MS, MAX_FAIL_BEFORE_HINT } from '@/composables/useAuthFlow';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import CapsLockHint from '@/components/CapsLockHint.vue';
-
-/** 连续错误次数达到此值后显示重置提示 */
-const MAX_FAIL_BEFORE_HINT = 3;
 
 const { t } = useI18n();
 

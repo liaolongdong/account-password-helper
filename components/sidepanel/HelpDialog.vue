@@ -102,7 +102,7 @@
             eslint 豁免（清单收缩登记见 `tests/architecture/lintBypassInventory.test.ts`）。
           -->
           <li
-            v-for="(item, idx) in helpItems('help.gs', 11)"
+            v-for="(item, idx) in helpItems('help.gs', 12)"
             :key="idx"
           >
             <RichText :source="item" />

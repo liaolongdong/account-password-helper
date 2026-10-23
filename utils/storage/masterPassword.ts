@@ -23,9 +23,31 @@ async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
 const CURRENT_VERIFIER_KDF = 'pbkdf2-sha256' as const;
 
 /**
- * 设置主密码
+ * 主密码提示语的最大字符数
+ *
+ * 提示语以明文落在 `master_password_config.hint`，上限用于挡住异常长的输入
+ * （表单侧 `maxlength` 只是体验，存储边界才是事实来源）。
  */
-export async function setMasterPassword(password: string): Promise<void> {
+export const MAX_MASTER_PASSWORD_HINT_LENGTH = 120;
+
+/**
+ * 归一化提示语：去首尾空白并按上限截断
+ *
+ * @returns 归一化后的提示语；空串表示「未设置提示语」，调用方据此省略该字段
+ */
+function normalizeHint(raw: string | undefined): string {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return '';
+  return trimmed.slice(0, MAX_MASTER_PASSWORD_HINT_LENGTH);
+}
+
+/**
+ * 设置主密码
+ *
+ * @param password 主密码明文（仅用于本机派生校验哈希与数据密钥，绝不落盘）
+ * @param hint 可选的主密码提示语，明文存于本机；省略即不写入该字段
+ */
+export async function setMasterPassword(password: string, hint?: string): Promise<void> {
   try {
     const cleanPassword = String(password || '').trim();
     if (!cleanPassword) {
@@ -36,10 +58,12 @@ export async function setMasterPassword(password: string): Promise<void> {
     const enc = await _getEncryption();
     const hashedPassword = await enc.deriveVerifierHash(cleanPassword, salt);
 
+    const normalizedHint = normalizeHint(hint);
     const config: MasterPasswordConfig = {
       hashedPassword,
       salt,
       kdf: CURRENT_VERIFIER_KDF,
+      ...(normalizedHint ? { hint: normalizedHint } : {}),
     };
 
     await chrome.storage.local.set({
@@ -130,6 +154,23 @@ export async function hasMasterPassword(): Promise<boolean> {
   } catch (error) {
     logger.error('检查主密码失败:', error);
     return false;
+  }
+}
+
+/**
+ * 读取主密码提示语
+ *
+ * 供解锁页在连续输错后展示。提示语是本机明文数据，不含任何主密码材料，
+ * 因此读取不经会话门禁；未设置、配置缺失或读取失败一律返回空串（调用方隐藏该区块）。
+ */
+export async function getMasterPasswordHint(): Promise<string> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
+    const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;
+    return normalizeHint(config?.hint);
+  } catch (error) {
+    logger.error('读取主密码提示语失败:', error);
+    return '';
   }
 }
 
