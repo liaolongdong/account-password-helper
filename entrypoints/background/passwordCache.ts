@@ -22,10 +22,12 @@ import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState }
 import {
   resolveMatchTier,
   countSameMainDomainCandidates,
+  isAdmittedByEnvOnly,
   type MatchTier,
   type PagePortContext,
   type SitePolicy,
 } from '@/utils/domain';
+import { getEnvBinding } from './environmentBinding';
 import { filterByKeyword } from '@/utils/keywordMatch';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch/core';
 import { fetchFaviconDataUrl } from '@/utils/favicon';
@@ -514,11 +516,15 @@ export async function sortMatchesForDomain(
   domain: string,
   page: PagePortContext | null,
 ): Promise<PasswordEntry[]> {
-  const [sortConfig, policy] = await Promise.all([getCachedSortConfig(), getCachedSitePolicy()]);
+  const [sortConfig, policy, envHost] = await Promise.all([
+    getCachedSortConfig(),
+    getCachedSitePolicy(),
+    getEnvBinding(domain, page?.port ?? null),
+  ]);
   const sortState: SortState = sortConfig
     ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  return filterAndSortEntriesForDomain(passwords, domain, sortState, page, policy);
+  return filterAndSortEntriesForDomain(passwords, domain, sortState, page, policy, envHost);
 }
 
 /**
@@ -619,22 +625,28 @@ export async function getMatchingAccounts(
 
   // 过滤 + 排序：与侧边栏 filteredPasswords 同口径（含无 URL 条目），
   // 放宽程度由用户在 Options 里选择的档位与端口范围共同决定，两者都取缺省时仍严格隔离 fat/uat 等多测试环境；
+  // 唯一的例外是本地页的环境绑定（用户在侧边栏芯片上点选，会话级、只对这一个端点有效）。
   // 复用 sortMatchesForDomain（侧边栏排序配置 + 匹配层级 + 收藏置顶）
-  const [matched, policy] = await Promise.all([
+  const [matched, policy, envHost] = await Promise.all([
     sortMatchesForDomain(cache.passwords, domain, page),
     getCachedSitePolicy(),
+    getEnvBinding(domain, page?.port ?? null),
   ]);
 
   /**
-   * 条目匹配层级（供内容脚本呈现来源标识）
+   * 条目匹配层级与来源（供内容脚本呈现来源标识）
    *
-   * 结果集已按 `matchesSiteEndpoint` 过滤，进入这里的条目 tier 恒 ≥ 0（环回主机同样先过主机门）。
+   * 结果集已按 `matchesSiteWithEnv` 过滤，进入这里的条目 tier 恒 ≥ 0（环回主机同样先过主机门）。
    * 保留 -1 → 0 的映射只为挡住「过滤判据与层级判据将来分叉」这一种状态，
    * 不让未知档位透出成第三种呈现。
+   *
+   * 仅由环境绑定带入的条目按「精确」上报并附来源主机：那一行是用户自己声明的环境凭证，
+   * 但下拉贴在本地页面上，不标出来就看不出「这条不是这台机器的」。
    */
-  const tierOf = (url: string): MatchTier => {
+  const tierOf = (url: string): { tier: MatchTier; envHost?: string } => {
+    if (envHost && isAdmittedByEnvOnly(url, domain, page, policy, envHost)) return { tier: 0, envHost };
     const tier = resolveMatchTier(domain, url, policy.mode);
-    return tier === -1 ? 0 : tier;
+    return { tier: tier === -1 ? 0 : tier };
   };
 
   // 关键词检索排在排序之后：过滤只做减法、不重排，保证「内联首条」与「侧边栏首条」同源
@@ -646,17 +658,21 @@ export async function getMatchingAccounts(
   // web_accessible_resources 供网页直接加载）：只为真正要展示的条目取图，
   // 被上界截掉的条目不再产生 dataURL（一条就是 KB 级的消息体）。
   const accounts = await Promise.all(
-    visible.map(async p => ({
-      id: p.id,
-      username: p.username || '',
-      tag: p.tag || '',
-      remark: p.remark || '',
-      url: p.url || '',
-      favorite: !!p.favorite,
-      hasTotp: !!(p.totp && p.totp.trim()),
-      favicon: p.url ? await fetchFaviconDataUrl(p.url, 32) : '',
-      tier: tierOf(p.url || ''),
-    })),
+    visible.map(async p => {
+      const match = tierOf(p.url || '');
+      return {
+        id: p.id,
+        username: p.username || '',
+        tag: p.tag || '',
+        remark: p.remark || '',
+        url: p.url || '',
+        favorite: !!p.favorite,
+        hasTotp: !!(p.totp && p.totp.trim()),
+        favicon: p.url ? await fetchFaviconDataUrl(p.url, 32) : '',
+        tier: match.tier,
+        ...(match.envHost ? { envHost: match.envHost } : {}),
+      };
+    }),
   );
 
   // 计数只服务空态那一行提示（「本站无账号、同主域还有 N 条」），描述的是本站而非关键词：

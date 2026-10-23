@@ -4,6 +4,7 @@ import type { DomainMatchMode } from '@/utils/domain';
 import { parsePagePortContext } from '@/utils/domain';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
+import { resetEnvBindingMirror, setEnvBinding } from '@/entrypoints/background/environmentBinding';
 
 /**
  * passwordCache.applyMetadataOnlyUpdate 单元测试
@@ -219,6 +220,74 @@ describe('getMatchingAccounts 下发给内容脚本的字段口径', () => {
     expect(accounts[0]!.tag).toBe('');
     expect(accounts[0]!.remark).toBe('');
     expect(accounts[0]!.url).toBe('');
+  });
+});
+
+describe('getMatchingAccounts 的环境绑定（本地页）', () => {
+  /** 本机端点、被绑定环境的条目、以及一条与两者都无关的外站条目 */
+  const vault = () => [
+    makePasswordEntry({ id: 'local', url: 'localhost:3000' }),
+    makePasswordEntry({ id: 'fat', url: 'fat.example.com' }),
+    makePasswordEntry({ id: 'foreign', url: 'github.com' }),
+  ];
+
+  beforeEach(async () => {
+    resetEnvBindingMirror();
+    await chrome.storage.session.clear();
+  });
+
+  // 绑定表与内存镜像都是模块级状态：不清就会顺着文件顺序漏给后面的用例，
+  // 让「localhost 页面」那些既有断言莫名多出一条远端条目。
+  afterEach(async () => {
+    resetEnvBindingMirror();
+    await chrome.storage.session.clear();
+  });
+
+  it('未绑定时该环境的条目不进下拉：本地页不因「同是开发机」捞远端凭证', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
+    expect(accounts.map(a => a.id)).toEqual(['local']);
+  });
+
+  it('绑定后条目进下拉、按精确层级下发，并带来源主机', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
+    expect(accounts.map(a => a.id).sort()).toEqual(['fat', 'local']);
+    expect(accounts.find(a => a.id === 'fat')).toMatchObject({ tier: 0, envHost: 'fat.example.com' });
+    // 本机条目不打环境标签：徽章只说「这条为什么出现在这里」，本机那条没有「为什么」要解释
+    expect(accounts.find(a => a.id === 'local')!.envHost).toBeUndefined();
+  });
+
+  it('别名写法读到同一份绑定（127.0.0.1 与 localhost 是同一端点）', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('127.0.0.1', page('http://127.0.0.1:3000'));
+    expect(accounts.some(a => a.id === 'fat')).toBe(true);
+  });
+
+  it('换端口即另一份作用域：5173 的 dev server 不会带上 3000 的绑定', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:5173'));
+    expect(accounts.map(a => a.id)).toEqual([]);
+  });
+
+  it('公网页面即使带着同名条目也不受影响：绑定只在环回页面参与判定', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('uat.example.com', page('https://uat.example.com/'));
+    expect(accounts.map(a => a.id)).toEqual([]);
   });
 });
 

@@ -5,7 +5,10 @@
     @keydown="handleKeydown"
   >
     <!-- 头部卡片 -->
-    <div class="header-card">
+    <div
+      ref="headerCardRef"
+      class="header-card"
+    >
       <SidepanelHeader
         :current-domain="currentDomain"
         :is-authenticated="isAuthenticated"
@@ -13,12 +16,32 @@
         :match-count="domainFilteredPasswords.length"
         :port-label="portChipLabel"
         :port-relaxed="portRelaxedTemporarily"
+        :env-options="canBindEnv ? envChipOptions : []"
+        :env-active-host="boundEnvHost ?? ''"
+        :env-picker-open="envPickerOpen"
         @toggle-port-relax="togglePortRelax"
+        @toggle-env-picker="toggleEnvPicker"
         @open-github="openGithub"
         @open-help="showHelpDialog = true"
         @open-settings="handleOpenSettings"
         @open-validity="openValiditySetting"
         @add-site-password="openQuickAddDialog"
+      />
+    </div>
+
+    <!-- 环境选择条：展开时接管「绑哪个环境 / 收回绑定 / 确认线上」三个动作，
+         位置在头部卡片之外，否则会被卡片的 overflow: hidden 裁掉 -->
+    <div
+      v-if="envPickerOpen && canBindEnv"
+      ref="envBarEl"
+    >
+      <EnvPickerBar
+        :options="envChipOptions"
+        :active-host="boundEnvHost ?? ''"
+        :pending-confirm-host="envPendingConfirm"
+        @pick="handlePickEnv"
+        @confirm="handleConfirmEnv"
+        @cancel-confirm="envPendingConfirm = ''"
       />
     </div>
 
@@ -65,6 +88,8 @@
       :not-fillable-ids="notFillableIds"
       :cross-domain-ids="crossDomainIds"
       :port-mismatch-ids="portMismatchIds"
+      :env-only-ids="envOnlyIds"
+      :env-badge-label="envBadgeLabel"
       :cross-domain-hint-count="crossDomainHintCount"
       :port-hidden-hint-count="portHiddenHintCount"
       :active-keyword="activeSearchKeyword"
@@ -138,8 +163,9 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick, defineAsyncComponent, h } from 'vue';
 import { Lock } from '@element-plus/icons-vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
+import EnvPickerBar from '@/components/sidepanel/EnvPickerBar.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
-import type { PasswordEntry, RuntimeMessage, UpdatePasswordMetadataData } from '@/utils/types';
+import type { EnvBindingResponse, PasswordEntry, RuntimeMessage, UpdatePasswordMetadataData } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import {
   saveSidepanelSortConfig,
@@ -180,7 +206,9 @@ import {
   isDomainMatchMode,
   isPortScope,
   isHiddenByPortOnly,
-  siteRankOf,
+  effectiveEnvHost,
+  isAdmittedByEnvOnly,
+  siteRankWithEnv,
   rawPortOf,
   countSameMainDomainCandidates,
   countPortHiddenCandidates,
@@ -189,6 +217,7 @@ import {
   type PortScope,
   type SitePolicy,
 } from '@/utils/domain';
+import { collectEnvFamilies, toEnvChipOptions } from '@/utils/envFamily';
 import { isEditableEventTarget, scrollBehavior } from '@/utils/a11y';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 
@@ -425,6 +454,118 @@ const portScope = ref<PortScope>(DEFAULT_PORT_SCOPE);
  */
 const portRelaxedTemporarily = ref(false);
 
+// ==================== 本地开发环境绑定 ====================
+
+/**
+ * 侧边栏持有的环境绑定镜像
+ *
+ * 事实来源在后台的 `chrome.storage.session`（内联下拉、一键填充、右键菜单都读它），
+ * 这里只是「当前这一页」的一份读数：面板重开、切页面、切端口时按端点重新同步一次。
+ */
+const envHost = ref<string | null>(null);
+
+/** 环境选择条是否展开（纯 UI 态，不落盘） */
+const envPickerOpen = ref(false);
+
+/** 头部卡片根节点：判断「按下的是不是芯片那一块」 */
+const headerCardRef = ref<HTMLElement | null>(null);
+
+/** 选择条包裹层：判断「按下的是不是选择条本身」 */
+const envBarEl = ref<HTMLElement | null>(null);
+
+/**
+ * 待确认的线上环境主机
+ *
+ * 只能由后台的 `needsAck` 产生：带 prod/online 标签或认不出环境标签的主机，第一次绑必须先确认。
+ * 判据留在后台，界面少写一次确认逻辑也不会把线上账号静默带进本地页。
+ */
+const envPendingConfirm = ref('');
+
+/** 芯片候选：从库里条目的网址派生，用户不必为本地环境再维护一套账号或映射表 */
+const envChipOptions = computed(() => toEnvChipOptions(collectEnvFamilies(passwords.value)));
+
+/** 这一页能不能绑定：只有环回主机，且库里确有可识别的环境 */
+const canBindEnv = computed(() => isLoopbackHost(currentDomain.value) && envChipOptions.value.length > 0);
+
+/** 生效绑定：与 `effectiveEnvHost` 同一门禁，公网页面的残留值一律不参与判定 */
+const boundEnvHost = computed(() => (canBindEnv.value ? effectiveEnvHost(currentDomain.value, envHost.value) : null));
+
+/** 芯片与行内徽章上的环境文案（如 `fat · example.com`） */
+const envBadgeLabel = computed(() => {
+  const bound = boundEnvHost.value;
+  if (!bound) return '';
+  return envChipOptions.value.find(option => option.host === bound)?.label ?? bound;
+});
+
+/**
+ * 当前端点指纹
+ *
+ * 取数与写回都是异步的，而「切标签页」会让两次同步并发：冷启动那次要从
+ * `storage.session` 现读、反而更慢后落地。不比对指纹，上一页的绑定就会挂到当前页上——
+ * 那是跨端点的凭证外显，比少显示严重得多。
+ */
+const envEndpointStamp = (): string => `${currentDomain.value}|${currentPagePort.value?.port ?? ''}`;
+
+/** 按当前端点向后台取一次绑定（面板打开、切页面、候选集刚出现时） */
+const syncEnvBinding = async (): Promise<void> => {
+  const host = currentDomain.value;
+  const port = currentPagePort.value?.port ?? null;
+  const stamp = envEndpointStamp();
+  if (!isLoopbackHost(host) || envChipOptions.value.length === 0) {
+    envHost.value = null;
+    return;
+  }
+  try {
+    const response: EnvBindingResponse = await chrome.runtime.sendMessage({
+      type: MessageType.GET_ENV_BINDING,
+      data: { host, port },
+    });
+    if (stamp !== envEndpointStamp()) return;
+    envHost.value = response?.success ? (response.data?.envHost ?? null) : null;
+  } catch (error) {
+    if (stamp !== envEndpointStamp()) return;
+    logger.warn('SidePanel: 读取环境绑定失败，按未绑定处理:', error);
+    envHost.value = null;
+  }
+};
+
+/**
+ * 写回绑定
+ *
+ * 三种结局各自处理：被拒要确认（原绑定**保持不变**，只亮确认条）、写入失败（明确告诉用户，
+ * 不能把失败显示成「绑上了」）、成功（收回选择条，让列表回到主角位）。
+ */
+const applyEnvBinding = async (host: string | null, ack = false): Promise<void> => {
+  const target = host || null;
+  const stamp = envEndpointStamp();
+  try {
+    const response: EnvBindingResponse = await chrome.runtime.sendMessage({
+      type: MessageType.SET_ENV_BINDING,
+      data: { host: currentDomain.value, port: currentPagePort.value?.port ?? null, envHost: target, ack },
+    });
+    if (stamp !== envEndpointStamp()) return;
+    if (!response?.success) {
+      logger.warn('SidePanel: 环境绑定写入失败:', response?.error);
+      ElMessage.error(t('sidepanel.env.bindFailed'));
+      return;
+    }
+    if (response.data?.needsAck) {
+      // 后台没有动原绑定，界面也不能动：否则侧边栏已经收回 fat，内联下拉与一键填充
+      // 还在按 fat 服务，正是这条链路反复被钉住的「两个入口结论相反」
+      envPendingConfirm.value = target ?? '';
+      envPickerOpen.value = true;
+      return;
+    }
+    envPendingConfirm.value = '';
+    envHost.value = response.data?.envHost ?? null;
+    envPickerOpen.value = false;
+  } catch (error) {
+    if (stamp !== envEndpointStamp()) return;
+    logger.warn('SidePanel: 环境绑定写入异常:', error);
+    ElMessage.error(t('sidepanel.env.bindFailed'));
+  }
+};
+
 /** 读取站点匹配策略；失败回落双缺省，宁可少显示条目也不放宽匹配边界 */
 const loadSitePolicy = async (): Promise<void> => {
   try {
@@ -442,6 +583,7 @@ const loadSitePolicy = async (): Promise<void> => {
 const scopeContext = computed<ScopeContext>(() => ({
   domain: currentDomain.value,
   page: currentPagePort.value,
+  envHost: boundEnvHost.value,
 }));
 
 /**
@@ -527,11 +669,14 @@ const availableTags = computed(() => {
  * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成只存在于显示层的
  * `relaxed`，若在此处读展示策略，同主机其他端口的条目就会被抬到当前端点之前——实测过一次：
  * 同域名的门面地址排到首位，而回车并不会填它。
+ *
+ * 环境绑定参与排序但不越权：绑定轴上「精确命中环境主机」同样是 0，与本机当前端点并列，
+ * 谁先谁后仍由「收藏置顶 → 排序字段」决定，避免再发明一层「绑了就永远第一」的隐式权重。
  */
 const domainPriorityOf = (entry: PasswordEntry): number => {
   const domain = currentDomain.value;
   if (!domain) return getDomainPriority(entry);
-  return siteRankOf(entry.url, domain, scopeContext.value.page, sitePolicy.value);
+  return siteRankWithEnv(entry.url, domain, scopeContext.value.page, sitePolicy.value, boundEnvHost.value);
 };
 
 /** 搜索 + 范围过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
@@ -652,6 +797,26 @@ const portMismatchIds = computed<ReadonlySet<string>>(() => {
 });
 
 /**
+ * 仅因环境绑定才出现在本站的条目 ID 集
+ *
+ * 判据与放开门禁同源（`isAdmittedByEnvOnly`），因此不会出现「标了环境却是本机条目」或
+ * 「fat 的账号没有来源标记」。这一集为空时整个遍历短路返回共享空集，默认路径零开销。
+ */
+const envOnlyIds = computed<ReadonlySet<string>>(() => {
+  const bound = boundEnvHost.value;
+  const domain = currentDomain.value;
+  if (!bound || !domain) return EMPTY_ID_SET;
+
+  const policy = sitePolicy.value;
+  const page = currentPagePort.value;
+  const ids = new Set<string>();
+  for (const entry of filteredPasswords.value) {
+    if (isAdmittedByEnvOnly(entry.url, domain, page, policy, bound)) ids.add(entry.id);
+  }
+  return ids;
+});
+
+/**
  * 不可填充到当前页的条目 ID 集
  *
  * 两种来源共用这一判据：全站搜索模式下的外站条目、以及临时放宽带出的「同域名其他端口」条目。
@@ -697,6 +862,20 @@ watch([currentDomain, currentPagePort, domainMatchMode, portScope], () => {
  */
 watch([currentDomain, currentPagePort, portScope], () => {
   portRelaxedTemporarily.value = false;
+});
+
+/**
+ * 端点或候选集变化时重新同步环境绑定
+ *
+ * 绑定的作用域是「这一个 host:port」，因此域名或端口任一变化都要重取：沿用上一页的绑定
+ * 等于把 A 环境的账号带到 B 页面上，那正是这条作用域要防的事。
+ * `canBindEnv` 也在依赖里——库里条目刚加载完时候选集才从空变非空，此时才该去读绑定。
+ * 展开态与待确认项一并收回：确认条属于某一个端点，换页后不应残留。
+ */
+watch([currentDomain, currentPagePort, canBindEnv], () => {
+  envPickerOpen.value = false;
+  envPendingConfirm.value = '';
+  void syncEnvBinding();
 });
 
 /** 域名切换导致候选标签集变化时，剔除已不存在的筛选标签，避免隐形空过滤 */
@@ -981,6 +1160,65 @@ const togglePortRelax = (): void => {
 };
 
 /**
+ * 展开/收起环境选择条（芯片自己的手势）
+ *
+ * 「点外面收起」不在这里做，见 `handleEnvOutsidePointer`：芯片在选择条之外，
+ * 若由选择条监听全局按下并直接收起，同一次点击的后续 `click` 会把它再打开，
+ * 面板永远收不起来，且会把待确认的线上绑定一起抹掉。
+ */
+const toggleEnvPicker = (): void => {
+  envPickerOpen.value = !envPickerOpen.value;
+  if (!envPickerOpen.value) envPendingConfirm.value = '';
+};
+
+/** 收起选择条：一次未完成的确认随之作废（它属于这一次点选） */
+const closeEnvPicker = (): void => {
+  if (!envPickerOpen.value) return;
+  envPickerOpen.value = false;
+  envPendingConfirm.value = '';
+};
+
+/** 选择条展开时接管「点外面」与 Esc，两者都在收起时注销 */
+const handleEnvOutsidePointer = (event: MouseEvent): void => {
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  // 头部卡片（芯片所在）与选择条内部的按下都不算「外面」
+  if (headerCardRef.value?.contains(target)) return;
+  if (envBarEl.value?.contains(target)) return;
+  closeEnvPicker();
+};
+
+const handleEnvEscape = (event: KeyboardEvent): void => {
+  if (event.key !== 'Escape') return;
+  // 截在捕获阶段：容器上的键盘导航同样把 Esc 当作「关面板」，选择条开着时 Esc 只收选择条
+  event.stopPropagation();
+  closeEnvPicker();
+};
+
+watch(envPickerOpen, open => {
+  const method = open ? document.addEventListener : document.removeEventListener;
+  method('mousedown', handleEnvOutsidePointer, true);
+  method('keydown', handleEnvEscape, true);
+});
+
+/**
+ * 选定环境
+ *
+ * 再点一次当前环境即清除绑定：本地页切回「只看这台机器」是高频收尾动作，
+ * 不该藏在第二个按钮里。
+ */
+const handlePickEnv = (host: string): void => {
+  void applyEnvBinding(host && host === boundEnvHost.value ? null : host);
+};
+
+/** 确认「把这个环境的账号带到本地页」，带上 ack 重发同一次绑定 */
+const handleConfirmEnv = (): void => {
+  const host = envPendingConfirm.value;
+  envPendingConfirm.value = '';
+  if (host) void applyEnvBinding(host, true);
+};
+
+/**
  * 打开选项页面
  * 统一由 background 的 OPEN_OPTIONS_PAGE 处理
  */
@@ -1249,6 +1487,11 @@ onMounted(async () => {
 onUnmounted(() => {
   if (chrome?.storage?.onChanged) {
     chrome.storage.onChanged.removeListener(handleLocalConfigChange);
+  }
+  // 环境选择条的文档级监听只在展开期间挂着；面板销毁时若还开着，必须补一次注销
+  if (envPickerOpen.value) {
+    document.removeEventListener('mousedown', handleEnvOutsidePointer, true);
+    document.removeEventListener('keydown', handleEnvEscape, true);
   }
 });
 </script>

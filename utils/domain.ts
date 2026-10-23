@@ -782,6 +782,111 @@ export function siteRankOf(
   return hostTier + 1;
 }
 
+// ── 本地开发环境绑定 ──
+
+/**
+ * 把「本地页声明的远端环境主机」收敛成实际生效的绑定主机
+ *
+ * 存在理由：绑定这条信息来自用户点选，但它能换来的权限是「让另一个主机的凭证出现在
+ * 眼前这一页并可被填充」，所以这一问不能交给调用方自觉——判据收在这里，公网页面传入
+ * `envHost` 也一律当作没绑定。只有环回主机（`isLoopbackHost` 的四种精确写法）可绑定，
+ * 与端口芯片、别名折叠同一条门禁，公网站点的口径逐字不变。
+ *
+ * @param currentHost - 页面真实 hostname
+ * @param envHost - 用户声明的环境主机（`fat.example.com` 这类），未声明传 null
+ * @returns 生效的绑定主机；不可绑定时为 null
+ */
+export function effectiveEnvHost(currentHost: string, envHost: string | null | undefined): string | null {
+  if (!envHost || !isLoopbackHost(currentHost)) return null;
+  if (canonicalSiteHost(envHost) === canonicalSiteHost(currentHost)) return null;
+  return envHost;
+}
+
+/**
+ * 本站判定：真实端点 ∧ 策略，或「绑定端点 ∧ 策略」
+ *
+ * 两个轴是**并集**而不是替换：绑定 `fat.example.com` 之后，`localhost:3000` 自己的条目
+ * 仍然算本站。若把真实端点整条换掉，本地页上原先能用的账号会凭空消失——用户只是想
+ * 「顺便把 fat 的账号也带进来」，不是想把这一页改成 fat。
+ *
+ * 绑定轴不比端口：本地页的 `:3000` 是前端 dev server 的监听端口，与远端环境的端口无关，
+ * 拿它去卡 `fat.example.com:8443` 只会得到「绑了却少几条」的玄学问题。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 页面真实 hostname（非空）
+ * @param page - 页面端口上下文
+ * @param policy - 站点匹配策略（可为显示层的 `relaxed`）
+ * @param envHost - 用户声明的环境主机；非环回页面下自动失效（见 {@link effectiveEnvHost}）
+ * @returns 条目是否属于本站
+ */
+export function matchesSiteWithEnv(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null | undefined,
+): boolean {
+  if (matchesSiteEndpoint(storedUrl, currentHost, page, policy)) return true;
+  const bound = effectiveEnvHost(currentHost, envHost);
+  return bound !== null && matchesSiteEndpoint(storedUrl, bound, null, policy);
+}
+
+/**
+ * 关联度排序的并集版本：取两个轴里更相关的那一个
+ *
+ * 绑定轴上「精确命中环境主机」同样是 0，于是 fat 的账号和本机当前端点的账号并列在最前，
+ * 而库里其他站点仍按原阶梯沉底。刻意不给绑定轴额外加权：谁更该填进眼前这一页，
+ * 由既有的「收藏置顶 → 排序字段」决定，比再发明一层权重更可预期。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 页面真实 hostname
+ * @param page - 页面端口上下文
+ * @param policy - **持久化**策略（读展示策略会把别的端口捞回前排）
+ * @param envHost - 用户声明的环境主机
+ * @returns 排序权重（越小越靠前）
+ */
+export function siteRankWithEnv(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null | undefined,
+): number {
+  const real = siteRankOf(storedUrl, currentHost, page, policy);
+  if (real === 0) return 0;
+  const bound = effectiveEnvHost(currentHost, envHost);
+  if (!bound) return real;
+  const byBound = siteRankOf(storedUrl, bound, null, policy);
+  return byBound < real ? byBound : real;
+}
+
+/**
+ * 条目是否**只**因环境绑定才属于本站
+ *
+ * 这一判据只服务一件事：给这类条目挂上「fat 环境」徽章，让「另一个主机的凭证为什么出现在
+ * 这一页」在行内可读，而不是只有头部那颗芯片在说话。徽章判据与放开门禁必须同源，
+ * 否则会出现「标了环境却是本机条目」的错位。
+ *
+ * @param storedUrl - 条目存储的 URL/域名
+ * @param currentHost - 页面真实 hostname
+ * @param page - 页面端口上下文
+ * @param policy - 站点匹配策略
+ * @param envHost - 用户声明的环境主机
+ * @returns 是否仅由绑定轴带入
+ */
+export function isAdmittedByEnvOnly(
+  storedUrl: string | undefined | null,
+  currentHost: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null | undefined,
+): boolean {
+  const bound = effectiveEnvHost(currentHost, envHost);
+  if (!bound) return false;
+  if (matchesSiteEndpoint(storedUrl, currentHost, page, policy)) return false;
+  return matchesSiteEndpoint(storedUrl, bound, null, policy);
+}
+
 // ── 站点匹配策略 ──
 
 /**

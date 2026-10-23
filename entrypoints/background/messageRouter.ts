@@ -39,7 +39,8 @@ import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { normalizeSiteRuleDomain, SITE_RULE_SELECTOR_MAX_LENGTH } from '@/utils/storage/siteRules';
 import { normalizeEntryId } from '@/utils/generateId';
 import { isFrameFillable } from '@/utils/frameFill';
-import { isSameMainDomain, parsePagePortContext, type PagePortContext } from '@/utils/domain';
+import { isSameMainDomain, normalizeToHostname, parsePagePortContext, type PagePortContext } from '@/utils/domain';
+import { getEnvBinding, setEnvBinding } from './environmentBinding';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 import { tl } from '@/utils/i18n-lite';
 
@@ -330,6 +331,17 @@ function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean 
   if (sender.id !== chrome.runtime.id) return false;
   if (sender.tab !== undefined) return false;
   return sender.url ? sender.url.startsWith(chrome.runtime.getURL('')) : true;
+}
+
+/**
+ * 绑定消息里的主机名是否可接受
+ *
+ * 消息体是跨上下文边界，编译期类型不构成校验：只允许 hostname 形态的字符集与长度，
+ * 带 `/`、`#`、空格的串一律拒绝。绑定值会参与主机相等判定，脏值留在那里只会让
+ * 「为什么绑不上」变成无法排查的问题。
+ */
+function isBindingHostArg(host: string): boolean {
+  return host.length > 0 && host.length <= 253 && !/[^a-z0-9._[\]-]/.test(host);
 }
 
 /**
@@ -932,6 +944,56 @@ export function setupMessageRouter(): void {
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
+            sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
+          }
+        })();
+        return true;
+      }
+
+      case MessageType.GET_ENV_BINDING:
+      case MessageType.SET_ENV_BINDING: {
+        // 绑定决定「另一个主机的凭证能不能出现在眼前这一页并被填充」，因此只有扩展自身页面
+        // （侧边栏芯片）能读写：内容脚本若能改写，等于宿主页面自己给网页开凭证可见范围。
+        // 用 isExtensionPageSender 而不是 isTrustedInternalSender：侧边栏与标签页关联，
+        // 其 sender.tab 在本机真机上有值（e2e 实测），后者会把侧边栏自己拒掉。
+        if (!isExtensionPageSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
+        const data = message.data;
+        const host = typeof data?.host === 'string' ? data.host.trim().toLowerCase() : '';
+        if (!isBindingHostArg(host)) {
+          sendResponse({ success: false, error: '无效的页面主机名' });
+          break;
+        }
+        const port = typeof data?.port === 'string' && data.port ? data.port : null;
+        void (async () => {
+          try {
+            if (message.type === MessageType.SET_ENV_BINDING) {
+              const rawEnv = message.data.envHost;
+              // 只接受「null / 非空字符串」两种形态：把 undefined、数字、对象一律当非法请求拒绝，
+              // 而不是悄悄当成「清除绑定」——静默清除会让用户以为环境还绑着
+              if (rawEnv !== null && (typeof rawEnv !== 'string' || !rawEnv.trim())) {
+                sendResponse({ success: false, error: '无效的环境主机名' });
+                return;
+              }
+              // 非空一律先归一，杜绝「带协议的完整 URL」被当成主机名存下
+              const envHost = rawEnv ? normalizeToHostname(rawEnv.trim()) : null;
+              if (rawEnv && !envHost) {
+                sendResponse({ success: false, error: '无效的环境主机名' });
+                return;
+              }
+              const data = await setEnvBinding(host, port, envHost, message.data.ack === true);
+              if (data.failed) {
+                sendResponse({ success: false, error: '环境绑定写入失败' });
+                return;
+              }
+              sendResponse({ success: true, data });
+              return;
+            }
+            sendResponse({ success: true, data: { envHost: await getEnvBinding(host, port) } });
+          } catch (error) {
+            logger.error('Background: 环境绑定读写失败:', error);
             sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
           }
         })();

@@ -147,7 +147,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'match', url: 'https://a.example.com/login', lastUsedAt: 1 }),
       entry({ id: 'other', url: 'https://b.example.com', lastUsedAt: 500 }),
     ];
-    const result = filterAndSortEntriesForDomain(list, 'a.example.com', DEFAULT_SIDEPANEL_SORT, null, policy());
+    const result = filterAndSortEntriesForDomain(list, 'a.example.com', DEFAULT_SIDEPANEL_SORT, null, policy(), null);
     // b.example.com 不匹配被过滤；域名匹配的 match 优先于 lastUsedAt 更大的空 URL 条目
     expect(result.map(e => e.id)).toEqual(['match', 'noUrl']);
   });
@@ -158,7 +158,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'b', url: 'https://b.example.com', lastUsedAt: 2 }),
     ];
     // 改前取不到页面端口时两条外站条目一律放行，一键填充会把外站凭证填进本地登录框
-    expect(filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy())).toEqual([]);
+    expect(filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy(), null)).toEqual([]);
   });
 
   it('本地域名精确条目优先于空 URL，外站条目根本不进结果集', () => {
@@ -169,7 +169,9 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
     ];
 
     expect(
-      filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy()).map(item => item.id),
+      filterAndSortEntriesForDomain(list, 'localhost', DEFAULT_SIDEPANEL_SORT, null, policy(), null).map(
+        item => item.id,
+      ),
     ).toEqual(['local', 'empty']);
   });
 
@@ -177,7 +179,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
     const list = [entry({ id: 'same', url: '', favorite: true }), entry({ id: 'same', url: 'https://x.com' })];
 
     expect(
-      filterAndSortEntriesForDomain(list, 'x.com', DEFAULT_SIDEPANEL_SORT, null, policy()).map(item => item.url),
+      filterAndSortEntriesForDomain(list, 'x.com', DEFAULT_SIDEPANEL_SORT, null, policy(), null).map(item => item.url),
     ).toEqual(['https://x.com', '']);
   });
 
@@ -186,7 +188,7 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'recent', url: 'https://x.com', lastUsedAt: 999 }),
       entry({ id: 'fav', url: 'https://x.com', favorite: true, lastUsedAt: 1 }),
     ];
-    const result = filterAndSortEntriesForDomain(list, 'x.com', DEFAULT_SIDEPANEL_SORT, null, policy());
+    const result = filterAndSortEntriesForDomain(list, 'x.com', DEFAULT_SIDEPANEL_SORT, null, policy(), null);
     expect(result[0].id).toBe('fav');
   });
 
@@ -196,14 +198,21 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
       entry({ id: 'a', url: 'https://x.com', username: 'amy' }),
     ];
     const sort: SortState = { prop: 'username', order: 'ascending' };
-    const result = filterAndSortEntriesForDomain(list, 'x.com', sort, null, policy());
+    const result = filterAndSortEntriesForDomain(list, 'x.com', sort, null, policy(), null);
     expect(result.map(e => e.id)).toEqual(['a', 'z']);
   });
 
   it('无匹配时返回空数组，且不修改入参数组', () => {
     const list = [entry({ id: 'a', url: 'https://a.com' }), entry({ id: 'b', url: 'https://b.com' })];
     const snapshot = list.map(e => e.id);
-    const result = filterAndSortEntriesForDomain(list, 'no-match.example.org', DEFAULT_SIDEPANEL_SORT, null, policy());
+    const result = filterAndSortEntriesForDomain(
+      list,
+      'no-match.example.org',
+      DEFAULT_SIDEPANEL_SORT,
+      null,
+      policy(),
+      null,
+    );
     expect(result).toEqual([]);
     expect(list.map(e => e.id)).toEqual(snapshot);
   });
@@ -235,7 +244,7 @@ function legacyFilter(entries: PasswordEntry[], domain: string): string[] {
 describe('filterAndSortEntriesForDomain：off 档与迁移前口径等价', () => {
   for (const domain of ['mail.qq.com', 'qq.com', 'uat.example.com', 'evil-qq.com']) {
     it(`域名 ${domain}：集合与顺序逐 id 一致`, () => {
-      const got = filterAndSortEntriesForDomain(MULTI_ENV, domain, DEFAULT_SIDEPANEL_SORT, null, policy()).map(
+      const got = filterAndSortEntriesForDomain(MULTI_ENV, domain, DEFAULT_SIDEPANEL_SORT, null, policy(), null).map(
         p => p.id,
       );
       expect(got).toEqual(legacyFilter([...MULTI_ENV], domain));
@@ -252,6 +261,7 @@ describe('filterAndSortEntriesForDomain：off 档与迁移前口径等价', () =
         DEFAULT_SIDEPANEL_SORT,
         page('https://mail.qq.com:8443'),
         policy(),
+        null,
       ).map(p => p.id),
     ).toEqual(legacyFilter([...MULTI_ENV], 'mail.qq.com'));
   });
@@ -265,6 +275,7 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
       DEFAULT_SIDEPANEL_SORT,
       null,
       policy('sameMainDomain'),
+      null,
     ).map(p => p.id);
     expect(ids).toEqual(['exact', 'wild', 'apex', 'sibling', 'generic']);
   });
@@ -276,6 +287,7 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
       DEFAULT_SIDEPANEL_SORT,
       null,
       policy('wildcard'),
+      null,
     ).map(p => p.id);
     expect(ids).toEqual(['exact', 'wild', 'generic']);
   });
@@ -285,7 +297,7 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
     const localPage = page('http://localhost:3000');
     for (const mode of ['off', 'wildcard', 'sameMainDomain'] as const) {
       expect(
-        filterAndSortEntriesForDomain(localdev, 'localhost', DEFAULT_SIDEPANEL_SORT, localPage, policy(mode)).map(
+        filterAndSortEntriesForDomain(localdev, 'localhost', DEFAULT_SIDEPANEL_SORT, localPage, policy(mode), null).map(
           p => p.id,
         ),
       ).toEqual(['p3000']);
@@ -303,12 +315,18 @@ describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
         DEFAULT_SIDEPANEL_SORT,
         localPage,
         policy('wildcard'),
+        null,
       ).map(p => p.id),
     ).toEqual(['exact', 'wc', 'generic']);
     expect(
-      filterAndSortEntriesForDomain(withWildcard, '127.0.0.1', DEFAULT_SIDEPANEL_SORT, localPage, policy('off')).map(
-        p => p.id,
-      ),
+      filterAndSortEntriesForDomain(
+        withWildcard,
+        '127.0.0.1',
+        DEFAULT_SIDEPANEL_SORT,
+        localPage,
+        policy('off'),
+        null,
+      ).map(p => p.id),
     ).toEqual(['exact', 'generic']);
   });
 });

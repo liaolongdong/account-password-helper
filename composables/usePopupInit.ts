@@ -1,11 +1,18 @@
 import { shallowRef, ref, computed, onMounted } from 'vue';
-import type { PasswordEntry } from '@/utils/types';
+import type { EnvBindingResponse, PasswordEntry } from '@/utils/types';
+import { MessageType } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { useShortcuts } from '@/composables/useShortcuts';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useSessionLock } from '@/composables/useSessionLock';
-import { matchesSiteEndpoint, parsePagePortContext, type PagePortContext, type SitePolicy } from '@/utils/domain';
+import {
+  isLoopbackHost,
+  matchesSiteWithEnv,
+  parsePagePortContext,
+  type PagePortContext,
+  type SitePolicy,
+} from '@/utils/domain';
 import { DEFAULT_DOMAIN_MATCH_MODE, DEFAULT_PORT_SCOPE } from '@/utils/storage/configManager';
 
 /**
@@ -41,6 +48,13 @@ export function usePopupInit() {
   /** 当前页面端口上下文（与 currentDomain 同一次 URL 解析得到，供端口轴判定使用） */
   const currentPagePort = shallowRef<PagePortContext | null>(null);
 
+  /**
+   * 本地页声明的环境主机（后台 storage.session 的读数，未绑定为 null）
+   *
+   * 只在环回页面取一次；取不到就按未绑定计数，宁少报不多报。
+   */
+  const envHost = shallowRef<string | null>(null);
+
   // ==================== 派生计算属性 ====================
 
   /** 密码总数 */
@@ -51,17 +65,18 @@ export function usePopupInit() {
    *
    * 按用户所选档位与端口范围统计，但继续排除空 URL 条目：这个数字表达的是「此站已有账号数」，
    * 不限站点的通用账号不算此站账号（与侧边栏的可见集口径有意不同）。
-   * 判据与侧边栏 `matchesSiteScope` 同源（`matchesSiteEndpoint`：主机门 ∧ 端口门），
-   * 因此环回主机上也按端点计数——改前这里只看主机、侧边栏只看端口，同一页面上两个入口
-   * 会给出相反的结论。
+   * 判据与侧边栏 `matchesSiteScope` 同源（`matchesSiteWithEnv`：真实端点 ∧ 策略，或环境绑定
+   * 端点 ∧ 策略），因此环回主机上也按端点计数——改前这里只看主机、侧边栏只看端口，同一页面上
+   * 两个入口会给出相反的结论。
    */
   const domainMatchCount = computed(() => {
     const domain = currentDomain.value;
     if (!domain) return 0;
     const policy = sitePolicy.value;
+    const bound = envHost.value;
     return allPasswords.value.filter(p => {
       if (!p.url?.trim()) return false;
-      return matchesSiteEndpoint(p.url, domain, currentPagePort.value, policy);
+      return matchesSiteWithEnv(p.url, domain, currentPagePort.value, policy, bound);
     }).length;
   });
 
@@ -104,6 +119,20 @@ export function usePopupInit() {
           currentPagePort.value = parsePagePortContext(tab.url);
         } catch {
           // URL 解析失败，忽略
+        }
+      }
+
+      // 环回页面才去读环境绑定：公网页面永远取不到值，多一次 IPC 没有意义，
+      // 而「此站已有账号数」必须和侧边栏同一口径，否则两个入口又会给出相反的结论。
+      if (currentDomain.value && isLoopbackHost(currentDomain.value)) {
+        try {
+          const response: EnvBindingResponse = await chrome.runtime.sendMessage({
+            type: MessageType.GET_ENV_BINDING,
+            data: { host: currentDomain.value, port: currentPagePort.value?.port ?? null },
+          });
+          envHost.value = response?.success ? (response.data?.envHost ?? null) : null;
+        } catch (error) {
+          logger.warn('Popup: 读取环境绑定失败，按未绑定处理', error);
         }
       }
 

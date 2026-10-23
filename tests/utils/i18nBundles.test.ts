@@ -75,6 +75,7 @@ const SIDEPANEL_GRAPH_FILES = [
   'components/sidepanel/PasswordListItem.vue',
   'components/sidepanel/SidepanelHeader.vue',
   'components/sidepanel/SidepanelAuthView.vue',
+  'components/sidepanel/EnvPickerBar.vue',
   'components/TotpCode.vue',
   'components/BrandLogo.vue',
   'composables/useSidepanelData.ts',

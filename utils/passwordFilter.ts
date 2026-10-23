@@ -5,8 +5,8 @@
  * 过滤判定，使其可被单元测试独立覆盖，同时作为侧边栏「搜索范围」与「能否填充当前页」
  * 的唯一判据来源，避免这两处在侧边栏内部各自演化出分歧。
  *
- * 域名匹配语义完全复用 `utils/domain.ts` 的 `matchesSiteEndpoint`（内部即 `resolveMatchTier`
- * 的主机门叠加端口轴的门），本模块不再自行判定任何主机或端口规则；
+ * 域名匹配语义完全复用 `utils/domain.ts` 的 `matchesSiteWithEnv`（内部即 `matchesSiteEndpoint`
+ * 的主机门 ∧ 端口门，外加本地页环境绑定的并集轴），本模块不再自行判定任何主机或端口规则；
  * 策略里两项的缺省值合起来对**公网主机**即「端口隔离功能存在之前」的行为，逐条一致，
  * 对环回主机则比那时更窄（外站条目不再混进本地页面）。
  *
@@ -17,7 +17,7 @@
  * 就是它的降级形态；而下拉需要贴在当前页上，展示外站条目没有可填充的目标。
  */
 import type { PasswordEntry } from '@/utils/types';
-import { matchesSiteEndpoint, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
+import { matchesSiteWithEnv, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
 import { filterByKeyword, type KeywordMatcher } from '@/utils/keywordMatch';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { parseTags } from '@/utils/tagUtils';
@@ -41,6 +41,14 @@ export interface ScopeContext {
    * 而原始 port 可由这两者反推（见 `rawPortOf`），并列存放就是两个事实来源。
    */
   page: PagePortContext | null;
+  /**
+   * 本地页声明的环境主机（`fat.example.com`），未声明为 null
+   *
+   * 必传而不是可选：这一轴决定「另一个主机的凭证能不能填进眼前这一页」，
+   * 少传一处就会出现「侧边栏能填、内联下拉不能填」的分叉。非环回页面由
+   * `matchesSiteWithEnv` 内部一律失效，所以传错方向也是安全的（只会当没绑定）。
+   */
+  envHost: string | null;
 }
 
 /** 列表级过滤条件（三者为叠加关系） */
@@ -67,7 +75,7 @@ export interface ListFilterOptions {
  * 域名或端口不匹配的条目填充必然失败（或把另一个服务上的凭证填进眼前这个登录框），
  * 故两者共用同一判定。
  *
- * 匹配规则全部下沉到 `utils/domain.ts` 的 `matchesSiteEndpoint`（主机门 ∧ 端口门），
+ * 匹配规则全部下沉到 `utils/domain.ts` 的 `matchesSiteWithEnv`（真实端点 ∧ 策略，或绑定端点 ∧ 策略），
  * 与内联下拉 / 一键填充同源；本模块只保留「当前页无域名」这一支的侧边栏语义：
  * 此刻没有「本站」可收敛，全库列表本身就是它的降级形态，故放行全部。
  *
@@ -79,7 +87,7 @@ export interface ListFilterOptions {
  */
 export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, policy: EffectiveSitePolicy): boolean {
   if (!ctx.domain) return true;
-  return matchesSiteEndpoint(entry.url, ctx.domain, ctx.page, policy);
+  return matchesSiteWithEnv(entry.url, ctx.domain, ctx.page, policy, ctx.envHost);
 }
 
 /**

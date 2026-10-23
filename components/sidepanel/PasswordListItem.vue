@@ -62,6 +62,15 @@ interface Props {
    * 「这条账号属于这个域名的另一个端口，别指望它能在眼前这个登录框里用」。
    */
   portMismatch?: boolean;
+  /**
+   * 是否仅因本地页环境绑定才出现在本站（默认 false）
+   *
+   * 与 `portMismatch` 一样是「这条为什么在这里」的来源说明，可填充性不受它影响——
+   * 绑定轴带进来的条目本来就是给用户填的。
+   */
+  envBound?: boolean;
+  /** 环境徽章文案（如 `fat · example.com`），空串即不渲染 */
+  envLabel?: string;
 }
 
 interface Emits {
@@ -92,6 +101,8 @@ const props = withDefaults(defineProps<Props>(), {
   canFill: true,
   crossDomain: false,
   portMismatch: false,
+  envBound: false,
+  envLabel: '',
 });
 const emit = defineEmits<Emits>();
 
@@ -216,6 +227,17 @@ const activate = () => {
           effect="plain"
         >
           {{ t('sidepanel.scope.otherPort') }}
+        </el-tag>
+        <!-- 环境来源标识：本地页声明了「这一页其实是某环境的前端」，被绑定带出的条目必须行内可读 -->
+        <el-tag
+          v-if="envBound && envLabel"
+          class="scope-badge"
+          size="small"
+          type="success"
+          effect="plain"
+          :title="t('sidepanel.env.badgeTitle', { host: envLabel })"
+        >
+          {{ t('sidepanel.env.badge', { env: envLabel }) }}
         </el-tag>
         <!-- 外站标识：全站搜索下的非本站条目在 URL 前加链接图标，不仅靠颜色传达状态 -->
         <el-icon

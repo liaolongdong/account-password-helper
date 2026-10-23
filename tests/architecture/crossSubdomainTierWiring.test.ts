@@ -168,8 +168,9 @@ describe('端口范围接线', () => {
   it('显示判据的两处真源都同时过主机门与端口门', () => {
     // 两处真源现在共用同一个合成判据：少了它，strict 档下端口不一致的条目会重新出现在本站列表
     // 并被一键填充取作首条，本地域名也会重新绕开主机门把外站条目当本站可填充
-    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再调用 matchesSiteEndpoint').toContain('matchesSiteEndpoint(');
-    expect(PASSWORD_SORT_SRC, 'passwordSort 不再调用 matchesSiteEndpoint').toContain('matchesSiteEndpoint(');
+    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再调用并集判据 matchesSiteWithEnv').toContain('matchesSiteWithEnv(');
+    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再把环境绑定传进判据').toContain('ctx.envHost');
+    expect(PASSWORD_SORT_SRC, 'passwordSort 不再调用并集判据 matchesSiteWithEnv').toContain('matchesSiteWithEnv(');
     // 合成判据自身必须两道门都在：抽到 domain.ts 之后，这里是唯一能拦住「只抄了一门」的地方
     const endpointFn = /export function matchesSiteEndpoint\([\s\S]*?\n}/.exec(DOMAIN_SRC)?.[0] ?? '';
     expect(endpointFn, '未能定位 matchesSiteEndpoint，本用例空跑').not.toBe('');
@@ -184,8 +185,8 @@ describe('端口范围接线', () => {
   });
 
   it('Popup 的本站计数与侧边栏共用同一判据', () => {
-    expect(POPUP_SRC, 'usePopupInit 不再调用 matchesSiteEndpoint，计数会比侧边栏列表多').toContain(
-      'matchesSiteEndpoint(',
+    expect(POPUP_SRC, 'usePopupInit 不再调用 matchesSiteWithEnv，计数会比侧边栏列表多').toContain(
+      'matchesSiteWithEnv(',
     );
   });
 
@@ -198,7 +199,9 @@ describe('端口范围接线', () => {
   it('排序权重的唯一真源是 siteRankOf，侧边栏不再自行分层', () => {
     const priorityFn = SIDEPANEL_SRC.match(/const domainPriorityOf =[\s\S]*?\n};/)?.[0] ?? '';
     expect(priorityFn, '未从侧边栏抽到 domainPriorityOf，本条判据成了空转').not.toBe('');
-    expect(priorityFn, '侧边栏排序不再经 siteRankOf，关联度会与内联下拉及各入口分叉').toContain('siteRankOf(');
+    expect(priorityFn, '侧边栏排序不再经 siteRankWithEnv，关联度会与内联下拉及各入口分叉').toContain(
+      'siteRankWithEnv(',
+    );
     expect(
       SIDEPANEL_SRC,
       '侧边栏里还留着写死的排序权重常量，等于第二个排序真源（关联度层级只在 domain.ts 定义一次）',

@@ -21,6 +21,7 @@ import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
 const ctx = (domain: string, pageUrl = ''): ScopeContext => ({
   domain,
   page: pageUrl ? parsePagePortContext(pageUrl) : null,
+  envHost: null,
 });
 
 /** 站点匹配策略夹具：两项缺省合起来即「跨子域放宽与端口隔离都存在之前」的口径 */

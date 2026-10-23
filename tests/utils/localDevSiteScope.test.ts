@@ -7,6 +7,8 @@ import {
   isLoopbackHost,
   matchesPortScope,
   matchesSiteEndpoint,
+  matchesSiteWithEnv,
+  siteRankWithEnv,
   normalizeToHostname,
   resolveMatchTier,
   splitHostAndPortDecl,
@@ -64,7 +66,10 @@ const LOCAL_URLS = [
   '192.168.1.5:3000',
 ];
 
-const LOCAL_CTX: ScopeContext = { domain: '127.0.0.1', page: pageOf('http://127.0.0.1:3000/') };
+/** 拟绑定的远端环境主机 */
+const FAT = 'fat.example.com';
+
+const LOCAL_CTX: ScopeContext = { domain: '127.0.0.1', page: pageOf('http://127.0.0.1:3000/'), envHost: null };
 const LOOSE: EffectiveSitePolicy = { mode: 'off', portScope: 'loose' };
 const RELAXED: EffectiveSitePolicy = { mode: 'off', portScope: 'relaxed' };
 
@@ -104,7 +109,14 @@ describe('不变量 1：本地页面的主机门不可绕开', () => {
 
   it('内联下拉与侧边栏共用同一可见集（杜绝「下拉里有、侧边栏没有」）', () => {
     const all = LOCAL_URLS.map((url, i) => entry({ id: `e${i}`, url }));
-    const dropdown = filterAndSortEntriesForDomain(all, LOCAL_CTX.domain, undefined, LOCAL_CTX.page, LOOSE);
+    const dropdown = filterAndSortEntriesForDomain(
+      all,
+      LOCAL_CTX.domain,
+      undefined,
+      LOCAL_CTX.page,
+      LOOSE,
+      LOCAL_CTX.envHost,
+    );
     const sidebar = filterEntriesByScope(all, 'site', LOCAL_CTX, LOOSE);
     expect(ids(dropdown).sort()).toEqual(ids(sidebar).sort());
     // 一键填充取首条：首条必须确实是本地端点条目
@@ -112,7 +124,7 @@ describe('不变量 1：本地页面的主机门不可绕开', () => {
   });
 
   it('当前页在默认端口（http://127.0.0.1/）时仍受主机门约束', () => {
-    const rootCtx: ScopeContext = { domain: '127.0.0.1', page: pageOf('http://127.0.0.1/') };
+    const rootCtx: ScopeContext = { domain: '127.0.0.1', page: pageOf('http://127.0.0.1/'), envHost: null };
     expect(matchesSiteScope(entry({ url: 'example.com' }), rootCtx, LOOSE)).toBe(false);
     // 同主机的未写端口与已写端口条目都放行（保持既有「当前页无端口 → 展示全部」意图）
     expect(matchesSiteScope(entry({ url: 'localhost:4000' }), rootCtx, LOOSE)).toBe(true);
@@ -204,7 +216,7 @@ describe('不变量 3：`<host>:*` 端口通配是逐条显式授权', () => {
   });
 
   it('`:*` 条目在本地页面可见，但绝不因此带出外站条目', () => {
-    const ctx: ScopeContext = { domain: 'localhost', page: pageOf('http://localhost:3000/') };
+    const ctx: ScopeContext = { domain: 'localhost', page: pageOf('http://localhost:3000/'), envHost: null };
     expect(matchesSiteScope(entry({ url: 'localhost:*' }), ctx, LOOSE)).toBe(true);
     expect(matchesSiteScope(entry({ url: 'example.com:*' }), ctx, LOOSE)).toBe(false);
     // 同一判据在域名之外也成立：`:*` 只放开端口轴，不放开主机轴
@@ -231,7 +243,7 @@ describe('不变量 3：`<host>:*` 端口通配是逐条显式授权', () => {
 });
 
 describe('不变量 5：排序按「与当前站点的关联度」，与档位无关', () => {
-  const fat = { domain: 'fat.example.com', page: pageOf('https://fat.example.com/') };
+  const fat = { domain: 'fat.example.com', page: pageOf('https://fat.example.com/'), envHost: null };
   const loose: EffectiveSitePolicy = { mode: 'off', portScope: 'loose' };
 
   /** 关联度从高到低：精确 → 通配 → 主域 apex → 兄弟子域 → 空 URL 通用 → 无关站点 */
@@ -341,5 +353,67 @@ describe('不变量 4：被端口挡住的条目可数、可临时放宽，但�
         expect(relaxedSet.has(item.id), url).toBe(false);
       }
     }
+  });
+});
+
+describe('环境绑定下各入口仍同源（侧边栏 ↔ 内联下拉/一键填充）', () => {
+  /** 本机端点 + 两个远端环境的条目池 */
+  const ENV_URLS = [...LOCAL_URLS, 'fat.example.com', 'https://fat.example.com/login', 'uat.example.com'];
+  const all = ENV_URLS.map((url, i) => entry({ id: `v${i}`, url }));
+  const boundCtx: ScopeContext = { ...LOCAL_CTX, envHost: FAT };
+  const urlsOf = (list: typeof all): string[] => list.map(item => item.url ?? '').sort();
+
+  it('绑定 fat 后，两个入口的可见集逐条相同', () => {
+    const sidebar = filterEntriesByScope(all, 'site', boundCtx, LOOSE);
+    const dropdown = filterAndSortEntriesForDomain(
+      all,
+      boundCtx.domain,
+      undefined,
+      boundCtx.page,
+      LOOSE,
+      boundCtx.envHost,
+    );
+
+    expect(urlsOf(dropdown)).toEqual(urlsOf(sidebar));
+    // 该环境的两种写法都进来，本机端点一条不少，uat 与外站仍然不在
+    expect(sidebar.map(e => e.url)).toEqual(
+      expect.arrayContaining(['fat.example.com', 'https://fat.example.com/login']),
+    );
+    expect(sidebar.some(e => e.url === 'uat.example.com')).toBe(false);
+    expect(sidebar.some(e => (e.url ?? '').includes('github.com'))).toBe(false);
+  });
+
+  it('首条仍可填充：绑定不会把任何条目抬到「不属于当前端点」的位置', () => {
+    const list = filterAndSortEntriesForDomain(all, boundCtx.domain, undefined, boundCtx.page, LOOSE, boundCtx.envHost);
+    const first = list[0];
+    expect(siteRankWithEnv(first.url, boundCtx.domain, boundCtx.page, LOOSE, boundCtx.envHost)).toBe(0);
+    // 权重 0 的两条轴都可填充；而「同主机其他端口」那条（localhost:4000）仍在站外
+    expect(matchesSiteWithEnv(first.url, boundCtx.domain, boundCtx.page, LOOSE, boundCtx.envHost)).toBe(true);
+    expect(list.some(e => e.url === 'localhost:4000')).toBe(false);
+  });
+
+  it('未绑定时与绑定前口径逐字一致：默认路径零行为变化', () => {
+    const legacy = filterAndSortEntriesForDomain(all, LOCAL_CTX.domain, undefined, LOCAL_CTX.page, LOOSE, null);
+    expect(urlsOf(legacy)).toEqual(
+      urlsOf(
+        // 绑定轴的缺席用「公网页面上的等价判定」复现：只走真实端点
+        filterEntriesByScope(all, 'site', LOCAL_CTX, LOOSE),
+      ),
+    );
+    expect(legacy.some(e => (e.url ?? '').startsWith('fat.'))).toBe(false);
+  });
+
+  it('公网页面传入绑定也拿不到远端条目（环回门禁在各入口都生效）', () => {
+    const publicCtx: ScopeContext = { domain: 'example.com', page: pageOf('https://example.com/'), envHost: FAT };
+    const list = filterAndSortEntriesForDomain(
+      all,
+      publicCtx.domain,
+      undefined,
+      publicCtx.page,
+      LOOSE,
+      publicCtx.envHost,
+    );
+    expect(urlsOf(list)).toEqual(urlsOf(filterEntriesByScope(all, 'site', publicCtx, LOOSE)));
+    expect(list.some(e => e.url === FAT)).toBe(false);
   });
 });
