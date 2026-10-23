@@ -189,6 +189,7 @@
       <!-- 条目卡片列表 -->
       <div
         v-else
+        ref="listRef"
         v-loading="loading"
         class="identity-list"
       >
@@ -414,7 +415,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import {
   ArrowDown,
   ArrowUp,
@@ -441,6 +442,8 @@ import {
 import { formatFileSize } from '@/utils/formatFileSize';
 import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
 import { shouldToggleCollapseFromTitleClick } from '@/utils/identity/titleToggle';
+import { findSearchRevealTarget } from '@/utils/identity/searchReveal';
+import { scrollBehavior } from '@/utils/a11y';
 import {
   exportIdentityBackup,
   exportIdentityPlaintext,
@@ -700,14 +703,57 @@ const exportTargets = computed(() => resolveExportEntries(rows.value, selectedId
 /** 回收站弹窗显隐（父弹窗关闭时立即收起，避免解密标题随隐藏 DOM 多留一拍） */
 const trashVisible = ref(false);
 
-/** 弹窗打开时加载数据，并行恢复落盘的排序档位、拉取回收站计数（对标 TrashDialog 的 watch modelValue） */
+/** 卡片列表的滚动容器（检索首屏定位的落点作用域，同时是逐帧重试的挂载判据） */
+const listRef = ref<HTMLElement | null>(null);
+
+/** 定位代际：改词之间作废尚未落地的逐帧链，迟到的那次不得把视野拽去上一轮的结果 */
+let revealGeneration = 0;
+
+/**
+ * 把当前检索词的首个命中滚进视野
+ *
+ * 只在「有检索词且有结果」时说这句话：空词与零命中都不该移动视野（那两屏由说明行与空态
+ * 负责，用户要看的是「为什么没有」，不是被拖到列表某处）。落点由 `searchReveal` 判定
+ * （卡内首个命中节点，折叠卡退回卡头），本函数只负责时序与作废。
+ *
+ * 逐帧重试而不是固定延时：条目是 `load()` 回来之后才铺进 DOM 的，写死的 150ms 在慢盘
+ * （Windows 杀毒扫描）上会赶在卡片出现之前，表现成「深链进来没定位到」；命中即停，
+ * 快路径仍只等一轮渲染。约 0.5 秒仍未出现节点则认定这轮渲染没赶上，静默收尾。
+ * 减弱动效经 `scrollBehavior()` 收口为瞬时定位，与密码侧 `revealRow` 同一判据。
+ */
+const revealFirstMatch = (): void => {
+  if (!props.modelValue || keyword.value.trim() === '' || filteredRows.value.length === 0) return;
+
+  const generation = ++revealGeneration;
+  /** 逐帧寻找命中节点的上限（约 0.5 秒） */
+  const MAX_FRAMES = 30;
+  let frame = 0;
+  const locate = (): void => {
+    if (generation !== revealGeneration) return;
+    const target = findSearchRevealTarget(listRef.value);
+    if (!target) {
+      if (++frame < MAX_FRAMES) requestAnimationFrame(locate);
+      return;
+    }
+    target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+  };
+  void nextTick(locate);
+};
+
+watch(keyword, revealFirstMatch);
+
+/**
+ * 弹窗打开时加载数据，并行恢复落盘的排序档位、拉取回收站计数（对标 TrashDialog 的 watch modelValue）
+ *
+ * 定位排在条目与档位都落定之后：`restoreSortMode()` 会按落盘档位重排列表，抢在它之前滚过去
+ * 的那一张卡届时已不是第一张结果。回收站计数与这两者互不依赖，保持并行、不参与定位门槛。
+ */
 watch(
   () => props.modelValue,
   visible => {
     if (visible) {
-      void load();
-      void restoreSortMode();
       void refreshTrashCount();
+      void Promise.all([load(), restoreSortMode()]).then(revealFirstMatch);
     } else {
       trashVisible.value = false;
     }
