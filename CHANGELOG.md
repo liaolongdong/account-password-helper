@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.18.0](https://github.com/liaolongdong/account-password-helper/compare/v3.17.0...v3.18.0) (2026-10-23)
+
+
+### Features
+
+* **identity:** 身份库检索把首个命中滚进视野 ([ab98055](https://github.com/liaolongdong/account-password-helper/commit/ab980559ec373bffa3dc0c4263ab6bad0ff2af6d))
+* **match:** 列表排序改按「与当前站点的关联度」，档位只管可见性 ([e162ffd](https://github.com/liaolongdong/account-password-helper/commit/e162ffd2b47e7f480b077c0edacd72132c3eafa9))
+* **options:** 快捷键一览补上命令面板的 ⌘K，面板 footer 加「快捷键」入口 ([ed67838](https://github.com/liaolongdong/account-password-helper/commit/ed67838ad2b7212363df076914f11b522b5a67ae))
+* **options:** 站点筛选与环回别名同口径，候选给出折叠写法与端口分布 ([f176789](https://github.com/liaolongdong/account-password-helper/commit/f17678948d94d1a2b872a9ca922bcdbe4eee9f57))
+* **sidepanel:** 本地页可绑定远端环境，复用 dev/fat/uat/prod 账号直接填充 ([9d60686](https://github.com/liaolongdong/account-password-helper/commit/9d606862f22b20bc4123f43f6458c621dc801374))
+* 身份库检索首屏定位、本地端点匹配与关联度排序、头部工具条重排 ([4d4b49b](https://github.com/liaolongdong/account-password-helper/commit/4d4b49b2f4882881cecd20ceabb8b1710f24cbb1))
+
+
+### Bug Fixes
+
+* **content:** 命令面板方向键不再被悬停抢走游标，并为 28 条命令补上同源图标 ([ba0172b](https://github.com/liaolongdong/account-password-helper/commit/ba0172be167e7bf51a8aa72e261d0198f6613f40))
+* **match:** 列表排序改按「与当前站点的关联度」，本机其他端口不再沉底 ([b309384](https://github.com/liaolongdong/account-password-helper/commit/b3093847be64c7be1c906f0cb854f19207e9be33))
+* **match:** 按代码评审收口别名与端口通配的边角，删除只被测试使用的判据 ([6750278](https://github.com/liaolongdong/account-password-helper/commit/6750278e1942e89ffcaccdf60d925b6afc555e17))
+* **match:** 本地开发端点补回主机门，环回三写法折叠为同一主体，并新增端口通配 ([c68897b](https://github.com/liaolongdong/account-password-helper/commit/c68897b6c295c33e5958ed61f97add946005842d))
+* **options:** 跨子域名匹配弹窗的圆点与标题行中心对齐，补真机几何守卫 ([8e8fffc](https://github.com/liaolongdong/account-password-helper/commit/8e8fffceec189a52736291443d7bba049c83f7cf))
+* **sidepanel:** 端口芯片改用「本页有无被挡条目」判据，并补本地端点的真机 e2e ([852f5af](https://github.com/liaolongdong/account-password-helper/commit/852f5affb82e7239ec7185d4f2153c7e874b8c7c))
+
 ## [3.17.0](https://github.com/liaolongdong/account-password-helper/compare/v3.16.0...v3.17.0) (2026-10-22)
 
 
