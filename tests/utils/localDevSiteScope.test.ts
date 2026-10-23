@@ -380,7 +380,9 @@ describe('环境绑定下各入口仍同源（侧边栏 ↔ 内联下拉/一键�
       expect.arrayContaining(['fat.example.com', 'https://fat.example.com/login']),
     );
     expect(sidebar.some(e => e.url === 'uat.example.com')).toBe(false);
-    expect(sidebar.some(e => (e.url ?? '').includes('github.com'))).toBe(false);
+    // 外站那一条（`https://github.com/login`）也不许进来。判据走主机相等而不是网址子串：
+    // 子串会把 `evil-github.com`、`github.com.e2e.test` 一并算成命中，量出来的「挡住了」是假的。
+    expect(sidebar.map(e => normalizeToHostname(e.url ?? ''))).not.toContain('github.com');
   });
 
   it('首条仍可填充：绑定不会把任何条目抬到「不属于当前端点」的位置', () => {
