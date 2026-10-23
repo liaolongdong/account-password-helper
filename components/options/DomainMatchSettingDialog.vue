@@ -199,6 +199,20 @@ const handleSave = async (): Promise<void> => {
   white-space: normal;
 }
 
+/*
+ * 圆点盒 `.el-radio__input` 是 inline-flex 且无显式高度，会缩到圆圈本身的 14px；
+ * 而标题行盒是 21px（14px 字号 × 1.5 行高）。上一节的 `align-items: flex-start`
+ * 让这两个盒子顶对齐，于是圆心比标题的光学中心高 3.5px（真机实测，见
+ * e2e/domain-match-radio-alignment.spec.ts）。把圆点盒撑到与标题同一行盒高、
+ * 并让圆圈在其中居中，两者中心即重合。用 `1.5em` 而不是写死 21px：em 取自
+ * `.el-radio` 继承来的 14px 字号，与下方 `.el-radio__label` 的 `line-height: 1.5`
+ * 同源，字号一旦调整两处一起动。
+ */
+.domain-match-option :deep(.el-radio__input) {
+  align-items: center;
+  height: 1.5em;
+}
+
 .domain-match-option:last-child {
   margin-bottom: 0;
 }
