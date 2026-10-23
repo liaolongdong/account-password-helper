@@ -96,7 +96,8 @@
         v-if="backupNudge"
         :state="backupNudge.state"
         :days="backupNudge.days"
-        @backup="handleDataCommand('backupExport')"
+        :vault="backupNudge.vault"
+        @backup="handleBackupNudgeAction"
         @dismiss="backupNudgeDismissed = true"
       />
 
@@ -1241,14 +1242,25 @@ const showActivationChecklist = computed(
  * 与「安全起步清单」互斥：清单在场时它已经把备份列为待办之一。
  */
 const backupNudgeDismissed = ref(false);
-const backupNudge = computed<{ state: 'never' | 'stale'; days: number } | null>(() => {
+const backupNudge = computed<{ state: 'never' | 'stale'; days: number; vault: 'passwords' | 'identity' } | null>(() => {
   if (backupNudgeDismissed.value || showActivationChecklist.value || !isAuthenticated.value) return null;
   const chip = backupChip.value;
   if (!chip.visible) return null;
-  if (chip.level === 'critical') return { state: 'never', days: 0 };
-  if (chip.level === 'urgent' && mutatedThisSession.value) return { state: 'stale', days: chip.ageDays ?? 0 };
+  if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault };
+  if (chip.level === 'urgent' && mutatedThisSession.value) {
+    return { state: 'stale', days: chip.ageDays ?? 0, vault: chip.worstVault };
+  }
   return null;
 });
+
+/** 轻提醒的出口与徽标同一套分派：欠哪一份备份，就把用户送到哪一份的导出入口 */
+const handleBackupNudgeAction = (): void => {
+  if (backupNudge.value?.vault === 'identity') {
+    void openIdentityVaultWithVerify();
+    return;
+  }
+  handleDataCommand('backupExport');
+};
 /** 读取清单唯一需要异步补齐的两项：暂不提醒时间与体检趋势是否存在 */
 const loadActivationState = async (): Promise<void> => {
   const [state, history] = await Promise.all([getActivationChecklistState(), readHealthHistory()]);

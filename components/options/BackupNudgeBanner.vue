@@ -14,7 +14,9 @@
         {{ t('options.backupNudge.title') }}
       </h3>
       <p class="backup-nudge__desc">
-        {{ state === 'never' ? t('options.backupNudge.never') : t('options.backupNudge.stale', { days }) }}
+        {{
+          state === 'never' ? t('options.backupNudge.never', { file }) : t('options.backupNudge.stale', { days, file })
+        }}
       </p>
     </div>
     <div class="backup-nudge__actions">
@@ -37,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
 
@@ -47,11 +50,13 @@ import { useI18n } from '@/utils/i18n';
  * 关闭只作用于当前页面会话（不新增持久化键、不加闹钟与桌面通知）。
  * 与「安全起步清单」互斥出现——清单在场时它已经说了同一件事，不叠第二条横幅。
  */
-defineProps<{
+const props = defineProps<{
   /** `never` = 一次都没通过自检导出过；`stale` = 有备份但期间又改过 / 太久没备 */
   state: 'never' | 'stale';
   /** 距上次成功备份的整天数，仅 `stale` 档使用 */
   days: number;
+  /** 欠的是哪一份备份：两库互不覆盖，文案必须点名对应的文件形态 */
+  vault: 'passwords' | 'identity';
 }>();
 
 defineEmits<{
@@ -60,6 +65,9 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/** 密码库对应 `.aph`，个人信息库对应 `.aphid`（后者只在库内弹窗里导出） */
+const file = computed(() => (props.vault === 'identity' ? '.aphid' : '.aph'));
 </script>
 
 <style scoped>

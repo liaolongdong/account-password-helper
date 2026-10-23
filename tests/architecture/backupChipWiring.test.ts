@@ -64,15 +64,33 @@ describe('徽标的成本边界', () => {
 });
 
 describe('徽标与轻提醒的出口', () => {
-  it('点击徽标直达加密备份导出（与菜单同一条 command，不另起一条链路）', () => {
-    expect(readSource(HEADER_BAR)).toContain("$emit('dataCommand', 'backupExport')");
-    expect(readSource(APP)).toContain('@backup="handleDataCommand(\'backupExport\')"');
+  it('出口按「欠哪一份备份」分派，不把用户送去备错文件', () => {
+    const header = readSource(HEADER_BAR);
+    // 两个库是两份互不覆盖的备份：密码库走 `.aph` 导出，个人信息库的 `.aphid`
+    // 只在库内弹窗里。徽标因身份库亮红时若仍送到 `.aph`，用户照做后红色纹丝不动。
+    expect(header).toContain('@click="handleBackupChipClick"');
+    expect(header).toContain("if (props.backupChip.worstVault === 'identity') {");
+    expect(header).toContain("emit('openIdentity');");
+    expect(header).toContain("emit('dataCommand', 'backupExport');");
+
+    const app = readSource(APP);
+    expect(app).toContain("if (backupNudge.value?.vault === 'identity') {");
+    expect(app).toContain('void openIdentityVaultWithVerify();');
+    expect(app).toContain('@backup="handleBackupNudgeAction"');
+  });
+
+  it('提醒文案点名对应的文件形态，不写死 .aph', () => {
+    const banner = readSource(NUDGE_BANNER);
+    expect(banner).toContain("props.vault === 'identity' ? '.aphid' : '.aph'");
+    expect(banner).toMatch(/t\('options\.backupNudge\.(never|stale)', \{[^}]*file[^}]*\}\)/);
+    expect(readSource(ZH_OPTIONS)).toContain('导出一份 {file}');
+    expect(readSource(EN_OPTIONS)).toContain('Export a {file}');
   });
 
   it('轻提醒保持收紧：清单在场不出，待备份档还要求本页会话内真的改过数据', () => {
     const app = readSource(APP);
     expect(app).toContain('backupNudgeDismissed.value || showActivationChecklist.value');
-    expect(app).toContain("if (chip.level === 'critical') return { state: 'never', days: 0 };");
+    expect(app).toContain("if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault };");
     expect(app).toContain("chip.level === 'urgent' && mutatedThisSession.value");
   });
 

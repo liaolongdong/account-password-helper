@@ -37,7 +37,7 @@
           :class="`backup-chip--${backupChip.level}`"
           :title="backupChipDetail"
           :aria-label="t('options.header.backupChipAria', { detail: backupChipDetail })"
-          @click="$emit('dataCommand', 'backupExport')"
+          @click="handleBackupChipClick"
         >
           <span
             class="backup-chip__dot"
@@ -482,6 +482,21 @@ const handleHelpCommand = (command: string): void => {
       emit('openAbout');
       break;
   }
+};
+
+/**
+ * 备份徽标的出口按「最差的那一库」分派
+ *
+ * 两个库是两份互不覆盖的备份：密码库走「数据管理 → 加密备份导出」（`.aph`），
+ * 个人信息库的 `.aphid` 导出只在库内弹窗里。徽标因个人信息库亮红时若仍把点击
+ * 送到 `.aph` 导出，用户按提示做完会发现红色纹丝不动——出口必须落在真正欠的那份备份上。
+ */
+const handleBackupChipClick = (): void => {
+  if (props.backupChip.worstVault === 'identity') {
+    emit('openIdentity');
+    return;
+  }
+  emit('dataCommand', 'backupExport');
 };
 
 // 会话倒计时：HeaderBar 仅在认证态挂载，挂载即启动；作用域销毁自动停止
