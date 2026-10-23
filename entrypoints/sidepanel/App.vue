@@ -517,15 +517,16 @@ const availableTags = computed(() => {
  * 列表排序的域名优先级
  *
  * 权重来自 `utils/domain.ts` 的 `siteRankOf`：**关联度决定先后，档位决定可见**，两者互不越界。
- * 层级为 精确(含环回别名) → 通配 → 主域 apex → 同主域其他子域 → 空 URL 通用 → 无关站点，
- * 于是「全站」范围里 `dev.example.com` 不会再被 `github.com` 压在上面；「本站」可见集里只有
- * 精确与通用两类，相对顺序与改动前逐字一致，「首条即可填充」这条同源约定不受影响。
- * 「同主机其他端口」的条目按持久化端口档沉到最末（{@link siteRankOf} 内部），与「首条即可填充」对齐。
+ * 阶梯为 当前端点 → 同主机其他端口 → 通配 → 主域 apex → 同主域其他子域 → 空 URL 通用 → 无关站点，
+ * 于是「全站」范围里 `dev.example.com` 与 `localhost:4000` 都不会被 `github.com` 压在上面；
+ * 「本站」可见集里只有当前端点与通用两类，相对顺序与改动前逐字一致。
+ * 「同主机其他端口」紧跟在当前端点之后（{@link siteRankOf} 内部按持久化端口档分界）：
+ * 本机另一个服务比任何跨主机关系都更相关，但它仍排在精确条目之后，首条依旧可填充。
  * 当前页无域名时没有「本站」可收敛，退回二值口径。
  *
  * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成只存在于显示层的
- * `relaxed`，若在此处读展示策略，其他端口的条目于是不再沉底——实测过一次：同域名的门面地址
- * 排到了首位，而它并不可填充。
+ * `relaxed`，若在此处读展示策略，同主机其他端口的条目就会被抬到当前端点之前——实测过一次：
+ * 同域名的门面地址排到首位，而回车并不会填它。
  */
 const domainPriorityOf = (entry: PasswordEntry): number => {
   const domain = currentDomain.value;
@@ -634,7 +635,7 @@ const crossDomainIds = computed<ReadonlySet<string>>(() => {
  * 当前可见列表中「同域名但端口不同」的条目 ID 集
  *
  * 只有临时放宽才会让它们现身，因此这一集与「显示其他端口」的开关同生同灭；
- * 徽章与沉底排序共用它，避免出现「标了其他端口却排在精确条目前面」的自相矛盾。
+ * 徽章与关联度分层共用它，避免出现「标了其他端口却排在精确条目前面」的自相矛盾。
  */
 const portMismatchIds = computed<ReadonlySet<string>>(() => {
   if (!portRelaxedTemporarily.value) return EMPTY_ID_SET;

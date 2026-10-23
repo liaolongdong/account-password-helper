@@ -42,6 +42,9 @@ const otherPortBadge = (panel: Page, username: string) =>
 /** 侧边栏首屏在机器被抢占时可拖到 31s，只上调时长，断言与判据不动 */
 test.describe.configure({ timeout: 150_000 });
 
+/** 侧边栏「全站 / 本站」范围切换按钮 */
+const scopeToggle = (panel: Page) => panel.locator('.scope-toggle-btn');
+
 test.describe('本地开发端点的站点范围', () => {
   test('127.0.0.1:3000 页面：只列本机同端点条目，外站条目缺席，芯片给出被端口挡住的出口', async ({
     extContext,
@@ -110,6 +113,29 @@ test.describe('本地开发端点的站点范围', () => {
     await expect(portChip(panel)).toContainText(':4000');
 
     await screenshot(panel, 'local-port-wildcard-and-reverse-alias');
+  });
+
+  test('全站范围按相关度排：本机其他端口在陌生站点之前', async ({ extContext, extensionId, optionsPage }) => {
+    const GENERIC = { username: 'e2e-local-generic', password: 'Synthetic!Gen', url: '' };
+    await createEntry(optionsPage, LOOP_3000);
+    await createEntry(optionsPage, LOOP_4000);
+    await createEntry(optionsPage, FOREIGN_PLAIN);
+    await createEntry(optionsPage, GENERIC);
+
+    const { panel } = await openSidepanelOnSite(extContext, extensionId, undefined, PAGE_127_3000);
+    // 本站范围：只有当前端点与留空的通用条目
+    await expect(rows(panel)).toHaveCount(2);
+
+    await scopeToggle(panel).click();
+    await expect(rows(panel)).toHaveCount(4);
+    // 阶梯：当前端点 → 同主机其他端口 → 留空通用 → 无关站点
+    // 改前 `localhost:4000` 被放到绝对末位，即 `foreign.e2e.test` 之后——相关度被排反
+    await expect(rows(panel).nth(0)).toContainText(LOOP_3000.username);
+    await expect(rows(panel).nth(1)).toContainText(LOOP_4000.username);
+    await expect(rows(panel).nth(2)).toContainText(GENERIC.username);
+    await expect(rows(panel).nth(3)).toContainText(FOREIGN_PLAIN.username);
+
+    await screenshot(panel, 'all-scope-relevance-order');
   });
 });
 

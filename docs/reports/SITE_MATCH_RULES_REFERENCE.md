@@ -17,8 +17,8 @@
 
 - **主机门**回答「哪些**主机**算本站」，返回层级 `tier`：`0` 精确（含环回别名）/ `1` 通配条目 / `2` 同主域 apex / `3` 同主域其他子域 / `4` 网址为空 / `-1` 不属于本站。这个数字同时就是排序权重。
 - **端口门**回答「同一主机上不同端口的账号要不要互相隔开」，取值 `loose` / `strict`（持久化）加一个只存在于显示层的 `relaxed`。
-- **第三条轴只管先后**：列表排序按「与当前站点的关联度」（[`siteRankOf`](../../utils/domain.ts#L762)），恒按最宽口径取层级，**与用户所选档位无关**——档位管「看不看得到」，关联度管「谁排在前面」。见 §2.4。
-- 两道门由 [`matchesSiteEndpoint`](../../utils/domain.ts#L1022) 合成，**五个入口共用它**：侧边栏「本站」、内联下拉、一键填充、排序优先级、Popup「此站已有账号数」。以前这四处各自复制分支、且复制得不完整（环回少抄主机、Popup 少抄端口），才会出现「下拉里有、侧边栏没有」和「两个入口结论相反」。
+- **第三条轴只管先后**：列表排序按「与当前站点的关联度」（[`siteRankOf`](../../utils/domain.ts#L769)），恒按最宽口径取层级，**与用户所选档位无关**——档位管「看不看得到」，关联度管「谁排在前面」。见 §2.4。
+- 两道门由 [`matchesSiteEndpoint`](../../utils/domain.ts#L1028) 合成，**五个入口共用它**：侧边栏「本站」、内联下拉、一键填充、排序优先级、Popup「此站已有账号数」。以前这四处各自复制分支、且复制得不完整（环回少抄主机、Popup 少抄端口），才会出现「下拉里有、侧边栏没有」和「两个入口结论相反」。
 - 单调性：**`strict ⊆ loose ⊆ relaxed`**，且主机门只会因档位放宽而变宽；任何一档都不会把「主机不属于本站」的条目带进来。
 
 ---
@@ -73,21 +73,23 @@
 
 ### 2.3 排序关联度（与档位无关）
 
-[`siteRankOf`](../../utils/domain.ts#L762) 给每条算一个排序权重，数值越小越靠前。**它不改变任何一条能不能出现，只改变它出现在第几行**：
+[`siteRankOf`](../../utils/domain.ts#L769) 给每条算一个排序权重，数值越小越靠前。**它不改变任何一条能不能出现，只改变它出现在第几行**：
 
-| 权重 | 含义                                           | 例子（当前页 `fat.example.com`）                   |
-| ---- | ---------------------------------------------- | -------------------------------------------------- |
-| 0    | 精确主机（含环回别名）                         | `fat.example.com`、`https://fat.example.com/login` |
-| 1    | 通配条目命中                                   | `*.example.com`                                    |
-| 2    | 同主域 apex                                    | `example.com`                                      |
-| 3    | 同主域其他子域                                 | `dev.example.com`、`uat.example.com`               |
-| 4    | 网址为空的通用条目                             | （留空）                                           |
-| 5    | 与当前站点无关                                 | `github.com`、`qq.com`                             |
-| 6    | 同主机、其他端口（本档位下算本站但被端口挡住） | `localhost:4000` 出现在 `localhost:3000` 页面上    |
+| 权重 | 含义                                             | 例子（当前页 `localhost:3000` / `fat.example.com`）   |
+| ---- | ------------------------------------------------ | ----------------------------------------------------- |
+| 0    | 当前端点：主机相同（含环回别名）**且**端口对得上 | `localhost:3000`、`127.0.0.1:3000`、`fat.example.com` |
+| 1    | 同主机、其他端口（本机另一个服务）               | `localhost:4000`、`127.0.0.1:5173`                    |
+| 2    | 通配条目命中                                     | `*.example.com`                                       |
+| 3    | 同主域 apex                                      | `example.com`                                         |
+| 4    | 同主域其他子域                                   | `dev.example.com`、`uat.example.com`                  |
+| 5    | 网址为空的通用条目                               | （留空）                                              |
+| 6    | 与当前站点无关                                   | `github.com`、`qq.com`                                |
+
+权重 1 只比 0 低一位：本机另一个端口上的服务，显然比陌生站点更相关——它曾排在无关站点之后（实测 `localhost:4000` 落在 `github.com` 后面），那正是「相关度高的排前面」被排反的地方。
 
 链上顺序仍是 **关联度 → 收藏置顶 → 侧边栏排序字段**，所以关联度**压过收藏**：一个收藏过的 `github.com` 账号，现在会排在没收藏的 `dev.example.com` 之后（这是本次调整的目的，也是「全站」列表里最容易被察觉的变化）。
 
-不变的是「本站」列表：默认 `off` 档下可见集只有权重 0 与 4 两类，相对顺序与调整前逐字一致，因此**内联下拉、一键填充、右键菜单取到的首条不变**。
+不变的是「本站」列表：默认 `off` 档下可见集只有权重 0（当前端点）与 5（留空通用）两类，相对顺序与调整前逐字一致，因此**内联下拉、一键填充、右键菜单取到的首条不变**。
 
 ### 2.4 主机归一口径
 
@@ -137,7 +139,7 @@
 ### 3.4 `relaxed` 的边界（重要）
 
 - 只影响 `domainFilteredPasswords`（列表可见性）；`notFillableIds`、行点击/回车分派、排序沉底、Popup 计数、内联下拉与一键填充**一律仍用持久化策略**。
-- 因此被 `relaxed` 带出的「同主机其他端口」条目：标 `其他端口` 徽章、沉到 `OTHER_PORT_PRIORITY`（6）列表末尾、只提供复制与「打开站点」，绝不成为一键填充的首条。
+- 因此被 `relaxed` 带出的「同主机其他端口」条目：标 `其他端口` 徽章、紧跟当前端点之后（权重 1，仍在精确条目之后）、只提供复制与「打开站点」，绝不成为一键填充的首条。
 - 芯片在 `relaxed` 状态必须继续可点（用于收回），此时条数计数归零。
 
 ---
@@ -213,7 +215,7 @@
 | 空态「同域名其他端口还有 N 条账号，点击显示」 | 本站列表空、但被端口挡住若干条（`countPortHiddenCandidates`）                        | `sidepanel.scope.portHiddenHint`                     |
 | 空态「同主域还有 N 条账号，可开启跨子域匹配」 | 本站列表空、但 `sameMainDomain` 档能带出条目（环回主机恒 0）                         | `sidepanel.scope.crossSubdomainHint`                 |
 
-**芯片不显示条数**，条数出现在空态那一句里——两个数字都由同一判据 [`isHiddenByPortOnly`](../../utils/domain.ts#L1048) 得出，所以「提示说另有 3 条、点开只多 2 条」不会发生。
+**芯片不显示条数**，条数出现在空态那一句里——两个数字都由同一判据 [`isHiddenByPortOnly`](../../utils/domain.ts#L1054) 得出，所以「提示说另有 3 条、点开只多 2 条」不会发生。
 
 **顺序**：任何范围下都按 §2.3 的关联度排（权重 0 → 6），再叠收藏置顶与所选排序字段。内联下拉与一键填充只看到「本站」可见集，因此它们与侧边栏「本站」的首条永远一致。
 
@@ -276,11 +278,11 @@
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 环回判定 / 别名折叠                | [`isLoopbackHost`](../../utils/domain.ts#L295) · [`canonicalSiteHost`](../../utils/domain.ts#L318)                                                                                                                                                                                                               |
 | 主机门（档位分层）                 | [`resolveMatchTier`](../../utils/domain.ts#L686)，通配前缀防碰撞见 [`registrableScope`](../../utils/domain.ts#L183)                                                                                                                                                                                              |
-| 端口门（公网 / `strict`）          | [`matchesPortScope`](../../utils/domain.ts#L991)，页面端口上下文 [`parsePagePortContext`](../../utils/domain.ts#L820) · [`rawPortOf`](../../utils/domain.ts#L845)                                                                                                                                                |
+| 端口门（公网 / `strict`）          | [`matchesPortScope`](../../utils/domain.ts#L997)，页面端口上下文 [`parsePagePortContext`](../../utils/domain.ts#L820) · [`rawPortOf`](../../utils/domain.ts#L845)                                                                                                                                                |
 | 端口门（环回 `loose`）             | [`matchesPortForLocalDev`](../../utils/domain.ts#L444)                                                                                                                                                                                                                                                           |
-| 两道门合成（唯一判据）             | [`matchesSiteEndpoint`](../../utils/domain.ts#L1022)                                                                                                                                                                                                                                                             |
-| 排序关联度（与档位无关，只管先后） | [`siteRankOf`](../../utils/domain.ts#L762) · [`NOT_ON_SITE_RANK` / `OTHER_PORT_RANK`](../../utils/domain.ts#L736)                                                                                                                                                                                                |
-| 「只是被端口挡住」                 | [`isHiddenByPortOnly`](../../utils/domain.ts#L1048) · [`countPortHiddenCandidates`](../../utils/domain.ts#L1112)                                                                                                                                                                                                 |
+| 两道门合成（唯一判据）             | [`matchesSiteEndpoint`](../../utils/domain.ts#L1028)                                                                                                                                                                                                                                                             |
+| 排序关联度（与档位无关，只管先后） | [`siteRankOf`](../../utils/domain.ts#L769) · [`NOT_ON_SITE_RANK` / `OTHER_PORT_RANK`](../../utils/domain.ts#L736)                                                                                                                                                                                                |
+| 「只是被端口挡住」                 | [`isHiddenByPortOnly`](../../utils/domain.ts#L1054) · [`countPortHiddenCandidates`](../../utils/domain.ts#L1118)                                                                                                                                                                                                 |
 | 网址归一 / 端口声明解析            | [`normalizeToHostname`](../../utils/domain.ts#L487) · [`splitHostAndPortDecl`](../../utils/domain.ts#L413) · [`isExactHostMatch`](../../utils/domain.ts#L577)                                                                                                                                                    |
 | 侧边栏范围过滤                     | [`matchesSiteScope` / `filterEntriesByScope`](../../utils/passwordFilter.ts#L80)                                                                                                                                                                                                                                 |
 | 下拉与一键填充的过滤排序           | [`filterAndSortEntriesForDomain`](../../utils/passwordSort.ts#L158)                                                                                                                                                                                                                                              |

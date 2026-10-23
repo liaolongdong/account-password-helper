@@ -12,7 +12,7 @@ import {
   splitHostAndPortDecl,
   siteRankOf,
   NOT_ON_SITE_RANK,
-  OTHER_PORT_RANK,
+  SAME_HOST_OTHER_PORT_RANK,
   type EffectiveSitePolicy,
   type PagePortContext,
 } from '@/utils/domain';
@@ -238,33 +238,48 @@ describe('不变量 5：排序按「与当前站点的关联度」，与档位�
   it('全站范围里同主域兄弟子域排在无关站点之前', () => {
     const rank = (url: string) => siteRankOf(url, fat.domain, fat.page, loose);
     expect(rank('fat.example.com')).toBe(0);
-    expect(rank('*.example.com')).toBe(1);
-    expect(rank('example.com')).toBe(2);
-    expect(rank('dev.example.com')).toBe(3);
-    expect(rank('')).toBe(4);
+    expect(rank('*.example.com')).toBe(2);
+    expect(rank('example.com')).toBe(3);
+    expect(rank('dev.example.com')).toBe(4);
+    expect(rank('')).toBe(5);
     expect(rank('github.com')).toBe(NOT_ON_SITE_RANK);
     // 用户提的那条：dev 与 github 在改前同为二值 1，谁前谁后只由收藏与最后使用时间决定
     expect(rank('dev.example.com')).toBeLessThan(rank('github.com'));
   });
 
-  it('排序权重必须严格递增分层，且外站与「其他端口」永远在最后', () => {
-    const ranks = ['fat.example.com', '*.example.com', 'example.com', 'dev.example.com', ''].map(url =>
-      siteRankOf(url, fat.domain, fat.page, loose),
+  it('同主机其他端口排在无关站点之前（localhost:3000 全站场景）', () => {
+    const page3000 = pageOf('http://localhost:3000/');
+    const ranks = ['localhost:3000', 'localhost:4000', 'github.com', ''].map(url =>
+      siteRankOf(url, 'localhost', page3000, loose),
     );
-    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
-    expect(OTHER_PORT_RANK).toBeGreaterThan(NOT_ON_SITE_RANK);
-    expect(NOT_ON_SITE_RANK).toBeGreaterThan(4);
+    // 当前端点 → 同主机其他端口 → 无关站点，通用条目仍在其后、无关站点之前
+    expect(ranks).toEqual([0, 1, NOT_ON_SITE_RANK, 5]);
+    expect(ranks[1]).toBeLessThan(ranks[2]);
+  });
+
+  it('排序权重必须分层单调：端点 < 同主机其他端口 < 通配 < 主域 < 兄弟子域 < 通用 < 无关', () => {
+    const rank = (url: string) => siteRankOf(url, 'mail.qq.com', pageOf('https://mail.qq.com'), loose);
+    expect(['mail.qq.com', '*.qq.com', 'qq.com', 'music.qq.com', '', 'github.com'].map(rank)).toEqual([
+      0,
+      2,
+      3,
+      4,
+      5,
+      NOT_ON_SITE_RANK,
+    ]);
+    expect(SAME_HOST_OTHER_PORT_RANK).toBeGreaterThan(0);
+    expect(SAME_HOST_OTHER_PORT_RANK).toBeLessThan(NOT_ON_SITE_RANK);
   });
 
   it('「本站」可见集的顺序不受影响：精确仍在通用条目之前', () => {
     const onSite = ['fat.example.com', ''].map(url => siteRankOf(url, fat.domain, fat.page, loose));
-    expect(onSite).toEqual([0, 4]);
+    expect(onSite).toEqual([0, 5]);
   });
 
   it('同主机其他端口只在「本档位下算本站却被端口挡住」时沉底', () => {
     const local = { host: 'localhost', page: pageOf('http://localhost:3000/') };
     // 环回 + loose：:4000 属于本站主机，但端口不过 → 沉到最末（临时放宽带回时也排在这里）
-    expect(siteRankOf('localhost:4000', local.host, local.page, loose)).toBe(OTHER_PORT_RANK);
+    expect(siteRankOf('localhost:4000', local.host, local.page, loose)).toBe(SAME_HOST_OTHER_PORT_RANK);
     expect(siteRankOf('localhost:3000', local.host, local.page, loose)).toBe(0);
     // 本地页面上的外站条目属于「与当前站点无关」，不是「其他端口」
     expect(siteRankOf('github.com', local.host, local.page, loose)).toBe(NOT_ON_SITE_RANK);
@@ -284,7 +299,7 @@ describe('不变量 5：排序按「与当前站点的关联度」，与档位�
     const local = { host: 'localhost', page: pageOf('http://localhost:3000/') };
     // 侧边栏排序恒按用户所选的 loose 判定沉底（`App.vue` 传的是 sitePolicy，
     // 由 crossSubdomainTierWiring.test.ts 的源码守卫钉住，见「临时放宽不渗入填充判据」一条）
-    expect(siteRankOf('localhost:4000', local.host, local.page, loose)).toBe(OTHER_PORT_RANK);
+    expect(siteRankOf('localhost:4000', local.host, local.page, loose)).toBe(SAME_HOST_OTHER_PORT_RANK);
     expect(siteRankOf('localhost:*', local.host, local.page, loose)).toBe(0);
   });
 });

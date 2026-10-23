@@ -732,32 +732,39 @@ export function isCrossSubdomainTier(tier: MatchTier | -1): boolean {
 
 // ── 排序关联度 ──
 
-/** 「与当前站点无关」条目的排序权重，排在所有关联度之后 */
-export const NOT_ON_SITE_RANK = 5;
+/** 「与当前站点无关」条目的排序权重，排在最后 */
+export const NOT_ON_SITE_RANK = 6;
 
-/** 「同主机、其他端口」条目的排序权重，排在最末（见 {@link siteRankOf}） */
-export const OTHER_PORT_RANK = 6;
+/** 「同主机、其他端口」条目的排序权重：本机另一个服务，比任何跨主机关系都更相关 */
+export const SAME_HOST_OTHER_PORT_RANK = 1;
 
 /**
  * 列表排序用的站点关联度权重（数值越小越靠前）
  *
- * 分工是刻意的两件事：**档位决定「看不看得到」，关联度只决定「谁排在前面」**。
- * 所以它恒按最宽的 `sameMainDomain` 口径取层级，不受用户所选档位影响：在「全站」范围或
- * 放宽档下列出的一堆条目里，`fat.example.com` 页面会把 `dev.example.com`（同主域兄弟子域，3）
- * 排在 `github.com`（无关，5）之前——改前这两者在默认档下同为二值权重 `1`，谁先谁后只由
- * 收藏置顶与最后使用时间决定，于是「关联最强的账号反而排在陌生站点后面」。
+ * 分工是刻意的两件事：**档位决定「看不看得到」，关联度只决定「谁排在前面」**。所以它恒按
+ * 最宽的 `sameMainDomain` 口径取主机层级，不受用户所选档位影响。阶梯为：
+ * `0` 当前端点 → `1` 同主机其他端口 → `2` 通配条目 → `3` 同主域 apex → `4` 同主域其他子域
+ * → `5` 网址留空 → `6` 与当前站点无关。
  *
- * 「本站」列表的结果不受影响：`off` 档下可见集只有精确（0）与空 URL（4）两类，
- * 相对顺序与改前的 `0 / 1` 一致，「首条即可填充」这条同源约定逐字不变。
+ * 两条来历：
+ * - `fat.example.com` 页面在默认档的「全站」范围里，`dev.example.com` 与 `github.com` 曾同为
+ *   二值权重 `1`，先后只由收藏置顶与最后使用时间决定 —— 关联最强的反而可能被陌生站点压住；
+ * - 「同主机其他端口」曾被放到绝对末位（比无关站点还低），那是为「本站临时放宽不抢首条」
+ *   设计的，串到全站范围就把相关度排反了：`localhost:3000` 页面上 `localhost:4000`
+ *   落在 `github.com` 之后（实测）。本机另一个服务显然比陌生站点更相关，因此给它 `1`。
  *
- * 入参必须是**持久化**策略：沉底判定问的是「这条按用户选的端口档属不属于当前端点」，
- * 读展示策略（`relaxed`）会把别的端口的凭证捞回前排。
+ * 「本站」列表的相对顺序不变：可见集只含 `0`（同主机且端口一致）与 `5`（留空通用）两类，
+ * 与改前的 `0 / 1` 同序；「首条即可填充」仍由 `filterAndSortEntriesForDomain` 的可见集过滤
+ * 保证（它根本不放入非本站条目），而非依赖排序把别的端口压到最后。
+ *
+ * 入参必须是**持久化**策略：`0` 与 `1` 的分界问的是「这条按用户选的端口档属不属于当前端点」，
+ * 读展示策略（`relaxed`）会把同机其他端口的凭证抬到当前端点之前。
  *
  * @param storedUrl - 条目存储的 URL/域名
  * @param currentHost - 当前页面 hostname（非空；无域名场景由调用方另行处理）
  * @param page - 页面端口上下文
  * @param policy - 持久化的站点匹配策略
- * @returns 排序权重：0–4 为关联度层级，{@link NOT_ON_SITE_RANK} 外站，{@link OTHER_PORT_RANK} 同主机其他端口
+ * @returns 排序权重（越小越靠前）
  */
 export function siteRankOf(
   storedUrl: string | undefined | null,
@@ -765,15 +772,14 @@ export function siteRankOf(
   page: PagePortContext | null,
   policy: EffectiveSitePolicy,
 ): number {
-  const relevance = resolveMatchTier(currentHost, storedUrl, 'sameMainDomain');
-  if (relevance === -1) return NOT_ON_SITE_RANK;
-  if (
-    resolveMatchTier(currentHost, storedUrl, policy.mode) >= 0 &&
-    !matchesSiteEndpoint(storedUrl, currentHost, page, policy)
-  ) {
-    return OTHER_PORT_RANK;
+  const hostTier = resolveMatchTier(currentHost, storedUrl, 'sameMainDomain');
+  if (hostTier === -1) return NOT_ON_SITE_RANK;
+  if (hostTier === 0) {
+    // 同一台主机（含环回别名）：端口对得上就是「当前端点」，对不上也只是「本机另一个服务」
+    return matchesSiteEndpoint(storedUrl, currentHost, page, policy) ? 0 : SAME_HOST_OTHER_PORT_RANK;
   }
-  return relevance;
+  // 通配 / apex / 兄弟子域 / 留空通用各让出一位给「同主机其他端口」
+  return hostTier + 1;
 }
 
 // ── 站点匹配策略 ──
