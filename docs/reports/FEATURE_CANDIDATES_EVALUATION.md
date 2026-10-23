@@ -88,6 +88,14 @@
 
 ### C2 主密码找回材料（离线恢复码）
 
+> **2026-10-23 改判**：方向不变，排期与前置口径已被
+> [`FEATURE_MP_RECOVERY_EVALUATION.md`](FEATURE_MP_RECOVERY_EVALUATION.md) 取代——
+> 该轮把必要性判据读到实现级（0 条用户反馈、star 13、`.aph` 本来就是第二条退路），
+> 先落了「提示语 + 找回向导」（档位 A，已实现），把本条 C2 挂上**可判定的启动刀**
+> （≥3 条独立的真实丢数据反馈 **或** 装机数 ≥1000），并预先写完
+> [`SECURITY_RECOVERY_KEY_DESIGN.md`](SECURITY_RECOVERY_KEY_DESIGN.md)。
+> **本条下方文字保留当时的判断口径，不再作为排期依据。**
+
 - **痛点**：今天忘记密码的唯一出路是「重置全部数据」，即清空整库
   （`auth.forgotPassword` 文案 + `composables/useAuthFlow.ts:323` 的 `clearAllData()`）。
   对普通用户这是不可逆的数据丢失。
