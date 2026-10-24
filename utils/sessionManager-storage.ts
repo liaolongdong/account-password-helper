@@ -363,6 +363,18 @@ async function _unwrapDataKeyFromStorage(epoch: number, forceFresh = false): Pro
   const expiry = snap[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
   if (forceFresh && (typeof expiry !== 'number' || !Number.isFinite(expiry) || Date.now() >= expiry)) return null;
 
+  // fresh 要的是「以盘上当前状态为准」，不是「每次重算一遍」：读盘已经发生，内存镜像与盘上的
+  // 包裹密钥配对一致时复用镜像即可，省掉写路径上重复的 AES-GCM 与 storage.session 回填。
+  // 别的上下文提交换钥时盘上的 WRAPPED_DATA_KEY 必然变化，届时这里必然失配并重新解包。
+  if (
+    forceFresh &&
+    sessionDataKey &&
+    snap[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] &&
+    sessionWrappedDataKey === snap[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]
+  ) {
+    return sessionDataKey;
+  }
+
   // fresh 写路径绝不从旧缓存/旧迁移结果兜底。默认读保留透明迁移。
   if (!forceFresh && !snap[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]) {
     await restoreSessionFromStorage(epoch);

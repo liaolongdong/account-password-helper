@@ -53,3 +53,25 @@ describe('B7 重置主密码流程源码形状', () => {
     expect(body).toMatch(/type:\s*'warning'/);
   });
 });
+
+/**
+ * 提示语门槛的计数归零口径。
+ *
+ * `verifyFailCount` 的语义是「本次解锁连续输错几次」（见 useAuthFlow 字段注释与
+ * PasswordVerifyView 的 prop 文档），但它此前只在解锁成功与全量重置时归零；页面不会因
+ * 会话过期重新挂载，所以闲置锁定 / 广播过期后再次回到解锁页时，上一轮的失败会累加进来，
+ * 让提示语早于 `MAX_FAIL_BEFORE_HINT` 暴露。这里锁死「切到解锁视图时先归零」。
+ */
+describe('重新进入解锁视图时重置失败计数', () => {
+  const start = SRC.indexOf('const handleSessionExpired =');
+  const expiredBody = SRC.slice(start, SRC.indexOf('\n  };', start));
+
+  it('handleSessionExpired 在切到解锁视图处把连续失败次数归零', () => {
+    expect(start).toBeGreaterThan(-1);
+    const resetIdx = expiredBody.indexOf('verifyFailCount.value = 0');
+    const showIdx = expiredBody.indexOf('showPasswordVerify.value = true');
+    expect(resetIdx, '缺少归零：上一轮失败会累加到这一轮，提示语早于阈值出现').toBeGreaterThan(-1);
+    expect(showIdx).toBeGreaterThan(-1);
+    expect(resetIdx).toBeLessThan(showIdx);
+  });
+});

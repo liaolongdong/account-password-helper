@@ -49,6 +49,26 @@ describe('fresh write keys under a shared lease', () => {
     expect(await session.getSessionDataKey()).toBe(newKey);
   });
 
+  /**
+   * fresh 读要的是「以盘上当前状态为准」，不是「每次重算一遍」。
+   *
+   * 一次网页自动保存会经两次 fresh 读（外层匹配查询 + 内层保存）；盘上配对令牌未变时
+   * 第二次必须复用内存镜像，否则白付一次 AES-GCM 与一次 storage.session 写。
+   * 而令牌一变（别的上下文换了钥），就必须重新解包，不得沿用镜像。
+   */
+  it('reuses the mirrored key on a second fresh read until the pairing token changes', async () => {
+    const session = await seedOldCache();
+    const enc = await import('@/utils/encryption');
+    const decrypt = vi.spyOn(enc, 'decryptData');
+
+    expect(await withVaultMutation(() => session.getSessionDataKey(true))).toBe(oldKey);
+    expect(decrypt, '配对令牌未变仍重解了一遍').not.toHaveBeenCalled();
+
+    await withVaultKeyTransition(() => publishKey(newKey));
+    expect(await withVaultMutation(() => session.getSessionDataKey(true))).toBe(newKey);
+    expect(decrypt, '换钥后没有重新解包，写路径会拿陈旧数据钥').toHaveBeenCalledTimes(1);
+  });
+
   it.each([0, Number.NaN])('forceFresh rejects invalid/expired local expiry %s despite a cached key', async expiry => {
     const session = await seedOldCache();
     await publishKey(newKey, expiry);

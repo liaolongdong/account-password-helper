@@ -202,6 +202,9 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
   ]);
   const original = [rawPasswords, rawTrash, rawHistory, identityRaw, identityTrashRaw];
   const sessionMoved = sessionGuardKeys.some(key => sessionBefore[key] !== sessionAfter[key]);
+  // 比对保持逐字节：换成「条数 + id 集合 + max(updateTime)」指纹能省掉 2000 条下约 40～80ms
+  // 的同步 stringify，但那段开销被四次 PBKDF2（本机每台 ~2.4s）完全淹没，省它等于拿
+  // 「新密文 + 旧会话密钥」这条数据完整性守卫去换一位数百分比的换钥耗时。
   if (sessionMoved || original.some((records, index) => JSON.stringify(records) !== JSON.stringify(fresh[index]))) {
     await sessionManager.clearSession().catch(() => {});
     throw recoveryError('REKEY_CONCURRENT_WRITE', RECOVERY_ERROR_MESSAGE.REKEY_CONCURRENT_WRITE);

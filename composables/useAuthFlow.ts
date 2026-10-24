@@ -310,6 +310,9 @@ export function useAuthFlow(options: {
       return;
     }
 
+    // 提示语的显示门槛是「本次解锁连续输错 N 次」；页面不重新挂载，所以重新进入解锁视图时
+    // 必须先归零再切视图，否则上一轮的失败会累加到这一轮，让提示语早于阈值出现。
+    verifyFailCount.value = 0;
     showMasterPasswordSetup.value = false;
     showPasswordVerify.value = true;
     isAuthenticated.value = false;

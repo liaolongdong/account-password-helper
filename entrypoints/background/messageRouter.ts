@@ -791,8 +791,10 @@ export function setupMessageRouter(): void {
             invalidatePasswordCache();
             invalidateSess();
             markSessInvalid();
-            // 确认前结算清理，避免迟到的后台清理抹掉调用方随后创建的新会话。
-            await clearSess();
+            // 先把锁定广播出去，再结算清理：广播被排在 `clearSess()` 之后时，其它上下文要多
+            // 等一次 `storage.session` + `storage.local` 的删除（Windows 慢盘可到数百毫秒）
+            // 才切到锁定态，期间明文列表仍摊在屏幕上。回执仍等清理结算完再发，
+            // 保证调用方随后创建的新会话不会被迟到的后台清理抹掉。
             for (const port of getSidePanelPorts()) {
               try {
                 port.postMessage({ type: MessageType.SESSION_EXPIRED });
@@ -801,6 +803,7 @@ export function setupMessageRouter(): void {
               }
             }
             chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {});
+            await clearSess();
             syncSwKeepaliveAlarm();
             sendResponse({ success: true });
           } catch (error) {

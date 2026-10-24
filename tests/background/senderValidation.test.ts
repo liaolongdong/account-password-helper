@@ -161,6 +161,46 @@ describe('session invalidation completion', () => {
       clear.mockRestore();
     }
   });
+
+  /**
+   * 广播排在清理之前，回执仍等清理结算完。
+   *
+   * 顺序反过来时，其它上下文要再等一次 `storage.session` + `storage.local` 的删除
+   * （Windows 慢盘可到数百毫秒）才切到锁定态，期间明文列表仍摊在屏幕上。
+   */
+  it('向其它上下文广播锁定早于后台清理完成，回执仍晚于它', async () => {
+    const session = await import('@/utils/sessionManager-storage');
+    const order: string[] = [];
+    let finish!: () => void;
+    const cleanup = new Promise<void>(resolve => {
+      finish = resolve;
+    });
+    const send = vi.spyOn(chrome.runtime, 'sendMessage').mockImplementation(async message => {
+      order.push(`broadcast:${(message as { type?: string }).type}`);
+      return undefined as unknown as never;
+    });
+    const clear = vi.spyOn(session, 'clearSession').mockImplementation(async () => {
+      order.push('clear-start');
+      await cleanup;
+      order.push('clear-end');
+    });
+    const response = vi.fn();
+    try {
+      const listener = setupAndCaptureListener();
+      const sender = { id: chrome.runtime.id, url: chrome.runtime.getURL('options.html') };
+      expect(listener({ type: MessageType.INVALIDATE_PASSWORD_CACHE }, sender, response)).toBe(true);
+      await vi.waitFor(() => expect(order).toContain('clear-start'));
+      expect(order.indexOf(`broadcast:${MessageType.SESSION_EXPIRED}`)).toBeLessThan(order.indexOf('clear-start'));
+      expect(response, '回执不得在清理结算之前就发出去').not.toHaveBeenCalled();
+      finish();
+      await vi.waitFor(() => expect(response).toHaveBeenCalledWith({ success: true }));
+      expect(order[order.length - 1]).toBe('clear-end');
+    } finally {
+      finish();
+      send.mockRestore();
+      clear.mockRestore();
+    }
+  });
 });
 
 describe('resolveTrustedContentUrl（自报 URL 可信性校验）', () => {
