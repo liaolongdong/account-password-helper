@@ -84,7 +84,7 @@ const revokeDownload = (): void => {
   if (downloadUrl) URL.revokeObjectURL(downloadUrl);
   downloadUrl = undefined;
 };
-/** Blob URL 仅为不含密钥的浏览器随机句柄；文件名固定，密钥只在文件内容中。 */
+/** Blob URL 仅为不含密钥的浏览器随机句柄；文件名带上公开套件 id 前缀，多次换发才分得清哪份有效。 */
 const downloadKit = (): void => {
   if (props.busy || hidden.value) return;
   revokeDownload();
@@ -94,8 +94,12 @@ const downloadKit = (): void => {
     downloadUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = 'offline-recovery.aphrecovery';
+    link.download = `offline-recovery-${props.material.config.id.slice(0, 8)}.aphrecovery`;
+    // JSON 下载必须先把锚点挂进文档再点：游离 `<a>` 在部分浏览器（含本扩展的 Firefox 产物）里
+    // 是空操作，而这里点完就「隐藏原码」——静默失败等于让用户丢掉唯一一份密钥。
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     link.removeAttribute('href');
     revokeTimer = setTimeout(revokeDownload, 0);
   } catch (cause: unknown) {

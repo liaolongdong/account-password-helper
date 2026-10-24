@@ -45,7 +45,7 @@
   "recovery.error.invalid": "The recovery key or kit is invalid or does not match this vault. Check your saved material and try again. No data was cleared.",
   "recovery.error.stale": "The vault or recovery settings changed. Go back and create a fresh kit before confirming.",
   "recovery.error.replacementRequired": "An active recovery entry requires a new recovery kit for this password change. Go back and prepare one.",
-  "recovery.error.incomplete": "Recovery configuration is incomplete. Unlock with your current master password to replace or disable it.",
+  "recovery.error.incomplete": "Some local data could not be decrypted with this key, so recovery was aborted and nothing changed. Try another recovery key or encrypted backup, and do not clear your data.",
   "recovery.error.samePassword": "The new master password matches the current one, so the data key would not change and existing recovery material would stay valid. Please choose a genuinely different master password.",
   "recovery.error.corrupted": "The local vault data is incomplete or corrupted, so this key change was cancelled and nothing was written.",
   "recovery.error.weakPassword": "The new master password does not meet the requirements: at least 8 characters including a letter, a number, and a symbol.",

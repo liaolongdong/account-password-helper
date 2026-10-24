@@ -84,6 +84,13 @@ export function assertRotatedDataKey(oldKey: string, newKey: string): void {
   if (timingSafeEqual(oldKey, newKey)) throw recoveryError('RECOVERY_SAME_PASSWORD');
 }
 
+/**
+ * 组装换钥后的主密码配置。
+ *
+ * `preserveHint` 两条链路都传 true：提示语是用户唯一的找回辅助，全站只有「设置主密码」那一次
+ * 能写它（没有编辑入口），整对象覆写掉就永久消失。它既不参与恢复包的 AAD，也不进
+ * {@link masterFingerprint}，带过去不影响套件绑定与陈旧判定。
+ */
 export async function buildChangedMasterConfig(
   current: MasterPasswordConfig,
   password: string,

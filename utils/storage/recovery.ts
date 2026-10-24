@@ -78,7 +78,7 @@ export async function preparePasswordRecovery(input: string, newPassword: string
     const encryption = await getEncryption();
     const key = await encryption.deriveEncryptionKey(password);
     assertRotatedDataKey(oldKey, key);
-    const nextMaster = await buildChangedMasterConfig(snapshot.master, password, false);
+    const nextMaster = await buildChangedMasterConfig(snapshot.master, password, true);
     return buildRecoveryDraft(snapshot, key, nextMaster);
   });
 }
@@ -98,7 +98,7 @@ export async function recoverMasterPassword(
     const encryption = await getEncryption();
     const newKey = await encryption.deriveEncryptionKey(password);
     assertRotatedDataKey(oldKey, newKey);
-    const nextMaster = await buildChangedMasterConfig(snapshot.master, password, false);
+    const nextMaster = await buildChangedMasterConfig(snapshot.master, password, true);
     await verifyRecoveryReplacement(draft, confirmation, newKey, nextMaster);
     await commitVaultRekey({
       oldKey,

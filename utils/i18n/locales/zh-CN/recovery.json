@@ -45,7 +45,7 @@
   "recovery.error.invalid": "恢复密钥或套件无效，或与当前库不匹配。请核对保存的材料后重试；数据未被清空。",
   "recovery.error.stale": "当前库或恢复设置已变化，请返回后重新生成套件再确认。",
   "recovery.error.replacementRequired": "已启用恢复入口，改密时必须换发新恢复套件。请返回后重新生成。",
-  "recovery.error.incomplete": "恢复配置不完整，请用当前主密码解锁后换发或停用。",
+  "recovery.error.incomplete": "本机有数据用这把密钥解不开，恢复已中止，数据未做任何改动。可换一份恢复密钥或加密备份再试，请不要清除数据。",
   "recovery.error.samePassword": "新主密码与当前主密码相同，数据密钥不会变化，旧恢复材料因此仍然可用。请改用一个真正不同的新主密码。",
   "recovery.error.corrupted": "本机密码库数据不完整或已损坏，本次换钥已取消，未写入任何数据。",
   "recovery.error.weakPassword": "新主密码不满足要求：至少 8 位，且包含字母、数字与符号。",

@@ -161,7 +161,8 @@ describe('offline recovery of the current vault', () => {
     const current = (await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD))[
       STORAGE_KEYS.MASTER_PASSWORD
     ] as MasterPasswordConfig;
-    expect(current.hint).toBeUndefined();
+    // 提示语必须活过恢复换钥：它没有编辑入口，一旦被整对象覆写吃掉就永久消失。
+    expect(current.hint).toBe('old fixture hint');
     expect(
       await unwrapRecoveryDataKey((await getRecoveryStatus()).config, replacement.material.recoveryKey, current),
     ).toBe(await deriveEncryptionKey(NEW_PASSWORD));

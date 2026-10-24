@@ -41,10 +41,15 @@ const api = vi.hoisted(() => ({
 vi.mock('@/utils/storage/recovery', () => api);
 vi.mock('@/utils/storage/changeMasterPassword', () => ({ changeMasterPassword: api.changeMasterPassword }));
 
+/**
+ * 合成套件必须过 `isRecoveryConfig` / `normalizeRecoveryCode` 的真实形状校验：
+ * 下载与回填确认那两条链路会直接调用序列化，形状不对会在组件里先抛 RECOVERY_INVALID，
+ * 断言就变成「什么都没发生」的假绿。id 32 hex、包裹密文 80 base64、密钥 18 组 ×4 = 72 hex + 4 位校验和。
+ */
 const draft: RecoveryDraft = {
   material: {
-    config: { version: 1, id: 'a'.repeat(32), createdAt: 1700000000000, wrappedDataKey: 'a'.repeat(128) },
-    recoveryKey: Array.from({ length: 17 }, () => 'abcd').join('-'),
+    config: { version: 1, id: 'a'.repeat(32), createdAt: 1700000000000, wrappedDataKey: 'a'.repeat(80) },
+    recoveryKey: Array.from({ length: 18 }, () => 'abcd').join('-'),
   },
   sourceMasterFingerprint: 'synthetic-fingerprint',
   sourceRecoveryId: null,
@@ -205,6 +210,31 @@ describe('RecoveryKitSaveStep', () => {
     expect(read).toHaveBeenCalledTimes(1);
     expect(input('recovery.confirmKey').value).toBe('');
     expect(button('recovery.confirmSaved').disabled).toBe(true);
+  });
+
+  it('attaches the kit download anchor to the document before clicking it, and names it after the kit id', async () => {
+    // jsdom 不实现 createObjectURL：就地桩掉，这条断言量的只是「游离 `<a>` 在部分浏览器是空操作」
+    // 这个真实缺陷——点完就会隐藏原码，静默失败等于让用户丢掉唯一一份密钥。
+    const urlHost = URL as unknown as { createObjectURL?: unknown; revokeObjectURL?: unknown };
+    const originals = { create: urlHost.createObjectURL, revoke: urlHost.revokeObjectURL };
+    urlHost.createObjectURL = () => 'blob:aph-stub';
+    urlHost.revokeObjectURL = () => undefined;
+    const seen: Array<{ inDoc: boolean; name: string }> = [];
+    const nativeClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function patched(this: HTMLAnchorElement) {
+      seen.push({ inDoc: document.contains(this), name: this.getAttribute('download') ?? '' });
+    };
+    try {
+      await mount(RecoveryKitSaveStep, { material: draft.material });
+      await click('recovery.downloadKit');
+    } finally {
+      HTMLAnchorElement.prototype.click = nativeClick;
+      urlHost.createObjectURL = originals.create;
+      urlHost.revokeObjectURL = originals.revoke;
+    }
+    expect(seen).toHaveLength(1);
+    expect(seen[0].inDoc, '下载锚点没有挂进文档就被点击').toBe(true);
+    expect(seen[0].name).toBe(`offline-recovery-${draft.material.config.id.slice(0, 8)}.aphrecovery`);
   });
 });
 
