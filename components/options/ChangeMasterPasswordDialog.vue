@@ -22,7 +22,9 @@
       </el-alert>
 
       <template v-if="draft">
-        <div class="recovery-draft-body">
+        <!-- 内滚走 App.vue 的 .dialog-body-scroll 全局约定，且只加在「换发套件」这一步
+             （恢复启用后才会出现的新状态）；改密表单本身的呈现与改造前逐字一致。 -->
+        <div class="dialog-body-scroll">
           <p>{{ t('recovery.rekeyWarning') }}</p>
           <RecoveryKitSaveStep
             :material="draft.material"
@@ -354,12 +356,3 @@ const backToEdit = (): void => {
   draft.value = null;
 };
 </script>
-
-<style scoped>
-/* 内滚只加在「换发套件」这一步（恢复启用后才会出现的新状态）：改密表单本身的呈现与改造前逐字一致，
-   不给既有弹窗引入新的滚动容器。 */
-.recovery-draft-body {
-  max-height: 65vh;
-  overflow: auto;
-}
-</style>

@@ -98,6 +98,7 @@
 
               <div class="verify-actions">
                 <el-button
+                  v-if="recoveryAvailable"
                   size="small"
                   type="primary"
                   link
@@ -152,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, shallowRef, defineAsyncComponent } from 'vue';
+import { ref, reactive, watch, shallowRef, onMounted, defineAsyncComponent } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -205,6 +206,26 @@ const { t } = useI18n();
 /** 找回向导可见性 */
 const showForgotDialog = ref(false);
 const showRecoveryDialog = shallowRef(false);
+
+/**
+ * 恢复入口只在「本机确实配过可用密钥」时出现。
+ *
+ * 锁定页在改造前只有「忘记密码」一个出口；无条件多挂一颗主色链接，会替从未启用恢复的
+ * 用户改掉既有动作行的排布，并把他们带进一条只能读到「未启用」的死路。状态在挂载后
+ * 异步读一次，不进首帧渲染链；读不到就维持改造前的样子。
+ */
+const recoveryAvailable = shallowRef(false);
+
+onMounted(() => {
+  void import('@/utils/storage/recovery')
+    .then(api => api.getRecoveryStatus())
+    .then(status => {
+      recoveryAvailable.value = status.enabled;
+    })
+    .catch(() => {
+      recoveryAvailable.value = false;
+    });
+});
 
 const openRecovery = (): void => {
   if (props.verifyLoading) return;

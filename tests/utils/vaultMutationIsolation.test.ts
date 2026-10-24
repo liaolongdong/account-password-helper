@@ -197,4 +197,85 @@ describe('ordinary vault writers vs real exclusive key transition', () => {
       expect(set).not.toHaveBeenCalled();
     });
   });
+
+  /**
+   * 换钥窗口内被拒的元数据必须回队重排，而不是「清空队列 + 报成功」。
+   *
+   * 这条断言盯的是收藏 / 使用痕迹 / 排序的静默丢失：flush 在取租约**之前**就已清空队列，
+   * 不回队就等于把用户操作丢掉，而调用方拿到的是 resolve。
+   */
+  it('re-queues metadata refused by a busy lease and lands it once the transition ends', async () => {
+    const { updatePasswordInSession, getAllPasswordsRaw } = await import('@/utils/storage/passwordCrud');
+    vi.useFakeTimers();
+    const update = updatePasswordInSession('p1', { favorite: true });
+    await withVaultKeyTransition(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+      await update;
+      const [held] = await getAllPasswordsRaw();
+      expect((held as { favorite?: boolean }).favorite).toBeFalsy();
+    });
+    await vi.advanceTimersByTimeAsync(1500);
+    const [stored] = await getAllPasswordsRaw();
+    expect((stored as { favorite?: boolean }).favorite).toBe(true);
+  });
+
+  /** 排队期间用户又改了一次时，回队的旧状态不得覆盖新状态。 */
+  it('does not let a re-queued stale update clobber a newer one for the same entry', async () => {
+    const { updatePasswordInSession, getAllPasswordsRaw } = await import('@/utils/storage/passwordCrud');
+    vi.useFakeTimers();
+    const first = updatePasswordInSession('p1', { favorite: true });
+    await withVaultKeyTransition(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+      await first;
+      const second = updatePasswordInSession('p1', { favorite: false });
+      await vi.advanceTimersByTimeAsync(1500);
+      await second;
+    });
+    await vi.advanceTimersByTimeAsync(1500);
+    const [stored] = await getAllPasswordsRaw();
+    expect((stored as { favorite?: boolean }).favorite).toBe(false);
+  });
+
+  it('reports a localized busy message for auto-save instead of the internal lease string', async () => {
+    const auto = await import('@/utils/storage/autoSaveManager');
+    const result = await withVaultKeyTransition(() =>
+      auto.autoSavePassword({
+        username: 'fixture',
+        password: 'new',
+        url: 'example.com',
+        tag: '',
+        remark: '',
+        tagEdited: false,
+        remarkEdited: false,
+      }),
+    );
+    expect(result.success).toBe(false);
+    expect(result.message).toBeTruthy();
+    // 存储层的内部串（"Vault is busy changing keys"）不得原样出现在页面提示里
+    expect(result.message).not.toMatch(/Vault is busy|VAULT_BUSY/);
+  });
+
+  /** 自动保存是不可重放的事件：短暂换钥窗口应被有界重试吃掉，而不是把凭据丢掉。 */
+  it('auto-save waits out a short transition and still saves', async () => {
+    const auto = await import('@/utils/storage/autoSaveManager');
+    const transition = withVaultKeyTransition(async () => {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      return 'rotated';
+    });
+    const result = await auto.autoSavePassword({
+      username: 'fixture-wait',
+      password: 'new',
+      url: 'example.com',
+      tag: '',
+      remark: '',
+      tagEdited: false,
+      remarkEdited: false,
+    });
+    await expect(transition).resolves.toBe('rotated');
+    expect(result.success).toBe(true);
+    // 盘上是密文，必须走解密读才看得到用户名
+    const { getAllPasswords } = await import('@/utils/storage/passwordCrud');
+    const usernames = (await getAllPasswords()).map(entry => entry.username);
+    expect(usernames).toContain('fixture-wait');
+  });
 });

@@ -355,7 +355,31 @@ describe('RecoveryResetDialog', () => {
 });
 
 describe('PasswordVerifyView recovery entry', () => {
-  it('does not read recovery until opened, forwards recovered and clears unlock password', async () => {
+  it('hides the recovery entry entirely when the vault never enabled recovery', async () => {
+    // 锁定页在改造前只有「忘记密码」一个出口；未启用恢复时不得多挂一颗走不通的主色链接
+    await mount(PasswordVerifyView, {
+      verifyForm: { password: '', validityHours: 24 },
+      verifyRules: {},
+      verifyLoading: false,
+      verifyError: '',
+      verifyShake: false,
+      isDev: false,
+      hint: '',
+      failCount: 0,
+    });
+    await settle();
+    await settle();
+    await until(() => expect(api.getRecoveryStatus).toHaveBeenCalledTimes(1));
+    expect(document.querySelector(`[aria-label="${t('recovery.useKey')}"]`)).toBeNull();
+    expect([...document.querySelectorAll('button')].some(el => el.textContent?.trim() === t('recovery.useKey'))).toBe(
+      false,
+    );
+    expect(
+      [...document.querySelectorAll('button')].some(el => el.textContent?.trim() === t('auth.forgotPassword')),
+    ).toBe(true);
+  });
+
+  it('forwards recovered and clears the unlock password without leaving secrets behind', async () => {
     api.getRecoveryStatus.mockResolvedValue({ enabled: true, config: draft.material.config, corrupted: false });
     await mount(PasswordVerifyView, {
       verifyForm: { password: 'previous-unlock-attempt', validityHours: 24 },
@@ -367,7 +391,8 @@ describe('PasswordVerifyView recovery entry', () => {
       hint: '',
       failCount: 0,
     });
-    expect(api.getRecoveryStatus).not.toHaveBeenCalled();
+    // 挂载时读一次只为决定入口是否出现；弹窗尚未打开
+    await until(() => expect(api.getRecoveryStatus).toHaveBeenCalledTimes(1));
     await click('recovery.useKey');
     await settle();
     await fillReset();

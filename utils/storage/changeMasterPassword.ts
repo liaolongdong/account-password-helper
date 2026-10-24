@@ -171,6 +171,18 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
   }));
 
   const sessionManager = await getSessionManager();
+  // 会话键基线：`prepareSessionRekey` 的产物是「即将随密文一起落盘的新会话材料」，
+  // 而从准备到原子写之间隔着整轮加解密（2000 条量级为秒级）。这期间任何一次锁定或
+  // 会话重建都必须让本次提交作废——否则用户点了「立即锁定」，会被这批早已备好的键
+  // 复活成有效会话。`clearSession` 刻意不在租约内（它同时是恢复流程自己的提交步骤），
+  // 所以这段窗口用读数比对兜住。
+  const sessionGuardKeys = [
+    SESSION_STORAGE_KEYS.WRAP_KEY,
+    SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
+    SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+    SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+  ];
+  const sessionBefore = await chrome.storage.local.get(sessionGuardKeys);
   let sessionKeysToWrite: Record<string, unknown> = {};
   if (mode === 'password-change') {
     const sessionResult = await chrome.storage.local.get(SESSION_STORAGE_KEYS.VALIDITY_HOURS);
@@ -178,15 +190,19 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
     sessionKeysToWrite = await sessionManager.prepareSessionRekey(newKey, validityHours);
   }
 
-  const fresh = await Promise.all([
-    getAllPasswordsRaw(),
-    getAllTrashRaw(),
-    getAllHistoryRaw(),
-    getAllIdentityRaw(),
-    getAllIdentityTrashRaw(),
+  const [fresh, sessionAfter] = await Promise.all([
+    Promise.all([
+      getAllPasswordsRaw(),
+      getAllTrashRaw(),
+      getAllHistoryRaw(),
+      getAllIdentityRaw(),
+      getAllIdentityTrashRaw(),
+    ]),
+    chrome.storage.local.get(sessionGuardKeys),
   ]);
   const original = [rawPasswords, rawTrash, rawHistory, identityRaw, identityTrashRaw];
-  if (original.some((records, index) => JSON.stringify(records) !== JSON.stringify(fresh[index]))) {
+  const sessionMoved = sessionGuardKeys.some(key => sessionBefore[key] !== sessionAfter[key]);
+  if (sessionMoved || original.some((records, index) => JSON.stringify(records) !== JSON.stringify(fresh[index]))) {
     await sessionManager.clearSession().catch(() => {});
     throw recoveryError('REKEY_CONCURRENT_WRITE', RECOVERY_ERROR_MESSAGE.REKEY_CONCURRENT_WRITE);
   }

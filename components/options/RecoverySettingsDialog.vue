@@ -3,6 +3,7 @@
     :model-value="modelValue"
     :title="t('recovery.settingsTitle')"
     width="min(520px, calc(100vw - 24px))"
+    align-center
     :close-on-click-modal="false"
     :close-on-press-escape="!busy"
     :show-close="!busy"
@@ -12,7 +13,7 @@
     <div
       v-if="modelValue"
       ref="root"
-      class="recovery-body"
+      class="dialog-body-scroll recovery-body"
       :aria-busy="busy"
     >
       <p>{{ t('recovery.settingsIntro') }}</p>
@@ -216,8 +217,8 @@ watch(
 
 <style scoped>
 .recovery-body {
-  max-height: 65vh;
-  overflow: auto;
+  /* 高度与滚动一律走 App.vue 的 .dialog-body-scroll 约定（70vh + 细滚动条），
+     这里只留本组件特有的换行规则，避免再造一套弹窗滚动机制。 */
   overflow-wrap: anywhere;
 }
 .metadata {

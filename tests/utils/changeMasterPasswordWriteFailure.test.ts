@@ -2,7 +2,8 @@
  * 修改主密码（rekey）的原子写入与回滚回归测试
  *
  * 背景：`changeMasterPassword` 的收尾是**一次** `chrome.storage.local.set()` 把
- * 「四块数据密文 + 新校验哈希 + 新会话密钥材料」同时落地。这一步之所以设计成单次原子写，
+ * 「五块数据密文（密码 / 密码回收站 / 历史 / 个人信息 / 个人信息回收站）+ 新校验哈希 +
+ * 新会话密钥材料」同时落地。这一步之所以设计成单次原子写，
  * 是因为各上下文的 storage 监听器会在「新密文已落盘、会话密钥仍是旧值」的中间状态里
  * 用旧密钥解新密文、全部失败并把列表清空。对应的失败处理同样关键：
  * - 写盘失败必须把原错误如实上抛（弹窗据此提示用户），并且**主动清会话**——
@@ -119,8 +120,13 @@ beforeEach(() => {
     [STORAGE_KEYS.TRASH]: [],
     [STORAGE_KEYS.PASSWORD_HISTORY]: [],
     [STORAGE_KEYS.IDENTITY]: [],
+    [STORAGE_KEYS.IDENTITY_TRASH]: [],
     [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'old-verifier', salt: 'the-salt', kdf: 'pbkdf2-sha256' },
     [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: 24,
+    // 会话键基线：提交前的守卫靠比对这几项发现「期间有人锁定/重建了会话」
+    [SESSION_STORAGE_KEYS.WRAP_KEY]: 'baseline-wrap',
+    [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: 'baseline-wrapped',
+    [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: 1_600_000_000_000,
   };
 
   localSet = vi.fn(async (items: Record<string, unknown>) => {
@@ -132,7 +138,16 @@ beforeEach(() => {
   vi.stubGlobal('chrome', {
     storage: {
       local: {
-        get: vi.fn(async (key: string) => (key in storageData ? { [key]: storageData[key] } : {})),
+        // 真实 `chrome.storage.local.get` 同时接受单键与键数组；提交前的会话键守卫正是按数组读，
+        // 桩若只认单键会让那条比对永远读到「两边都是空」，守卫形同未测。
+        get: vi.fn(async (keys: string | string[]) => {
+          const list = Array.isArray(keys) ? keys : [keys];
+          const found: Record<string, unknown> = {};
+          for (const key of list) {
+            if (key in storageData) found[key] = storageData[key];
+          }
+          return found;
+        }),
         set: localSet,
         remove: localRemove,
       },
@@ -146,7 +161,7 @@ beforeEach(() => {
 });
 
 describe('原子写入成功时的载荷形状', () => {
-  it('四块数据 + 校验哈希 + 会话密钥材料在同一次 set 里落盘', async () => {
+  it('五块数据 + 校验哈希 + 会话密钥材料在同一次 set 里落盘', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
     await changeMasterPassword('old-pw', 'new-pw');
@@ -158,6 +173,7 @@ describe('原子写入成功时的载荷形状', () => {
       STORAGE_KEYS.TRASH,
       STORAGE_KEYS.PASSWORD_HISTORY,
       STORAGE_KEYS.IDENTITY,
+      STORAGE_KEYS.IDENTITY_TRASH,
       STORAGE_KEYS.MASTER_PASSWORD,
       ...SESSION_WRITE_KEYS,
     ]) {
@@ -200,8 +216,9 @@ describe('写盘失败：回滚与会话清理', () => {
       hashedPassword: 'old-verifier',
       salt: 'the-salt',
     });
-    // 会话密钥材料同样没落盘（磁盘上的登录态仍是旧的一套）
-    expect(storageData).not.toHaveProperty(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
+    // 会话密钥材料同样没落盘：磁盘上仍是基线那套旧登录态，而不是 prepareSessionRekey 备好的新键
+    expect(storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]).toBe('baseline-wrapped');
+    expect(storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]).toBe(1_600_000_000_000);
   });
 
   it('清会话恰好一次：内存/storage.session 已是新密钥，必须强制重新解锁', async () => {
@@ -287,5 +304,34 @@ describe('提交成功之后的失败：不得伪装成未提交', () => {
 
     expect(clearSession).not.toHaveBeenCalled();
     expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
+  });
+});
+
+describe('并发锁定与提交守卫', () => {
+  /**
+   * 会话键也纳入提交前的比对。
+   *
+   * `clearSession` 刻意不在租约内（它同时是恢复流程自己的提交步骤），所以「用户点了立即锁定」
+   * 与「换钥正在收尾」之间只能靠读数比对兜住：比对不过就必须整笔作废，
+   * 否则那批早已准备好的新会话键会把用户刚清掉的会话复活成有效状态。
+   */
+  it('换钥期间发生的锁定会作废整笔提交，而不是把会话复活', async () => {
+    prepareSessionRekey.mockImplementation(async (dataKey, validityHours) => {
+      delete storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+      delete storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      return {
+        [SESSION_STORAGE_KEYS.WRAP_KEY]: `wrap:${dataKey}`,
+        [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: `wrapped:${dataKey}`,
+        [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: 1_700_000_000_000,
+        [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
+      };
+    });
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toMatchObject({ code: 'REKEY_CONCURRENT_WRITE' });
+    expect(localSet).not.toHaveBeenCalled();
+    expect(publishSessionRekey).not.toHaveBeenCalled();
+    expect(clearSession).toHaveBeenCalled();
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'old-verifier' });
   });
 });

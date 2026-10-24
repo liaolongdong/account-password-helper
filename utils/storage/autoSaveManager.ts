@@ -24,7 +24,7 @@ import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from './vaultCapacity';
 import { tl } from '@/utils/i18n-lite';
-import { withVaultMutation } from './vaultWriteLock';
+import { withVaultMutationRetry } from './vaultWriteLock';
 
 // ==================== 自动保存配置 ====================
 
@@ -281,11 +281,15 @@ async function resolvePortOwnership(url: string, protocol?: string): Promise<[Pa
  */
 export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ success: boolean; message: string }> {
   try {
-    return await withVaultMutation(() => persistAutoSavePassword(data));
+    return await withVaultMutationRetry(() => persistAutoSavePassword(data));
   } catch (error) {
     logger.error('自动保存密码失败:', error);
     if (isVaultCapacityError(error)) {
       return { success: false, message: tl('bg.autoSave.capacityReached', { max: MAX_PASSWORD_ENTRIES }) };
+    }
+    if ((error as { code?: string })?.code === 'VAULT_BUSY') {
+      // 换钥窗口内重试仍拿不到租约：给本地化文案，绝不把存储层的英文内部串抛到页面上
+      return { success: false, message: tl('bg.autoSave.busy') };
     }
     return {
       success: false,

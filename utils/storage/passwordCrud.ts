@@ -364,7 +364,8 @@ export const METADATA_FLUSH_MARK_TTL_MS = 3000;
  * 将队列中所有待更新的元数据一次性写入 storage
  *
  * 单次 read-modify-write 替代 N 次独立写入，减少序列化/反序列化开销。
- * 写入失败时不重试（下次填充会再次触发），仅记录日志。
+ * 真·写盘失败不重试（下次填充会再次触发），仅记录日志；但**换钥进行中（VAULT_BUSY）必须回队重试**——
+ * 本函数在取租约前就已清空队列，不回队等于把用户的收藏 / 使用痕迹 / 排序静默丢掉并向 UI 报成功。
  */
 async function flushMetadataUpdates(): Promise<void> {
   _metadataFlushTimer = null;
@@ -410,7 +411,34 @@ async function flushMetadataUpdates(): Promise<void> {
     });
   } catch (error) {
     logger.error('批量更新元数据失败:', error);
+    if ((error as { code?: string })?.code === 'VAULT_BUSY') {
+      requeueMetadataUpdates(batch);
+      scheduleMetadataRetry();
+    }
   }
+}
+
+/**
+ * 把未落盘的批次放回队列。
+ *
+ * 合并方向与入队时一致：**新值覆盖旧值**——排队期间用户又点了一次收藏时，
+ * 回队的旧状态不得把新状态冲掉。
+ */
+function requeueMetadataUpdates(batch: Map<string, MetadataUpdate>): void {
+  for (const [id, updates] of batch) {
+    const existing = _pendingMetadataUpdates.get(id);
+    _pendingMetadataUpdates.set(id, existing ? { ...updates, ...existing } : { ...updates });
+  }
+}
+
+/** 换钥结束后重排一次 flush；已有排程时不叠加，避免忙等期间定时器堆积。 */
+function scheduleMetadataRetry(): void {
+  if (_metadataFlushTimer) return;
+  _metadataFlushTimer = setTimeout(() => {
+    void flushMetadataUpdates().finally(() => {
+      _metadataFlushResolvers.splice(0).forEach(resolve => resolve());
+    });
+  }, METADATA_FLUSH_DELAY_MS);
 }
 
 /**

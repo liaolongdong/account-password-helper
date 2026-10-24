@@ -3,6 +3,7 @@
     :model-value="modelValue"
     :title="t('recovery.resetTitle')"
     width="min(520px, calc(100vw - 24px))"
+    align-center
     :close-on-click-modal="false"
     :close-on-press-escape="!busy"
     :show-close="!busy"
@@ -12,7 +13,7 @@
     <div
       v-if="modelValue"
       ref="root"
-      class="recovery-body"
+      class="dialog-body-scroll recovery-body"
       :aria-busy="busy"
     >
       <p
@@ -257,8 +258,7 @@ watch(
 
 <style scoped>
 .recovery-body {
-  max-height: 65vh;
-  overflow: auto;
+  /* 同 RecoverySettingsDialog：高度与滚动走 .dialog-body-scroll 约定，这里只留换行规则。 */
   overflow-wrap: anywhere;
 }
 .password-field {
