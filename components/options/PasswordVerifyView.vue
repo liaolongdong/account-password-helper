@@ -98,6 +98,15 @@
 
               <div class="verify-actions">
                 <el-button
+                  size="small"
+                  type="primary"
+                  link
+                  :disabled="verifyLoading"
+                  @click="openRecovery"
+                >
+                  {{ t('recovery.useKey') }}
+                </el-button>
+                <el-button
                   v-if="isDev"
                   size="small"
                   type="info"
@@ -127,6 +136,11 @@
             :has-hint="Boolean(hint)"
             @reset="handleConfirmReset"
           />
+          <RecoveryResetDialog
+            v-if="showRecoveryDialog"
+            v-model="showRecoveryDialog"
+            @recovered="handleRecovered"
+          />
           <!-- 免责声明 -->
           <div class="disclaimer-compact">
             <DisclaimerInfo />
@@ -138,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, watch, shallowRef, defineAsyncComponent } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -149,6 +163,8 @@ import CapsLockHint from '@/components/CapsLockHint.vue';
 import { SHAKE_DURATION_MS, MAX_FAIL_BEFORE_HINT } from '@/composables/useAuthFlow';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
+
+const RecoveryResetDialog = defineAsyncComponent(() => import('./RecoveryResetDialog.vue'));
 
 /**
  * 主密码验证视图组件
@@ -179,6 +195,7 @@ const emit = defineEmits<{
   submit: [];
   debug: [];
   reset: [];
+  recovered: [];
   clearError: [];
   'update:verifyForm': [value: { password: string; validityHours: number }];
 }>();
@@ -187,6 +204,22 @@ const { t } = useI18n();
 
 /** 找回向导可见性 */
 const showForgotDialog = ref(false);
+const showRecoveryDialog = shallowRef(false);
+
+const openRecovery = (): void => {
+  if (props.verifyLoading) return;
+  formModel.password = '';
+  resetCapsLockState();
+  showRecoveryDialog.value = true;
+};
+
+/** 仅刷新认证配置/提示语；不建立会话，也不向解锁框自动填入新密码。 */
+const handleRecovered = (): void => {
+  formModel.password = '';
+  emit('update:verifyForm', { ...formModel });
+  emit('clearError');
+  emit('recovered');
+};
 
 /**
  * 向导终点「仍然重置全部数据」：先收起向导，再把清空动作交回父级的 `reset` 事件。
@@ -202,7 +235,7 @@ const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetect
 
 /** 提交前本地表单校验，通过后通知父组件 */
 const handleSubmit = async () => {
-  if (!localVerifyFormRef.value) return;
+  if (!localVerifyFormRef.value || props.verifyLoading || showRecoveryDialog.value) return;
   try {
     await localVerifyFormRef.value.validate();
     emit('submit');
@@ -302,6 +335,8 @@ defineExpose({ formRef: localVerifyFormRef });
 
 .verify-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: space-between;
   margin-top: 12px;
 }

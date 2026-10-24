@@ -132,6 +132,37 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe('session invalidation completion', () => {
+  it('acknowledges locking only after background cleanup finishes', async () => {
+    const session = await import('@/utils/sessionManager-storage');
+    let finish!: () => void;
+    let started!: () => void;
+    const cleanupStarted = new Promise<void>(resolve => {
+      started = resolve;
+    });
+    const cleanupFinished = new Promise<void>(resolve => {
+      finish = resolve;
+    });
+    const clear = vi.spyOn(session, 'clearSession').mockImplementation(async () => {
+      started();
+      await cleanupFinished;
+    });
+    const response = vi.fn();
+    const listener = setupAndCaptureListener();
+    const sender = { id: chrome.runtime.id, url: chrome.runtime.getURL('options.html') };
+    try {
+      expect(listener({ type: MessageType.INVALIDATE_PASSWORD_CACHE }, sender, response)).toBe(true);
+      await cleanupStarted;
+      expect(response).not.toHaveBeenCalled();
+      finish();
+      await vi.waitFor(() => expect(response).toHaveBeenCalledWith({ success: true }));
+    } finally {
+      finish();
+      clear.mockRestore();
+    }
+  });
+});
+
 describe('resolveTrustedContentUrl（自报 URL 可信性校验）', () => {
   describe('合法场景（放行）', () => {
     it('顶层页面自报自身 hostname', () => {

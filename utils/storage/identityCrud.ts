@@ -27,6 +27,8 @@ import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
 import { moveIdentitiesToTrash } from './identityTrashManager';
+import { withVaultMutation } from './vaultWriteLock';
+import { verifyMasterPassword } from './masterPassword';
 
 /**
  * 延迟加载加密模块（encryptData / decryptData / deriveEncryptionKey）
@@ -45,12 +47,14 @@ const _getEncryption = lazyImport(() => import('@/utils/encryption'));
  *
  * @returns 数据密钥 hex；无有效会话且未提供主密码时返回 null
  */
-async function resolveDataKey(masterPassword?: string): Promise<string | null> {
+async function resolveDataKey(masterPassword?: string, forMutation = false): Promise<string | null> {
   if (masterPassword) {
+    // lease 内校验当前配置，不能将换钥前验证过的主密码用于新的写入。
+    if (forMutation && !(await verifyMasterPassword(masterPassword))) return null;
     const enc = await _getEncryption();
     return enc.deriveEncryptionKey(masterPassword);
   }
-  return getSessionDataKey();
+  return forMutation ? getSessionDataKey(true) : getSessionDataKey();
 }
 
 /**
@@ -162,13 +166,17 @@ export async function getAllIdentity(
  * @param masterPassword 锁定态显式传入；会话有效时省略
  */
 export async function saveIdentity(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
+  return withVaultMutation(() => saveIdentityInternal(payload, masterPassword));
+}
+
+async function saveIdentityInternal(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
   try {
     const records = await getAllIdentityRaw();
     if (records.length >= MAX_IDENTITIES) {
       throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
     }
 
-    const key = await resolveDataKey(masterPassword);
+    const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
@@ -211,6 +219,15 @@ export async function updateIdentity(
   expectedUpdateTime: number,
   masterPassword?: string,
 ): Promise<void> {
+  return withVaultMutation(() => updateIdentityInternal(id, patch, expectedUpdateTime, masterPassword));
+}
+
+async function updateIdentityInternal(
+  id: string,
+  patch: Partial<IdentityPayload>,
+  expectedUpdateTime: number,
+  masterPassword?: string,
+): Promise<void> {
   try {
     const records = await getAllIdentityRaw();
     const index = records.findIndex(r => r.id === id);
@@ -223,7 +240,7 @@ export async function updateIdentity(
       throw identityCrudError('UPDATE_CONFLICT', '该身份信息已被其他窗口修改，请刷新后重试');
     }
 
-    const key = await resolveDataKey(masterPassword);
+    const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
@@ -297,6 +314,10 @@ export async function reencryptAll(raw: IdentityRecord[], oldKey: string, newKey
  * @param records 完整记录列表
  */
 export async function replaceAllIdentityRaw(records: IdentityRecord[]): Promise<void> {
+  return withVaultMutation(() => replaceAllIdentityRawInternal(records));
+}
+
+async function replaceAllIdentityRawInternal(records: IdentityRecord[]): Promise<void> {
   try {
     await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: records });
   } catch (error) {
@@ -327,7 +348,14 @@ export async function replaceAllIdentity(
   entries: Array<Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }>,
   masterPassword?: string,
 ): Promise<void> {
-  const key = await resolveDataKey(masterPassword);
+  return withVaultMutation(() => replaceAllIdentityInternal(entries, masterPassword));
+}
+
+async function replaceAllIdentityInternal(
+  entries: Array<Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }>,
+  masterPassword?: string,
+): Promise<void> {
+  const key = await resolveDataKey(masterPassword, true);
   if (!key) {
     throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
   }

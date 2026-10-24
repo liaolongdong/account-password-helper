@@ -29,6 +29,7 @@ vi.mock('@/utils/encryption', () => ({
   encryptData,
   decryptData,
   deriveEncryptionKey,
+  deriveVerifierHash: vi.fn(async (password: string) => `verifier:${password}`),
 }));
 
 const { getSessionDataKey } = vi.hoisted(() => ({
@@ -76,7 +77,13 @@ let localSet: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStore = {};
+  localStore = {
+    [STORAGE_KEYS.MASTER_PASSWORD]: {
+      salt: 'fixture-salt',
+      hashedPassword: 'verifier:master-pw',
+      kdf: 'pbkdf2-sha256',
+    },
+  };
 
   encryptData.mockImplementation(async (data, key) => enc(data, key));
   decryptData.mockImplementation(async (data, key) => dec(data, key));

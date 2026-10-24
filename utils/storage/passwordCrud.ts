@@ -11,6 +11,8 @@ import { snapshotPasswordHistory } from './passwordHistory';
 import { moveToTrash } from './trashManager';
 import { assertWithinCapacity } from './vaultCapacity';
 import { markFirstQuickFill } from './reviewPrompt';
+import { withVaultMutation } from './vaultWriteLock';
+import { verifyMasterPassword } from './masterPassword';
 
 /**
  * 延迟加载加密模块（deriveEncryptionKey / encryptPasswordEntry / decryptPasswordEntry）
@@ -38,12 +40,14 @@ function updatesTouchSensitiveFields(updates: Partial<PasswordEntry>): boolean {
  *
  * @returns 数据密钥 hex；无有效会话且未提供主密码时返回 null
  */
-async function resolveDataKey(masterPassword?: string): Promise<string | null> {
+async function resolveDataKey(masterPassword?: string, forMutation = false): Promise<string | null> {
   if (masterPassword) {
+    // 写入方已持有 lease，复验与派生之间不能发生换钥；读路径保持原快路径。
+    if (forMutation && !(await verifyMasterPassword(masterPassword))) return null;
     const enc = await _getEncryption();
     return enc.deriveEncryptionKey(masterPassword);
   }
-  return getSessionDataKey();
+  return forMutation ? getSessionDataKey(true) : getSessionDataKey();
 }
 
 /**
@@ -71,6 +75,14 @@ export async function savePassword(
   masterPassword?: string,
   copyItemId?: string,
 ): Promise<PasswordEntry> {
+  return withVaultMutation(() => savePasswordInternal(entry, masterPassword, copyItemId));
+}
+
+async function savePasswordInternal(
+  entry: Omit<PasswordEntry, 'id' | 'order'>,
+  masterPassword?: string,
+  copyItemId?: string,
+): Promise<PasswordEntry> {
   try {
     const passwords = await getAllPasswordsRaw();
     // 总量守卫必须先于密钥派生与加密：超限时这次保存连 PBKDF2/AES-GCM 的开销都不该付。
@@ -88,7 +100,7 @@ export async function savePassword(
     };
 
     // at-rest 不变量：新条目含敏感字段，必须加密后写入
-    const key = await resolveDataKey(masterPassword);
+    const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
@@ -126,6 +138,13 @@ export async function batchSavePasswords(
   entries: Omit<PasswordEntry, 'id' | 'order'>[],
   masterPassword?: string,
 ): Promise<PasswordEntry[]> {
+  return withVaultMutation(() => batchSavePasswordsInternal(entries, masterPassword));
+}
+
+async function batchSavePasswordsInternal(
+  entries: Omit<PasswordEntry, 'id' | 'order'>[],
+  masterPassword?: string,
+): Promise<PasswordEntry[]> {
   try {
     if (!entries || entries.length === 0) return [];
 
@@ -144,7 +163,7 @@ export async function batchSavePasswords(
     }));
 
     // at-rest 不变量：批量新条目必须加密后写入（派生一次密钥复用）
-    const key = await resolveDataKey(masterPassword);
+    const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
@@ -175,6 +194,14 @@ export async function updatePassword(
   updates: Partial<PasswordEntry>,
   masterPassword?: string,
 ): Promise<void> {
+  return withVaultMutation(() => updatePasswordInternal(id, updates, masterPassword));
+}
+
+async function updatePasswordInternal(
+  id: string,
+  updates: Partial<PasswordEntry>,
+  masterPassword?: string,
+): Promise<void> {
   try {
     const passwords = await getAllPasswordsRaw();
     const index = passwords.findIndex(p => p.id === id);
@@ -196,16 +223,16 @@ export async function updatePassword(
     }
 
     // 敏感字段变更：解密现有条目 → 合并 updates → 重新加密写回（at-rest 始终密文）
-    const key = await resolveDataKey(masterPassword);
+    const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
     const enc = await _getEncryption();
     const currentPlain = await enc.decryptPasswordEntry(current as EncryptedPasswordEntry, masterPassword ?? '', key);
 
-    // 密码字段变更时快照旧密文（fire-and-forget，不阻塞主流程）
+    // 旧密文快照必须在 lease 释放前结算，不能在换钥完成后迟到写回；失败仍非致命。
     if ('password' in updates && updates.password !== currentPlain.password) {
-      snapshotPasswordHistory(id, current.password).catch(() => {});
+      await snapshotPasswordHistory(id, current.password).catch(() => {});
     }
 
     // 同上：显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
@@ -233,6 +260,12 @@ export async function updatePassword(
  * @param updates 条目 ID 与更新字段的列表；不存在的 ID 静默跳过
  */
 export async function batchUpdatePasswordMetadata(
+  updates: Array<{ id: string; updates: Partial<PasswordEntry> }>,
+): Promise<void> {
+  return withVaultMutation(() => batchUpdatePasswordMetadataInternal(updates));
+}
+
+async function batchUpdatePasswordMetadataInternal(
   updates: Array<{ id: string; updates: Partial<PasswordEntry> }>,
 ): Promise<void> {
   if (updates.length === 0) return;
@@ -346,33 +379,35 @@ async function flushMetadataUpdates(): Promise<void> {
   const hasFillUpdate = [...batch.values()].some(updates => updates.lastUsedAt !== undefined);
 
   try {
-    const passwords = await getAllPasswordsRaw();
-    let modified = false;
+    await withVaultMutation(async () => {
+      const passwords = await getAllPasswordsRaw();
+      let modified = false;
 
-    for (const [id, updates] of batch) {
-      const index = passwords.findIndex(p => p.id === id);
-      if (index === -1) continue;
-      // updateTime 优先尊重调用方显式传入：收藏/取消收藏传入原值即保持不变，
-      // 填充类更新（lastUsedAt）未传时默认 Date.now()
-      passwords[index] = { ...passwords[index], ...updates, updateTime: updates.updateTime ?? Date.now() } as
-        PasswordEntry | EncryptedPasswordEntry;
-      modified = true;
-    }
-
-    if (modified) {
-      // 先打标再写数据：SW 的 storage.onChanged 据此识别「仅元数据变更」，
-      // 原地修补内存缓存与快照而非全量失效（避免使用痕迹落盘击穿侧边栏
-      // 快照直读快路径导致重开白屏变长）；写入失败/中断时清除残留标记，
-      // 防止 TTL 窗口内的真实数据变更被误判为元数据类而跳过全量失效
-      try {
-        await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.METADATA_FLUSH_AT]: Date.now() });
-        await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: passwords });
-        if (hasFillUpdate) void markFirstQuickFill();
-      } catch (error) {
-        void chrome.storage.session.remove(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT).catch(() => {});
-        throw error;
+      for (const [id, updates] of batch) {
+        const index = passwords.findIndex(p => p.id === id);
+        if (index === -1) continue;
+        // updateTime 优先尊重调用方显式传入：收藏/取消收藏传入原值即保持不变，
+        // 填充类更新（lastUsedAt）未传时默认 Date.now()
+        passwords[index] = { ...passwords[index], ...updates, updateTime: updates.updateTime ?? Date.now() } as
+          PasswordEntry | EncryptedPasswordEntry;
+        modified = true;
       }
-    }
+
+      if (modified) {
+        // 先打标再写数据：SW 的 storage.onChanged 据此识别「仅元数据变更」，
+        // 原地修补内存缓存与快照而非全量失效（避免使用痕迹落盘击穿侧边栏
+        // 快照直读快路径导致重开白屏变长）；写入失败/中断时清除残留标记，
+        // 防止 TTL 窗口内的真实数据变更被误判为元数据类而跳过全量失效
+        try {
+          await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.METADATA_FLUSH_AT]: Date.now() });
+          await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: passwords });
+          if (hasFillUpdate) void markFirstQuickFill();
+        } catch (error) {
+          void chrome.storage.session.remove(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT).catch(() => {});
+          throw error;
+        }
+      }
+    });
   } catch (error) {
     logger.error('批量更新元数据失败:', error);
   }
@@ -459,7 +494,10 @@ export interface GetAllPasswordsResult {
  * 或解密前置步骤异常——调用方据此展示「加载失败 / 重试」。
  * 单条目解密失败不抛错：跳过该条目并累加 `undecryptableCount`。
  */
-export async function getAllPasswordsDetailed(masterPassword?: string): Promise<GetAllPasswordsResult> {
+export async function getAllPasswordsDetailed(
+  masterPassword?: string,
+  forceFreshKey = false,
+): Promise<GetAllPasswordsResult> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
     const entries: (PasswordEntry | EncryptedPasswordEntry)[] =
@@ -471,8 +509,8 @@ export async function getAllPasswordsDetailed(masterPassword?: string): Promise<
       return { entries: entries as PasswordEntry[], undecryptableCount: 0 };
     }
 
-    // 解析数据密钥：会话期用缓存密钥（无 PBKDF2），锁定态需显式 masterPassword
-    const key = await resolveDataKey(masterPassword);
+    // 自动保存的读-匹配-写在外层 lease 内要求 fresh key；普通展示继续使用缓存。
+    const key = await resolveDataKey(masterPassword, forceFreshKey);
     if (!key) {
       throw new Error('需要主密码来解密数据');
     }
@@ -515,8 +553,8 @@ export async function getAllPasswordsDetailed(masterPassword?: string): Promise<
  * `getAllPasswordsDetailed` 的便捷包装，仅返回解密成功的条目；
  * 需要区分「读取失败」与「不可解密」的调用方应直接使用详细版本。
  */
-export async function getAllPasswords(masterPassword?: string): Promise<PasswordEntry[]> {
-  return (await getAllPasswordsDetailed(masterPassword)).entries;
+export async function getAllPasswords(masterPassword?: string, forceFreshKey = false): Promise<PasswordEntry[]> {
+  return (await getAllPasswordsDetailed(masterPassword, forceFreshKey)).entries;
 }
 
 /**

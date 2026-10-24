@@ -212,6 +212,12 @@
                 {{ t('options.header.changeMasterPassword') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="recovery"
+                :icon="Key"
+              >
+                {{ t('recovery.settingsTitle') }}
+              </el-dropdown-item>
+              <el-dropdown-item
                 divided
                 command="validity"
                 :icon="Timer"

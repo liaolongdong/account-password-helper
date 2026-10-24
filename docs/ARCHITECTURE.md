@@ -95,9 +95,9 @@ graph TB
 - **一处例外的明文：到期提醒表的账号名**。`password_reminders` 表按 `entryId` 冗余保存该条的 `username`（按码点截断到 `PASSWORD_FIELD_LIMITS.username`，见 [reminderManager.ts](../utils/storage/reminderManager.ts)），因为提醒由 `chrome.alarms` 在任意时刻发出桌面通知（含锁定态），去掉它就等于让通知退化成不含账号的通用文案。它额外泄露的信息是「哪个账号将在何时到期」——按上一条「保持登录 = 磁盘可解」的同一攻击面衡量并不新增防线，但确实是一处需要单独披露的明文；移除该条提醒、删除条目或清空回收站都会连带清除。
 - 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理——认证标签使篡改可检测，无静默回退。
 - **主密码从不落盘**。磁盘上只有校验哈希：`deriveVerifierHash` 同样是 PBKDF2-SHA256 / 600,000 次，但对盐值做了域分离（前缀 `aph-verify|`），使校验值与解密密钥在密码学上互相独立，存储中的校验值无法反推为密钥；比对使用常量时间。旧版单轮 SHA-256 校验值在验证成功时透明升级。
-- **第二处刻意的明文：`master_password_config.hint`**。设置主密码时可留一句提示语，去首尾空白后按 120 码位截断，**明文**存在同一配置对象里。明文是本质约束而非疏漏：提示语的作用恰恰是「忘记主密码之后还能看」，用主密码加密它就形成「忘了才需要看、看了却解不开」的死循环。它不参与任何密钥派生（`deriveVerifierHash` 只吃主密码与盐值），缺失该字段的存量配置读出空串即「未设置」，无需迁移；解锁页只在连续输错达 `MAX_FAIL_BEFORE_HINT` 后才显示，且只在管理页（Options）呈现——侧边栏开在任意站点页面上，把明文提示语放到那里会放大旁观与录屏泄露面。注意它只是帮你回想的提示，**不构成找回机制**：主密码仍然无法被扩展替你找回或重置。
-- **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者必须在同一次 `chrome.storage.local.set()` 中原子落盘，避免多上下文并发写入时「A 的包裹密钥 + B 的密文」错配。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清）。
-- **HKDF 只存在于旧版迁移路径**：`deriveSessionKey(salt)`（HKDF-SHA256，salt `aph-session-salt`、info `session-encryption-v2`）仅用于解包历史遗留的 `session_master_password` blob。它的输入是明文可读的盐值，因此不提供任何抗磁盘访问的机密性，新版会话流程不使用它。
+- **第二处刻意的明文：`master_password_config.hint`**。设置主密码时可留一句提示语，去首尾空白后按 120 码位截断，**明文**存在同一配置对象里。明文是本质约束而非疏漏：提示语的作用恰恰是「忘记主密码之后还能看」，用主密码加密它就形成「忘了才需要看、看了却解不开」的死循环。它不参与任何密钥派生（`deriveVerifierHash` 只吃主密码与盐值），缺失该字段的存量配置读出空串即「未设置」，无需迁移；解锁页只在连续输错达 `MAX_FAIL_BEFORE_HINT` 后才显示，且只在管理页（Options）呈现——侧边栏开在任意站点页面上，把明文提示语放到那里会放大旁观与录屏泄露面。注意它只是帮你回想的提示，**不是安全提问或解锁凭据**：主密码本身仍无法找回，可选离线恢复走独立的高熵密钥路径。
+- **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者在同一次 `chrome.storage.local.set()` 中配套提交，避免「A 的包裹密钥 + B 的密文」错配，但不将该 API 视为通用 ACID 事务。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清），新钥只在匹配的 local 提交后发布。
+- **区分两条 HKDF 路径**：`deriveSessionKey(salt)`（HKDF-SHA256，salt `aph-session-salt`、info `session-encryption-v2`）只用于解包历史 `session_master_password` blob；其输入盐值公开，不提供抗磁盘访问的机密性，新版会话流程不使用它。可选离线恢复则用独立的 32 随机字节秘密 R 经域分离 HKDF-SHA256 派生不可导出 KEK，不保存 R/KEK；包裹 DK 以当前主密码配置作 AAD 绑定，见「功能实现详解 → 可选离线恢复本机库」。
 - `ensurePasswordsEncryptedAtRest` 在每个 SW 生命周期内幂等地维护「磁盘即密文」不变量，并由 storage 监听器兜底发现明文异常。
 
 ## 项目结构
@@ -304,7 +304,16 @@ graph TB
 - **大写锁定实时提示**：主密码相关输入框（首次设置、解锁验证视图、验证弹窗、修改主密码、加密备份导入）通过 `KeyboardEvent.getModifierState('CapsLock')` 在 keydown/keyup 实时判定大写锁定状态（见 [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)），开启时在输入框下方展示琥珀色警示行（见 [CapsLockHint.vue](../components/CapsLockHint.vue)），避免大小写误输入被当成「密码错误」；提示行用 `role="status"` 让屏幕阅读器非打断播报，失焦即复位，不留残留提示。
 
 - **密码提示语**：设置主密码时可选填一句提示（`master_password_config.hint`，明文、上限 120 码位，见 [masterPassword.ts](../utils/storage/masterPassword.ts) 的 `MAX_MASTER_PASSWORD_HINT_LENGTH`），解锁页在连续输错达 `MAX_FAIL_BEFORE_HINT`（定义于 [useAuthFlow.ts](../composables/useAuthFlow.ts)，与敏感操作复验弹窗共用同一档位）后把它显示在错误提示下方；点「重置全部数据」的入口不直接清空，而是先打开找回向导。
-- **忘记密码找回向导**（[ForgotPasswordDialog.vue](../components/options/ForgotPasswordDialog.vue)）：纯展示的退路清单，按成功率排列——回想提示语 → 用 `.aph` 加密备份（其密钥由**导出那一刻**输入的密码派生，与当前主密码无关，所以记得旧主密码就能解开旧备份）→ 用导出过的 CSV/JSON → 最后才是「仍然重置全部数据」。终点复用既有的 `useAuthFlow.resetMasterPassword`（`lockSession → clearAllData` 与二次确认一律不改），向导自身不 import 存储与加密模块。边界要说全：找回的是备份时刻的快照、导入是追加不去重、个人信息库需单独的 `.aphid`、回收站与修改历史不回滚。
+- **忘记密码向导**（[ForgotPasswordDialog.vue](../components/options/ForgotPasswordDialog.vue)）：提示语只作记忆辅助，不是安全提问；有提前启用且匹配的恢复密钥时，可恢复当前本机库（见下节）。备份路径提供 `.aph` / `.aphid` **只读验证**，不写入或清除当前库；须输入该文件导出时的主密码。先验证，再推荐另一设备或独立浏览器 Profile 导入核对，最后才考虑二次确认后的重置，不能先清再试。CSV/JSON 明文导出也是可用数据来源；无可用恢复密钥、可解备份或明文导出时，数据仍无法恢复。备份只还原导出快照，密码导入追加不去重、个人信息需独立 `.aphid`，回收站与历史不在这些备份内；若导出时与当前是同一密码且遗忘，旧备份也打不开。
+
+#### 可选离线恢复本机库
+
+- **启用契约**：默认关闭、没有自动迁移。在「安全设置 → 离线恢复密钥」输入当前主密码可创建、换发、停用；创建/换发先生成待确认材料，用户保存并回填验证 `.aphrecovery` 后才启用，不能给已经锁死的库事后补恢复。
+- **密钥与持久化**（[utils/recoveryCrypto.ts](../utils/recoveryCrypto.ts)、[utils/storage/recovery.ts](../utils/storage/recovery.ts)）：恢复密钥 R 来自 `crypto.getRandomValues` 的 32 随机字节，经 HKDF-SHA256 域分离派生不可导出的 AES-GCM 包裹钥 KEK；用当前主密码配置作 AAD 绑定包裹的数据钥 DK。恢复机制只持久化包裹 DK 与非敏感元数据，不保存 R 或 KEK，不保存主密码原文或可逆密文。它与为免密重启保存材料的会话机制不同；锁定/过期不移除已启用的恢复包。
+- **套件边界**：`.aphrecovery` 仅含恢复密钥及套件 id/version/时间等格式元数据，不含密码库；持有 R 与匹配恢复包/密文即可恢复，因此须按高敏凭据保管。创建、替换、停用均不等于备份；数据/Profile 丢失时，只有 R 无用，仍需匹配的数据备份。`.aph` / `.aphid` 本轮不改格式，也不接受 R 代替导出时主密码。
+- **恢复顺序**：锁屏输入 R 或导入套件 → 设置新主密码 → 保存并验证换发的新套件 → 解密检查并重新加密当前本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）→ 提交匹配的新配置、密文与恢复包 → 保持锁定，用户用新主密码解锁。任何无法解密的数据阻止原地恢复，不静默删记录，不宣称部分成功。
+- **换钥与撤销边界**：正常改主密码的已启用分支同样先保存并验证新套件，未启用分支保留原交互。新套件生效后旧 R 不再适用于当前本机入口，但换发/停用无法撤销攻击者已复制的旧 R + 旧恢复包/密文；疑泄漏需改主密码轮换 DK，不能承诺收回历史副本。写隔离及会话发布顺序见第 20 节。
+- **隐私与验收边界**：恢复不新增网络请求、权限或遥测；扩展既有匿名版本检查仍在。以上为本轮实现契约，崩溃/并发与完整交互验收须在最终实现上执行；历史报告或本文不代表本轮测试已通过。
 
 ### 2. 表单识别与填充
 
@@ -521,11 +530,11 @@ graph TB
 ### 20. 修改主密码
 
 - 入口：密码管理页「安全设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
-- 流程：验证当前主密码 → 旧密钥解密全部数据（密码列表 + 回收站 + 修改历史）→ 新密钥重新加密 → 单次 `chrome.storage.local.set()` **原子写入**新密文、新校验哈希与新会话密钥材料（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。
-- **盐值与迭代次数刻意原样保留**：数据密钥由 `deriveEncryptionKey` 从「主密码 + storage 中的 salt」派生，换盐会派生出另一把密钥、使存量密文永久无法解密；而改密本身已提供足够强度，salt 的防彩虹表作用无需刷新。因此只有密码明文、派生数据密钥、校验哈希与一次性包裹密钥发生变化，PBKDF2 迭代次数固定为 600,000。
-- 安全保证：重新加密与派生期间任意步骤失败直接中断，磁盘数据保持旧密文无损；不存在「新密文 + 旧会话密钥」的中间态。若最后那次原子写入本身失败，则主动 `clearSession()` 清除已更新的新密钥材料（fail-closed），避免「新密钥 + 旧密文」不一致，用户需重新解锁。
-- 会话自愈：其他已打开的扩展页面（侧边栏/Popup 等）监听到密钥更换后自动采纳新会话密钥，无需重新登录，列表不会被清空（见 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts) 的 `adoptRekeyedSession`）。
-- 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关。
+- 流程：验证当前主密码 → 检查并解密本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）→ 新数据钥重新加密 → 配套提交新密文、主密码配置与会话材料（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。五域容器形状畸形都会中止两条链路；密码与密码回收站任一解不开即中止换钥；解不开的历史与个人信息记录按既有口径原样保留（换钥不删数据）。离线恢复走严格档：五域任一解不开都以 `RECOVERY_INCOMPLETE` 中止，不以删记录换取「成功」。
+- **离线恢复已启用时**：改密前必须先保存并回填验证换发的新 `.aphrecovery` 套件，再提交换钥与新恢复包；成功后旧恢复密钥不再适用于当前本机入口。未启用者保留原改密交互，不会自动迁移为启用。
+- **隔离与发布顺序**：同源 Web Locks 的 shared 普通写 lease 与 exclusive key-transition 相斥，拿不到锁即 busy 失败、不等待；shared lease 不把所有普通 CRUD 串行化。新会话钥仅在匹配的 `storage.local` 提交完成后发布，其他扩展页只采纳与本地配置匹配的材料；提交失败按失败关闭处理，不先发布新钥（见 [utils/storage/vaultWriteLock.ts](../utils/storage/vaultWriteLock.ts) 与 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts)）。
+- 配套值合批写入是避免钥匙与密文错配的实现约束，**不代表 `storage.local.set()` 提供通用 ACID 事务或完整断电保证**。实际崩溃、并发与会话发布路径须由发布前验收覆盖，不能以设计说明代替验证结果。
+- 独立加密备份 `.aph` / `.aphid` 格式不变，仍需各自导出时的主密码；新主密码或新恢复密钥不会自动打开旧备份。若导出时与当前是同一密码且遗忘，旧备份仍不可解。
 
 ### 21. 一键填充快捷键
 

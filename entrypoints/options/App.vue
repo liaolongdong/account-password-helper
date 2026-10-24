@@ -37,6 +37,7 @@
       @submit="handleVerifySubmit"
       @debug="debugPassword"
       @reset="resetMasterPassword"
+      @recovered="checkAuth"
       @clear-error="verifyError = ''"
       @update:verify-form="Object.assign(verifyForm, $event)"
     />
@@ -311,8 +312,13 @@
     <!-- 快捷键一览弹窗（只读，改键引导至浏览器内置管理页） -->
     <ShortcutSettingDialog v-model="showShortcutDialog" />
 
-    <!-- 修改主密码弹窗 -->
+    <!-- 恢复与改密持有敏感草稿：仅在认证且打开时加载，锁定即卸载清理。 -->
+    <RecoverySettingsDialog
+      v-if="isAuthenticated && showRecoverySettingsDialog"
+      v-model="showRecoverySettingsDialog"
+    />
     <ChangeMasterPasswordDialog
+      v-if="isAuthenticated && showChangeMasterPasswordDialog"
       v-model="showChangeMasterPasswordDialog"
       @success="loadPasswords"
     />
@@ -400,6 +406,7 @@ const ShortcutSettingDialog = defineAsyncComponent(() => import('@/components/op
 const ChangeMasterPasswordDialog = defineAsyncComponent(
   () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
 );
+const RecoverySettingsDialog = defineAsyncComponent(() => import('@/components/options/RecoverySettingsDialog.vue'));
 const BatchTagDialog = defineAsyncComponent(() => import('@/components/options/BatchTagDialog.vue'));
 const MasterPasswordVerifyDialog = defineAsyncComponent(
   () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
@@ -612,6 +619,9 @@ const showShortcutDialog = ref(false);
 
 /** 修改主密码弹窗可见性 */
 const showChangeMasterPasswordDialog = ref(false);
+
+/** 离线恢复设置仅在用户主动打开时读取配置。 */
+const showRecoverySettingsDialog = ref(false);
 
 /** 偏好设置弹窗可见性 */
 const showPersonalizationDialog = ref(false);
@@ -837,6 +847,9 @@ const handleSettingsCommand = (command: string) => {
   switch (command) {
     case 'changeMasterPassword':
       showChangeMasterPasswordDialog.value = true;
+      break;
+    case 'recovery':
+      showRecoverySettingsDialog.value = true;
       break;
     case 'validity':
       openValiditySetting();
@@ -1488,6 +1501,8 @@ watch(
   authenticated => {
     if (!authenticated) {
       clearPlaintextKeyedCaches();
+      showRecoverySettingsDialog.value = false;
+      showChangeMasterPasswordDialog.value = false;
     }
   },
   { flush: 'sync' },
@@ -1677,6 +1692,14 @@ const buildPaletteActions = (): CommandAction[] => [
     icon: Key,
     keywords: ['master', 'password', 'change'],
     run: () => (showChangeMasterPasswordDialog.value = true),
+  },
+  {
+    id: 'recovery',
+    group: 'security',
+    label: t('recovery.settingsTitle'),
+    icon: Key,
+    keywords: ['offline', 'recovery', 'kit', '离线', '恢复', '密钥'],
+    run: () => (showRecoverySettingsDialog.value = true),
   },
   {
     id: 'validity',

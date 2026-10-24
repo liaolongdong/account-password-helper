@@ -20,35 +20,55 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import type { EncryptedPasswordEntry } from '@/utils/types';
 
-const { prepareSessionRekey, clearSession } = vi.hoisted(() => ({
+const { prepareSessionRekey, publishSessionRekey, clearSession } = vi.hoisted(() => ({
   prepareSessionRekey: vi.fn<(dataKey: string, validityHours: number) => Promise<Record<string, unknown>>>(),
+  publishSessionRekey: vi.fn<(dataKey: string, prepared: Record<string, unknown>) => Promise<void>>(),
   clearSession: vi.fn<() => Promise<void>>(),
 }));
 
 vi.mock('@/utils/sessionManager-storage', async importOriginal => {
   const actual = await importOriginal<typeof import('@/utils/sessionManager-storage')>();
-  return { ...actual, prepareSessionRekey, clearSession };
+  return { ...actual, prepareSessionRekey, publishSessionRekey, clearSession };
 });
 
-const { deriveEncryptionKey, deriveVerifierHash } = vi.hoisted(() => ({
+const {
+  deriveEncryptionKey,
+  deriveVerifierHash,
+  encryptPasswordEntry,
+  decryptPasswordEntry,
+  encryptData,
+  decryptData,
+} = vi.hoisted(() => ({
   deriveEncryptionKey: vi.fn<(password: string) => Promise<string>>(),
   deriveVerifierHash: vi.fn<(password: string, salt: string) => Promise<string>>(),
+  encryptPasswordEntry: vi.fn(),
+  decryptPasswordEntry: vi.fn(),
+  encryptData: vi.fn(),
+  decryptData: vi.fn(),
 }));
 
 vi.mock('@/utils/encryption', () => ({
   deriveEncryptionKey,
   deriveVerifierHash,
-  encryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>, _s: string, key: string) => ({
+  encryptPasswordEntry,
+  decryptPasswordEntry,
+  encryptData,
+  decryptData,
+}));
+
+/** 回显型加密桩：`clearAllMocks` 只清调用记录、不还原 `mockImplementation`，故每个用例前都要重设。 */
+const stubEncryptionEcho = (): void => {
+  encryptPasswordEntry.mockImplementation(async (entry: Record<string, unknown>, _s: string, key: string) => ({
     ...entry,
     password: `cipher:${key}`,
-  })),
-  decryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>, _s: string, key: string) => ({
+  }));
+  decryptPasswordEntry.mockImplementation(async (entry: Record<string, unknown>, _s: string, key: string) => ({
     ...entry,
     password: `plain:${key}`,
-  })),
-  encryptData: vi.fn(async (data: string, key?: string) => `enc:${key ?? ''}:${data}`),
-  decryptData: vi.fn(async (data: string) => data.replace(/^enc:/, '')),
-}));
+  }));
+  encryptData.mockImplementation(async (data: string, key?: string) => `enc:${key ?? ''}:${data}`);
+  decryptData.mockImplementation(async (data: string) => data.replace(/^enc:/, ''));
+};
 
 vi.mock('@/utils/storage/masterPassword', () => ({
   verifyMasterPassword: vi.fn(async () => true),
@@ -82,6 +102,7 @@ let localRemove: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  stubEncryptionEcho();
   prepareSessionRekey.mockImplementation(async (dataKey, validityHours) => ({
     [SESSION_STORAGE_KEYS.WRAP_KEY]: `wrap:${dataKey}`,
     [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: `wrapped:${dataKey}`,
@@ -89,6 +110,7 @@ beforeEach(() => {
     [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
   }));
   clearSession.mockResolvedValue(undefined);
+  publishSessionRekey.mockResolvedValue(undefined);
   deriveEncryptionKey.mockImplementation(async (password: string) => `key:${password}`);
   deriveVerifierHash.mockImplementation(async (password: string) => `verifier:${password}`);
 
@@ -237,5 +259,33 @@ describe('写盘之前的失败：不写、不清会话', () => {
     expect(deriveEncryptionKey).not.toHaveBeenCalled();
     expect(localSet).not.toHaveBeenCalled();
     expect(clearSession).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 提交点之后才失败的两种情形，语义必须与「写盘失败」区分开：
+ * - 会话材料发布失败：新密文与新校验哈希已经生效，只能告诉调用方「改密已成功、需要重新解锁」，
+ *   若照旧抛出，弹窗会显示「写入失败」，用户继续用旧密码解锁必然失败；
+ * - 只剩旧版遗留 blob 清理失败：一致性不受影响，保持成功语义，不得反向推翻已提交的事实。
+ */
+describe('提交成功之后的失败：不得伪装成未提交', () => {
+  it('发布新会话密钥失败时返回 relock-required，并把已提交的新密钥留在盘上', async () => {
+    publishSessionRekey.mockRejectedValueOnce(new Error('session readback failed'));
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'new-pw')).resolves.toBe('relock-required');
+
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
+    expect(clearSession, '发布失败必须清会话，避免留下新钥/旧库不一致的解锁态').toHaveBeenCalledTimes(1);
+  });
+
+  it('仅旧版遗留清理失败时仍报告改密成功，不清会话', async () => {
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+    localRemove.mockRejectedValueOnce(new Error('remove unavailable'));
+
+    await expect(changeMasterPassword('old-pw', 'new-pw')).resolves.toBeUndefined();
+
+    expect(clearSession).not.toHaveBeenCalled();
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
   });
 });

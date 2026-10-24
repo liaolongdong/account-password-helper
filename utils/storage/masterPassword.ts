@@ -2,6 +2,7 @@ import type { MasterPasswordConfig } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { hashPassword, generateSalt, timingSafeEqual } from '@/utils/crypto-light';
+import { withVaultMutation } from './vaultWriteLock';
 
 /**
  * 惰性加载加密模块（仅用于 PBKDF2 校验哈希派生）
@@ -48,6 +49,10 @@ function normalizeHint(raw: string | undefined): string {
  * @param hint 可选的主密码提示语，明文存于本机；省略即不写入该字段
  */
 export async function setMasterPassword(password: string, hint?: string): Promise<void> {
+  return withVaultMutation(() => setMasterPasswordInternal(password, hint));
+}
+
+async function setMasterPasswordInternal(password: string, hint?: string): Promise<void> {
   try {
     const cleanPassword = String(password || '').trim();
     if (!cleanPassword) {
@@ -95,6 +100,10 @@ export async function setMasterPassword(password: string, hint?: string): Promis
  *   用户无感知，不需重设或重输主密码。
  */
 export async function verifyMasterPassword(password: string): Promise<boolean> {
+  return withVaultMutation(() => verifyMasterPasswordInternal(password));
+}
+
+async function verifyMasterPasswordInternal(password: string): Promise<boolean> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
     const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
@@ -178,6 +187,10 @@ export async function getMasterPasswordHint(): Promise<string> {
  * 重置主密码（清空主密码配置）
  */
 export async function resetMasterPassword(): Promise<void> {
+  return withVaultMutation(resetMasterPasswordInternal);
+}
+
+async function resetMasterPasswordInternal(): Promise<void> {
   try {
     await chrome.storage.local.remove(STORAGE_KEYS.MASTER_PASSWORD);
   } catch (error) {
@@ -190,6 +203,10 @@ export async function resetMasterPassword(): Promise<void> {
  * 清空所有数据
  */
 export async function clearAllData(): Promise<void> {
+  return withVaultMutation(clearAllDataInternal);
+}
+
+async function clearAllDataInternal(): Promise<void> {
   try {
     await chrome.storage.local.clear();
   } catch (error) {

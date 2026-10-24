@@ -90,13 +90,16 @@
   transform: translateY(-1px);
 }
 
-:deep(.el-button--primary) {
+/* 实心主按钮刷成主题色实底。
+   `link` / `text` 变体的文字本身就是主色，被这条规则刷上同色实底会变成「蓝字压蓝底」而彻底看不见
+   （锁屏的「使用离线恢复密钥」就是这样被抹掉的），因此把它们排除在外。 */
+:deep(.el-button--primary:not(.is-link, .is-text)) {
   font-weight: 400;
   background: var(--aph-primary);
   border: 1px solid var(--aph-primary);
 }
 
-:deep(.el-button--primary:hover) {
+:deep(.el-button--primary:not(.is-link, .is-text):hover) {
   background: var(--aph-primary-hover);
   border-color: var(--aph-primary-hover);
 }

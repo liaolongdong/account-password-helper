@@ -191,7 +191,7 @@
 
 ⚙️ 界面与效率
 🎨 6 款色彩主题、中英文界面即时切换，注入页面的浮层同步跟随
-⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 28 条常用命令，主密码未验证时不响应按键
+⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 29 条常用命令，主密码未验证时不响应按键
 🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「帮助 → 新手引导」可随时重播；有密码后还会出现安全起步清单，提示备份与体检（可暂不提醒）；版本升级后弹窗展示一次更新要点，保存的密码多于 1 条、成功用快速填充过一次且首次填充满 7 天后才会询问一次是否去商店评价，可稍后再说或不再提醒，「关于」抽屉里也常驻评价入口；「关于」里可一键复制同事分享文案与商店链接
 🔧 四个默认快捷键 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 💡 细节体验：主密码输入框实时提示大写锁定；网站图标取自浏览器本地缓存，不发起外部请求
@@ -200,7 +200,10 @@
 🧬 主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，全部密码学运算走浏览器原生 Web Crypto API；解密密钥与本机存的解锁校验值分两条独立路径派生，校验值推不出密钥，解锁比对为常量时间
 🗄 账号、密码、网址、备注和两步验证码五类敏感内容逐字段以 AES-256-GCM 认证加密后才写入本地存储，每次保存都现场生成新的随机初始化向量；个人信息单独成库整块加密；会话过期即回到密文状态
 📴 密文只写入浏览器本地存储（持久化的 local 与仅内存的 session），从不使用会随浏览器账号同步的 sync 存储
-🔁 更改主密码时对全部条目原子重加密：要么整体完成，要么保持原状，不会留下半加密的数据
+🔁 修改主密码会检查并重新加密本机五域：密码、密码回收站、密码历史、个人信息与个人信息回收站；密码与回收站解不开即中止换钥，解不开的历史与个人信息记录原样保留，不静默删记录
+离线恢复已启用时，正常改主密码须先保存并回填验证换发的新套件，成功后旧密钥不再适用于当前本机入口；未启用者保留原改密交互
+恢复仅持久化包裹的数据钥与非敏感元数据，不保存恢复密钥或其包裹钥；主密码仍不以原文或可逆密文保存。恢复不新增请求、权限或遥测，既有匿名版本检查不变
+创建、换发、停用恢复都不是备份；换发或停用不能撤销攻击者已复制的旧密钥 + 旧恢复包/密文，疑泄漏需改主密码轮换数据钥，历史副本无法收回
 🧷 登录第二步的接力只把当次验证码和它的有效期交给页面，生成动态码所需的密钥始终留在扩展自己的后台上下文中；这份接力标记只对同一站点有效，三分钟后自动失效
 ⏳ 闲置达到设定时长（5 / 10 / 30 / 60 分钟四档）自动锁定，系统锁屏走同一条闲置检测路径；浏览器重启后锁定是另一个独立开关。两者默认都不启用，需要你主动打开；锁定后要重输主密码，而主密码本身从不保存
 📋 复制密码后按设定秒数自动清理剪贴板（默认 30 秒，另有 10 / 15 / 60 / 120 秒可选），清理前先比对内容，不会误清你随后复制的内容
@@ -223,7 +226,8 @@
 🆓 真的完全免费吗？是。没有高级版、没有内购，也不会有劝你升级的弹窗
 ☁️ 密码会被上传到云端吗？不会，扩展没有自己的服务器。唯一的主动联网是每 6 小时一次的更新检查：先探测商店可达性（结果本机缓存 24 小时），不通时才去公开发布接口读最新版本号与不超过 200 字的更新说明；请求不携带任何账号、标识符或库内数据，断网时静默失败，其余功能照常可用
 🪪 个人信息会被上传或同步吗？不会。它们和密码一样只加密保存在本机，不随浏览器账号同步，也不会离开这台设备
-🔑 忘记主密码怎么办？主密码本身找不回来，也没有任何人能把它还原成可读的形式，但应用内不只剩「清空」一条路：设置主密码时可留一句提示语，连续输错几次后在解锁页显示；点「忘记密码？查看找回方法」进入找回向导，按成功率排列退路——`.aph` 加密备份用的是**导出当时的密码**（与后来改过的主密码无关），先前导出的 CSV / JSON 是明文可直接导入。两条都不成立时才轮到「重置」，那做的是清空全部数据、把扩展恢复到刚装好的样子，旧密码不会因此出现；请定期导出加密备份，别让一次遗忘赔上整个库
+🔑 忘记主密码怎么办？主密码本身不能找回，提示语只是记忆辅助、不是安全提问。离线恢复默认关闭、没有自动迁移：须提前在「安全设置 → 离线恢复密钥」输入当前主密码，保存并回填验证 .aphrecovery 套件后才启用，也可换发或停用。套件只含恢复密钥、套件标识、版本和时间，不含密码库；匹配密钥可在锁屏输入或导入套件，设置新主密码并保存、验证新套件后恢复本机五域，完成后仍锁定，用新主密码解锁
+没有可用恢复密钥时，先在忘记向导只读验证 .aph / .aphid，再到另一设备或独立 Profile 导入核对，最后才考虑清除原库，不能先清再试。两种备份仍需导出时的主密码，新恢复密钥不能解开旧备份；导出时与当前若是同一密码且已遗忘，旧备份仍打不开。明文 CSV / JSON 导出也是数据来源；没有可用密钥或可解备份时仍无法恢复，重置清空不可撤销。数据/Profile 丢失只有恢复密钥无用，仍需匹配的数据备份；不能事后给锁死库补恢复
 📥 能从其他密码管理器导入吗？可以：在原来用的应用里导出 CSV 或 JSON，再到扩展的导入页上传即可
 📊 密码库能存多少条？上限 2000 条，回收站里的条目不占额度。达到上限后新增、创建副本、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据；导入量超出剩余额度时，预览页会先写明还能导入多少条、将被忽略多少条
 🔄 更新会改掉我调好的设置吗？不会。新版本调整过的默认值只作用在新安装上，已经在用的安装保持它当前的填充方式
@@ -326,7 +330,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 ⚙️ Interface and efficiency
 🎨 6 color themes and an instant Chinese/English switch, followed by the UI injected into pages.
-⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 28 commands by Chinese, pinyin or initials, inert until the master password is verified.
+⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 29 commands by Chinese, pinyin or initials, inert until the master password is verified.
 🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the header's "Help" menu replays it any time via "Tour". Once a password exists, a short getting-started checklist nudges an encrypted backup and a health check (snoozable). After an update a one-time dialog summarises what changed; the review ask appears only once you have more than one saved password and your first successful autofill is at least 7 days old, with Later (silent for 30 days) and Don't-ask-again options. The About drawer also keeps a permanent review link. About offers a ready-to-copy teammate share message with the store link.
 🔧 Ctrl+Shift+P management / L side panel / F quick fill / K inline dropdown; rebind them on the browser's own extensions-shortcuts page.
 💡 A live Caps Lock hint on master-password fields, and site icons read from the browser's local cache with no external request.
@@ -335,7 +339,10 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 🧬 The master password is stretched with PBKDF2 (600,000 iterations) into a 256-bit key on the browser's native Web Crypto API; the decryption key and the stored unlock check value are derived on two separate paths, so the value cannot be turned back into the key.
 🗄 Username, password, website, note and two-factor key are encrypted field by field with AES-256-GCM before reaching local storage, each save with a fresh random IV; the personal info vault is one separately encrypted blob. Everything returns to ciphertext when the session expires.
 📴 Ciphertext goes only into the local stores (persistent local, in-memory session). The account-syncing sync store is never used.
-🔁 Changing the master password re-encrypts every entry atomically — all of it or none, never a half-encrypted vault.
+🔁 Changing the master password checks and re-encrypts all five local domains: passwords, password trash, password history, personal info and personal info trash. Unreadable passwords or password trash abort the change, while unreadable history and personal-info records are carried over untouched — records are never silently dropped.
+With recovery enabled, ordinary password changes require saving and re-entering a replacement kit for verification first. After success the old key no longer works at the current local entry point; disabled recovery keeps the original interaction.
+Recovery persists only the wrapped data key and non-sensitive metadata, never the recovery key or its wrapping key. The master password is never stored as plaintext or reversible ciphertext. Recovery adds no requests, permissions or telemetry; existing anonymous version checks remain.
+Creating, replacing or disabling recovery is not a backup and cannot revoke copied old keys plus old envelopes/ciphertext. If exposure is suspected, change the master password to rotate the data key; historical copies cannot be recalled.
 🧷 Mid two-step sign-in the page is handed only the current code and its expiry; the secret that generates it never leaves the extension's own background context, and the handoff marker is same-host and expires after 3 minutes.
 ⏳ Idle locking (5, 10, 30 or 60 minutes; a system lock uses the same path) and lock-on-browser-restart are two independent switches, both off until you turn them on. Once locked it asks for the master password again, and that password is never stored.
 📋 Copied passwords leave the clipboard on a timer (30 seconds by default, or 10, 15, 60, 120), compared before clearing so your latest copy survives.
@@ -358,7 +365,8 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 🆓 Is it really free? Yes — no premium tier, no in-app purchase, no upgrade prompt.
 ☁️ Are my passwords uploaded? No, and the extension runs no server of its own. Its only outbound call is an update check every 6 hours: it probes whether the store is reachable (cached for 24 hours) and only on failure reads the public releases endpoint for the newest version and up to 200 characters of notes. Neither request carries an account, an identifier or vault data.
 🪪 Are personal details uploaded or synced? No — they stay encrypted on this machine, are never synced to your browser account, and never leave the device.
-🔑 What if I forget the master password? Nothing can recover it. The in-app reset erases all data and returns the extension to its just-installed state — the old password does not come back. Export an encrypted backup regularly.
+🔑 Forgot the master password? The password itself cannot be retrieved; hints aid memory, not security-question unlocking. Offline recovery is off by default, with no automatic migration. Set it up beforehand in Security Settings → Offline Recovery Key with the current master password; save and re-enter the .aphrecovery kit to verify and activate it. Replacement and disabling are also available. Kits hold only the recovery key, kit ID, version and time, not the vault. Enter the matching key or import the kit on the lock screen, set a new master password, then save and verify a replacement kit to recover the five local domains. Recovery leaves the vault locked; unlock with the new password.
+Without a usable key, verify .aph / .aphid read-only in the forgot-password wizard, then import on another device or in a separate profile to check it before considering a wipe — never wipe first and test later. Both backups still need the export-time master password, not a new recovery key; if it was the same password now forgotten, they remain unreadable. Plaintext CSV / JSON exports are another data source. With no usable key or decryptable backup, data cannot be recovered; reset wipes it irreversibly. A key alone cannot replace lost data/profile contents: a matching data backup is needed. Recovery cannot be added after lockout.
 📥 Can I import from another password manager? Yes — export a CSV or JSON from that app and upload it on the import page.
 📊 How many entries fit? 2000, counted by list entries; the trash takes no quota. When it is full, adding, duplicating, importing, auto-saving and restoring each say so plainly instead of overwriting or deleting anything, and an over-large import preview tells you how many still fit and how many would be skipped.
 🔄 Will an update change my settings? No — defaults a new version brings in apply to fresh installs only.

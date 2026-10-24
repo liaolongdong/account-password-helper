@@ -2,6 +2,7 @@ import type { PasswordHistoryRecord } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { getPasswordHistoryConfig } from '@/utils/storage/configManager';
+import { withVaultMutation } from './vaultWriteLock';
 
 /** 每条密码条目最多保留的历史记录数（默认值，实际从用户配置动态读取） */
 const DEFAULT_MAX_HISTORY_PER_ENTRY = 3;
@@ -45,6 +46,10 @@ async function writeAllHistory(records: PasswordHistoryRecord[]): Promise<void> 
  * @param encryptedOldPassword 旧密码密文（直接从 storage 读取的加密态值）
  */
 export async function snapshotPasswordHistory(entryId: string, encryptedOldPassword: string): Promise<void> {
+  return withVaultMutation(() => snapshotPasswordHistoryInternal(entryId, encryptedOldPassword));
+}
+
+async function snapshotPasswordHistoryInternal(entryId: string, encryptedOldPassword: string): Promise<void> {
   try {
     // 读取用户配置：禁用时跳过快照
     const config = await getPasswordHistoryConfig();
@@ -103,6 +108,10 @@ export async function getPasswordHistory(entryId: string): Promise<PasswordHisto
  * @param entryId 密码条目 ID
  */
 export async function deleteHistoryByEntryId(entryId: string): Promise<void> {
+  return withVaultMutation(() => deleteHistoryByEntryIdInternal(entryId));
+}
+
+async function deleteHistoryByEntryIdInternal(entryId: string): Promise<void> {
   try {
     const allHistory = await readAllHistory();
     const filtered = allHistory.filter(r => r.entryId !== entryId);
@@ -120,6 +129,10 @@ export async function deleteHistoryByEntryId(entryId: string): Promise<void> {
  * @param entryIds 要清理的条目 ID 列表
  */
 export async function deleteHistoryByEntryIds(entryIds: string[]): Promise<void> {
+  return withVaultMutation(() => deleteHistoryByEntryIdsInternal(entryIds));
+}
+
+async function deleteHistoryByEntryIdsInternal(entryIds: string[]): Promise<void> {
   if (!entryIds.length) return;
   try {
     const idSet = new Set(entryIds);
@@ -146,6 +159,10 @@ export async function getAllHistoryRaw(): Promise<PasswordHistoryRecord[]> {
  * @param records 重新加密后的历史记录数组
  */
 export async function replaceAllHistory(records: PasswordHistoryRecord[]): Promise<void> {
+  return withVaultMutation(() => replaceAllHistoryInternal(records));
+}
+
+async function replaceAllHistoryInternal(records: PasswordHistoryRecord[]): Promise<void> {
   try {
     await writeAllHistory(records);
   } catch (error) {

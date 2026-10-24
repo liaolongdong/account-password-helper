@@ -212,12 +212,12 @@ export async function importEncryptedBackup(
     // 已是用户可读文案（上面的尺寸/格式/结构分支）：原样上抛，不再包一层丢 cause
     if (error instanceof BackupImportUserError) throw error;
     const err = error as { message?: string; name?: string };
-    if (err.message?.includes('decrypt') || err.name === 'OperationError') {
+    if (err.name !== 'SyntaxError' && (err.message?.includes('decrypt') || err.name === 'OperationError')) {
       throw new BackupImportUserError(t('backup.wrongPasswordOrCorrupted'), error);
     }
-    logger.error('导入加密备份失败:', error);
-    // 其余异常（读文件失败、JSON.parse 语法错、deriveKey 异常等）的原文既看不懂也可能带出
-    // 内部信息，一律退到通用文案，原始异常经 cause 保留给日志与诊断。
-    throw new BackupImportUserError(t('backup.importError'), error);
+    // JSON.parse 的原始异常可能携带解密后的片段，不能进入日志或 cause 链。
+    const cause = err.name === 'SyntaxError' ? new SyntaxError('BACKUP_PARSE_FAILED') : error;
+    logger.error('导入加密备份失败:', cause);
+    throw new BackupImportUserError(t('backup.importError'), cause);
   }
 }

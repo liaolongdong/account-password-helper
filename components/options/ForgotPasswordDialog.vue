@@ -35,6 +35,7 @@
             <li>{{ t('options.forgot.backupStep3') }}</li>
           </ul>
           <p class="forgot-path__warn">{{ t('options.forgot.backupWarn') }}</p>
+          <BackupCheckPanel v-if="modelValue" />
         </li>
 
         <li class="forgot-path">
@@ -64,18 +65,20 @@
 </template>
 
 <script setup lang="ts">
+import BackupCheckPanel from './BackupCheckPanel.vue';
 import { useI18n } from '@/utils/i18n';
 
 /**
  * 忘记密码找回向导
  *
- * 把「先回想、再用备份、最后才清空」的顺序固化在 UI 里：清空整库是既有且唯一
- * 不可撤销的路径，但它不该是解锁页上的第一个动作按钮。
- *
- * 只读展示，不触碰任何密钥材料；终点 `reset` 事件交回 `useAuthFlow.resetMasterPassword`，
+ * 把「先回想、验证备份并隔离核对、最后才考虑清空」固化在 UI 里。
+ * 验证区独占临时输入，关闭即卸载；向导自身不持有密码、文件或解密数据。
+ * 终点 `reset` 事件交回 `useAuthFlow.resetMasterPassword`，
  * 其 `lockSession → clearAllData` 序列与二次确认一律复用，不在本组件复制。
  */
 defineProps<{
+  /** 显式声明开关，关闭时同步移除验证区，避免仅隐藏后保留敏感输入。 */
+  modelValue: boolean;
   /** 用户是否设置过主密码提示语（决定「先回想」这一步是否出现） */
   hasHint: boolean;
 }>();
