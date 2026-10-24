@@ -69,7 +69,11 @@
 }
 
 /* 按钮优化 */
-:deep(.el-button--large.el-button--primary) {
+
+/* 大号实心主按钮：与下面那条 `.el-button--primary` 同理，`link` / `text` 变体必须排除在外，
+   否则同色实底压同色文字直接看不见。今天仓库里还没有 large + primary + link 的组合，
+   但两条规则是同一族，留一条不一致就是给下一次埋雷。 */
+:deep(.el-button--large.el-button--primary:not(.is-link, .is-text)) {
   padding: 12px 24px;
   font-size: 16px;
   font-weight: 500;
@@ -83,7 +87,7 @@
     transform var(--aph-duration-mid) ease;
 }
 
-:deep(.el-button--large.el-button--primary:hover) {
+:deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover) {
   background: var(--aph-primary-hover);
   border-color: var(--aph-primary-hover);
   box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 30%);

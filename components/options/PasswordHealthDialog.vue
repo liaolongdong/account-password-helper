@@ -1216,8 +1216,9 @@ onScopeDispose(() => {
   border-radius: 8px;
 }
 
-/* link 型「去处理」按钮：抵消 options 全局 .el-button--primary 的实心背景/边框，
-   恢复透明底 + 主色文字，避免主色文字压在同色背景上不可见 */
+/* link 型「去处理」按钮：透明底 + 主色文字。全局 `.el-button--primary` 规则已排除
+   `link` / `text` 变体，这条对 primary link 属冗余；保留是因为它按 `.el-button.is-link`
+   通配，仍覆盖其它色型的 link 按钮，不让「同色文字压同色底」在某个变体上复活。 */
 :deep(.el-button.is-link),
 :deep(.el-button.is-link:hover) {
   background-color: transparent;

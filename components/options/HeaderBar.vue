@@ -213,7 +213,7 @@
               </el-dropdown-item>
               <el-dropdown-item
                 command="recovery"
-                :icon="Key"
+                :icon="Notebook"
               >
                 {{ t('recovery.settingsTitle') }}
               </el-dropdown-item>
@@ -373,6 +373,7 @@ import {
   Star,
   Aim,
   Key,
+  Notebook,
   Document,
   Brush,
   Compass,

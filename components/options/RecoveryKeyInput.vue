@@ -12,8 +12,18 @@
       :maxlength="RECOVERY_FORMAT.maxInputLength"
       type="password"
       autocomplete="off"
+      show-password
       @update:model-value="updateInput"
-    />
+    >
+      <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏）。
+           恢复码是 18 组十六进制，盲打回填看不到自己抄错了什么，没有显隐切换就只能整串重来。 -->
+      <template #password-icon="{ visible }">
+        <el-icon>
+          <Hide v-if="visible" />
+          <View v-else />
+        </el-icon>
+      </template>
+    </el-input>
     <label :for="fileId">{{ t('recovery.uploadKit') }}</label>
     <input
       :id="fileId"
@@ -36,6 +46,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, shallowRef, useId, useTemplateRef, watch } from 'vue';
+import { View, Hide } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
 import { RECOVERY_FORMAT } from '@/utils/recoveryTypes';
 import { clearRecoveryInputs, readRecoveryInputFile, recoveryErrorMessage } from '@/utils/recoveryUi';

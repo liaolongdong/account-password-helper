@@ -211,8 +211,9 @@
             <template v-if="isFirefox">{{ t('help.shortcutFirefoxHint') }}</template>
             <template v-else>
               {{ t('options.shortcuts.intro') }}
-              <!-- 刻意不用 `link type="primary"`：Options 全局把实心主色背景压在 .el-button.is-link 之上，
-                   抵消后仍是主色文字对 surface-2，六档主题下 2.37–3.04 均低于 WCAG AA 4.5:1。
+              <!-- 刻意不用 `link type="primary"`：主色文字对 surface-2 在六档主题下 2.37–3.04，
+                   均低于 WCAG AA 4.5:1（全局那条实心背景压在 is-link 上的历史成因已修，
+                   但对比度这一层与它无关，仍然成立）。
                    与返回按钮同一套 ghost 形态，文字走中性主文本色，不动换肤体系主色即可达标 -->
               <button
                 type="button"

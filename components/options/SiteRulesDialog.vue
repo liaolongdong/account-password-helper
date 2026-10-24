@@ -1098,8 +1098,9 @@ function openPrefilledRule(rawDomain: string): void {
   color: var(--el-text-color-secondary);
 }
 
-/* 操作列 link 按钮：抵消 options 全局 .el-button--primary 的实心背景/边框，
-   否则主色文字压在同色背景上不可见（danger 型已由全局样式覆盖） */
+/* 操作列 link 按钮：透明底 + 主色文字。全局 `.el-button--primary` 已排除 `link` / `text`
+   变体，这条对 primary link 属冗余；保留是沿用本文件对操作列 link 的显式定义，
+   也仍兜住 danger 等其它色型（danger 另有全局覆盖）。 */
 :deep(.el-button--primary.is-link),
 :deep(.el-button--primary.is-link:hover) {
   background-color: transparent;

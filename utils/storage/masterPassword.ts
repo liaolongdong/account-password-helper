@@ -137,6 +137,9 @@ async function verifyMasterPasswordInternal(password: string): Promise<boolean> 
         hashedPassword: upgradedHash,
         salt: config.salt,
         kdf: CURRENT_VERIFIER_KDF,
+        // 提示语没有编辑入口，全站只有设置主密码那一次能写它；这里是最后一处对
+        // MASTER_PASSWORD 的无条件整对象覆写，带上它以免哪天存量记录真的带 hint。
+        ...(config.hint ? { hint: config.hint } : {}),
       };
       await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: upgradedConfig });
       logger.debug('主密码校验哈希已自动升级为 PBKDF2');
