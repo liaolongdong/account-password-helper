@@ -501,6 +501,8 @@
   "options.generator.modePassphrase": "Passphrase",
   "options.generator.wordCount": "Word count",
   "options.generator.separator": "Separator",
+  "options.generator.separatorSpace": "Space",
+  "options.generator.separatorNone": "No separator",
   "options.generator.capitalize": "Capitalize",
   "options.generator.appendNumber": "Append number",
   "options.generator.numberDigits": "Number digits",

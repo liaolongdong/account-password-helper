@@ -136,11 +136,12 @@
               v-model="passphraseConfig.separator"
               size="small"
               class="separator-select"
+              :placeholder="t('options.generator.separatorNone')"
             >
               <el-option
                 v-for="opt in separatorOptions"
                 :key="opt.value"
-                :label="opt.label"
+                :label="'labelKey' in opt ? t(opt.labelKey) : opt.label"
                 :value="opt.value"
               />
             </el-select>

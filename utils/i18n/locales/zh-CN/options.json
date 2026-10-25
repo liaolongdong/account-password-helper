@@ -501,6 +501,8 @@
   "options.generator.modePassphrase": "助记词组",
   "options.generator.wordCount": "单词数量",
   "options.generator.separator": "分隔符",
+  "options.generator.separatorSpace": "空格",
+  "options.generator.separatorNone": "无分隔符",
   "options.generator.capitalize": "首字母大写",
   "options.generator.appendNumber": "追加数字",
   "options.generator.numberDigits": "数字位数",
