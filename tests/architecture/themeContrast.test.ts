@@ -176,7 +176,6 @@ describe('浅色告警文字的 WCAG AA 对比度', () => {
 const GRAPHICAL_SEMANTIC_USES: Record<string, string[]> = {
   'components/options/BackupNudgeBanner.vue': ['.backup-nudge__icon', '.backup-nudge--never .backup-nudge__icon'],
   'components/options/EmptyGuide.vue': ['.empty-guide__card-icon--success', '.empty-guide__card-icon--warning'],
-  'components/options/PasswordDetailDrawer.vue': ['.detail-header__star'],
   'components/options/ReviewPrompt.vue': ['.review-prompt__icon'],
 };
 
@@ -366,8 +365,9 @@ describe('灰阶文字不许硬编码', () => {
 
   /**
    * Element Plus / Tailwind 的常用灰阶与语义色：写死它们等于绕过上面两条判据。
-   * 图标类选择器豁免——图形走 WCAG 1.4.11 的 3:1，不是文字的 4.5:1，
-   * 且本仓图标旁都有同义文字（收藏星标、自动登录图标、面板标题图标）。
+   * 图标类选择器豁免的理由只是「图形按 1.4.11 是 3:1，不是文字的 4.5:1」——
+   * 曾经这里还写着「本仓图标旁都有同义文字」，那句话是错的：侧边栏两颗复制图标
+   * 没有任何同义文字（字形就是控件本身），收藏星标也没有。它们由下一节的图标档守卫管。
    */
   const BANNED_HARDCODED_TEXT_COLORS: Record<string, string> = {
     '#909399': 'EP 旧 secondary，最差 2.50:1 → 用 --aph-text-muted',
@@ -402,5 +402,147 @@ describe('灰阶文字不许硬编码', () => {
       });
     }
     expect(violations, violations.join('\n')).toEqual([]);
+  });
+});
+
+/**
+ * 图标档：承载「这是哪个控件 / 它是什么状态」的图形要 >= 3:1（WCAG 1.4.11）
+ *
+ * 前两节只管文字：图形适用的是 3:1 而非 4.5:1，所以图标一路被放在文字阶梯之外，
+ * 结果 `--aph-icon-action` 停在 #b0b7c3（最差浅底 1.64:1）、复制图标借用装饰档 #9ca3af
+ * （2.05:1）、收藏星标写死 EP 的 #e6a23c（1.77:1）。侧边栏那排动作图标既无边框也无
+ * 同义文字，字形就是用户唯一能看见、能点中的东西——按 1.4.11「识别界面组件及其状态」
+ * 正是这条覆盖的对象，而它恰恰被「图标都是装饰」这句想当然豁免掉了。
+ *
+ * 于是把图标拆成两档并各设判据：
+ * - 可操作/状态档（action / warning / success）：全部浅底最差一面 >= 3:1。
+ * - 装饰档（muted）：只准出现在下面这份白名单里，且每一处都有同义文字在旁边。
+ *   白名单是双向的——新增一处借用即变红，白名单里某项不再借用同样变红，
+ *   免得守卫腐烂成一张过期的通行证（与 GRAPHICAL_SEMANTIC_USES 同一套路）。
+ */
+const ICON_TIER_FLOOR = 3;
+
+/** 三档可操作/状态图标的取值（直接从 tokens.css 解析，不留第二份事实） */
+function iconTokenHex(name: string): string {
+  const hex = TOKEN_SOURCE.match(new RegExp(`^\\s*${name}:\\s*(#[0-9a-fA-F]{6});$`, 'm'))?.[1];
+  expect(hex, `缺少字面十六进制的 ${name}（换成 color-mix 会让这条判据失焦）`).toBeTruthy();
+  return hex!;
+}
+
+/** 被本轮替换掉的旧值：逐个证明它们不达 3:1，否则上面的达标断言可能是空跑 */
+const RETIRED_ICON_COLORS: Record<string, string> = {
+  '--aph-icon-action 旧值': '#b0b7c3',
+  '装饰档（曾被复制图标借用）': '#9ca3af',
+  'EP warning 原色（收藏星标）': '#e6a23c',
+  'EP success 原色（一键登录）': '#67c23a',
+};
+
+/** 允许使用装饰档的选择器：每一处旁边都有同义文字，或整块图形与文字同义 */
+const DECORATIVE_ICON_USES: Record<string, string[]> = {
+  'components/options/CommandPalette.vue': ['.cp-item-icon'],
+  'components/options/MasterPasswordSetupView.vue': ['.guide-entry__sep'],
+  'components/sidepanel/PasswordListItem.vue': ['.off-site-icon'],
+  'components/sidepanel/SidepanelAuthView.vue': ['.sort-dropdown-popper .el-dropdown-menu__item .sort-item-icon'],
+};
+
+/** 状态/动作图标必须落在哪一档：写死语义原色或退回装饰档都会让这张表对不上 */
+const STATE_ICON_TIERS: Record<string, string> = {
+  'components/sidepanel/PasswordListItem.vue .copy-icon-wrapper .copy-icon': '--aph-icon-action',
+  'components/sidepanel/PasswordListItem.vue .password-actions': '--aph-icon-action',
+  'components/sidepanel/PasswordListItem.vue .favorite-icon': '--aph-icon-action',
+  'components/sidepanel/PasswordListItem.vue .favorite-icon:hover': '--aph-icon-warning',
+  'components/sidepanel/PasswordListItem.vue .favorite-icon.is-favorite': '--aph-icon-warning',
+  'components/sidepanel/PasswordListItem.vue .auto-login-icon': '--aph-icon-action',
+  'components/sidepanel/PasswordListItem.vue .auto-login-icon:hover': '--aph-icon-success',
+  'components/sidepanel/PasswordListItem.vue .open-site-icon, .share-icon': '--aph-icon-action',
+  'components/sidepanel/PasswordListItem.vue .totp-fill-icon, .totp-copy-icon': '--aph-icon-action',
+  'components/sidepanel/PasswordListItem.vue .edit-icon': '--aph-icon-action',
+  'components/options/PasswordDetailDrawer.vue .detail-header__star': '--aph-icon-warning',
+};
+
+/** 装饰档不在其列：它的用法由 DECORATIVE_ICON_USES 那条白名单单独守 */
+const OPERATIONAL_ICON_TOKENS = ['--aph-icon-action', '--aph-icon-warning', '--aph-icon-success'];
+
+/** 找出把某令牌写在 `color:` 上的选择器（支持跨行的逗号选择器列表） */
+function iconSelectors(relPath: string, token: string): string[] {
+  const lines = readSource(relPath).split('\n');
+  const found: string[] = [];
+  lines.forEach((line, index) => {
+    if (!new RegExp(`^\\s*color:\\s*var\\(${token}\\);\\s*$`).test(line)) return;
+    let open = index - 1;
+    while (open >= 0 && !lines[open].trimEnd().endsWith('{')) open -= 1;
+    if (open < 0) {
+      found.push('<未找到选择器>');
+      return;
+    }
+    let start = open;
+    while (start > 0 && lines[start - 1].trimEnd().endsWith(',')) start -= 1;
+    found.push(
+      lines
+        .slice(start, open + 1)
+        .map(row => row.trim())
+        .join(' ')
+        .replace(/\{$/, '')
+        .trim(),
+    );
+  });
+  return found;
+}
+
+describe('图标档的 3:1 地板（WCAG 1.4.11）', () => {
+  const vueFiles = [...listSourceFiles('components', ['.vue']), ...listSourceFiles('entrypoints', ['.vue'])];
+
+  it('三档可操作/状态图标令牌都是可解析的字面十六进制', () => {
+    for (const name of OPERATIONAL_ICON_TOKENS) {
+      expect(iconTokenHex(name)).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
+  });
+
+  it('三档在全部浅底的最差一面仍 >= 3:1', () => {
+    for (const name of OPERATIONAL_ICON_TOKENS) {
+      const hex = iconTokenHex(name);
+      const worst = LIGHT_SURFACES_IN_USE.reduce((a, b) => (contrast(hex, a) < contrast(hex, b) ? a : b));
+      expect(contrast(hex, worst), `${name} ${hex} 压在 ${worst} 上`).toBeGreaterThanOrEqual(ICON_TIER_FLOOR);
+    }
+  });
+
+  it('被替换掉的旧值确实不达 3:1（证明上一条不是空跑）', () => {
+    for (const [label, hex] of Object.entries(RETIRED_ICON_COLORS)) {
+      const worst = Math.min(...LIGHT_SURFACES_IN_USE.map(surface => contrast(hex, surface)));
+      expect(worst, `${label} ${hex}`).toBeLessThan(ICON_TIER_FLOOR);
+    }
+  });
+
+  it('装饰档只准出现在白名单里的选择器上', () => {
+    const actual = new Map<string, string[]>();
+    for (const rel of vueFiles) {
+      const selectors = iconSelectors(rel, '--aph-icon-muted');
+      if (selectors.length) actual.set(rel, selectors);
+    }
+    expect([...actual.keys()].sort(), '新增/删除了借用装饰档的文件').toEqual(Object.keys(DECORATIVE_ICON_USES).sort());
+    for (const [rel, selectors] of actual) {
+      expect(selectors.sort(), `${rel} 装饰档的用法发生变化`).toEqual([...DECORATIVE_ICON_USES[rel]].sort());
+    }
+  });
+
+  it('动作与状态图标各归其档，没有写死语义原色，也没有借用装饰档', () => {
+    const actual = new Map<string, string>();
+    for (const rel of vueFiles) {
+      for (const token of OPERATIONAL_ICON_TOKENS) {
+        for (const selector of iconSelectors(rel, token)) actual.set(`${rel} ${selector}`, token);
+      }
+    }
+    expect([...actual.keys()].sort(), '图标着色点增删或换了选择器写法').toEqual(Object.keys(STATE_ICON_TIERS).sort());
+    for (const [key, token] of Object.entries(STATE_ICON_TIERS)) {
+      expect(actual.get(key), `${key} 应走 ${token}`).toBe(token);
+    }
+  });
+
+  it('三档仍保持可分辨的层级：装饰档最浅，可操作档仍轻于正文', () => {
+    const onWhite = (name: string) => contrast(iconTokenHex(name), '#ffffff');
+    expect(onWhite('--aph-icon-muted'), '装饰档必须最浅，否则三档没有区别').toBeLessThan(onWhite('--aph-icon-action'));
+    expect(onWhite('--aph-icon-action'), '图标比正文浅是刻意的层级，压到文字之上一律是回归').toBeLessThan(
+      onWhite('--aph-text-muted'),
+    );
   });
 });

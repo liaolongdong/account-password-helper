@@ -479,7 +479,7 @@ const activate = () => {
 
 .copy-icon-wrapper .copy-icon {
   font-size: 14px;
-  color: var(--aph-icon-muted);
+  color: var(--aph-icon-action);
   pointer-events: none;
 }
 
@@ -610,11 +610,12 @@ const activate = () => {
 }
 
 .favorite-icon:hover {
-  color: #e6a23c;
+  color: var(--aph-icon-warning);
 }
 
+/* 已收藏由「实心星 + 金」共同承载，静止态就得看得见——#e6a23c 在行底色上只有 1.99:1 */
 .favorite-icon.is-favorite {
-  color: #e6a23c;
+  color: var(--aph-icon-warning);
 }
 
 .auto-login-icon {
@@ -625,7 +626,7 @@ const activate = () => {
 }
 
 .auto-login-icon:hover {
-  color: #67c23a;
+  color: var(--aph-icon-success);
 }
 
 /* 打开站点与分享卡片：同为「带右间距的次要动作图标」，共用一套状态色（与 totp 双图标的合并写法一致） */

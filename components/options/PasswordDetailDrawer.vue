@@ -532,7 +532,10 @@ watch(
 .detail-header__star {
   flex-shrink: 0;
   font-size: 16px;
-  color: var(--el-color-warning);
+
+  /* 这枚星标是详情页里「已收藏」唯一的可见标记（旁边没有同义文字），
+     按 WCAG 1.4.11 要 ≥3:1；EP 的 --el-color-warning #e6a23c 只有 1.77:1。 */
+  color: var(--aph-icon-warning);
 }
 
 .detail-header__site {
