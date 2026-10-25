@@ -56,16 +56,22 @@
   --aph-surface-line: #e3f2fd;
   --aph-surface-hover: #f0f9ff;
 
-  /* 中性色：文字 */
+  /* 中性色：文字
+     三档全部按「设计系统里 12 种浅色底中最暗的一面」定，而不是只对白底达标——
+     `--aph-text-secondary` 旧值 #6b7280 白底 4.83:1 看着合格，压到 `.session-pill:hover`
+     的 #e2e8f0 上只剩 3.92:1，整档跌破 WCAG AA 4.5:1。
+     该族（R/G/B 差 7 与 21 的冷灰）能达标的**最浅值**是 #616876（白 5.60 / 最差 4.54），
+     它就是 AA 留下的地板：muted 与 placeholder 只能共用这一格，四级阶梯在数学上不存在。
+     地板以下仍留两档可分：primary 11.91 > secondary 5.29 > muted / placeholder 4.54
+     （均为最暗浅底上的对比度）。纯装饰的文字（分隔点、图标）走下面的 `--aph-icon-*`。 */
   --aph-text-primary: #1f2937;
-  --aph-text-secondary: #6b7280;
-  --aph-text-muted: #9ca3af;
+  --aph-text-secondary: #565d6b;
+  --aph-text-muted: #616876;
 
-  /* 占位符独立成令牌：它此前直接复用 `--aph-text-secondary`，于是「输入提示」与
-     「次要正文」同色，且比输入框下方的 `.form-tip`（#909399）还深，层级是倒的。
-     这里只往下挪一档——白底 4.64:1，是仍过 WCAG 1.4.3（4.5:1）的最浅值，
-     再浅一格（#717884，4.45:1）就破线，故变浅幅度刻意有限。 */
-  --aph-text-placeholder: #6e7582;
+  /* 占位符独立成令牌：语义与「次要正文」不同（它必须与已输入的值区分开），
+     但取值已被 AA 地板压到与 `--aph-text-muted` 同一格——输入正文是 EP 的 #606266
+     （最差底 5.16:1，更深），所以「提示比输入值浅」这条层级仍然成立。 */
+  --aph-text-placeholder: #616876;
 
   /* 中性色：图标 */
   --aph-icon-muted: #9ca3af;

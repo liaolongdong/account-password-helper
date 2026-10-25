@@ -378,7 +378,8 @@ defineExpose({ formRef: localSetupFormRef });
 }
 
 .guide-entry__sep {
-  color: var(--aph-text-muted);
+  /* 纯装饰的分隔点：走图标档，不跟着文字阶梯一起压深（AA 对纯装饰不做要求） */
+  color: var(--aph-icon-muted);
 }
 
 /* 紧凑免责声明 */

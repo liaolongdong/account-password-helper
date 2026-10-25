@@ -256,3 +256,56 @@ describe('语义色不当文字', () => {
     }
   });
 });
+
+/**
+ * 中性文字阶梯：每一档都要在设计系统出现过的**全部浅底**上达标
+ *
+ * 这条规则是被一次误判逼出来的：`--aph-text-secondary` 旧值 #6b7280 白底 4.83:1，
+ * 按白底看完全合格，压到 `.session-pill:hover` 的 #e2e8f0 上却只剩 3.92:1。
+ * 所以判据不是「白底过不过」，而是「最暗的那面浅底过不过」——下面这张表就是扩展页里
+ * 真实出现过的浅色底（含 EP 的 fill / 语义 light-9 与 `--aph-surface*`）。
+ * 令牌值直接从 tokens.css 解析，改值即改判据结果，不留第二份事实。
+ */
+const LIGHT_SURFACES_IN_USE = [
+  '#ffffff',
+  '#f8fbff',
+  '#f5f7fa',
+  '#f1f5f9',
+  '#f4f4f5',
+  '#eff6ff',
+  '#ecf5ff',
+  '#f0f9ff',
+  '#e8f4fd',
+  '#fdf6ec',
+  '#fef0f0',
+  '#e2e8f0',
+];
+
+describe('中性文字阶梯的 AA 地板', () => {
+  const textTokens = [
+    ...readSource('assets/theme/tokens.css').matchAll(/^\s*(--aph-text-[a-z-]+):\s*(#[0-9a-fA-F]{6});$/gm),
+  ];
+
+  it('解析到全部文字令牌，且它们都是字面十六进制（换成 color-mix 会让这条守卫静默失焦）', () => {
+    expect(textTokens.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(textTokens.map(match => match[1])).size).toBe(textTokens.length);
+  });
+
+  it('每一档在最暗的浅底上仍 >= 4.5:1', () => {
+    for (const [, name, hex] of textTokens) {
+      const worst = Math.min(...LIGHT_SURFACES_IN_USE.map(surface => contrast(hex, surface)));
+      const worstSurface = LIGHT_SURFACES_IN_USE.reduce((a, b) => (contrast(hex, a) < contrast(hex, b) ? a : b));
+      expect(worst, `${name} ${hex} 压在 ${worstSurface} 上`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('三档之间仍可分辨（对比度不能塌成同一个数，否则层级白设）', () => {
+    const byName = new Map(textTokens.map(([, name, hex]) => [name, contrast(hex, '#ffffff')]));
+    expect(byName.get('--aph-text-primary')!, 'primary 应明显重于 secondary').toBeGreaterThan(
+      byName.get('--aph-text-secondary')! * 1.5,
+    );
+    expect(byName.get('--aph-text-secondary')!, 'secondary 应明显重于 muted').toBeGreaterThan(
+      byName.get('--aph-text-muted')!,
+    );
+  });
+});

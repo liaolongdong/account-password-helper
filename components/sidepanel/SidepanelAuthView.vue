@@ -1074,7 +1074,9 @@ onUnmounted(() => {
   flex-shrink: 0;
   align-items: center;
   font-size: 15px;
-  color: var(--aph-text-muted);
+
+  /* 图标旁的菜单项文字已经说明排序方式，这里走图标档而非文字档 */
+  color: var(--aph-icon-muted);
   transition: color 0.2s ease;
 }
 
