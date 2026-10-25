@@ -569,7 +569,7 @@ const handleEmailClick = (event: Event) => {
 
 .update-arrow {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .session-status {
@@ -736,7 +736,7 @@ const handleEmailClick = (event: Event) => {
   margin-top: 2px;
   font-size: 12px;
   line-height: 1.3;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .action-card__shortcut {
@@ -839,7 +839,7 @@ const handleEmailClick = (event: Event) => {
   margin-top: 2px;
   font-size: 12px;
   line-height: 1.3;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .contact-info {
@@ -856,7 +856,7 @@ const handleEmailClick = (event: Event) => {
   flex-shrink: 0;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: #909399;
+  color: var(--aph-text-muted);
   text-decoration: none;
   transition: color 0.2s;
 }

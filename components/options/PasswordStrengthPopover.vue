@@ -113,7 +113,7 @@ defineEmits<{
 :global(.password-rules-popover .rules-hint) {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 :global(.password-rules-popover .password-rules-list) {
@@ -131,7 +131,7 @@ defineEmits<{
   align-items: center;
   font-size: 12px;
   line-height: 1.4;
-  color: #909399;
+  color: var(--aph-text-muted);
   transition: color 0.25s ease;
 }
 

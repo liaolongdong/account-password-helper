@@ -320,7 +320,7 @@ defineExpose({ formRef: localSetupFormRef });
   margin: 0;
   font-size: 13px;
   font-weight: 400;
-  color: #6c757d;
+  color: var(--aph-text-muted);
 }
 
 .setup-form {
@@ -353,7 +353,7 @@ defineExpose({ formRef: localSetupFormRef });
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.4;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 首次使用的文档入口 */

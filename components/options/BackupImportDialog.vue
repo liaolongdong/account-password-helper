@@ -457,7 +457,7 @@ const handleClose = () => {
 
 .upload-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 文件信息展示 */
@@ -495,7 +495,7 @@ const handleClose = () => {
 
 .file-info-size {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 主密码输入区 */

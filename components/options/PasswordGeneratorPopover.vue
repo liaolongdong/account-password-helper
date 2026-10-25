@@ -329,7 +329,7 @@ watch(popoverVisible, visible => {
 
 <style scoped>
 .generator-trigger-btn {
-  color: #909399;
+  color: var(--aph-text-muted);
   transition: color 0.2s;
 }
 

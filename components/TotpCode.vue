@@ -168,7 +168,7 @@ const handleCopy = async (): Promise<void> => {
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .totp-code__ring.is-expiring .totp-code__ring-progress {
@@ -191,7 +191,7 @@ const handleCopy = async (): Promise<void> => {
 /* 参数文案紧跟动态码同行展示（仅 diagnostic 预览模式），容器窄时由 flex-wrap 自然换行 */
 .totp-code__params {
   font-size: 11px;
-  color: #909399;
+  color: var(--aph-text-muted);
   white-space: nowrap;
 }
 
@@ -215,7 +215,7 @@ const handleCopy = async (): Promise<void> => {
 .totp-code__invalid {
   font-size: 12px;
   font-style: italic;
-  color: #c0c4cc;
+  color: var(--aph-text-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

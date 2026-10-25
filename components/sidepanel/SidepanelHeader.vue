@@ -255,7 +255,7 @@ watch(
   width: 30px;
   height: 30px;
   padding: 0;
-  color: #64748b;
+  color: var(--aph-text-muted);
   cursor: pointer;
   background: transparent;
   border: none;
@@ -317,7 +317,7 @@ watch(
   align-items: center;
   overflow: hidden;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
   white-space: nowrap;
 }
 
@@ -489,7 +489,7 @@ watch(
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 16px;
-  color: #64748b;
+  color: var(--aph-text-muted);
   cursor: pointer;
   background: #f1f5f9;
   border: none;

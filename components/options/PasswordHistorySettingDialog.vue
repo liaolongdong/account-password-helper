@@ -128,7 +128,7 @@ watch(
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.4;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .dialog-body-scroll {

@@ -627,7 +627,7 @@ watch(
 .detail-muted {
   font-size: 12px;
   font-style: italic;
-  color: #c0c4cc;
+  color: var(--aph-text-muted);
 }
 
 .detail-tag + .detail-tag {
@@ -683,7 +683,7 @@ watch(
 .detail-history__time {
   flex-shrink: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .detail-history__password {

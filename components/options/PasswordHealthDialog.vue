@@ -874,7 +874,7 @@ onScopeDispose(() => {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* ==================== 评分区 hero ==================== */
@@ -948,7 +948,7 @@ onScopeDispose(() => {
 .score-unit {
   margin-left: 2px;
   font-size: 14px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .hero-text {
@@ -971,7 +971,7 @@ onScopeDispose(() => {
 .hero-total {
   margin: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* ==================== 体检趋势 ==================== */
@@ -1196,7 +1196,7 @@ onScopeDispose(() => {
   margin: 0 0 10px;
   font-size: 12px;
   line-height: 1.6;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 预算切进单个复用组内部时的读数行：比 hint 更轻，避免抢过「N 个账号共用」标题 */
@@ -1204,7 +1204,7 @@ onScopeDispose(() => {
   padding: 4px 0 0;
   margin: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .reuse-group,
@@ -1267,7 +1267,7 @@ onScopeDispose(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
   white-space: nowrap;
 }
 

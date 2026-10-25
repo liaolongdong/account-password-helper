@@ -771,7 +771,7 @@ defineExpose({
 .no-tag {
   font-size: 12px;
   font-style: italic;
-  color: #c0c4cc;
+  color: var(--aph-text-muted);
 }
 
 /* 操作按钮样式 */

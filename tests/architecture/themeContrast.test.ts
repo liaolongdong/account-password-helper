@@ -309,3 +309,60 @@ describe('中性文字阶梯的 AA 地板', () => {
     );
   });
 });
+
+/**
+ * 灰阶文字必须走令牌，不许硬编码
+ *
+ * 上一节那条地板只量得到 `--aph-text-*` 自己；把 #909399 直接写进组件同样能绕过它，
+ * 而 #909399（EP 旧 secondary）在最暗浅底上只有 2.50:1——本仓曾有 38 处这么写。
+ * 判据取「近灰」（RGB 三通道极差 ≤ 16）：彩色有各自的语义（图标、链接、状态字），
+ * 由上面的语义色白名单单独管；纯灰一律只有「第几档文字」这一个含义，所以必须用令牌。
+ * `#fff` / `#ffffff` 豁免——深色底上的白字是对的，静态模型量不到它的真实底色。
+ */
+const GRAY_SPREAD = 16;
+const WHITE_EXEMPT = new Set(['#ffffff', '#fff']);
+
+function channels(hex: string): number[] {
+  const body = hex.replace('#', '');
+  const full =
+    body.length === 3
+      ? body
+          .split('')
+          .map(char => char + char)
+          .join('')
+      : body;
+  return [0, 2, 4].map(index => Number.parseInt(full.slice(index, index + 2), 16));
+}
+
+describe('灰阶文字不许硬编码', () => {
+  const files = [...listSourceFiles('components', ['.vue']), ...listSourceFiles('entrypoints', ['.vue'])];
+
+  it('扫描面足够大，且确实能抓出违规（防空跑）', () => {
+    expect(files.length).toBeGreaterThan(30);
+    expect(
+      [...readSource('components/options/IdleLockSetting.vue').matchAll(/^\s*color:\s*(#[0-9a-fA-F]{3,6});$/gm)].map(
+        m => m[1],
+      ),
+      'IdleLockSetting 应当已经没有硬编码灰阶文字色',
+    ).toEqual([]);
+  });
+
+  it('全部 .vue 里不存在不达标的硬编码灰阶 color', () => {
+    const violations: string[] = [];
+    for (const rel of files) {
+      const source = readSource(rel);
+      const lines = source.split('\n');
+      lines.forEach((line, index) => {
+        const match = /^\s*color:\s*(#[0-9a-fA-F]{3,6})\s*;$/.exec(line);
+        if (!match) return;
+        const hex = match[1].toLowerCase();
+        if (WHITE_EXEMPT.has(hex)) return;
+        const [r, g, b] = channels(hex);
+        if (Math.max(r, g, b) - Math.min(r, g, b) > GRAY_SPREAD) return;
+        const worst = Math.min(...LIGHT_SURFACES_IN_USE.map(surface => contrast(hex, surface)));
+        if (worst < 4.5) violations.push(`${rel}:${index + 1} ${hex} 最差 ${worst.toFixed(2)}:1`);
+      });
+    }
+    expect(violations, violations.join('\n')).toEqual([]);
+  });
+});

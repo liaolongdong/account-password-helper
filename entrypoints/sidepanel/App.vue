@@ -1598,7 +1598,7 @@ onUnmounted(() => {
   margin: 0 0 24px;
   font-size: 13px;
   line-height: 1.6;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 /* 去验证主密码按钮：放大钥匙图标并与文字拉开间距 */
@@ -1637,7 +1637,7 @@ body {
   min-height: 200px;
   margin: 8px 8px 0;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
@@ -1651,7 +1651,7 @@ body {
   align-items: center;
   justify-content: center;
   margin: 8px 8px 0;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
   background: #fff;
   border-radius: 12px;
 }

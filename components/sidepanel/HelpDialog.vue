@@ -418,7 +418,7 @@ const handleGoToOptions = () => {
 .help-header__version {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: #9aa3af;
+  color: var(--aph-text-muted);
   text-decoration: none;
   transition: color 0.2s;
 }
