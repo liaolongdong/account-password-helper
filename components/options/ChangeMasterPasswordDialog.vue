@@ -3,6 +3,7 @@
     :model-value="modelValue"
     :title="t('options.header.changeMasterPassword')"
     width="440px"
+    align-center
     :close-on-click-modal="false"
     :close-on-press-escape="!loading"
     @update:model-value="requestClose"

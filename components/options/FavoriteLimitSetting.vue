@@ -3,6 +3,7 @@
     :model-value="modelValue"
     :title="t('options.header.favoriteLimit')"
     width="500px"
+    align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >

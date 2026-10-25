@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     :title="dialogState.title"
     width="420px"
+    align-center
     :close-on-click-modal="false"
     :close-on-press-escape="!verifying"
     :destroy-on-close="false"

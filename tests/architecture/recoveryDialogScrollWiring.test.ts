@@ -25,14 +25,20 @@ describe('恢复相关弹窗沿用统一的滚动约定', () => {
   );
 
   /**
-   * 改密弹窗是存量界面：非恢复用户看到的宽度、关闭按钮与滚动行为必须与改造前一致，
-   * 内滚只允许出现在「换发套件」这一步（恢复启用后才存在的新状态）。
+   * 改密弹窗的定位在 2026-10-26 由用户改口：它此前是唯一不带 `align-center` 的表单弹窗，
+   * 内容高过视口时会出现页面级滚动条、弹窗既不水平也不垂直居中。用户要求「与插件整体风格一致」，
+   * 因此现在必须跟其余弹窗一样走 `align-center`。
+   * 但内滚仍然只允许出现在「换发套件」这一步——外层再裹一层 `.dialog-body-scroll` 会变成
+   * 70vh 套 70vh 的双滚动容器，短窗口下出现两条滚动带、内容被压扁。
    */
-  it('改密弹窗保持既有呈现，只为换发套件这一步引入统一滚动', () => {
+  it('改密弹窗：定位跟全站统一，内滚仍只加在换发套件那一步', () => {
     const text = source('components/options/ChangeMasterPasswordDialog.vue');
-    expect(text).toContain('width="440px"');
-    expect(text, '改密弹窗不得改成 align-center（会动到既有定位）').not.toMatch(/^\s*align-center$/m);
-    expect(text, '改密弹窗不得整体裹上内滚容器').not.toMatch(/max-height:\s*65vh/);
-    expect(text).toContain('<div class="dialog-body-scroll">');
+    expect(text, '改密弹窗宽度是存量呈现，不动').toContain('width="440px"');
+    expect(text, '改密弹窗缺少 align-center').toMatch(/^\s*align-center$/m);
+    expect(text, '改密弹窗不得整体裹上内滚容器（会与套件步骤那层嵌套成双滚动条）').toMatch(
+      /<div\s*\n\s*v-if="modelValue"\s*\n\s*ref="sensitiveRoot"\s*\n\s*>/,
+    );
+    expect(text, '「换发套件」这一步仍走全局 .dialog-body-scroll 约定').toContain('<div class="dialog-body-scroll">');
+    expect(text, '不得自造内滚高度').not.toMatch(/max-height:\s*65vh/);
   });
 });
