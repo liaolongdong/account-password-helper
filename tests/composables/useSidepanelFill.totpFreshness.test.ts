@@ -12,17 +12,48 @@
  * 这条会立刻红；只断言最终取到码则删掉等待照样绿，那等于没守。
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { MessageType } from '@/utils/types';
 import type { PasswordEntry } from '@/utils/types';
 import { readSource } from '../helpers/architectureScan';
 
 const generateTOTP = vi.hoisted(() => vi.fn());
 const getTotpPeriod = vi.hoisted(() => vi.fn());
 const getTotpRemaining = vi.hoisted(() => vi.fn());
+/**
+ * 调用顺序记录表：取码（`generate`）必须落在跨入口往返（`frames` / `ready`）之后、
+ * 投递（`send`）之前。用例开始前清空。
+ */
+const order = vi.hoisted(() => [] as string[]);
 
 vi.mock('@/utils/totp', () => ({
-  generateTOTP: (...args: unknown[]) => generateTOTP(...args),
+  generateTOTP: (...args: unknown[]) => {
+    order.push('generate');
+    return generateTOTP(...args);
+  },
   getTotpPeriod: (...args: unknown[]) => getTotpPeriod(...args),
   getTotpRemaining: (...args: unknown[]) => getTotpRemaining(...args),
+}));
+
+// 填充链路的两次往返：只登记顺序，真实实现要读 webNavigation / 注入 content script，测试里不必跑
+vi.mock('@/utils/frameFill', () => ({
+  getFillableFrameIds: vi.fn(async () => {
+    order.push('frames');
+    return [0];
+  }),
+  fillPasswordInFrames: vi.fn(),
+}));
+
+vi.mock('@/utils/contentScriptReadiness', () => ({
+  ensureContentScriptReady: vi.fn(async () => {
+    order.push('ready');
+    return {
+      response: {
+        success: true,
+        ready: true,
+        fieldsDetected: { username: 0, password: 0, mobile: 0, verifyCode: 1 },
+      },
+    };
+  }),
 }));
 
 vi.mock('@/utils/storage/configManager', async importOriginal => ({
@@ -34,6 +65,8 @@ const SECRET = 'JBSWY3DPEHPK3PXP';
 const CODE = '654321';
 
 let clipboardWrites: string[];
+/** 挂到 `globalThis` 的 ElMessage 桩（与 `totpOutcome.test.ts` 同一打桩口径） */
+let elMessage: Record<'success' | 'error' | 'warning' | 'info', Mock>;
 
 const entry = (): PasswordEntry => ({
   id: 'e1',
@@ -67,9 +100,8 @@ describe('取码前先看剩余时间', () => {
       configurable: true,
       writable: true,
     });
-    Object.assign(globalThis, {
-      ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
-    });
+    elMessage = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+    Object.assign(globalThis, { ElMessage: elMessage });
   });
 
   afterEach(() => {
@@ -142,5 +174,48 @@ describe('取码前先看剩余时间', () => {
     expect([...source.matchAll(/await generateTotpCode\(/g)].length).toBe(2);
     // 全模块只允许 helper 内部这一处真算码：出现第二处就意味着有条路绕过了等待
     expect([...source.matchAll(/mod\.generateTOTP\(/g)].length).toBe(1);
+  });
+
+  it('取码排在跨入口往返之后、投递之前：明文窗口不被拉长', () => {
+    // 判据形状：`frames → ready → generate → send`。
+    // 为什么顺序也要守：等窗只保证「算出来那一刻还剩 ≥2 秒」，可如果算完还要去
+    // 查 tab、取可填 frame、必要时注入 content script（注入可达数百毫秒到秒级），
+    // 这 2 秒预算就被往返吃回去，边界上照样把旧码填进表单——正是本文件要防的缺陷。
+    // 同一趟往返还把密钥派生的明码留在内存里多走一段，`fillPassword` 一支的做法是
+    // 把所有跳数走完、步骤4 才组装明文并立刻发送，这里与之对齐。
+    order.length = 0;
+    const sendMessage = vi.fn(async (_tabId: number, message: { type: MessageType }) => {
+      if (message.type === MessageType.FILL_TOTP) order.push('send');
+      return {
+        success: true,
+        message: '',
+        outcome: 'verified',
+        details: {
+          usernameField: { found: false, filled: false, verified: false },
+          passwordField: { found: false, filled: false, verified: false },
+          strategy: 'native',
+        },
+      };
+    });
+    (chrome as unknown as { tabs: unknown }).tabs = {
+      query: vi.fn(async () => [{ id: 42 }]),
+      sendMessage,
+    };
+    (chrome as unknown as { runtime: unknown }).runtime = {
+      sendMessage: vi.fn(async () => undefined),
+    };
+
+    return useFill().then(fill =>
+      fill.fillTotp(entry()).then(() => {
+        expect(order, '取码与投递之间还夹着跨入口往返，等到的那 2 秒会被吃掉').toEqual([
+          'frames',
+          'ready',
+          'generate',
+          'send',
+        ]);
+        expect(sendMessage).toHaveBeenCalled();
+        expect(elMessage.success).toHaveBeenCalledTimes(1);
+      }),
+    );
   });
 });
