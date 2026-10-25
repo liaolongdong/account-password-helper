@@ -58,6 +58,7 @@
         v-model="password"
         type="password"
         show-password
+        :placeholder="t('options.forgot.checkPasswordPlaceholder')"
         autocomplete="off"
       />
       <el-button

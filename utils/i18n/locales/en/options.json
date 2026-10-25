@@ -549,6 +549,7 @@
   "options.forgot.checkOnly": "This step only verifies; it imports nothing. It does not modify or erase the original vault, and it never displays the backup's plaintext.",
   "options.forgot.checkFile": "Backup file (.aph / .aphid)",
   "options.forgot.checkPassword": "Master password used to export this backup",
+  "options.forgot.checkPasswordPlaceholder": "The master password used when this backup was exported, not the current one",
   "options.forgot.checkAction": "Verify backup",
   "options.forgot.checkPending": "Verifying, please wait…",
   "options.forgot.checkSuccess": "Verified: {kind}, {count} record(s)",

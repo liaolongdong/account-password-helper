@@ -83,6 +83,7 @@
                 type="password"
                 autocomplete="new-password"
                 show-password
+                :placeholder="t('recovery.newPasswordPlaceholder')"
                 :aria-label="t('recovery.newPassword')"
                 :disabled="busy"
                 @focus="passwordFocused = true"
@@ -112,6 +113,7 @@
               type="password"
               autocomplete="new-password"
               show-password
+              :placeholder="t('recovery.confirmPasswordPlaceholder')"
               :aria-label="t('recovery.confirmPassword')"
               :disabled="busy"
               @blur="resetConfirmCaps"
