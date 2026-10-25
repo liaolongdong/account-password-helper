@@ -102,7 +102,17 @@ describe('设置页把提示语交给存储', () => {
 
   it('输错计数只在密码错误分支自增，成功验证即归零', () => {
     const flow = readSource(AUTH_FLOW);
-    expect(flow).toMatch(/verifyFailCount\.value\+\+;\s*\n\s*verifyError\.value = t\('auth\.wrongPassword'\);/);
+    // 计数只在 WRONG_PASSWORD 分流处自增：VAULT_BUSY（换钥进行中）与通用异常都不算密码错，
+    // 否则一次换钥碰撞就把提示语门槛推高。三种分流的实际行为由
+    // `tests/composables/useAuthFlow.unlockDerivation.dom.test.ts` 逐条验证，这里只锁源码形状。
+    const busyBranch = flow.match(/if \(code === VAULT_BUSY\) \{([\s\S]*?)\n {8}\}/);
+    expect(busyBranch, '换钥进行中分支缺失').toBeTruthy();
+    expect(busyBranch![1]).not.toContain('verifyFailCount');
+
+    const wrongBranch = flow.slice(flow.indexOf('if (code !== WRONG_PASSWORD) throw authError;'));
+    expect(wrongBranch.length).toBeGreaterThan(0);
+    expect(wrongBranch.slice(0, 240)).toContain('verifyFailCount.value++');
+
     expect(flow).toContain('verifyFailCount.value = 0;');
   });
 });

@@ -6,6 +6,14 @@ import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { evaluateStrengthRules, type StrengthRuleId } from '@/utils/passwordStrengthCore';
 import type { OptionsFirstView } from '@/utils/optionsFirstView';
+import type { VaultErrorCode } from '@/utils/recoveryTypes';
+
+// 刻意不值导入 `VAULT_ERROR_CODES`：本 composable 在侧边栏 eager 依赖图里，为一个常量引入值依赖
+// 会让 Rollup 把 `recoveryTypes` 切成独立 chunk 挂进 modulepreload（`tests/architecture/sidepanelClosure.test.ts`
+// 的预算守卫会挡下）。类型导入编译期擦除、零运行时成本，而下面两个字面量仍要求它是登记表成员，
+// 登记表里改名或拼错照样编译失败——与 `sessionManager-storage.ts`、`vaultWriteLock.ts` 同一取舍。
+const WRONG_PASSWORD: VaultErrorCode = 'WRONG_PASSWORD';
+const VAULT_BUSY: VaultErrorCode = 'VAULT_BUSY';
 
 /** 输入框抖动动画持续时间（毫秒） */
 export const SHAKE_DURATION_MS = 400;
@@ -245,6 +253,28 @@ export function useAuthFlow(options: {
     }
   };
 
+  /**
+   * 解锁失败的统一呈现：清空输入、亮出错文案并抖动。
+   * @param refocus 密码写错时把焦点送回输入框并全选，用户可直接重输
+   */
+  const reportVerifyFailure = (message: string, refocus: boolean): void => {
+    verifyError.value = message;
+    verifyForm.value.password = '';
+    verifyShake.value = true;
+    setTimeout(() => {
+      verifyShake.value = false;
+    }, SHAKE_DURATION_MS);
+    if (refocus) {
+      nextTick(() => {
+        const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
+        if (passwordInput) {
+          passwordInput.focus();
+          passwordInput.select();
+        }
+      });
+    }
+  };
+
   // 处理密码验证（表单验证由 PasswordVerifyView 组件处理）
   const handleVerifySubmit = async () => {
     try {
@@ -255,47 +285,42 @@ export function useAuthFlow(options: {
 
       verifyLoading.value = true;
       verifyError.value = '';
+      // 从提交起就置位：期间到达的 checkAuth / 会话广播不得把 UI 拉回锁定态
+      isAuthenticating = true;
 
-      const isValid = await StorageUtils.verifyMasterPassword(verifyForm.value.password.trim());
-
-      if (isValid) {
-        sessionExpiredByBroadcast.value = false;
-        isAuthenticating = true;
-        verifyFailCount.value = 0;
-        await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
+      // 不再先做一次 `verifyMasterPassword` 预检：`createSession` 内部必须在租约内复验当前
+      // 配置（外部 UI 的验证可能早于另一上下文换钥，这道复验不能省），预检等于让每次解锁多付
+      // 一次 600k 迭代的 PBKDF2（本机约 430ms），解锁时长平白多出近一半。失败按稳定码分流。
+      try {
         await StorageUtils.createSession(verifyForm.value.password.trim(), verifyForm.value.validityHours);
-        await StorageUtils.migrateUnencryptedEntries(verifyForm.value.password.trim());
-
-        showPasswordVerify.value = false;
-        showMasterPasswordSetup.value = false;
-
-        await loadPasswords();
-        isAuthenticated.value = true;
-        ElMessage.success(t('auth.verifySuccess'));
-      } else {
+      } catch (authError) {
+        const code = (authError as { code?: string } | undefined)?.code;
+        if (code === VAULT_BUSY) {
+          // 换钥进行中：不是密码错，不计数、不清输入，用户等它完成即可原地重试
+          verifyError.value = t('recovery.error.busy');
+          return;
+        }
+        if (code !== WRONG_PASSWORD) throw authError;
         verifyFailCount.value++;
-        verifyError.value = t('auth.wrongPassword');
-        verifyForm.value.password = '';
-        verifyShake.value = true;
-        setTimeout(() => {
-          verifyShake.value = false;
-        }, SHAKE_DURATION_MS);
-        nextTick(() => {
-          const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
-          if (passwordInput) {
-            passwordInput.focus();
-            passwordInput.select();
-          }
-        });
+        reportVerifyFailure(t('auth.wrongPassword'), true);
+        return;
       }
+
+      sessionExpiredByBroadcast.value = false;
+      verifyFailCount.value = 0;
+      // 有效期偏好只在认证成功之后落盘：失败的那一次不该改动库里的设置
+      await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
+      await StorageUtils.migrateUnencryptedEntries(verifyForm.value.password.trim());
+
+      showPasswordVerify.value = false;
+      showMasterPasswordSetup.value = false;
+
+      await loadPasswords();
+      isAuthenticated.value = true;
+      ElMessage.success(t('auth.verifySuccess'));
     } catch (error) {
       logger.error('验证失败:', error);
-      verifyError.value = t('auth.verifyError');
-      verifyForm.value.password = '';
-      verifyShake.value = true;
-      setTimeout(() => {
-        verifyShake.value = false;
-      }, SHAKE_DURATION_MS);
+      reportVerifyFailure(t('auth.verifyError'), false);
     } finally {
       verifyLoading.value = false;
       isAuthenticating = false;
