@@ -10,8 +10,21 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { listSourceFiles } from '../helpers/architectureScan';
 
 const source = (file: string): string => readFileSync(resolve(process.cwd(), file), 'utf8');
+
+/** 已知在各自样式块里复制了 `.dialog-body-scroll` 的八个弹窗（长出第九个即变红） */
+const LOCAL_SCROLL_DUPLICATES = [
+  'components/options/ClipboardSettingDialog.vue',
+  'components/options/DomainMatchSettingDialog.vue',
+  'components/options/FavoriteLimitSetting.vue',
+  'components/options/IdentityVaultAccessSetting.vue',
+  'components/options/IdleLockSetting.vue',
+  'components/options/PasswordHistorySettingDialog.vue',
+  'components/options/ShortcutSettingDialog.vue',
+  'components/sidepanel/QuickAddDialog.vue',
+];
 
 describe('恢复相关弹窗沿用统一的滚动约定', () => {
   it.each(['components/options/RecoverySettingsDialog.vue', 'components/options/RecoveryResetDialog.vue'])(
@@ -40,5 +53,50 @@ describe('恢复相关弹窗沿用统一的滚动约定', () => {
     );
     expect(text, '「换发套件」这一步仍走全局 .dialog-body-scroll 约定').toContain('<div class="dialog-body-scroll">');
     expect(text, '不得自造内滚高度').not.toMatch(/max-height:\s*65vh/);
+  });
+
+  /**
+   * 已知重复，冻住不许再长：八个弹窗在各自的样式块里逐字复制了一份
+   * `.dialog-body-scroll`，只有 `max-height` 与全局那份不同（本地 60vh / 全局 70vh）。
+   * scoped 规则编译后带 `[data-v-*]`，特异性高于全局那条，所以这八个弹窗实际吃的是 60vh——
+   * `entrypoints/options/App.vue` 注释里「一套机制」的说法在实践上已经裂成两档高度。
+   *
+   * 删掉副本、统一回 70vh 会让这八个弹窗的内容区高出 10vh，属**视觉变化**；
+   * 2026-10-26 用户已就「擅自改视觉」回退过一轮，因此这里不改色不改高度，只做两件事：
+   * 集合等式锁住「就这八个」（长出第九份即变红），并锁住副本除 `max-height` 外
+   * 不与全局漂移（免得出现第三种高度）。真要统一，先问用户。
+   */
+  it('.dialog-body-scroll 的本地副本冻结在已知八个，且只允许 max-height 与全局不同', () => {
+    const globalBlock = source('entrypoints/options/App.vue').match(/\.dialog-body-scroll\s*\{([^}]*)\}/)?.[1];
+    expect(globalBlock, '全局 .dialog-body-scroll 定义找不到').toBeTruthy();
+    const globalProps = new Set(
+      globalBlock!
+        .split(';')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => line.split(':')[0].trim()),
+    );
+
+    const duplications = new Map<string, string>();
+    for (const rel of [...listSourceFiles('components', ['.vue']), ...listSourceFiles('entrypoints', ['.vue'])]) {
+      if (rel === 'entrypoints/options/App.vue') continue;
+      const block = source(rel).match(/\.dialog-body-scroll\s*\{([^}]*)\}/)?.[1];
+      if (block) duplications.set(rel, block);
+    }
+    expect([...duplications.keys()].sort()).toEqual(LOCAL_SCROLL_DUPLICATES);
+
+    for (const [rel, block] of duplications) {
+      const props = block
+        .split(';')
+        .map(line => line.trim())
+        .filter(Boolean);
+      for (const declaration of props) {
+        const property = declaration.split(':')[0].trim();
+        expect(globalProps.has(property), `${rel} 的副本多出属性 ${property}`).toBe(true);
+      }
+      const heights = props.filter(line => line.startsWith('max-height')).map(line => line.split(':')[1].trim());
+      expect(heights, `${rel} 的副本应且只应声明一个 max-height`).toHaveLength(1);
+      expect(['60vh', '70vh'], `${rel} 的 max-height 是第三种值`).toContain(heights[0]);
+    }
   });
 });
