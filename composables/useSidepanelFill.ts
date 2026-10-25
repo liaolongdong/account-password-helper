@@ -63,8 +63,30 @@ let copiedPasswordSnapshot: string | null = null;
  * 增加锁屏态（Windows 冷盘）首屏关键路径的文件冷读数量
  */
 const getTotpModule = lazyImport(() => import('@/utils/totp'));
+/**
+ * 取一个「还活得够久」的动态码。
+ *
+ * `generateTOTP` 按当前 Unix 时间片算码，而从点击到码真正落地之间隔着若干异步跳：
+ * 填充链路要走 `tabs.query` → 取可填 frame → 必要时注入 content script → 发送并复检，
+ * 复制链路还要等用户去粘贴。在时间窗末尾点一下，剩余可能只有几百毫秒——码在写入或
+ * 粘贴之前就翻篇了，回执却照样报「已填充」「已复制」，用户是在登录被拒之后才发现
+ * 表单里那个码早就死了。显示侧本来就有倒计时（`TotpCode.vue` 剩余 ≤5s 会标
+ * `is-expiring`），唯独这两条取码路径此前一次都没读过它。
+ *
+ * 所以剩余不足 `TOTP_MIN_REMAINING_SECONDS` 时等到下一片再算：最多等约 2 秒，
+ * 换来的是码落地后仍有近乎整个周期的寿命。刻意不采用「临发前再算一次」那种写法——
+ * 它只是把同一个几百毫秒的窗口往后挪一点，边界上照样踩空。
+ */
+const TOTP_MIN_REMAINING_SECONDS = 2;
+
 const generateTotpCode = async (secret: string): Promise<string> => {
   const mod = await getTotpModule();
+  const remaining = mod.getTotpRemaining(mod.getTotpPeriod(secret));
+  if (remaining <= TOTP_MIN_REMAINING_SECONDS) {
+    // 多等 200ms 跨过整点边界：`getTotpRemaining` 是按秒向下取整的，
+    // 只等 remaining 秒可能仍然落在旧的一片里
+    await new Promise<void>(resolve => setTimeout(resolve, remaining * 1000 + 200));
+  }
   return mod.generateTOTP(secret);
 };
 
