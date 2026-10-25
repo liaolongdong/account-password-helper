@@ -117,7 +117,7 @@ const { t } = useI18n();
 
 .empty-guide__card:hover,
 .empty-guide__card:focus-visible {
-  border-color: var(--aph-primary-strong);
+  border-color: var(--aph-primary);
   box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 12%);
   transform: translateY(-2px);
 }
@@ -140,7 +140,7 @@ const { t } = useI18n();
 }
 
 .empty-guide__card-icon--primary {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 .empty-guide__card-icon--success {

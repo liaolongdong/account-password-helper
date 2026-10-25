@@ -809,14 +809,14 @@ defineExpose({
   gap: 4px;
   align-items: center;
   max-width: 100%;
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   text-decoration: none;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .url-link:hover {
-  color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
+  color: var(--aph-primary-hover);
   text-decoration: underline;
 }
 

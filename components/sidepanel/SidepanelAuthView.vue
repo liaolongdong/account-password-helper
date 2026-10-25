@@ -736,7 +736,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 6px 16px 8px;
   font-size: 12px;
-  color: var(--aph-primary-strong-on-tint);
+  color: var(--aph-primary);
   background: var(--aph-primary-bg);
 }
 
@@ -757,7 +757,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   padding: 2px 8px;
   font-size: 12px;
-  color: var(--aph-primary-strong-on-tint);
+  color: var(--aph-primary);
   cursor: pointer;
   background: transparent;
   border: 1px solid var(--aph-primary-border);
@@ -767,8 +767,8 @@ onUnmounted(() => {
 
 .scope-bar__back:hover {
   color: #fff;
-  background: var(--aph-primary-strong);
-  border-color: var(--aph-primary-strong);
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
 }
 
 .scope-bar__back:focus-visible {
@@ -881,7 +881,7 @@ onUnmounted(() => {
   padding: 4px 8px;
   margin-top: 12px;
   font-size: 12px;
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   cursor: pointer;
   background: transparent;
   border: none;
@@ -894,7 +894,7 @@ onUnmounted(() => {
 }
 
 .cross-domain-hint:focus-visible {
-  outline: 2px solid var(--aph-primary-strong);
+  outline: 2px solid var(--aph-primary);
   outline-offset: 2px;
 }
 
@@ -1091,7 +1091,7 @@ onUnmounted(() => {
   align-items: center;
   font-size: 14px;
   font-weight: 700;
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover {
@@ -1104,11 +1104,11 @@ onUnmounted(() => {
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active {
-  color: var(--aph-primary-strong-on-tint);
+  color: var(--aph-primary);
   background: var(--aph-primary-bg);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active .sort-item-icon {
-  color: var(--aph-primary-strong-on-tint);
+  color: var(--aph-primary);
 }
 </style>

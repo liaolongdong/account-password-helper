@@ -424,12 +424,12 @@ const handleGoToOptions = () => {
 }
 
 .help-header__version:hover {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   text-decoration: underline;
 }
 
 .help-header__version:focus-visible {
-  outline: 2px solid var(--aph-primary-strong);
+  outline: 2px solid var(--aph-primary);
   outline-offset: 1px;
   border-radius: 3px;
 }

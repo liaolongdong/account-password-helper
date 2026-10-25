@@ -150,7 +150,7 @@ const { t } = useI18n();
 
 .env-bar__opt--active {
   font-weight: 600;
-  color: var(--aph-primary-strong-on-tint);
+  color: var(--aph-primary);
   background: var(--aph-primary-bg);
   border-color: var(--aph-primary-border);
 }

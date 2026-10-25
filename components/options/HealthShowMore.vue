@@ -55,7 +55,7 @@ const { t } = useI18n();
   align-items: center;
   padding: 4px 6px;
   font-size: 13px;
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   cursor: pointer;
   background: none;
   border: none;
@@ -67,7 +67,7 @@ const { t } = useI18n();
 }
 
 .health-show-more__btn:focus-visible {
-  outline: 2px solid var(--aph-primary-strong);
+  outline: 2px solid var(--aph-primary);
   outline-offset: 1px;
 }
 

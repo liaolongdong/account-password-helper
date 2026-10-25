@@ -479,12 +479,12 @@ const activate = () => {
 
 .copy-icon-wrapper .copy-icon {
   font-size: 14px;
-  color: var(--aph-icon-action);
+  color: var(--aph-icon-muted);
   pointer-events: none;
 }
 
 .copy-icon-wrapper:hover .copy-icon {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 .details {
@@ -610,12 +610,11 @@ const activate = () => {
 }
 
 .favorite-icon:hover {
-  color: var(--aph-icon-warning);
+  color: #e6a23c;
 }
 
-/* 已收藏由「实心星 + 金」共同承载，静止态就得看得见——#e6a23c 在行底色上只有 1.99:1 */
 .favorite-icon.is-favorite {
-  color: var(--aph-icon-warning);
+  color: #e6a23c;
 }
 
 .auto-login-icon {
@@ -626,7 +625,7 @@ const activate = () => {
 }
 
 .auto-login-icon:hover {
-  color: var(--aph-icon-success);
+  color: #67c23a;
 }
 
 /* 打开站点与分享卡片：同为「带右间距的次要动作图标」，共用一套状态色（与 totp 双图标的合并写法一致） */
@@ -640,7 +639,7 @@ const activate = () => {
 
 .open-site-icon:hover,
 .share-icon:hover {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 .totp-fill-icon,
@@ -653,7 +652,7 @@ const activate = () => {
 
 .totp-fill-icon:hover,
 .totp-copy-icon:hover {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 .edit-icon {
@@ -663,7 +662,7 @@ const activate = () => {
 }
 
 .edit-icon:hover {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 /* 标签内高亮：沿用标签自身配色，仅加粗强调，避免主题色与标签底色冲突 */

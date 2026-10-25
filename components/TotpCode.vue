@@ -203,7 +203,7 @@ const handleCopy = async (): Promise<void> => {
 }
 
 .totp-code__copy:hover {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 .totp-code__copy:focus-visible {

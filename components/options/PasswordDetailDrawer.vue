@@ -502,7 +502,7 @@ watch(
 
 .detail-header__fallback {
   font-size: 20px;
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 .detail-header__main {
@@ -532,10 +532,7 @@ watch(
 .detail-header__star {
   flex-shrink: 0;
   font-size: 16px;
-
-  /* 这枚星标是详情页里「已收藏」唯一的可见标记（旁边没有同义文字），
-     按 WCAG 1.4.11 要 ≥3:1；EP 的 --el-color-warning #e6a23c 只有 1.77:1。 */
-  color: var(--aph-icon-warning);
+  color: var(--el-color-warning);
 }
 
 .detail-header__site {
@@ -612,14 +609,14 @@ watch(
   gap: 4px;
   align-items: center;
   min-width: 0;
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   text-decoration: none;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .detail-url:hover {
-  color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
+  color: var(--aph-primary-hover);
   text-decoration: underline;
 }
 

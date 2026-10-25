@@ -213,8 +213,8 @@ const onPageSizeChange = (size: number) => {
 }
 
 .pagination__page:hover:not(:disabled) {
-  color: var(--aph-primary-strong);
-  border-color: var(--aph-primary-strong);
+  color: var(--aph-primary);
+  border-color: var(--aph-primary);
 }
 
 .pagination__page:disabled {
@@ -223,12 +223,12 @@ const onPageSizeChange = (size: number) => {
 
 .pagination__page.is-current {
   color: #fff;
-  background: var(--aph-primary-strong);
-  border-color: var(--aph-primary-strong);
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
 }
 
 .pagination__page:focus-visible {
-  outline: 2px solid var(--aph-primary-strong);
+  outline: 2px solid var(--aph-primary);
   outline-offset: 1px;
 }
 </style>

@@ -369,7 +369,7 @@ defineExpose({ formRef: localSetupFormRef });
 }
 
 .guide-entry__link {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   text-decoration: none;
 }
 

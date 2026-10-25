@@ -337,7 +337,7 @@ watch(
 }
 
 .cp-item--active .cp-item-icon {
-  color: var(--aph-primary-strong-on-tint);
+  color: var(--aph-primary);
 }
 
 .cp-item:hover {
@@ -345,7 +345,7 @@ watch(
 }
 
 .cp-item--active {
-  color: var(--aph-primary-strong-on-tint);
+  color: var(--aph-primary);
   background: var(--aph-primary-bg);
 }
 
@@ -390,12 +390,12 @@ watch(
 }
 
 .cp-footer__action:hover {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   border-color: var(--aph-primary-border);
 }
 
 .cp-footer__action:focus-visible {
-  outline: 2px solid var(--aph-primary-strong);
+  outline: 2px solid var(--aph-primary);
   outline-offset: 1px;
 }
 

@@ -179,11 +179,11 @@
 }
 
 :deep(.el-table .el-button--text) {
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
 }
 
 :deep(.el-table .el-button--text:hover) {
-  color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
+  color: var(--aph-primary-hover);
 }
 
 :deep(.el-table .el-button--text.is-danger) {

@@ -13,24 +13,17 @@
  */
 
 :root {
-  /* 品牌主色及其状态 */
+  /* 品牌主色及其状态。
+     主色只有这一支浅蓝，六套主题各自配值，**不再另配「强」档**：2026-10-26 用户明确要求
+     按钮与文字都用这支与品牌图标一致的浅蓝，曾为对比度引入的两支深档主色令牌已连同六套主题
+     取值一并删除，由 tests/architecture/themeContrast.test.ts 的配色锁守住（那里留着令牌名）——
+     想换深档，先改判据并拿到确认。
+     代价记在案、不当它不存在：浅蓝压白底实测 2.78:1，14px 文字不达 WCAG AA 4.5:1。 */
   --aph-primary: #409eff;
   --aph-primary-hover: #66b3ff;
-  --aph-primary-strong: #0072e8;
-
-  /* 浅主色底（--aph-primary-bg）上的文字：strong 再压暗 8%，六套主题 4.75–4.92:1。
-     白底/近白底继续用 strong 本身（4.59–4.62:1），二者不要互换。 */
-  --aph-primary-strong-on-tint: color-mix(in srgb, var(--aph-primary-strong) 92%, #000);
-
-  /* 主色「强」档：把品牌色保持色相与饱和度、只压暗度得到的深色。
-     用途是「品牌色文字压在白色/近白底上」——`--aph-primary` 本身在中性白底上只有
-     2.4~3.2:1，14px 文字不达 WCAG AA 4.5:1（管理页头部的实心主按钮、各处 primary link 都是这一类）。
-     六套主题各自配值，实测在白底上统一 4.60:1。
-     刻意不复用 `--el-color-primary-dark-2`：那是主色 +20% 黑，最差一套只有 3.68:1，仍不达标。
-     只在扩展页样式里使用，内容脚本 Shadow DOM 不注入（`utils/theme.ts` 的 THEME_SHADOW_TOKENS 无需同步）。 */
   --aph-primary-rgb: 64 158 255;
 
-  /* 语义色「强」档：与 `--aph-primary-strong` 同一配方（保色相与饱和度、只压暗度），
+  /* 语义色「强」档：保色相与饱和度、只压暗度得到的深色（与主色不同，语义色不参与换肤），
      用途也同一类——语义色当**文字**压浅色底时不达 WCAG AA：
      `--el-color-danger` #f56c6c 白底只有 2.90:1、`--el-color-warning` #e6a23c 只有 2.19:1、
      `--el-color-success` #67c23a 只有 2.24:1，
@@ -66,7 +59,7 @@
      该族（R/G/B 差 7 与 21 的冷灰）能达标的**最浅值**是 #616876（白 5.60 / 最差 4.54），
      它就是 AA 留下的地板：muted 与 placeholder 只能共用这一格，四级阶梯在数学上不存在。
      地板以下仍留两档可分：primary 11.91 > secondary 5.29 > muted / placeholder 4.54
-     （均为最暗浅底上的对比度）。纯装饰的文字（如分隔点）走下面的 `--aph-icon-muted`。 */
+     （均为最暗浅底上的对比度）。纯装饰的文字（分隔点、图标）走下面的 `--aph-icon-*`。 */
   --aph-text-primary: #1f2937;
   --aph-text-secondary: #565d6b;
   --aph-text-muted: #616876;
@@ -76,20 +69,9 @@
      （最差底 5.16:1，更深），所以「提示比输入值浅」这条层级仍然成立。 */
   --aph-text-placeholder: #616876;
 
-  /* 中性色：图标 —— 按「图标是不是这个控件唯一的可见供性」分两档，而不是按粗细。
-     WCAG 1.4.11 要求「用于识别界面组件及其状态」的图形对相邻色 ≥3:1；图标按钮既无边框
-     也无可见文字时，那枚字形就是用户找得到、点得中的东西本身，所以它不能借用文字阶梯里
-     「装饰」那一格。旧值 #b0b7c3 白底 2.02:1、压到设计系统最差浅底只有 1.64:1——
-     侧边栏一整排动作图标（复制、收藏、编辑、一键登录、打开站点、TOTP）在静止态几乎看不见。
-     `--aph-icon-muted` 仍可低于 3:1，但只准用于「旁边已有一样的信息用文字说过」的图形，
-     白名单由 tests/architecture/themeContrast.test.ts 守住。
-     金/绿两档是「状态由图标承载」的语义色：星标=已收藏、绿=一键登录可用。它们同样要 ≥3:1，
-     但图形用的是 3:1 而非文字的 4.5:1——把 #e6a23c 一路压到 warning-strong #8f5d12
-     会得到一枚看起来像「已停用」的褐色星标，所以取达标范围内最浅的金与绿。 */
-  --aph-icon-action: #7c838f;
-  --aph-icon-warning: #b0730a;
-  --aph-icon-success: #3e9440;
+  /* 中性色：图标 */
   --aph-icon-muted: #9ca3af;
+  --aph-icon-action: #b0b7c3;
 
   /* 中性色：边框与背景 */
   --aph-border-light: #f3f4f5;
@@ -111,7 +93,6 @@
 :root[data-theme='green'] {
   --aph-primary: #69b599;
   --aph-primary-hover: #88c5ae;
-  --aph-primary-strong: #408169;
   --aph-primary-rgb: 105 181 153;
   --aph-primary-bg: #f2f9f6;
   --aph-primary-bg-hover: #f5faf8;
@@ -135,7 +116,6 @@
 :root[data-theme='pink'] {
   --aph-primary: #d87998;
   --aph-primary-hover: #e199b1;
-  --aph-primary-strong: #c94570;
   --aph-primary-rgb: 216 121 152;
   --aph-primary-bg: #fbf0f4;
   --aph-primary-bg-hover: #fcf4f6;
@@ -159,7 +139,6 @@
 :root[data-theme='mauve'] {
   --aph-primary: #ad84cd;
   --aph-primary-hover: #c0a0da;
-  --aph-primary-strong: #935dbd;
   --aph-primary-rgb: 173 132 205;
   --aph-primary-bg: #f6f2fa;
   --aph-primary-bg-hover: #f8f4fb;
@@ -183,7 +162,6 @@
 :root[data-theme='orange'] {
   --aph-primary: #e28e65;
   --aph-primary-hover: #eaa886;
-  --aph-primary-strong: #be5624;
   --aph-primary-rgb: 226 142 101;
   --aph-primary-bg: #fcf3ef;
   --aph-primary-bg-hover: #fdf6f3;
@@ -207,7 +185,6 @@
 :root[data-theme='slate'] {
   --aph-primary: #7f92b4;
   --aph-primary-hover: #98a7c2;
-  --aph-primary-strong: #5e76a0;
   --aph-primary-rgb: 127 146 180;
   --aph-primary-bg: #f3f5f8;
   --aph-primary-bg-hover: #f6f7fa;

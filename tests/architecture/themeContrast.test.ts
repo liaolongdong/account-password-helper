@@ -1,21 +1,21 @@
 /**
- * 主色令牌与主按钮的对比度守卫
+ * 主色配色锁：全站只有一支品牌浅蓝，不许为对比度另配深档
  *
- * 两件事分开守：
- * 1. `--aph-primary-strong` 这支「同色相压暗」的强档本身要达 AA（它仍用在正文链接上）。
- * 2. 主按钮（头部「添加密码」与管理页实心按钮）**必须保持品牌浅蓝 `--aph-primary`**——
- *    2026-10-26 用户明确否掉了为对比度把按钮换成深档的做法，代价（白字 2.78:1、
- *    白底蓝字 2.78:1，均不达 AA）作为已知取舍记录在案。这条锁住的是「别再自作主张改主题色」，
- *    数值判据反而次要，所以两条都写成「用了强档就变红」。
+ * 2026-10-26 用户明确否掉了「为把文字与按钮提到 WCAG AA 而引入主色深档」的做法——
+ * 本插件的主色必须与品牌图标那支浅蓝一致。曾引入的 `--aph-primary-strong` 与
+ * `--aph-primary-strong-on-tint` 已连同六套主题取值一并删除。
+ *
+ * 代价记在案、不当它不存在：浅蓝压白底实测 2.78:1，14px 文字不达 AA 4.5:1。
+ * 这是**拍板过的取舍**，不是待修的 bug；要改它，先改这里的判据并拿到用户确认。
+ * 所以本节的重心从「数值够不够」换成「深档有没有偷偷回来」。
  */
 import { describe, expect, it } from 'vitest';
 import { listSourceFiles, readSource } from '../helpers/architectureScan';
 
 interface ThemeTokens {
   name: string;
-  strong: string;
-  hoverSurface: string;
-  primaryBg: string;
+  primary: string;
+  hover: string;
 }
 
 const TOKEN_SOURCE = readSource('assets/theme/tokens.css');
@@ -25,11 +25,10 @@ function parseThemes(source: string): ThemeTokens[] {
   const themes: ThemeTokens[] = [];
   for (const match of source.matchAll(/:root(?:\[data-theme='([a-z-]+)'\])?\s*\{([^}]*)\}/g)) {
     const body = match[2];
-    const strong = body.match(/--aph-primary-strong:\s*(#[0-9a-fA-F]{6})/)?.[1];
-    const hoverSurface = body.match(/--aph-surface-hover:\s*(#[0-9a-fA-F]{6})/)?.[1];
-    const primaryBg = body.match(/--aph-primary-bg:\s*(#[0-9a-fA-F]{6})/)?.[1];
-    if (!strong || !hoverSurface || !primaryBg) continue;
-    themes.push({ name: match[1] ?? 'blue', strong, hoverSurface, primaryBg });
+    const primary = body.match(/--aph-primary:\s*(#[0-9a-fA-F]{6})/)?.[1];
+    const hover = body.match(/--aph-primary-hover:\s*(#[0-9a-fA-F]{6})/)?.[1];
+    if (!primary || !hover) continue;
+    themes.push({ name: match[1] ?? 'blue', primary, hover });
   }
   return themes;
 }
@@ -52,64 +51,52 @@ function contrast(foreground: string, background: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-function mixWithBlack(hex: string, percentage: number): string {
-  return (
-    '#' +
-    rgb(hex)
-      .map(value =>
-        Math.round(value * percentage)
-          .toString(16)
-          .padStart(2, '0'),
-      )
-      .join('')
-  );
-}
-
 const themes = parseThemes(TOKEN_SOURCE);
 
-describe('主色实心按钮的 WCAG AA 对比度', () => {
-  it('抽取到六套主题的 strong 与 hover 底色，避免守卫空跑', () => {
+describe('主色配色锁：只有一支品牌浅蓝', () => {
+  it('抽取到六套主题的浅蓝主色与 hover 档，避免守卫空跑', () => {
     expect(themes.map(theme => theme.name).sort()).toEqual(['blue', 'green', 'mauve', 'orange', 'pink', 'slate']);
   });
 
-  it('六套主题的静息态 strong 压白底均 >= 4.5:1', () => {
+  it('hover 沿用仓库惯例「提亮一档」，不是压暗', () => {
     for (const theme of themes) {
-      expect(contrast(theme.strong, '#ffffff'), theme.name).toBeGreaterThanOrEqual(4.5);
+      expect(luminance(theme.hover), `${theme.name} 的 hover 应比静息态更亮`).toBeGreaterThan(luminance(theme.primary));
     }
   });
 
-  it('浅主色底上的文字用 on-tint 强档，六套主题均 >= 4.5:1', () => {
-    const definition = TOKEN_SOURCE.match(
-      /--aph-primary-strong-on-tint:\s*color-mix\(in srgb, var\(--aph-primary-strong\) (\d+)%, #000\)/,
-    );
-    expect(definition, '缺少 --aph-primary-strong-on-tint 令牌').toBeTruthy();
-    const percentage = Number(definition![1]);
-    expect(percentage).toBeGreaterThan(0);
-
-    for (const theme of themes) {
-      const text = mixWithBlack(theme.strong, percentage / 100);
-      expect(contrast(text, theme.primaryBg), theme.name).toBeGreaterThanOrEqual(4.5);
-    }
+  it('深档主色令牌已不在令牌层里', () => {
+    expect(TOKEN_SOURCE).not.toMatch(/--aph-primary-strong/);
   });
 
-  it('头部主按钮保持品牌浅蓝文字：主题色由用户拍板，强档不得回流到按钮上', () => {
-    // 2026-10-26 用户明确要求按钮主题色与品牌图标一致（`--aph-primary` 那支浅蓝）。
-    // 白底 + 浅蓝文字实测 2.78:1、hover 的近白底 2.61:1，都不达 WCAG AA —— 这是**已知取舍**，
-    // 记在这里，防止下一轮拿「修对比度」的名义把它换成深档；真要换，先改这条并拿到确认。
+  it('全仓样式不存在对深档主色的引用（含 -on-tint 变体）', () => {
+    const files = [
+      ...listSourceFiles('components', ['.vue', '.css']),
+      ...listSourceFiles('entrypoints', ['.vue', '.css']),
+      ...listSourceFiles('assets', ['.css']),
+    ];
+    const violations = files.filter(rel => readSource(rel).includes('--aph-primary-strong'));
+    expect(violations, `这些文件又用回了深档主色：${violations.join(', ')}`).toEqual([]);
+  });
+
+  it('头部主按钮保持品牌浅蓝文字：主题色由用户拍板，深档不得回流到按钮上', () => {
     const rule = HEADER_SOURCE.match(
       /\.header-actions \.el-button--primary:not\(\.is-link, \.is-text\)\)\s*\{([^}]*)\}/,
     )?.[1];
     expect(rule, 'HeaderBar 实心主按钮规则缺失').toBeTruthy();
     expect(rule, '静息态文字必须是品牌浅蓝').toContain('color: var(--aph-primary)');
-    expect(rule, '不许改用强档').not.toContain('--aph-primary-strong');
 
     const hoverRule = HEADER_SOURCE.match(
       /\.header-actions \.el-button--primary:not\(\.is-link, \.is-text\):hover\)\s*\{([^}]*)\}/,
     )?.[1];
     expect(hoverRule, 'HeaderBar 实心主按钮 hover 规则缺失').toBeTruthy();
     expect(hoverRule, 'hover 文字必须是品牌浅蓝').toContain('color: var(--aph-primary)');
-    expect(hoverRule, 'hover 不许改用强档或混黑').not.toMatch(/--aph-primary-strong|color-mix/);
+    expect(hoverRule, 'hover 不许混黑压暗').not.toMatch(/color-mix/);
     expect(hoverRule).toContain('background: var(--aph-surface-hover)');
+  });
+
+  it('浅蓝压白底确实不达 AA（把代价钉在判据里，而不是让人重新发明深档）', () => {
+    const worst = Math.min(...themes.map(theme => contrast(theme.primary, '#ffffff')));
+    expect(worst, '浅蓝若已达标，说明主色被改过，本判据需要重新和用户确认').toBeLessThan(4.5);
   });
 });
 
@@ -180,6 +167,7 @@ describe('浅色告警文字的 WCAG AA 对比度', () => {
 const GRAPHICAL_SEMANTIC_USES: Record<string, string[]> = {
   'components/options/BackupNudgeBanner.vue': ['.backup-nudge__icon', '.backup-nudge--never .backup-nudge__icon'],
   'components/options/EmptyGuide.vue': ['.empty-guide__card-icon--success', '.empty-guide__card-icon--warning'],
+  'components/options/PasswordDetailDrawer.vue': ['.detail-header__star'],
   'components/options/ReviewPrompt.vue': ['.review-prompt__icon'],
 };
 
@@ -369,9 +357,8 @@ describe('灰阶文字不许硬编码', () => {
 
   /**
    * Element Plus / Tailwind 的常用灰阶与语义色：写死它们等于绕过上面两条判据。
-   * 图标类选择器豁免的理由只是「图形按 1.4.11 是 3:1，不是文字的 4.5:1」——
-   * 曾经这里还写着「本仓图标旁都有同义文字」，那句话是错的：侧边栏两颗复制图标
-   * 没有任何同义文字（字形就是控件本身），收藏星标也没有。它们由下一节的图标档守卫管。
+   * 图标类选择器豁免——图形走 WCAG 1.4.11 的 3:1，不是文字的 4.5:1，
+   * 且本仓图标旁都有同义文字（收藏星标、自动登录图标、面板标题图标）。
    */
   const BANNED_HARDCODED_TEXT_COLORS: Record<string, string> = {
     '#909399': 'EP 旧 secondary，最差 2.50:1 → 用 --aph-text-muted',
@@ -406,147 +393,5 @@ describe('灰阶文字不许硬编码', () => {
       });
     }
     expect(violations, violations.join('\n')).toEqual([]);
-  });
-});
-
-/**
- * 图标档：承载「这是哪个控件 / 它是什么状态」的图形要 >= 3:1（WCAG 1.4.11）
- *
- * 前两节只管文字：图形适用的是 3:1 而非 4.5:1，所以图标一路被放在文字阶梯之外，
- * 结果 `--aph-icon-action` 停在 #b0b7c3（最差浅底 1.64:1）、复制图标借用装饰档 #9ca3af
- * （2.05:1）、收藏星标写死 EP 的 #e6a23c（1.77:1）。侧边栏那排动作图标既无边框也无
- * 同义文字，字形就是用户唯一能看见、能点中的东西——按 1.4.11「识别界面组件及其状态」
- * 正是这条覆盖的对象，而它恰恰被「图标都是装饰」这句想当然豁免掉了。
- *
- * 于是把图标拆成两档并各设判据：
- * - 可操作/状态档（action / warning / success）：全部浅底最差一面 >= 3:1。
- * - 装饰档（muted）：只准出现在下面这份白名单里，且每一处都有同义文字在旁边。
- *   白名单是双向的——新增一处借用即变红，白名单里某项不再借用同样变红，
- *   免得守卫腐烂成一张过期的通行证（与 GRAPHICAL_SEMANTIC_USES 同一套路）。
- */
-const ICON_TIER_FLOOR = 3;
-
-/** 三档可操作/状态图标的取值（直接从 tokens.css 解析，不留第二份事实） */
-function iconTokenHex(name: string): string {
-  const hex = TOKEN_SOURCE.match(new RegExp(`^\\s*${name}:\\s*(#[0-9a-fA-F]{6});$`, 'm'))?.[1];
-  expect(hex, `缺少字面十六进制的 ${name}（换成 color-mix 会让这条判据失焦）`).toBeTruthy();
-  return hex!;
-}
-
-/** 被本轮替换掉的旧值：逐个证明它们不达 3:1，否则上面的达标断言可能是空跑 */
-const RETIRED_ICON_COLORS: Record<string, string> = {
-  '--aph-icon-action 旧值': '#b0b7c3',
-  '装饰档（曾被复制图标借用）': '#9ca3af',
-  'EP warning 原色（收藏星标）': '#e6a23c',
-  'EP success 原色（一键登录）': '#67c23a',
-};
-
-/** 允许使用装饰档的选择器：每一处旁边都有同义文字，或整块图形与文字同义 */
-const DECORATIVE_ICON_USES: Record<string, string[]> = {
-  'components/options/CommandPalette.vue': ['.cp-item-icon'],
-  'components/options/MasterPasswordSetupView.vue': ['.guide-entry__sep'],
-  'components/sidepanel/PasswordListItem.vue': ['.off-site-icon'],
-  'components/sidepanel/SidepanelAuthView.vue': ['.sort-dropdown-popper .el-dropdown-menu__item .sort-item-icon'],
-};
-
-/** 状态/动作图标必须落在哪一档：写死语义原色或退回装饰档都会让这张表对不上 */
-const STATE_ICON_TIERS: Record<string, string> = {
-  'components/sidepanel/PasswordListItem.vue .copy-icon-wrapper .copy-icon': '--aph-icon-action',
-  'components/sidepanel/PasswordListItem.vue .password-actions': '--aph-icon-action',
-  'components/sidepanel/PasswordListItem.vue .favorite-icon': '--aph-icon-action',
-  'components/sidepanel/PasswordListItem.vue .favorite-icon:hover': '--aph-icon-warning',
-  'components/sidepanel/PasswordListItem.vue .favorite-icon.is-favorite': '--aph-icon-warning',
-  'components/sidepanel/PasswordListItem.vue .auto-login-icon': '--aph-icon-action',
-  'components/sidepanel/PasswordListItem.vue .auto-login-icon:hover': '--aph-icon-success',
-  'components/sidepanel/PasswordListItem.vue .open-site-icon, .share-icon': '--aph-icon-action',
-  'components/sidepanel/PasswordListItem.vue .totp-fill-icon, .totp-copy-icon': '--aph-icon-action',
-  'components/sidepanel/PasswordListItem.vue .edit-icon': '--aph-icon-action',
-  'components/options/PasswordDetailDrawer.vue .detail-header__star': '--aph-icon-warning',
-};
-
-/** 装饰档不在其列：它的用法由 DECORATIVE_ICON_USES 那条白名单单独守 */
-const OPERATIONAL_ICON_TOKENS = ['--aph-icon-action', '--aph-icon-warning', '--aph-icon-success'];
-
-/** 找出把某令牌写在 `color:` 上的选择器（支持跨行的逗号选择器列表） */
-function iconSelectors(relPath: string, token: string): string[] {
-  const lines = readSource(relPath).split('\n');
-  const found: string[] = [];
-  lines.forEach((line, index) => {
-    if (!new RegExp(`^\\s*color:\\s*var\\(${token}\\);\\s*$`).test(line)) return;
-    let open = index - 1;
-    while (open >= 0 && !lines[open].trimEnd().endsWith('{')) open -= 1;
-    if (open < 0) {
-      found.push('<未找到选择器>');
-      return;
-    }
-    let start = open;
-    while (start > 0 && lines[start - 1].trimEnd().endsWith(',')) start -= 1;
-    found.push(
-      lines
-        .slice(start, open + 1)
-        .map(row => row.trim())
-        .join(' ')
-        .replace(/\{$/, '')
-        .trim(),
-    );
-  });
-  return found;
-}
-
-describe('图标档的 3:1 地板（WCAG 1.4.11）', () => {
-  const vueFiles = [...listSourceFiles('components', ['.vue']), ...listSourceFiles('entrypoints', ['.vue'])];
-
-  it('三档可操作/状态图标令牌都是可解析的字面十六进制', () => {
-    for (const name of OPERATIONAL_ICON_TOKENS) {
-      expect(iconTokenHex(name)).toMatch(/^#[0-9a-fA-F]{6}$/);
-    }
-  });
-
-  it('三档在全部浅底的最差一面仍 >= 3:1', () => {
-    for (const name of OPERATIONAL_ICON_TOKENS) {
-      const hex = iconTokenHex(name);
-      const worst = LIGHT_SURFACES_IN_USE.reduce((a, b) => (contrast(hex, a) < contrast(hex, b) ? a : b));
-      expect(contrast(hex, worst), `${name} ${hex} 压在 ${worst} 上`).toBeGreaterThanOrEqual(ICON_TIER_FLOOR);
-    }
-  });
-
-  it('被替换掉的旧值确实不达 3:1（证明上一条不是空跑）', () => {
-    for (const [label, hex] of Object.entries(RETIRED_ICON_COLORS)) {
-      const worst = Math.min(...LIGHT_SURFACES_IN_USE.map(surface => contrast(hex, surface)));
-      expect(worst, `${label} ${hex}`).toBeLessThan(ICON_TIER_FLOOR);
-    }
-  });
-
-  it('装饰档只准出现在白名单里的选择器上', () => {
-    const actual = new Map<string, string[]>();
-    for (const rel of vueFiles) {
-      const selectors = iconSelectors(rel, '--aph-icon-muted');
-      if (selectors.length) actual.set(rel, selectors);
-    }
-    expect([...actual.keys()].sort(), '新增/删除了借用装饰档的文件').toEqual(Object.keys(DECORATIVE_ICON_USES).sort());
-    for (const [rel, selectors] of actual) {
-      expect(selectors.sort(), `${rel} 装饰档的用法发生变化`).toEqual([...DECORATIVE_ICON_USES[rel]].sort());
-    }
-  });
-
-  it('动作与状态图标各归其档，没有写死语义原色，也没有借用装饰档', () => {
-    const actual = new Map<string, string>();
-    for (const rel of vueFiles) {
-      for (const token of OPERATIONAL_ICON_TOKENS) {
-        for (const selector of iconSelectors(rel, token)) actual.set(`${rel} ${selector}`, token);
-      }
-    }
-    expect([...actual.keys()].sort(), '图标着色点增删或换了选择器写法').toEqual(Object.keys(STATE_ICON_TIERS).sort());
-    for (const [key, token] of Object.entries(STATE_ICON_TIERS)) {
-      expect(actual.get(key), `${key} 应走 ${token}`).toBe(token);
-    }
-  });
-
-  it('三档仍保持可分辨的层级：装饰档最浅，可操作档仍轻于正文', () => {
-    const onWhite = (name: string) => contrast(iconTokenHex(name), '#ffffff');
-    expect(onWhite('--aph-icon-muted'), '装饰档必须最浅，否则三档没有区别').toBeLessThan(onWhite('--aph-icon-action'));
-    expect(onWhite('--aph-icon-action'), '图标比正文浅是刻意的层级，压到文字之上一律是回归').toBeLessThan(
-      onWhite('--aph-text-muted'),
-    );
   });
 });
