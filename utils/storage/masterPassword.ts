@@ -2,6 +2,7 @@ import type { MasterPasswordConfig } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { hashPassword, generateSalt, timingSafeEqual } from '@/utils/crypto-light';
+import { isWebPageContext } from '@/utils/runtimeContext';
 import { withVaultMutation } from './vaultWriteLock';
 
 /**
@@ -132,6 +133,15 @@ async function verifyMasterPasswordInternal(password: string): Promise<boolean> 
     const legacyHash = await hashPassword(cleanPassword, config.salt);
     if (!timingSafeEqual(legacyHash, config.hashedPassword)) {
       return false;
+    }
+
+    // 升级写回是整对象覆写，而内容脚本跑在宿主页面的 origin 上：`navigator.locks` 按 origin 分组，
+    // 它在这里的共享租约挡不住扩展侧的独占换钥。若换钥期间从网页触发一次验证，旧口令的校验哈希
+    // 会盖掉刚提交的新配置——旧密码「验得过」而整库已是新钥密文，连绑定该配置的恢复密钥一起失效。
+    // 因此宿主页面上只判定通过、不写回；升级留给扩展自身上下文的下次验证完成。
+    if (isWebPageContext()) {
+      logger.debug('宿主页面上下文跳过校验哈希升级写回：避免与换钥事务互相覆写');
+      return true;
     }
 
     try {

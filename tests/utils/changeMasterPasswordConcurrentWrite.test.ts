@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import type { EncryptedPasswordEntry, TrashedPasswordEntry } from '@/utils/types';
 
 /**
@@ -81,6 +82,12 @@ beforeEach(() => {
     [STORAGE_KEYS.IDENTITY]: [],
     [STORAGE_KEYS.IDENTITY_TRASH]: [],
     [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'old-verifier', salt: 'the-salt', kdf: 'pbkdf2-sha256' },
+    // 改密弹窗只在解锁态可达，夹具据此带一份在用的会话密钥；
+    // 缺这一项会被 commitVaultRekey 判成「基线已锁定」而跳过会话材料的准备与发布。
+    [SESSION_STORAGE_KEYS.WRAP_KEY]: 'baseline-wrap',
+    [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: 'baseline-wrapped',
+    [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: Date.now() + 3_600_000,
+    [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: 24,
   };
 
   deriveEncryptionKey.mockImplementation(async password => `key:${password}`);
@@ -96,13 +103,20 @@ beforeEach(() => {
     Object.assign(storageData, items);
   });
 
-  const localGet = vi.fn(async (key: string) => {
-    if (key === STORAGE_KEYS.TRASH && concurrentWriter) {
-      trashReads += 1;
-      // 快照读到真实值；复验时另一页已把回收站清空 → 快照过期
-      if (trashReads === 2) return { [STORAGE_KEYS.TRASH]: [] };
+  const localGet = vi.fn(async (keys: string | string[]) => {
+    // 真实 `chrome.storage.local.get` 同时接受单键与键数组；提交前的会话键守卫正是按数组读，
+    // 桩若只认单键会让那条比对永远读到「两边都是空」，守卫与登录态判据一同形同未测。
+    const list = Array.isArray(keys) ? keys : [keys];
+    const found: Record<string, unknown> = {};
+    for (const key of list) {
+      if (key === STORAGE_KEYS.TRASH && concurrentWriter) {
+        trashReads += 1;
+        // 快照读到真实值；复验时另一页已把回收站清空 → 快照过期
+        if (trashReads === 2) return { [STORAGE_KEYS.TRASH]: [] };
+      }
+      if (key in storageData) found[key] = storageData[key];
     }
-    return key in storageData ? { [key]: storageData[key] } : {};
+    return found;
   });
 
   vi.stubGlobal('chrome', {
@@ -175,5 +189,41 @@ describe('rekey 覆写前的快照复验', () => {
 
     expect(localSet).toHaveBeenCalledTimes(1);
     expect((storageData[STORAGE_KEYS.TRASH] as TrashedPasswordEntry[]).map(e => e.id)).toEqual(['t1']);
+  });
+
+  /**
+   * 校验配置也纳入覆写前的比对。
+   *
+   * 内容脚本跑在宿主页面的 origin 上，`navigator.locks` 分组使它挡不住这里的独占换钥；
+   * 旧版校验哈希的透明升级是一次整对象覆写，若它落在换钥的重加密期间，新配置会被旧口令的哈希
+   * 盖掉——旧密码「验得过」，整库却是新钥密文，绑定该配置的新恢复密钥同时失效。
+   * 现在这条跨上下文写会被复验逮到并整笔作废。
+   */
+  it('重加密期间校验配置被网页侧覆写时，中止换钥而不是把新配置写回去', async () => {
+    concurrentWriter = false;
+    let trashReadsForClobber = 0;
+    vi.spyOn(chrome.storage.local, 'get').mockImplementation(async keys => {
+      const list = (Array.isArray(keys) ? (keys as unknown[]) : typeof keys === 'string' ? [keys] : []) as string[];
+      if (list.includes(STORAGE_KEYS.TRASH)) {
+        trashReadsForClobber += 1;
+        // 第 2 次读 TRASH 即覆写前的复验批次，此时模拟一次来自宿主页面的升级写回
+        if (trashReadsForClobber === 2) {
+          storageData[STORAGE_KEYS.MASTER_PASSWORD] = { salt: 'legacy-salt', hashedPassword: 'clobbered' };
+        }
+      }
+      const found: Record<string, unknown> = {};
+      for (const key of list) {
+        if (key in storageData) found[key] = storageData[key];
+      }
+      return found;
+    });
+
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toMatchObject({
+      code: 'REKEY_CONCURRENT_WRITE',
+    });
+    expect(localSet, '整笔作废：不得有任何数据写').not.toHaveBeenCalled();
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'clobbered' });
   });
 });

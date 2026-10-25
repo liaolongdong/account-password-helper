@@ -22,9 +22,10 @@ const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(re
  * 把等待塞进这里会让每个被挡住的写入平白多等数百毫秒，还会打断以假定时器驱动租约时序的守卫测试。
  *
  * **租约的作用域前提**：`navigator.locks` 按调用上下文的 origin 分组，扩展的 SW / Options /
- * 侧边栏 / Popup 同属扩展 origin，彼此互斥成立；但内容脚本里跑的代码（`isSessionValid` 的旧版
- * 会话迁移路径会经到这里）用的是**宿主页面**的 lock space，它的共享租约挡不住扩展侧的独占换钥。
- * 因此「跨上下文不写坏五域」的保证只覆盖扩展自身上下文发起的写入；内容脚本不得新增直接写库的路径。
+ * 侧边栏 / Popup 同属扩展 origin，彼此互斥成立；但内容脚本里跑的代码用的是**宿主页面**的 lock space，
+ * 它的共享租约挡不住扩展侧的独占换钥。因此「跨上下文不写坏五域」的保证只覆盖扩展自身上下文发起的
+ * 写入；内容脚本不得新增直接写库的路径。内容脚本原先会经此处的旧版会话迁移（写会话密钥材料与主密码
+ * 校验配置）已由 `utils/runtimeContext.ts` 的 `isWebPageContext` 在入口处挡掉，迁移改由扩展自身上下文完成。
  */
 export function withVaultMutation<T>(operation: () => Promise<T>): Promise<T> {
   return navigator.locks.request(VAULT_WRITE_LOCK, { mode: 'shared', ifAvailable: true }, async lock => {

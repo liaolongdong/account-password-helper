@@ -8,6 +8,7 @@ import type { VaultErrorCode } from './recoveryTypes';
 const WRONG_PASSWORD: VaultErrorCode = 'WRONG_PASSWORD';
 
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
+import { isWebPageContext } from '@/utils/runtimeContext';
 import { withVaultMutation } from '@/utils/storage/vaultWriteLock';
 import { verifyMasterPassword } from '@/utils/storage/masterPassword';
 import {
@@ -474,6 +475,15 @@ function assertSessionEpoch(epoch: number): void {
  * @returns 迁移成功返回 true；无法解出旧版主密码或代际已失效时返回 false
  */
 async function _migrateLegacySession(expiry: number, validityHours: number, epoch: number): Promise<boolean> {
+  // 内容脚本跑在宿主页面的 origin 上，`navigator.locks` 按 origin 分组——它在这里拿到的共享租约
+  // 挡不住扩展侧的独占换钥。而本函数会覆写主密码校验配置并发布会话密钥材料：换钥期间从宿主页
+  // 触发一次，就能把刚提交的新密钥对打回旧钥形态（旧密码「验得过」，整库却已是新钥密文）。
+  // 迁移因此只在扩展自身上下文执行——SW 的会话巡检 / 侧边栏 / 管理页任一次会话检查都会完成它，
+  // 那条路径上的租约与换钥互斥成立。宿主页面此次判定为「会话无效」，不写任何数据。
+  if (isWebPageContext()) {
+    logger.debug('宿主页面上下文跳过旧版会话迁移：交由扩展自身上下文完成，避免与换钥交错');
+    return false;
+  }
   try {
     return await withVaultMutation(() => migrateLegacySessionInternal(expiry, validityHours, epoch));
   } catch {

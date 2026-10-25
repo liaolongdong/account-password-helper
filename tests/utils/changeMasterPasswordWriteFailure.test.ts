@@ -336,4 +336,29 @@ describe('并发锁定与提交守卫', () => {
     expect(clearSession).toHaveBeenCalled();
     expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'old-verifier' });
   });
+
+  /**
+   * 锁定发生在「基线读数之前」也必须被挡住。
+   *
+   * 基线是在整轮全库重加密**之后**才取的，所以重加密期间完成的锁定只会让两侧同为空，
+   * 漂移比对判不出任何变化，那批早已备好的新会话键照样落盘并把用户刚清掉的会话复活成
+   * 24 小时登录态。修好后：基线里没有包裹好的数据密钥即视为已锁——不准备、不发布会话材料，
+   * 改密本身照旧提交，但收尾必须按 `relock-required` 改口，让用户用新主密码重新解锁。
+   */
+  it('基线读取之前就已锁定：不备新会话键、不复活登录态，改密仍提交并提示重新解锁', async () => {
+    delete storageData[SESSION_STORAGE_KEYS.WRAP_KEY];
+    delete storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+    delete storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBe('relock-required');
+
+    expect(prepareSessionRekey, '已锁状态不该为它准备会话材料').not.toHaveBeenCalled();
+    expect(publishSessionRekey).not.toHaveBeenCalled();
+    const payload = localSet.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload, '整包提交里不得混进会话键').not.toHaveProperty(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
+    expect(payload).toHaveProperty(STORAGE_KEYS.MASTER_PASSWORD);
+    expect(storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]).toBeUndefined();
+    expect(storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]).toBeUndefined();
+  });
 });

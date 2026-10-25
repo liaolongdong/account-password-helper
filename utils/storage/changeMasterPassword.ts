@@ -230,15 +230,24 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
   // 会话重建都必须让本次提交作废——否则用户点了「立即锁定」，会被这批早已备好的键
   // 复活成有效会话。`clearSession` 刻意不在租约内（它同时是恢复流程自己的提交步骤），
   // 所以这段窗口用读数比对兜住。
-  const sessionGuardKeys = [
+  const authGuardKeys = [
     SESSION_STORAGE_KEYS.WRAP_KEY,
     SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
     SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
     SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+    // 校验配置也在比对之列：本次提交会写 `newMasterConfig`，而内容脚本跑在宿主页面的 origin 上，
+    // 它的共享租约挡不住这里的独占换钥（`navigator.locks` 按 origin 分组）。若换钥期间网页侧完成
+    // 一次旧版校验哈希升级，磁盘上的新配置会被旧口令的哈希盖掉——旧密码「验得过」但整库已是新钥
+    // 密文，绑定该配置的恢复密钥同时失效。读盘比对是这条跨上下文写路径唯一可用的守卫。
+    STORAGE_KEYS.MASTER_PASSWORD,
   ];
-  const sessionBefore = await chrome.storage.local.get(sessionGuardKeys);
+  const sessionBefore = await chrome.storage.local.get(authGuardKeys);
+  // 基线里没有包裹好的数据密钥＝当前是锁定态（`clearSession` 恰好删除这一项）。
+  // 锁定态下不得准备新会话材料：两侧读数同为空时漂移比对毫无变化，那批备好的键会随本次
+  // 提交落盘并把用户刚清掉的会话复活成有效登录态——而漂移守卫只能看见基线**之后**的锁定。
+  const hadLiveSession = sessionBefore[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== undefined;
   let sessionKeysToWrite: Record<string, unknown> = {};
-  if (mode === 'password-change') {
+  if (mode === 'password-change' && hadLiveSession) {
     const sessionResult = await chrome.storage.local.get(SESSION_STORAGE_KEYS.VALIDITY_HOURS);
     const validityHours = (sessionResult[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
     sessionKeysToWrite = await sessionManager.prepareSessionRekey(newKey, validityHours);
@@ -252,10 +261,10 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
       getAllIdentityRaw(),
       getAllIdentityTrashRaw(),
     ]),
-    chrome.storage.local.get(sessionGuardKeys),
+    chrome.storage.local.get(authGuardKeys),
   ]);
   const original = [rawPasswords, rawTrash, rawHistory, identityRaw, identityTrashRaw];
-  const sessionMoved = sessionGuardKeys.some(key => sessionBefore[key] !== sessionAfter[key]);
+  const sessionMoved = authGuardKeys.some(key => sessionBefore[key] !== sessionAfter[key]);
   // 比对保持逐字节：换成「条数 + id 集合 + max(updateTime)」指纹能省掉 2000 条下约 40～80ms
   // 的同步 stringify，但那段开销被四次 PBKDF2（本机每台 ~2.4s）完全淹没，省它等于拿
   // 「新密文 + 旧会话密钥」这条数据完整性守卫去换一位数百分比的换钥耗时。
@@ -299,17 +308,22 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
   if (mode === 'password-change') {
     // 提交点已越过：数据、校验哈希与新包裹密钥都已落盘。发布会话材料失败不得伪装成
     // 「未提交」错误——否则用户以为旧密码仍有效，重试必然失败。
-    try {
-      await sessionManager.publishSessionRekey(newKey, sessionKeysToWrite);
-    } catch (error) {
-      logger.error('Post-commit session refresh failed; forcing relock:', error);
-      await sessionManager.clearSession().catch(() => {});
-      return 'relock-required';
+    if (hadLiveSession) {
+      try {
+        await sessionManager.publishSessionRekey(newKey, sessionKeysToWrite);
+      } catch (error) {
+        logger.error('Post-commit session refresh failed; forcing relock:', error);
+        await sessionManager.clearSession().catch(() => {});
+        return 'relock-required';
+      }
     }
     // 只剩旧版遗留 blob 清理：失败不影响一致性，记日志即可，不得反向推翻「已改密」。
     await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD).catch(error => {
       logger.warn('Legacy session master-password cleanup failed:', error);
     });
+    // 基线就是锁定态时新会话材料从未准备，提交后仍是锁定态：必须让弹窗按「重新解锁」改口，
+    // 报「修改成功」会让用户以为原有的解锁态延续。
+    if (!hadLiveSession) return 'relock-required';
   }
   logger.info('Vault key change committed');
 }
