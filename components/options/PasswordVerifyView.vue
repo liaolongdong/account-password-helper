@@ -360,6 +360,13 @@ defineExpose({ formRef: localVerifyFormRef });
   flex-wrap: wrap;
   gap: 4px 8px;
   align-items: center;
+
+  /* 必须是满宽，否则下面的 `margin-left: auto` 是空转。
+     本 div 的直接父级是 `.el-form-item__content`，EP 给它 `display: flex; flex-wrap: wrap`，
+     于是它自己是个 flex item——默认 `flex: 0 1 auto` 按内容定宽，容器和内容一样宽时
+     auto 外边距没有可分配的空间，链接照样贴在左边。
+     （上一轮就是栽在这：探针页把它放在普通块级容器里，容器满宽、auto 边距生效，假绿。） */
+  width: 100%;
   margin-top: 12px;
 }
 

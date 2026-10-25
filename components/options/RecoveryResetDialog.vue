@@ -82,6 +82,7 @@
                 v-model="password"
                 type="password"
                 autocomplete="new-password"
+                show-password
                 :aria-label="t('recovery.newPassword')"
                 :disabled="busy"
                 @focus="passwordFocused = true"
@@ -91,7 +92,17 @@
                 "
                 @keydown="handlePasswordCaps"
                 @keyup="handlePasswordCaps"
-              />
+              >
+                <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏）。
+                     与 RecoveryKeyInput 同一套图标；恢复换钥要连打两遍新密码，
+                     盲打没有回显就只知道「不一致」，不知道哪一遍打错了。 -->
+                <template #password-icon="{ visible }">
+                  <el-icon>
+                    <Hide v-if="visible" />
+                    <View v-else />
+                  </el-icon>
+                </template>
+              </el-input>
             </PasswordStrengthPopover>
             <CapsLockHint v-if="passwordCaps" />
           </el-form-item>
@@ -100,12 +111,20 @@
               v-model="confirmPassword"
               type="password"
               autocomplete="new-password"
+              show-password
               :aria-label="t('recovery.confirmPassword')"
               :disabled="busy"
               @blur="resetConfirmCaps"
               @keydown="handleConfirmCaps"
               @keyup="handleConfirmCaps"
-            />
+            >
+              <template #password-icon="{ visible }">
+                <el-icon>
+                  <Hide v-if="visible" />
+                  <View v-else />
+                </el-icon>
+              </template>
+            </el-input>
             <CapsLockHint v-if="confirmCaps" />
           </el-form-item>
           <el-button
@@ -150,6 +169,7 @@
 
 <script setup lang="ts">
 import { computed, shallowRef, useTemplateRef, watch } from 'vue';
+import { View, Hide } from '@element-plus/icons-vue';
 import type { RecoveryDraft, RecoveryStatus } from '@/utils/storage/recoveryTypes';
 import { RECOVERY_FORMAT } from '@/utils/recoveryTypes';
 import { clearRecoveryInputs } from '@/utils/recoveryUi';

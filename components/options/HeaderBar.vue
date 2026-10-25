@@ -609,11 +609,18 @@ const backupChipDetail = computed(() =>
    与会话徽标的关键差别是**不脉冲**——它表达的是天级状态，常驻动画只会变成噪音；
    只有 `critical`（从未备份）允许一次轻呼吸，且随 reduced-motion 关闭。
    档位同时改文字（从未备份 / 待备份 / N 天未备份 / N 天前已备份），颜色不是唯一通道。 */
+
+/* 状态行刻意留两档字号，但只留一个盒高。
+   实测原状：两枚徽标 12px / 29px 高，立即锁定 14px / 32px 高——同一行上字号与高度同时跳，
+   读起来是「没对齐」而不是「有层级」。这里把三者的盒高钉到与 el-button 默认一致的 32px，
+   字号差就回归它本来的语义：12px 是读出来的状态，14px 是按得下去的动作，
+   与第二行整排 14px 操作按钮同一族。 */
 .backup-chip {
   display: inline-flex;
   gap: 7px;
   align-items: center;
-  padding: 5px 14px;
+  height: 32px;
+  padding: 0 14px;
   font-size: 12px;
   font-weight: 500;
   color: rgb(255 255 255 / 90%);
@@ -667,6 +674,21 @@ const backupChipDetail = computed(() =>
   color: #fff;
   background: rgb(230 162 60 / 85%);
   border-color: rgb(255 255 255 / 45%);
+}
+
+/* hover 不得冲掉档位色。
+   `.backup-chip:hover` 是 (0,2,0)，高于 `.backup-chip--urgent` 的 (0,1,0)，所以原先一悬停，
+   橙/红底就被换成 22% 半透明白——「待备份」变浅蓝，状态只剩文字在表达。
+   这两条与基础 hover 同特异性，靠「写在档位规则之后」由源码顺序取胜：hover 只提亮边框，
+   底色保持本档并略微加实，投影仍由基础 hover 提供（这里不声明即不覆盖）。 */
+.backup-chip--urgent:hover {
+  background: rgb(230 162 60 / 95%);
+  border-color: rgb(255 255 255 / 60%);
+}
+
+.backup-chip--critical:hover {
+  background: rgb(245 108 108 / 95%);
+  border-color: rgb(255 255 255 / 60%);
 }
 
 .backup-chip--urgent .backup-chip__dot {
@@ -821,7 +843,8 @@ const backupChipDetail = computed(() =>
   display: inline-flex;
   gap: 7px;
   align-items: center;
-  padding: 5px 14px;
+  height: 32px;
+  padding: 0 14px;
   font-size: 12px;
   font-weight: 500;
   color: rgb(255 255 255 / 90%);
@@ -882,6 +905,18 @@ const backupChipDetail = computed(() =>
 .session-chip--critical {
   background: rgb(245 108 108 / 85%);
   animation: session-chip-pulse-critical 1.2s ease-in-out infinite;
+}
+
+/* 与备份徽标同一处修复：会话徽标悬停时也不能把橙/红底换回半透明白，
+   否则「只剩 30 秒」这类紧迫提示在最需要看清楚的瞬间反而褪色。 */
+.session-chip--urgent:hover {
+  background: rgb(230 162 60 / 95%);
+  border-color: rgb(255 255 255 / 60%);
+}
+
+.session-chip--critical:hover {
+  background: rgb(245 108 108 / 95%);
+  border-color: rgb(255 255 255 / 60%);
 }
 
 @keyframes session-dot-pulse {

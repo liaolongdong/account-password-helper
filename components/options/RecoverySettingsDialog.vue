@@ -80,13 +80,23 @@
               v-model="password"
               type="password"
               autocomplete="current-password"
+              show-password
               :placeholder="t('recovery.currentPasswordPlaceholder')"
               :aria-label="t('recovery.currentPassword')"
               :disabled="busy"
               @keydown="handleCapsKeyEvent"
               @keyup="handleCapsKeyEvent"
               @blur="resetCapsLockState"
-            />
+            >
+              <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏）。
+                   这把密码同时还要驱动换发与停用两个动作，打错要能立刻看出来。 -->
+              <template #password-icon="{ visible }">
+                <el-icon>
+                  <Hide v-if="visible" />
+                  <View v-else />
+                </el-icon>
+              </template>
+            </el-input>
             <CapsLockHint v-if="capsLockOn" />
           </el-form-item>
           <el-button
@@ -152,6 +162,7 @@
 <script setup lang="ts">
 import { shallowRef, useTemplateRef, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { View, Hide } from '@element-plus/icons-vue';
 import type { RecoveryDraft, RecoveryStatus } from '@/utils/storage/recoveryTypes';
 import { clearRecoveryInputs } from '@/utils/recoveryUi';
 import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
