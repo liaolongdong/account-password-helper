@@ -1531,7 +1531,7 @@ onUnmounted(() => {
   padding: 10px 0;
   font-size: 14px;
   font-weight: 500;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong-on-tint);
   background: var(--aph-primary-bg);
   border: 1px solid var(--aph-primary-border);
   border-radius: 8px;
@@ -1540,8 +1540,8 @@ onUnmounted(() => {
 
 :deep(.footer-manage-btn:hover) {
   color: #fff;
-  background: var(--aph-primary);
-  border-color: var(--aph-primary);
+  background: var(--aph-primary-strong);
+  border-color: var(--aph-primary-strong);
   box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 30%);
   transform: translateY(-1px);
 }

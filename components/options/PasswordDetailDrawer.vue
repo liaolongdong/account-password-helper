@@ -502,7 +502,7 @@ watch(
 
 .detail-header__fallback {
   font-size: 20px;
-  color: var(--el-color-primary);
+  color: var(--aph-primary-strong);
 }
 
 .detail-header__main {
@@ -609,14 +609,14 @@ watch(
   gap: 4px;
   align-items: center;
   min-width: 0;
-  color: var(--el-color-primary);
+  color: var(--aph-primary-strong);
   text-decoration: none;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .detail-url:hover {
-  color: var(--el-color-primary-light-3);
+  color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
   text-decoration: underline;
 }
 

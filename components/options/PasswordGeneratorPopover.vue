@@ -334,7 +334,7 @@ watch(popoverVisible, visible => {
 }
 
 .generator-trigger-btn:hover {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 :global(.password-generator-popover) {

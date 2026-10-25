@@ -575,7 +575,7 @@ onUnmounted(() => {
 }
 
 .guide-bar__back:hover .guide-bar__back-icon {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .guide-bar__back-icon {
@@ -626,7 +626,7 @@ onUnmounted(() => {
 }
 
 .guide-bar__online:hover .guide-bar__online-icon {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .guide-bar__online-icon {
@@ -689,7 +689,7 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--aph-text-primary);
   background: var(--aph-primary-bg);
-  border-left-color: var(--aph-primary);
+  border-left-color: var(--aph-primary-strong);
 }
 
 /* 正文列 = 940 − 48(左右内边距) − 168(导航) − 28(间距) = 696px，14px 字号下约 49 个中文字一行

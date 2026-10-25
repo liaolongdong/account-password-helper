@@ -441,7 +441,7 @@ const handleClose = () => {
 
 .upload-icon {
   font-size: 40px;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .upload-text {
@@ -452,7 +452,7 @@ const handleClose = () => {
 .upload-text em {
   font-style: normal;
   font-weight: 500;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .upload-hint {
@@ -473,7 +473,7 @@ const handleClose = () => {
 
 .file-info-icon {
   font-size: 20px;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .file-info-detail {

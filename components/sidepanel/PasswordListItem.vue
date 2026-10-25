@@ -484,7 +484,7 @@ const activate = () => {
 }
 
 .copy-icon-wrapper:hover .copy-icon {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .details {
@@ -639,7 +639,7 @@ const activate = () => {
 
 .open-site-icon:hover,
 .share-icon:hover {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .totp-fill-icon,
@@ -652,7 +652,7 @@ const activate = () => {
 
 .totp-fill-icon:hover,
 .totp-copy-icon:hover {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .edit-icon {
@@ -662,7 +662,7 @@ const activate = () => {
 }
 
 .edit-icon:hover {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 /* 标签内高亮：沿用标签自身配色，仅加粗强调，避免主题色与标签底色冲突 */

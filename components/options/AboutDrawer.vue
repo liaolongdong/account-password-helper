@@ -375,7 +375,7 @@ const handleShare = async (): Promise<void> => {
 .about-link__label {
   flex-shrink: 0;
   font-size: 13px;
-  color: var(--el-color-primary);
+  color: var(--aph-primary-strong);
 }
 
 .about-link__host {

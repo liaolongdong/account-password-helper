@@ -337,7 +337,7 @@ watch(
 .match-count__num {
   padding: 0 1px;
   font-weight: 600;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 /* 端口芯片：与匹配数同处域名行（信息就近），等宽数字让 `:8443` 不随宽度跳动 */
@@ -381,7 +381,7 @@ watch(
 
 /* 放宽态用主题色实心：芯片此刻表达的是「正在多显示」，需要比缺省的灰描边更醒目 */
 .port-pill--relaxed {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong-on-tint);
   background: var(--aph-primary-bg);
   border-color: var(--aph-primary-border);
 }
@@ -392,7 +392,7 @@ watch(
 
 /* 绑定态与「已放宽」同构：此刻芯片表达的是「正在多显示另一个环境的账号」，需要比灰描边更醒目 */
 .env-pill--active {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong-on-tint);
   background: var(--aph-primary-bg);
   border-color: var(--aph-primary-border);
 }
@@ -420,7 +420,7 @@ watch(
 }
 
 .add-site:hover {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .add-site:focus-visible {
@@ -431,7 +431,7 @@ watch(
 
 .add-site__action {
   font-weight: 600;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 /* 常驻快速添加入口（有匹配时）：匹配数旁的主题色描边小圆钮，
@@ -444,7 +444,7 @@ watch(
   width: 18px;
   height: 18px;
   padding: 0;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
   cursor: pointer;
   background: transparent;
   border: 1px solid rgb(var(--aph-primary-rgb) / 45%);

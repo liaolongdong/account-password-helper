@@ -862,12 +862,12 @@ const handleEmailClick = (event: Event) => {
 }
 
 .popup-version:hover {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
   text-decoration: underline;
 }
 
 .email-link {
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
   text-decoration: none;
 }
 

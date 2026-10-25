@@ -18,6 +18,10 @@
   --aph-primary-hover: #66b3ff;
   --aph-primary-strong: #0072e8;
 
+  /* 浅主色底（--aph-primary-bg）上的文字：strong 再压暗 8%，六套主题 4.75–4.92:1。
+     白底/近白底继续用 strong 本身（4.59–4.62:1），二者不要互换。 */
+  --aph-primary-strong-on-tint: color-mix(in srgb, var(--aph-primary-strong) 92%, #000);
+
   /* 主色「强」档：把品牌色保持色相与饱和度、只压暗度得到的深色。
      用途是「品牌色文字压在白色/近白底上」——`--aph-primary` 本身在中性白底上只有
      2.4~3.2:1，14px 文字不达 WCAG AA 4.5:1（管理页头部的实心主按钮、各处 primary link 都是这一类）。

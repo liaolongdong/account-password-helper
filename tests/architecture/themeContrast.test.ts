@@ -13,6 +13,7 @@ interface ThemeTokens {
   name: string;
   strong: string;
   hoverSurface: string;
+  primaryBg: string;
 }
 
 const TOKEN_SOURCE = readSource('assets/theme/tokens.css');
@@ -24,8 +25,9 @@ function parseThemes(source: string): ThemeTokens[] {
     const body = match[2];
     const strong = body.match(/--aph-primary-strong:\s*(#[0-9a-fA-F]{6})/)?.[1];
     const hoverSurface = body.match(/--aph-surface-hover:\s*(#[0-9a-fA-F]{6})/)?.[1];
-    if (!strong || !hoverSurface) continue;
-    themes.push({ name: match[1] ?? 'blue', strong, hoverSurface });
+    const primaryBg = body.match(/--aph-primary-bg:\s*(#[0-9a-fA-F]{6})/)?.[1];
+    if (!strong || !hoverSurface || !primaryBg) continue;
+    themes.push({ name: match[1] ?? 'blue', strong, hoverSurface, primaryBg });
   }
   return themes;
 }
@@ -71,6 +73,20 @@ describe('主色实心按钮的 WCAG AA 对比度', () => {
   it('六套主题的静息态 strong 压白底均 >= 4.5:1', () => {
     for (const theme of themes) {
       expect(contrast(theme.strong, '#ffffff'), theme.name).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('浅主色底上的文字用 on-tint 强档，六套主题均 >= 4.5:1', () => {
+    const definition = TOKEN_SOURCE.match(
+      /--aph-primary-strong-on-tint:\s*color-mix\(in srgb, var\(--aph-primary-strong\) (\d+)%, #000\)/,
+    );
+    expect(definition, '缺少 --aph-primary-strong-on-tint 令牌').toBeTruthy();
+    const percentage = Number(definition![1]);
+    expect(percentage).toBeGreaterThan(0);
+
+    for (const theme of themes) {
+      const text = mixWithBlack(theme.strong, percentage / 100);
+      expect(contrast(text, theme.primaryBg), theme.name).toBeGreaterThanOrEqual(4.5);
     }
   });
 

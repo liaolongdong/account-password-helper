@@ -859,7 +859,7 @@ onScopeDispose(() => {
 .health-empty__icon {
   margin-bottom: 12px;
   font-size: 44px;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 .health-empty__title {
