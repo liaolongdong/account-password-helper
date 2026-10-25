@@ -163,13 +163,44 @@ describe('isKeyRotationBatch（换钥匙批次不算内容变更）', () => {
     expect(isKeyRotationBatch({ oldValue: 'old-wrap', newValue: undefined })).toBe(false);
   });
 
-  it('该键不在这一批里（普通增删改）判 false', () => {
+  it('该键不在这一批里、校验配置也没换（普通增删改）判 false', () => {
     expect(isKeyRotationBatch(undefined)).toBe(false);
+    expect(isKeyRotationBatch(undefined, { oldValue: 'cfg', newValue: undefined })).toBe(false);
   });
 
   it('只看「有没有被换成新值」，不看新值真假：空串/null 也算换过', () => {
     expect(isKeyRotationBatch({ newValue: '' })).toBe(true);
     expect(isKeyRotationBatch({ newValue: null })).toBe(true);
+    expect(isKeyRotationBatch(undefined, { newValue: '' })).toBe(true);
+  });
+
+  /**
+   * 离线恢复路径的回归（评审报告 P2-1）。
+   *
+   * 恢复同样把五域整库重加密，但它刻意不建立会话：提交前一步就是 `lockSession()`，
+   * 那一批里根本没有 `session_wrapped_data_key` 的新值。只盯包裹密钥的旧判据因此漏掉恢复，
+   * 每次成功恢复都让徽标与桌面通知报出一条假的「待备份」——而 `.aph` 内容与主密码无关，
+   * 用户并没有真的欠一次备份。校验配置与五域在同一次 `set()` 里落盘，用它补上这一维。
+   */
+  it('离线恢复：无新包裹密钥、但同批换了校验配置 → 判 true', () => {
+    expect(
+      isKeyRotationBatch(
+        { oldValue: 'old-wrap', newValue: undefined },
+        { oldValue: { salt: 's', hashedPassword: 'old' }, newValue: { salt: 's', hashedPassword: 'new' } },
+      ),
+    ).toBe(true);
+    expect(
+      isKeyRotationBatch(undefined, { oldValue: { salt: 's' }, newValue: { salt: 's', hashedPassword: 'new' } }),
+    ).toBe(true);
+  });
+
+  it('单纯上锁（包裹密钥被移除且校验配置未变）仍判 false', () => {
+    expect(
+      isKeyRotationBatch(
+        { oldValue: 'old-wrap', newValue: undefined },
+        { oldValue: { salt: 's' }, newValue: undefined },
+      ),
+    ).toBe(false);
   });
 });
 

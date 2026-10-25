@@ -359,7 +359,7 @@ async function recordBackupRelevantChanges(changes: Record<string, chrome.storag
     const StorageUtils = await _getStorageUtils();
     const now = Date.now();
 
-    if (isKeyRotationBatch(changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY])) {
+    if (isKeyRotationBatch(changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY], changes[STORAGE_KEYS.MASTER_PASSWORD])) {
       logger.debug('Background: 该批变更来自换钥匙（rekey），内容未变，不刷新待备份时间戳');
       return;
     }

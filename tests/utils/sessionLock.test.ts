@@ -23,7 +23,9 @@ let sendSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   clearSession.mockReset().mockResolvedValue(undefined);
-  sendSpy = vi.spyOn(chrome.runtime, 'sendMessage').mockResolvedValue({} as never);
+  // spy 会被同一 spy 实例复用：不 mockReset 的话用例里的次数是累加的，重试判据读不出真假
+  sendSpy = vi.spyOn(chrome.runtime, 'sendMessage');
+  sendSpy.mockReset().mockResolvedValue({} as never);
 });
 
 describe('lockSession', () => {
@@ -57,5 +59,29 @@ describe('lockSession', () => {
 
     await expect(lockSession()).resolves.toBeUndefined();
     expect(clearSession).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 回执不是可选项（评审报告 P2-5）。
+   *
+   * 后台若在自己清理会话密钥材料时失败，其它上下文会短时仍持有旧数据密钥；紧随其后的
+   * 换钥/恢复一提交，它们读到的就是一整片「解不开」的记录。旧实现把回执丢掉，等于让
+   * 「锁定已生效」这个前提在没有证据的情况下被下游依赖。
+   */
+  it('后台报告清理失败：重试一次，两次都失败仍不抛错也不阻断锁定', async () => {
+    sendSpy.mockResolvedValue({ success: false, error: 'SESSION_CLEAR_FAILED' } as never);
+    const { lockSession } = await import('@/utils/sessionLock');
+
+    await expect(lockSession()).resolves.toBeUndefined();
+    expect(sendSpy).toHaveBeenCalledTimes(2);
+    expect(clearSession, '密钥销毁已完成，重试只针对通知通道').toHaveBeenCalledTimes(1);
+  });
+
+  it('回执成功时不重复广播', async () => {
+    sendSpy.mockResolvedValue({ success: true } as never);
+    const { lockSession } = await import('@/utils/sessionLock');
+
+    await lockSession();
+    expect(sendSpy).toHaveBeenCalledTimes(1);
   });
 });

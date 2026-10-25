@@ -117,18 +117,29 @@ export interface StorageChangeLike {
  * salt，与当前主密码无关，备份内容一个字节都没变。不排掉它，用户每改一次主密码就凭空欠一次备份，
  * 徽标与桌面通知会一起报出这个假「待备份」。
  *
- * 判据取「这批 changes 里 `session_wrapped_data_key` 带着新值出现」：
- * - 有 `newValue` = 密钥被换成新值，即 rekey；
- * - 该键被移除（`newValue === undefined`）是**锁定**语义，绝不能算在这里，
+ * 判据取「这批 changes 里带着新的校验配置，或 `session_wrapped_data_key` 带着新值出现」：
+ * - `master_password_config` 带 `newValue`：只有「首次设置主密码 / 改密 / 离线恢复换钥」这条
+ *   链路会写它，用户增删改条目从不触碰；五域整库重加密与它在同一次 `set()` 里落盘，
+ *   因此这一条同时覆盖改密与恢复两种形态。
+ * - 包裹数据密钥带 `newValue` = 换钥后紧接着发布了新会话密钥，同样是 rekey；
+ * - 该键被移除（`newValue === undefined`）是**锁定**语义，绝不能单独算在这里，
  *   否则一次上锁会吞掉紧随其后的真实变更；
- * - 普通解锁也写这个键，但那次 `set()` 不含 `PASSWORDS` / `IDENTITY`，走不到本判据，
+ * - 普通解锁也写这两个键，但那次 `set()` 不含 `PASSWORDS` / `IDENTITY`，走不到本判据，
  *   因此不必再区分「首次建会话」与「换钥匙」。
  *
+ * 为什么不能只看包裹密钥：离线恢复刻意不建立会话，提交前一步就是 `lockSession()`，
+ * 那批整库重加密里根本没有 `session_wrapped_data_key` 的新值——只看它会漏掉恢复路径，
+ * 让每次成功恢复都凭空报出一条「待备份」。
+ *
  * @param wrappedDataKeyChange 该批 changes 中 `session_wrapped_data_key` 那一项（可缺省）
- * @returns true 表示这批变更由换钥匙引起，不应刷新待备份时间戳
+ * @param masterConfigChange 该批 changes 中 `master_password_config` 那一项（可缺省）
+ * @returns true 表示这批变更由密钥建立/轮换引起，不应刷新待备份时间戳
  */
-export function isKeyRotationBatch(wrappedDataKeyChange: StorageChangeLike | undefined): boolean {
-  return wrappedDataKeyChange?.newValue !== undefined;
+export function isKeyRotationBatch(
+  wrappedDataKeyChange: StorageChangeLike | undefined,
+  masterConfigChange?: StorageChangeLike,
+): boolean {
+  return wrappedDataKeyChange?.newValue !== undefined || masterConfigChange?.newValue !== undefined;
 }
 
 /** 密码备份提醒的判定输入（全部来自 storage 时间戳，无条目内容） */

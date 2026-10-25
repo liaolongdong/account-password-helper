@@ -173,9 +173,16 @@ describe('备份提醒的接线', () => {
     expect(recorderAt).toBeGreaterThan(-1);
     const recorderBody = background.slice(recorderAt, recorderAt + 1600);
 
-    // 早退必须排在两条 setLast*ChangeAt 之前，否则 rekey 仍会把戳往前推
-    const guardAt = recorderBody.indexOf('isKeyRotationBatch(changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY])');
+    // 早退必须排在两条 setLast*ChangeAt 之前，否则 rekey 仍会把戳往前推。
+    // 两个信号都要传：只盯包裹密钥会漏掉离线恢复——它刻意不建立会话，提交前一步就是
+    // lockSession()，那批整库重加密里没有新包裹密钥，于是每次成功恢复都凭空报一条「待备份」。
+    const guardAt = recorderBody.indexOf('isKeyRotationBatch(');
     expect(guardAt, 'rekey 早退判据不见了：用户每改一次主密码就会凭空欠一次备份').toBeGreaterThan(-1);
+    const guardCall = recorderBody.slice(guardAt, recorderBody.indexOf(')', guardAt));
+    expect(guardCall).toContain('changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]');
+    expect(guardCall, '离线恢复批次会绕过早退判据，报出假「待备份」').toContain(
+      'changes[STORAGE_KEYS.MASTER_PASSWORD]',
+    );
     expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastPasswordChangeAt(now)'));
     expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastIdentityChangeAt(now)'));
   });

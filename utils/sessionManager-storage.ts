@@ -8,7 +8,7 @@ import type { VaultErrorCode } from './recoveryTypes';
 const WRONG_PASSWORD: VaultErrorCode = 'WRONG_PASSWORD';
 
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
-import { isWebPageContext } from '@/utils/runtimeContext';
+import { isWebPageContext } from './runtimeContext';
 import { withVaultMutation } from '@/utils/storage/vaultWriteLock';
 import { verifyMasterPassword } from '@/utils/storage/masterPassword';
 import {

@@ -367,7 +367,7 @@ graph TB
 - 导出密码列表为数据文件并唤起邮件客户端（见 [utils/emailBackup.ts](../utils/emailBackup.ts)）。
 - 支持选择备份方式：「加密备份」导出 .aph 加密文件（只能通过本插件的「加密备份导入」功能 + 原主密码解密查看）；「不加密备份」导出标准 CSV 数据文件。
 - **默认档是「加密备份」**（单选项把加密档列在首位，初始选中值同为 `encrypted`）。选择「不加密备份」时，选项下方常驻一条 `el-alert` 说明文件含明文密码、会离开本机并留存于邮箱；点「立即备份」还会先走一次 `ElMessageBox.confirm` 风险二次确认（危险色按钮），确认后才进入原有的复验主密码环节——两闸串联：知情确认解决"知道是明文"，复验主密码解决"是本人操作"。该选择只作用于本次动作、不写入 `EmailBackupConfig`，因此改默认值不迁移任何存量配置；`tests/architecture/securityDefaults.test.ts` 钉住这条默认值，避免日后被无声改回弱档。
-- 支持配置自动备份提醒：`chrome.alarms` 到点先判定「自上次成功备份（`.aph` 导出且通过完整性自检）后是否有内容变更」或「是否已超过设定间隔」，只在需要时才发桌面通知（不解密、不自动下载文件）。使用痕迹（`lastUsedAt` / `favoriteUsedAt`）落盘不算变更，判据见 `utils/backup/changeDetection.ts`。**修改主密码（rekey）同样不算变更**：那一批写入把五个加密域整库重加密，并与新的包裹数据密钥同批落盘，逐字段比对会判成「内容变了」，可 `.aph` 用的是导出当时的密码与自带 salt，备份内容一个字节没变——`recordBackupRelevantChanges` 在同批看到新的 `session_wrapped_data_key` 即早退（`isKeyRotationBatch`，键被移除属锁定语义、不算），否则用户每改一次主密码就凭空欠一次备份，徽标与桌面通知会一起报假「待备份」。
+- 支持配置自动备份提醒：`chrome.alarms` 到点先判定「自上次成功备份（`.aph` 导出且通过完整性自检）后是否有内容变更」或「是否已超过设定间隔」，只在需要时才发桌面通知（不解密、不自动下载文件）。使用痕迹（`lastUsedAt` / `favoriteUsedAt`）落盘不算变更，判据见 `utils/backup/changeDetection.ts`。**修改主密码（rekey）同样不算变更**：那一批写入把五个加密域整库重加密，并与新的包裹数据密钥同批落盘，逐字段比对会判成「内容变了」，可 `.aph` 用的是导出当时的密码与自带 salt，备份内容一个字节没变——`recordBackupRelevantChanges` 在同批看到新的 `session_wrapped_data_key` **或**新的 `master_password_config` 即早退（`isKeyRotationBatch`；包裹密钥被移除属锁定语义、单独不算）。补第二条信号是因为**离线恢复也是一次整库换钥，但它刻意不建立会话**：提交前一步就是 `lockSession()`，那批写入里没有新包裹密钥，只盯它会漏掉恢复路径。否则用户每改一次主密码、每成功恢复一次，就凭空欠一次备份，徽标与桌面通知会一起报假「待备份」。
 - 备份间隔可选：每天 / 每3天 / 每周 / 每两周 / 每月。
 
 ### 6. 加密备份导入导出
