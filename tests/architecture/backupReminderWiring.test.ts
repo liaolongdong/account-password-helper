@@ -208,6 +208,29 @@ describe('备份提醒的接线', () => {
     expect(background).toContain("tl(verdict === 'changed' ? 'bg.backup.messageChanged' : 'bg.backup.message'");
   });
 
+  /**
+   * 邮箱备份通道递出去的是 `passwords_*.csv` / `.aph`，不含 `.aphid`，
+   * 所以这条定时提醒的作用域必须停在密码库：给只有个人信息库的用户发「请用邮箱备份」，
+   * 是在引导一个备不到他数据的动作。身份库的欠备份由管理页横幅承担（那里能指到导出入口）。
+   * 真要加站外身份库提醒，前提是先有一条带 `.aphid` 的定时通道——那是产品决策，
+   * 不该由一次顺手改码悄悄发生，所以这里把它钉成断言。
+   */
+  it('SW 侧：邮箱备份提醒只判密码库，不把身份库悄悄并进来', () => {
+    const background = readSource(BACKGROUND);
+    const start = background.indexOf('async function performAutoBackup');
+    expect(start, 'performAutoBackup 的声明形状变了：本条守卫需要跟着调整').toBeGreaterThan(-1);
+    const body = background.slice(start, background.indexOf('\n}', background.indexOf('auto-backup-reminder', start)));
+    expect(body.length, '提取到的函数体为空，判据会空跑').toBeGreaterThan(200);
+
+    expect(body).toContain('STORAGE_KEYS.PASSWORDS');
+    expect(body, '提醒里出现了身份库：邮箱通道不带 .aphid，会引导用户做备不到数据的动作').not.toContain(
+      'STORAGE_KEYS.IDENTITY',
+    );
+    expect(body, '判据不再走 decidePasswordBackupReminder：确认改动是否连带改了出声条件').toContain(
+      'decidePasswordBackupReminder(',
+    );
+  });
+
   it('变更分支文案中英两套都在，且都带 {count} 占位符', () => {
     const lite = readSource(I18N_LITE);
     const values = [...lite.matchAll(/'bg\.backup\.messageChanged':\s*\n?\s*'([^']*)'/g)].map(match => match[1]);

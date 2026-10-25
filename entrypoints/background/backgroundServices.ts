@@ -415,6 +415,16 @@ async function performAutoBackup() {
     const rawPasswords = pwResult[STORAGE_KEYS.PASSWORDS] as unknown[] | undefined;
     const passwordCount = rawPasswords?.length ?? 0;
 
+    /*
+     * 这里**故意只看密码库**，不是漏了个人信息库——别顺手把 IDENTITY 加进来。
+     * 本函数是「邮箱备份提醒」的通道：`utils/emailBackup.ts` 递出去的是
+     * `passwords_*.csv` 或 `.aph`，作用域只覆盖密码库，`.aphid`（个人信息库）根本不在
+     * 这条通道里。给一个只存证件/银行卡的用户发「请用邮箱备份」，是在引导他做一件
+     * 备不到自己数据的动作，比不提醒更糟。
+     * 个人信息库的欠备份状态由管理页横幅承担（两库结论见 `decideBackupChipState`
+     * 的 `perVault`，另一库也欠时点名「下一份」），那是能直接指到 `.aphid` 导出入口的面。
+     * 想给身份库加站外提醒，前提是先有一条带 `.aphid` 的定时通道——属产品决策，不是 bug。
+     */
     if (passwordCount === 0) {
       logger.info('Background: 无密码数据，跳过备份提醒');
       return;
