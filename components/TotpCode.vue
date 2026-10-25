@@ -197,7 +197,7 @@ const handleCopy = async (): Promise<void> => {
 
 .totp-code__copy {
   font-size: 14px;
-  color: #9ca3af;
+  color: var(--aph-text-muted);
   cursor: pointer;
   transition: color 0.2s ease;
 }
