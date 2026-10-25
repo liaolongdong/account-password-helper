@@ -77,8 +77,8 @@
   padding: 12px 24px;
   font-size: 16px;
   font-weight: 500;
-  background: var(--aph-primary);
-  border: 1px solid var(--aph-primary);
+  background: var(--aph-primary-strong);
+  border: 1px solid var(--aph-primary-strong);
   border-radius: 6px;
   transition:
     background-color var(--aph-duration-mid) ease,
@@ -87,25 +87,31 @@
     transform var(--aph-duration-mid) ease;
 }
 
+/* 16px/500 不算 WCAG 的「大字号文本」（要 ≥18.66px 粗体或 ≥24px），仍按 4.5:1 判，
+   所以这条与下面那条常规档同一个修法。 */
 :deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover) {
-  background: var(--aph-primary-hover);
-  border-color: var(--aph-primary-hover);
+  background: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
+  border-color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
   box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 30%);
   transform: translateY(-1px);
 }
 
 /* 实心主按钮刷成主题色实底。
    `link` / `text` 变体的文字本身就是主色，被这条规则刷上同色实底会变成「蓝字压蓝底」而彻底看不见
-   （锁屏的「使用离线恢复密钥」就是这样被抹掉的），因此把它们排除在外。 */
+   （锁屏的「使用离线恢复密钥」就是这样被抹掉的），因此把它们排除在外。
+   底色取 `--aph-primary-strong` 而不是 `--aph-primary`：白字压 `--aph-primary` 实测只有 2.78:1
+   （与上一轮修掉的「主色文字压白底」是同一个数，方向相反），小按钮 12px 文字不达 WCAG AA 4.5:1；
+   强档在白底 / 白字两个方向都是 4.60:1。hover 沿用仓库本轮定下的「更深而不是更浅」惯例，
+   提亮会把白字重新推回欠对比那一侧。 */
 :deep(.el-button--primary:not(.is-link, .is-text)) {
   font-weight: 400;
-  background: var(--aph-primary);
-  border: 1px solid var(--aph-primary);
+  background: var(--aph-primary-strong);
+  border: 1px solid var(--aph-primary-strong);
 }
 
 :deep(.el-button--primary:not(.is-link, .is-text):hover) {
-  background: var(--aph-primary-hover);
-  border-color: var(--aph-primary-hover);
+  background: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
+  border-color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
 }
 
 :deep(.el-button) {

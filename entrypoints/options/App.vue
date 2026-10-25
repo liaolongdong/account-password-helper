@@ -98,6 +98,7 @@
         :state="backupNudge.state"
         :days="backupNudge.days"
         :vault="backupNudge.vault"
+        :other-vault="backupNudgeOtherVault"
         @backup="handleBackupNudgeAction"
         @dismiss="backupNudgeDismissed = true"
       />
@@ -454,6 +455,7 @@ import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
+import { isVerdictOwedNow } from '@/utils/backup/changeDetection';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
@@ -1265,6 +1267,23 @@ const backupNudge = computed<{ state: 'never' | 'stale'; days: number; vault: 'p
     return { state: 'stale', days: chip.ageDays ?? 0, vault: chip.worstVault };
   }
   return null;
+});
+
+/**
+ * 另一库是否也该被点名
+ *
+ * 横幅一次只推一份备份（两库是 `.aph` 与 `.aphid` 两份互不覆盖的文件），但用户看不到
+ * 「另一库同样欠着」这件事——它原本只藏在徽标 tooltip 里，而此刻注意力在横幅上。
+ * 收紧口径与横幅自己一致：只认 `never` / `pending`（也就是横幅自己够格出现的两档）。
+ * 另一库是 `stale`（备份已久但期间没改过）时不点名——没有新数据要丢，副句就成了噪音；
+ * 是 `hidden`（空库）或 `ok` 时更不该提。
+ * 备完第一份后徽标档位重算、`worstVault` 翻过去，横幅会自然接手第二份，不必在此并列两条。
+ */
+const backupNudgeOtherVault = computed<'passwords' | 'identity' | null>(() => {
+  const nudge = backupNudge.value;
+  if (!nudge) return null;
+  const other = nudge.vault === 'identity' ? 'passwords' : 'identity';
+  return isVerdictOwedNow(backupChip.value.perVault[other].verdict) ? other : null;
 });
 
 /** 轻提醒的出口与徽标同一套分派：欠哪一份备份，就把用户送到哪一份的导出入口 */

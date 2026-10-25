@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { decideBackupChipState, decideVaultBackupVerdict } from '@/utils/backup/changeDetection';
+import { decideBackupChipState, decideVaultBackupVerdict, isVerdictOwedNow } from '@/utils/backup/changeDetection';
 
 /**
  * 头部备份徽标的档位判据单元测试
  *
  * 判据是纯函数，徽标与轻提醒都只消费它的结果，所以这里就是这条链路唯一的事实来源。
- * 重点锁三件容易被改坏的事：
+ * 重点锁四件容易被改坏的事：
  * 1. **空库不提醒**（两库皆空 → 隐藏；单库为空不参与档位，但要在明细里说「无条目」）；
  * 2. **徽标取两库里更严重的一档**，一库「从未备份」一库「今日已备份」时显示绿色就是撒谎；
  * 3. 兜底下限用严格大于，且 `pending` 只在变更时间戳**晚于**上次备份时才成立——
  *    否则「备份完之后又改了」与「改完之后备份了」两种顺序会分不清。
+ * 4. 「另一库也欠着」的点名口径（`isVerdictOwedNow`）与横幅自己的出声口径同档。
  */
 
 const DAY = 86_400_000;
@@ -130,5 +131,21 @@ describe('decideBackupChipState 徽标档位', () => {
     expect(state.level).toBe('ok');
     expect(state.worstVault).toBe('identity');
     expect(state.ageDays).toBe(2);
+  });
+});
+
+describe('isVerdictOwedNow 哪一库值得此刻出声', () => {
+  it('从未备份与备份后又改过才算欠着', () => {
+    expect(isVerdictOwedNow('never')).toBe(true);
+    expect(isVerdictOwedNow('pending')).toBe(true);
+  });
+
+  it('太久没备但期间没改过不出声——没有新数据要丢', () => {
+    expect(isVerdictOwedNow('stale')).toBe(false);
+  });
+
+  it('已备份与空库都不该被点名', () => {
+    expect(isVerdictOwedNow('ok')).toBe(false);
+    expect(isVerdictOwedNow('hidden')).toBe(false);
   });
 });

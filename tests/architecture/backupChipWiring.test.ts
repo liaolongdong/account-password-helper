@@ -10,6 +10,9 @@
  *    或解密身份库，代价直接落在 Options 首屏 SLA 上，而功能测试只会看到「显示对了」。
  * 3. 轻提醒保持收紧。它的触发条件是「从未备份」或「本页会话内确实改过数据」，
  *    退回「档位一到待备份就每次打开都推一条」就是把它变成噪音。
+ * 4. 提醒文案的两条口径：点名哪个库就写哪个库的扩展名（一份映射，不是两处三元），
+ *    以及**不许宣称导出耗时**——`.aph` 付 3 次、`.aphid` 付 2 次 PBKDF2 600k，
+ *    同一个动作在不同机器上差好几倍，写死的秒数一定会变成假话。
  */
 import { describe, expect, it } from 'vitest';
 import { readSource } from '../helpers/architectureScan';
@@ -81,10 +84,47 @@ describe('徽标与轻提醒的出口', () => {
 
   it('提醒文案点名对应的文件形态，不写死 .aph', () => {
     const banner = readSource(NUDGE_BANNER);
-    expect(banner).toContain("props.vault === 'identity' ? '.aphid' : '.aph'");
+    // 库 → 扩展名只允许一份映射：主句与「下一份」副句点名的是两个库，各写一遍三元就会漂移。
+    expect(banner).toMatch(
+      /const fileOf = \(vault: 'passwords' \| 'identity'\)[^\n]*\n?[^\n]*identity' \? '\.aphid' : '\.aph'/,
+    );
+    expect(banner).toContain('fileOf(props.vault)');
+    expect(banner).toContain('fileOf(props.otherVault ?? props.vault)');
     expect(banner).toMatch(/t\('options\.backupNudge\.(never|stale)', \{[^}]*file[^}]*\}\)/);
     expect(readSource(ZH_OPTIONS)).toContain('导出一份 {file}');
     expect(readSource(EN_OPTIONS)).toContain('Export a {file}');
+  });
+
+  it('提醒不再宣称导出耗时：那是「派生次数 × 机器速度」的乘积，文案侧无法验证', () => {
+    // .aph 走 3 次 PBKDF2 600k（复验 + 加密 + 自检）、.aphid 走 2 次，同一次导出在不同机器上
+    // 差好几倍；写死的秒数迟早变成假话。允许的事实是「再验一次主密码」「不改动库里的数据」。
+    for (const file of [ZH_OPTIONS, EN_OPTIONS]) {
+      const stale = readSource(file).match(/"options\.backupNudge\.stale":\s*"([^"]*)"/);
+      expect(stale, `缺少 options.backupNudge.stale：${file}`).not.toBeNull();
+      expect(stale![1]).not.toMatch(/秒|second|sec\b/);
+    }
+  });
+
+  it('横幅点名「下一份」时按同一条出声判据筛库，不把 ok / 空库也说成欠着', () => {
+    const app = readSource(APP);
+    expect(app).toContain('isVerdictOwedNow(backupChip.value.perVault[other].verdict)');
+    expect(app).toContain(':other-vault="backupNudgeOtherVault"');
+  });
+
+  it('横幅的 CTA 走强档实底：白字压 --aph-primary 实测只有 2.78:1', () => {
+    // 与 `themeContrast.test.ts` 里「strong 压白底 >= 4.5:1」是同一个数（对比度对前后景对称），
+    // 那条已证数值；这里只钉管理页那两条实心规则确实把底色换成了强档、hover 也继续压暗。
+    const css = readSource('entrypoints/options/styles.css');
+    const solid = css.match(/:deep\(\.el-button--primary:not\(\.is-link, \.is-text\)\)\s*\{([^}]*)\}/)?.[1];
+    expect(solid, '实心主按钮规则被改名或删掉').toContain('background: var(--aph-primary-strong)');
+    expect(css.match(/:deep\(\.el-button--primary:not\(\.is-link, \.is-text\):hover\)\s*\{([^}]*)\}/)?.[1]).toMatch(
+      /background: color-mix\(in srgb, var\(--aph-primary-strong\) \d+%, #000\)/,
+    );
+  });
+
+  it('横幅的两枚动作都够 24px 最小命中区（WCAG 2.5.8）', () => {
+    const banner = readSource(NUDGE_BANNER);
+    expect(banner).toMatch(/\.backup-nudge__actions :deep\(\.el-button\)\s*\{[^}]*min-height: 24px/);
   });
 
   it('轻提醒保持收紧：清单在场不出，待备份档还要求本页会话内真的改过数据', () => {
@@ -101,5 +141,12 @@ describe('徽标与轻提醒的出口', () => {
     for (const key of ['Never', 'Pending', 'Stale', 'Today', 'Days', 'Empty']) {
       expect(header).toContain(`options.header.backupChip${key}`);
     }
+  });
+
+  it('横幅的两档也不只靠红 / 橙：图标形状跟着档位换，装饰图标对读屏器隐藏', () => {
+    const banner = readSource(NUDGE_BANNER);
+    expect(banner).toContain(`<CircleCloseFilled v-if="state === 'never'" />`);
+    expect(banner).toMatch(/<el-icon[\s\S]{0,60}aria-hidden="true"/);
+    expect(banner).toMatch(/import \{ CircleCloseFilled, WarningFilled \} from '@element-plus\/icons-vue'/);
   });
 });

@@ -301,6 +301,21 @@ const VERDICT_TO_LEVEL: Record<Exclude<BackupVaultVerdict, 'hidden'>, BackupChip
 };
 
 /**
+ * 该档是否「现在就该催用户去备份」
+ *
+ * 与 `VERDICT_TO_LEVEL` 的 `never → critical` / `pending → urgent` 同一意图：只有「从未备份」
+ * 和「备份后又改过」值得出声。`stale`（备份已久但期间没动过）没有新数据要丢，`ok` 与
+ * `hidden`（空库）更不该提。横幅自身的出现门槛写在 `entrypoints/options/App.vue` 的
+ * `backupNudge` 里，判的是档位不是库档——两处若有一处扩档，另一处要一起对过。
+ *
+ * @param verdict 单个库的备份档位
+ * @returns true 表示该库值得在此刻提醒用户备份
+ */
+export function isVerdictOwedNow(verdict: BackupVaultVerdict): boolean {
+  return verdict === 'never' || verdict === 'pending';
+}
+
+/**
  * 判定头部备份徽标
  *
  * 徽标只取两库里更严重的一档：一库「从未备份」一库「今日已备份」时显示绿色就是撒谎。
