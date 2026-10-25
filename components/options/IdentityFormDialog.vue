@@ -45,6 +45,7 @@
         >
           <el-input
             v-model="localForm[fieldKey]"
+            :placeholder="t(`identity.form.placeholder.${fieldKey}`)"
             :maxlength="fieldMaxlength(fieldKey)"
             clearable
             show-word-limit
@@ -77,6 +78,7 @@
             >
               <el-input
                 v-model="localForm[fieldKey]"
+                :placeholder="t(`identity.form.placeholder.${fieldKey}`)"
                 :maxlength="fieldMaxlength(fieldKey)"
                 clearable
                 show-word-limit
@@ -91,6 +93,7 @@
             v-model="localForm.remark"
             type="textarea"
             :rows="3"
+            :placeholder="t('identity.form.placeholder.remark')"
             :maxlength="MAX_REMARK_LEN"
             show-word-limit
           />
