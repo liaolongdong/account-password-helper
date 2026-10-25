@@ -391,7 +391,7 @@ defineExpose({ formRef: localVerifyFormRef });
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.4;
-  color: #f56c6c;
+  color: var(--aph-danger-strong);
 }
 
 /* 主密码提示语（连续输错达阈值后出现，与复验弹窗的忘记密码提示同一口径） */

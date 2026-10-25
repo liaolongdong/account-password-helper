@@ -617,7 +617,7 @@ const handleEmailClick = (event: Event) => {
 }
 
 .session-remaining-chip--urgent {
-  color: #b88230;
+  color: var(--aph-warning-strong);
   background: #fdf6ec;
 }
 
@@ -627,7 +627,7 @@ const handleEmailClick = (event: Event) => {
 
 /* 危急态（≤1 分钟）：警示红，信号强度高于紧迫态 */
 .session-remaining-chip--critical {
-  color: #c45656;
+  color: var(--aph-danger-strong);
   background: #fef0f0;
 }
 

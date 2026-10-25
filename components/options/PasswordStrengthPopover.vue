@@ -136,6 +136,6 @@ defineEmits<{
 }
 
 :global(.password-rules-popover .password-rules-list li.passed) {
-  color: #67c23a;
+  color: var(--aph-success-strong);
 }
 </style>

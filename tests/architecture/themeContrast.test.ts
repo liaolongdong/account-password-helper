@@ -198,33 +198,28 @@ function semanticColorSelectors(relPath: string): string[] {
   return found;
 }
 
-/** 设计系统里的全部浅底（含各主题浅色面与语义浅底），文字必须在最差一面也达标 */
-const LIGHT_SURFACES: Record<string, string> = {
-  white: '#ffffff',
-  'surface-2': '#f8fbff',
-  'primary-bg': '#ecf5ff',
-  'surface-hover': '#f0f9ff',
-  surface: '#e8f4fd',
-  'warning-light-9': '#fdf6ec',
-  'danger-light-9': '#fef0f0',
-  'info-light-9': '#f4f4f5',
-};
+/**
+ * 浅底清单只有一份：`LIGHT_SURFACES_IN_USE`（本文件末尾）。
+ * 这里曾经并存过一张 8 面的旧表，结果 `--aph-danger-strong` 按旧表算「达标」，
+ * 换到 12 面就只剩 4.11:1——两张底表就是两个答案，必须只留一张。
+ */
 
 describe('语义色不当文字', () => {
   const tokens = readSource('assets/theme/tokens.css');
 
-  it('抽取到两个强档语义文字令牌，避免守卫空跑', () => {
-    expect(tokens).toMatch(/--aph-danger-strong:\s*(#[0-9a-fA-F]{6})/);
-    expect(tokens).toMatch(/--aph-warning-strong:\s*(#[0-9a-fA-F]{6})/);
+  it('抽取到三个强档语义文字令牌，避免守卫空跑', () => {
+    for (const name of ['danger', 'warning', 'success'] as const) {
+      expect(tokens, `缺少 --aph-${name}-strong`).toMatch(new RegExp(`--aph-${name}-strong:\\s*#[0-9a-fA-F]{6}`));
+    }
   });
 
-  it('两个令牌在八种浅底的最差一面仍 >= 4.5:1', () => {
-    for (const name of ['danger', 'warning'] as const) {
+  it('三个令牌在全部浅底的最差一面仍 >= 4.5:1', () => {
+    for (const name of ['danger', 'warning', 'success'] as const) {
       const hex = tokens.match(new RegExp(`--aph-${name}-strong:\\s*(#[0-9a-fA-F]{6})`))?.[1];
       expect(hex, `缺少 --aph-${name}-strong`).toBeTruthy();
-      for (const [surface, background] of Object.entries(LIGHT_SURFACES)) {
-        expect(contrast(hex!, background), `${name} on ${surface}`).toBeGreaterThanOrEqual(4.5);
-      }
+      const perSurface = LIGHT_SURFACES_IN_USE.map(background => ({ background, ratio: contrast(hex!, background) }));
+      const worst = perSurface.reduce((a, b) => (a.ratio < b.ratio ? a : b));
+      expect(worst.ratio, `${name} ${hex} 压在 ${worst.background} 上`).toBeGreaterThanOrEqual(4.5);
     }
   });
 
@@ -361,6 +356,46 @@ describe('灰阶文字不许硬编码', () => {
         if (Math.max(r, g, b) - Math.min(r, g, b) > GRAY_SPREAD) return;
         const worst = Math.min(...LIGHT_SURFACES_IN_USE.map(surface => contrast(hex, surface)));
         if (worst < 4.5) violations.push(`${rel}:${index + 1} ${hex} 最差 ${worst.toFixed(2)}:1`);
+      });
+    }
+    expect(violations, violations.join('\n')).toEqual([]);
+  });
+
+  /**
+   * Element Plus / Tailwind 的常用灰阶与语义色：写死它们等于绕过上面两条判据。
+   * 图标类选择器豁免——图形走 WCAG 1.4.11 的 3:1，不是文字的 4.5:1，
+   * 且本仓图标旁都有同义文字（收藏星标、自动登录图标、面板标题图标）。
+   */
+  const BANNED_HARDCODED_TEXT_COLORS: Record<string, string> = {
+    '#909399': 'EP 旧 secondary，最差 2.50:1 → 用 --aph-text-muted',
+    '#6b7280': '旧 secondary 值，最差 3.92:1 → 用 --aph-text-secondary',
+    '#c0c4cc': 'EP placeholder 灰，最差 1.42:1 → 用 --aph-text-muted',
+    '#64748b': '最差 3.86:1 → 用 --aph-text-muted',
+    '#6c757d': '最差 3.80:1 → 用 --aph-text-muted',
+    '#e6a23c': 'EP warning 原色，最差 1.77:1 → 文字用 --aph-warning-strong',
+    '#b88230': 'warning 加深一档仍只有 2.72:1 → 用 --aph-warning-strong',
+    '#f56c6c': 'EP danger 原色，最差 2.35:1 → 文字用 --aph-danger-strong',
+    '#c45656': 'danger 加深一档仍只有 3.54:1 → 用 --aph-danger-strong',
+    '#67c23a': 'EP success 原色，最差 1.82:1 → 文字用 --aph-success-strong',
+    '#529b2e': 'success 加深一档仍只有 2.80:1 → 用 --aph-success-strong',
+  };
+
+  it('灰阶与语义色都不许写死在文字上（图标选择器除外）', () => {
+    const violations: string[] = [];
+    for (const rel of files) {
+      const lines = readSource(rel).split('\n');
+      let selector = '';
+      lines.forEach((line, index) => {
+        const trimmed = line.trimEnd();
+        if (trimmed.endsWith('{')) selector = trimmed.replace(/\{$/, '').trim();
+        const match = /^\s*color:\s*(#[0-9a-fA-F]{3,6})\s*;$/.exec(line);
+        if (!match) return;
+        const reason = BANNED_HARDCODED_TEXT_COLORS[match[1].toLowerCase()];
+        if (!reason) return;
+        // 只豁免图形：`badge` 不在其列——`.age-badge` 是带 tabular-nums 的文字标签，
+        // 这一轮刚被转成强档，把它放进豁免等于给守卫开个正好漏掉刚修完那批的洞。
+        if (/icon|__star|__arrow|__dot/i.test(selector)) return;
+        violations.push(`${rel}:${index + 1} ${match[1]} — ${reason}（选择器 ${selector}）`);
       });
     }
     expect(violations, violations.join('\n')).toEqual([]);

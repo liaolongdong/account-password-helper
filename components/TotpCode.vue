@@ -176,7 +176,7 @@ const handleCopy = async (): Promise<void> => {
 }
 
 .totp-code__ring.is-expiring .totp-code__ring-num {
-  color: #e6a23c;
+  color: var(--aph-warning-strong);
 }
 
 .totp-code__digits {

@@ -580,7 +580,7 @@ defineExpose({ formRef: localFormRef });
 
 .totp-preview__hint {
   font-size: 12px;
-  color: #f56c6c;
+  color: var(--aph-danger-strong);
 }
 
 .totp-tip {

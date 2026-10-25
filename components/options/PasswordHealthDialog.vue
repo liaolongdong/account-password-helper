@@ -1138,7 +1138,7 @@ onScopeDispose(() => {
   justify-content: center;
   padding: 20px;
   font-size: 14px;
-  color: #529b2e;
+  color: var(--aph-success-strong);
   background: #f0f9eb;
   border: 1px solid #e1f3d8;
   border-radius: 8px;
@@ -1232,7 +1232,7 @@ onScopeDispose(() => {
   margin-bottom: 6px;
   font-size: 13px;
   font-weight: 500;
-  color: #e6a23c;
+  color: var(--aph-warning-strong);
 }
 
 .issue-row {
@@ -1285,11 +1285,11 @@ onScopeDispose(() => {
 }
 
 .age-badge.tone-danger {
-  color: #f56c6c;
+  color: var(--aph-danger-strong);
 }
 
 .age-badge.tone-warning {
-  color: #e6a23c;
+  color: var(--aph-warning-strong);
 }
 
 /* 面板容器边框对齐 Element Plus 折叠面板 */

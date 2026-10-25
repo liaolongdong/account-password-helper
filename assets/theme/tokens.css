@@ -32,18 +32,21 @@
 
   /* 语义色「强」档：与 `--aph-primary-strong` 同一配方（保色相与饱和度、只压暗度），
      用途也同一类——语义色当**文字**压浅色底时不达 WCAG AA：
-     `--el-color-danger` #f56c6c 白底只有 2.90:1、`--el-color-warning` #e6a23c 只有 2.19:1，
+     `--el-color-danger` #f56c6c 白底只有 2.90:1、`--el-color-warning` #e6a23c 只有 2.19:1、
+     `--el-color-success` #67c23a 只有 2.24:1，
      而它们压的正是校验报错与安全披露这类必须读清的字。
-     取值按「设计系统里全部 8 种浅底（白 / surface / surface-2 / surface-hover / primary-bg /
-     warning-9 / danger-9 / info-9）中最差的一面」定，不是只对白底达标：
-     danger 最差 4.53:1（压 --aph-surface 上），warning 最差 4.61:1。
+     取值按「设计系统里全部 12 种浅底中最差的一面」定，不是只对白底达标
+     （同 `--aph-text-*` 那条地板，见上面的中性色注释；#e2e8f0 这类较深的底会吃掉 0.4~0.5
+     的对比度，只按白底调会静默不达标）：
+     danger 最差 4.58:1、warning 4.55:1、success 4.57:1。
      刻意不复用 `--el-color-danger-dark-2`：那是 +20% 黑，白底只有 4.11:1，浅底更差。
      语义色不参与换肤（本文件头部已声明「成功/警告/错误保持全主题一致」），
      所以这里各一个值、六套主题块无需配；内容脚本不用 Element Plus，
      `utils/theme.ts` 的 THEME_SHADOW_TOKENS 也无需镜像。
      只用于文字：图标、圆点、填充与描边继续用 `--el-color-*` 原色，语义色相不丢。 */
-  --aph-danger-strong: #dd0f0f;
-  --aph-warning-strong: #976213;
+  --aph-danger-strong: #cf0e0e;
+  --aph-warning-strong: #8f5d12;
+  --aph-success-strong: #3e7423;
 
   /* 品牌浅色填充 / 边框 */
   --aph-primary-bg: #ecf5ff;

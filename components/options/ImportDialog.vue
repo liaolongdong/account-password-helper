@@ -544,7 +544,7 @@ const handleClose = () => {
 
 .preview-total {
   font-size: 12px;
-  color: #67c23a;
+  color: var(--aph-success-strong);
 }
 
 .preview-footer {
