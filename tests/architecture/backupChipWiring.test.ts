@@ -111,15 +111,18 @@ describe('徽标与轻提醒的出口', () => {
     expect(app).toContain(':other-vault="backupNudgeOtherVault"');
   });
 
-  it('横幅的 CTA 走强档实底：白字压 --aph-primary 实测只有 2.78:1', () => {
-    // 与 `themeContrast.test.ts` 里「strong 压白底 >= 4.5:1」是同一个数（对比度对前后景对称），
-    // 那条已证数值；这里只钉管理页那两条实心规则确实把底色换成了强档、hover 也继续压暗。
+  it('实心主按钮保持品牌浅蓝：主题色由用户拍板，不许为了对比度自行换成深档', () => {
+    // 2026-10-26 用户明确要求：按钮主题色必须与品牌图标一致的那支浅蓝。
+    // 白字压 `--aph-primary` 确实只有 2.78:1（不达 WCAG AA），但那是**已知取舍**，
+    // 由这条锁住，防止下一轮又以「修对比度」的名义把它换成 `--aph-primary-strong`。
+    // 要改这个决定，得先改这条判据并拿到用户确认。
     const css = readSource('entrypoints/options/styles.css');
     const solid = css.match(/:deep\(\.el-button--primary:not\(\.is-link, \.is-text\)\)\s*\{([^}]*)\}/)?.[1];
-    expect(solid, '实心主按钮规则被改名或删掉').toContain('background: var(--aph-primary-strong)');
-    expect(css.match(/:deep\(\.el-button--primary:not\(\.is-link, \.is-text\):hover\)\s*\{([^}]*)\}/)?.[1]).toMatch(
-      /background: color-mix\(in srgb, var\(--aph-primary-strong\) \d+%, #000\)/,
-    );
+    expect(solid, '实心主按钮规则被改名或删掉').toContain('background: var(--aph-primary)');
+    expect(solid, '实心主按钮不许改用强档').not.toContain('--aph-primary-strong');
+    const hover = css.match(/:deep\(\.el-button--primary:not\(\.is-link, \.is-text\):hover\)\s*\{([^}]*)\}/)?.[1];
+    expect(hover, 'hover 应保持仓库惯例的「提亮一档」').toContain('background: var(--aph-primary-hover)');
+    expect(hover, 'hover 不许改用强档或混黑').not.toMatch(/--aph-primary-strong|color-mix/);
   });
 
   it('横幅的两枚动作都够 24px 最小命中区（WCAG 2.5.8）', () => {

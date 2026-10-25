@@ -1,10 +1,12 @@
 /**
- * 主色文字压白底的对比度守卫
+ * 主色令牌与主按钮的对比度守卫
  *
- * 「添加密码」是 14px 实心按钮，静息与 hover 都必须满足 WCAG AA 4.5:1。
- * 令牌本身只能证明静息态：hover 底色是更浅的 `--aph-surface-hover`，如果文字仍停在
- * `--aph-primary-strong`，六套主题都会掉到 4.25–4.36:1。这里同时读取令牌与组件的
- * hover 混色比例，按真实背景重算，避免「令牌达标、hover 不达标」再次静默上线。
+ * 两件事分开守：
+ * 1. `--aph-primary-strong` 这支「同色相压暗」的强档本身要达 AA（它仍用在正文链接上）。
+ * 2. 主按钮（头部「添加密码」与管理页实心按钮）**必须保持品牌浅蓝 `--aph-primary`**——
+ *    2026-10-26 用户明确否掉了为对比度把按钮换成深档的做法，代价（白字 2.78:1、
+ *    白底蓝字 2.78:1，均不达 AA）作为已知取舍记录在案。这条锁住的是「别再自作主张改主题色」，
+ *    数值判据反而次要，所以两条都写成「用了强档就变红」。
  */
 import { describe, expect, it } from 'vitest';
 import { listSourceFiles, readSource } from '../helpers/architectureScan';
@@ -90,22 +92,24 @@ describe('主色实心按钮的 WCAG AA 对比度', () => {
     }
   });
 
-  it('hover 规则用 strong 继续压暗，且六套主题在 hover 底色上均 >= 4.5:1', () => {
+  it('头部主按钮保持品牌浅蓝文字：主题色由用户拍板，强档不得回流到按钮上', () => {
+    // 2026-10-26 用户明确要求按钮主题色与品牌图标一致（`--aph-primary` 那支浅蓝）。
+    // 白底 + 浅蓝文字实测 2.78:1、hover 的近白底 2.61:1，都不达 WCAG AA —— 这是**已知取舍**，
+    // 记在这里，防止下一轮拿「修对比度」的名义把它换成深档；真要换，先改这条并拿到确认。
+    const rule = HEADER_SOURCE.match(
+      /\.header-actions \.el-button--primary:not\(\.is-link, \.is-text\)\)\s*\{([^}]*)\}/,
+    )?.[1];
+    expect(rule, 'HeaderBar 实心主按钮规则缺失').toBeTruthy();
+    expect(rule, '静息态文字必须是品牌浅蓝').toContain('color: var(--aph-primary)');
+    expect(rule, '不许改用强档').not.toContain('--aph-primary-strong');
+
     const hoverRule = HEADER_SOURCE.match(
       /\.header-actions \.el-button--primary:not\(\.is-link, \.is-text\):hover\)\s*\{([^}]*)\}/,
     )?.[1];
     expect(hoverRule, 'HeaderBar 实心主按钮 hover 规则缺失').toBeTruthy();
-
-    const percentage = Number(
-      hoverRule!.match(/color:\s*color-mix\(in srgb, var\(--aph-primary-strong\) (\d+)%, #000\)/)?.[1],
-    );
-    expect(percentage, 'hover 文字必须用 strong 与黑色混色，不能停在 strong 原值').toBeGreaterThan(0);
-    expect(hoverRule!).toContain('background: var(--aph-surface-hover)');
-
-    for (const theme of themes) {
-      const hoverText = mixWithBlack(theme.strong, percentage / 100);
-      expect(contrast(hoverText, theme.hoverSurface), theme.name).toBeGreaterThanOrEqual(4.5);
-    }
+    expect(hoverRule, 'hover 文字必须是品牌浅蓝').toContain('color: var(--aph-primary)');
+    expect(hoverRule, 'hover 不许改用强档或混黑').not.toMatch(/--aph-primary-strong|color-mix/);
+    expect(hoverRule).toContain('background: var(--aph-surface-hover)');
   });
 });
 

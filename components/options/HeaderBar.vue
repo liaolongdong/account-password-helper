@@ -1019,20 +1019,16 @@ const backupChipDetail = computed(() =>
    级联按属性逐条裁决，于是 `background` 被全局刷成 `--aph-primary`，而 `color`
    只有这里设了同一个 `--aph-primary` —— 蓝字压蓝底，「添加密码」整颗隐形，
    hover 时全局 `:hover` 又把底色提亮一档，越 hover 越糊。补齐 `:not()` 后
-   本组件升到 (0,5,0)/(0,6,0)，白底蓝字与字重 500 才真正落到实心主按钮上。
-   文字用 `--aph-primary-strong` 而不是 `--aph-primary`：白底 + 主色文字实测只有
-   2.78:1（hover 的近白底更低到 2.61:1），14px 文字不达 WCAG AA 4.5:1；强档六套主题各配值，
-   在白底上统一 4.60:1。 */
+   本组件升到 (0,5,0)/(0,6,0)，白底蓝字与字重 500 才真正落到实心主按钮上。 */
 :deep(.header-actions .el-button--primary:not(.is-link, .is-text)) {
   font-weight: 500;
-  color: var(--aph-primary-strong);
+  color: var(--aph-primary);
   background: #fff;
   border: 1px solid #fff;
 }
 
 :deep(.header-actions .el-button--primary:not(.is-link, .is-text):hover) {
-  /* hover 底色比白底更浅，文字必须继续压暗：六套主题在 92% 混色下为 4.86–4.98:1。 */
-  color: color-mix(in srgb, var(--aph-primary-strong) 92%, #000);
+  color: var(--aph-primary);
   background: var(--aph-surface-hover);
   border-color: var(--aph-surface-hover);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);

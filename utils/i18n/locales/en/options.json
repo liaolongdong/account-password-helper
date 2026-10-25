@@ -362,7 +362,7 @@
   "options.autoSave.saved": "Auto-save settings saved",
   "options.changePwd.alertTitle": "Changing the master password re-encrypts all data. Make sure the new password is strong and memorable.",
   "options.changePwd.alertDesc": "Exported encrypted backups (.aph files) are unaffected and still decrypt with the password used at export time.",
-  "options.changePwd.alertDescRecovery": "Offline recovery is enabled: this change also issues a new recovery kit, so the one you hold stops working and needs replacing.",
+  "options.changePwd.alertDescRecovery": "Offline recovery is enabled: this change also issues a new recovery kit. The kit you already hold stops working once the change is done, so save the newly generated kit.",
   "options.changePwd.oldPassword": "Current password",
   "options.changePwd.oldPasswordPlaceholder": "Enter the current master password",
   "options.changePwd.newPassword": "New password",
