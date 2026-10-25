@@ -117,6 +117,7 @@
                   🔍 {{ t('auth.debugInfo') }}
                 </el-button>
                 <el-button
+                  class="verify-actions__end"
                   size="small"
                   type="danger"
                   link
@@ -357,9 +358,25 @@ defineExpose({ formRef: localVerifyFormRef });
 .verify-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  justify-content: space-between;
+  gap: 4px 8px;
+  align-items: center;
   margin-top: 12px;
+}
+
+/* 找回入口钉死行尾，恢复入口留在行首。
+   原先用 `justify-content: space-between`：恢复入口按 `recoveryAvailable` 显隐，
+   没启用过离线恢复的用户这一行只剩一颗链接，space-between 会把它推到最左边——
+   同一个逃生出口，换一台机器就换了位置。`margin-left: auto` 让「忘记密码」
+   无论邻居在不在都落在右端，左位缺位时留白即可。 */
+.verify-actions__end {
+  margin-left: auto;
+}
+
+/* 链接按钮默认只有 `size="small"` 的 ~24px 命中高度；刚输错过主密码的用户手在抖，
+   把可点面积垫回 32px（WCAG 2.5.8 最小目标尺寸），视觉字号与文案一律不动。 */
+.verify-actions :deep(.el-button.is-link) {
+  min-height: 32px;
+  padding: 4px 8px;
 }
 
 /* 验证错误内联提示 */

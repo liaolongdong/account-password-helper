@@ -848,11 +848,11 @@ const backupChipDetail = computed(() =>
   font-size: 14px;
 }
 
+/* 只保留等宽数字这一件事：字号与字重一律继承 `.session-chip`，
+   否则同一行上并排的备份徽标（12px/500）与会话徽标（曾为 13px/600）会读出两种质地。
+   防跳动靠 tabular-nums，不靠加大字号。 */
 .session-chip__time {
-  font-size: 13px;
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
 }
 
 /* 会话存活状态灯：柔和绿光晕，紧迫态转白并伴随扩散脉冲 */
@@ -977,14 +977,22 @@ const backupChipDetail = computed(() =>
   transform: translateY(-1px);
 }
 
-:deep(.header-actions .el-button--primary) {
+/* 实心主按钮必须与 options 全局样式同形状带 `:not(.is-link, .is-text)`。
+   `entrypoints/options/styles.css` 经 App.vue 的 scoped `@import` 编译成
+   `[data-v-app] .el-button--primary:not(.is-link, .is-text)`，特异性 (0,4,0)；
+   本组件的 `[data-v-x] .header-actions .el-button--primary` 只有 (0,3,0)。
+   级联按属性逐条裁决，于是 `background` 被全局刷成 `--aph-primary`，而 `color`
+   只有这里设了同一个 `--aph-primary` —— 蓝字压蓝底，「添加密码」整颗隐形，
+   hover 时全局 `:hover` 又把底色提亮一档，越 hover 越糊。补齐 `:not()` 后
+   本组件升到 (0,5,0)/(0,6,0)，白底蓝字与字重 500 才真正落到实心主按钮上。 */
+:deep(.header-actions .el-button--primary:not(.is-link, .is-text)) {
   font-weight: 500;
   color: var(--aph-primary);
   background: #fff;
   border: 1px solid #fff;
 }
 
-:deep(.header-actions .el-button--primary:hover) {
+:deep(.header-actions .el-button--primary:not(.is-link, .is-text):hover) {
   color: var(--aph-primary);
   background: var(--aph-surface-hover);
   border-color: var(--aph-surface-hover);

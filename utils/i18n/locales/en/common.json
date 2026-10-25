@@ -32,5 +32,8 @@
   "common.showPassword": "Show password",
   "common.hidePassword": "Hide password",
   "common.noData": "No data",
-  "common.noMatch": "No match"
+  "common.noMatch": "No match",
+  "common.chooseFile": "Choose file",
+  "common.noFileSelected": "No file chosen",
+  "common.fileSelected": "Selected: {name}"
 }

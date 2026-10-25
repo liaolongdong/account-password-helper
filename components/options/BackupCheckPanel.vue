@@ -22,6 +22,27 @@
       @submit.prevent="handleVerify"
     >
       <label :for="`${id}-file`">{{ t('options.forgot.checkFile') }}</label>
+      <!--
+        原生 input 只负责取文件，皮肤交给 el-button；`display:none` 而非移出 DOM——
+        `files` 与 `change` 是这条链路唯一的取文件入口。选中的文件名由下面的
+        `selectedFile` 自己回显，因为 `input.value` 会在取到文件后立即清空。
+      -->
+      <div class="backup-check__picker">
+        <el-button @click="pickFile">{{ t('common.chooseFile') }}</el-button>
+        <span
+          v-if="selectedFile"
+          class="backup-check__file-name"
+          role="status"
+        >
+          {{ t('common.fileSelected', { name: selectedFile.name }) }}
+        </span>
+        <span
+          v-else
+          class="backup-check__file-name backup-check__file-name--empty"
+        >
+          {{ t('common.noFileSelected') }}
+        </span>
+      </div>
       <input
         :id="`${id}-file`"
         ref="fileInput"
@@ -122,9 +143,17 @@ watch(
   { flush: 'sync' },
 );
 
+/** 转发到隐藏的 file input，避免为取一个文件再引入上传组件。 */
+function pickFile(): void {
+  fileInput.value?.click();
+}
+
 function handleFileChange(event: Event): void {
   const input = event.target as HTMLInputElement;
   selectedFile.value = input.files?.[0] ?? null;
+  // 立即清空 value：验证失败后重挑同一份文件是最常见的动作，
+  // 不清空则 value 未变、`change` 不再触发，用户只能眼看按钮一直灰着。
+  input.value = '';
 }
 
 /** Web Crypto 不支持取消；输入变化后仅丢弃结果，完成前仍禁重复提交。 */
@@ -186,9 +215,28 @@ onBeforeUnmount(() => {
 }
 
 .backup-check__file {
-  width: 100%;
+  display: none;
+}
+
+.backup-check__picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
   min-width: 0;
+}
+
+.backup-check__file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
   color: var(--aph-text-primary);
+  white-space: nowrap;
+}
+
+.backup-check__file-name--empty {
+  color: var(--aph-text-secondary);
 }
 
 .backup-check__button {

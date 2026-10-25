@@ -24,21 +24,41 @@
         {{ t('recovery.loading') }}
       </p>
       <template v-else>
-        <p role="status">{{ status.enabled ? t('recovery.enabled') : t('recovery.disabled') }}</p>
         <p
-          v-if="status.corrupted"
-          role="alert"
+          role="status"
+          class="state-line"
         >
-          {{ t('recovery.corrupted') }}
+          <span
+            class="state-line__dot"
+            :class="status.enabled ? 'state-line__dot--on' : 'state-line__dot--off'"
+            aria-hidden="true"
+          ></span>
+          {{ status.enabled ? t('recovery.enabled') : t('recovery.disabled') }}
         </p>
+        <!-- 损坏是「现在就有事」的状态，原先用普通 `<p role="alert">` 渲染：读屏会念，
+             但眼睛看不出它和上一行平安状态有什么区别。换成 warning 型 alert，让颜色与图标
+             跟上已经存在的语义角色（文字仍是同一句，不新增只用颜色表达的信息）。 -->
+        <el-alert
+          v-if="status.corrupted"
+          class="state-alert"
+          type="warning"
+          :closable="false"
+          show-icon
+          :title="t('recovery.corrupted')"
+        />
         <dl
           v-if="status.config"
           class="metadata"
         >
           <dt>{{ t('recovery.createdAt') }}</dt>
-          <dd>{{ new Date(status.config.createdAt).toLocaleString(currentLocale) }}</dd>
+          <dd>{{ formatCreatedAt(status.config.createdAt) }}</dd>
           <dt>{{ t('recovery.kitId') }}</dt>
-          <dd>{{ status.config.id }}</dd>
+          <!--
+            套件编号是用户拿去比对「我保存的那份文件到底是哪一套」的唯一把手，因此走等宽 +
+            单击全选，但刻意不加分组连字符：这个 id 会出现在套件文件名里，也是配置校验比对的
+            原值，显示形态一旦和存储形态不一致，复制出去就对不上。
+          -->
+          <dd class="metadata__mono">{{ status.config.id }}</dd>
         </dl>
         <template v-if="draft">
           <!-- 首次创建没有「旧套件」可谈，这句话只在已启用（即换发）时成立 -->
@@ -49,8 +69,10 @@
             @confirm="activate"
           />
         </template>
-        <form
+        <!-- 同 RecoveryResetDialog：`el-form-item` 必须有表单上下文才会走堆叠标签 -->
+        <el-form
           v-else
+          label-position="top"
           @submit.prevent="prepare"
         >
           <el-form-item :label="t('recovery.currentPassword')">
@@ -58,6 +80,7 @@
               v-model="password"
               type="password"
               autocomplete="current-password"
+              :placeholder="t('recovery.currentPasswordPlaceholder')"
               :aria-label="t('recovery.currentPassword')"
               :disabled="busy"
               @keydown="handleCapsKeyEvent"
@@ -87,6 +110,7 @@
               {{ t('recovery.disableConfirm') }}
             </el-checkbox>
             <el-button
+              class="disable-section__action"
               type="danger"
               :disabled="busy || !password.trim() || !disableConfirmed"
               @click="disable"
@@ -94,7 +118,7 @@
               {{ t('recovery.disable') }}
             </el-button>
           </div>
-        </form>
+        </el-form>
       </template>
       <p
         v-if="error"
@@ -145,6 +169,22 @@ const status = shallowRef<RecoveryStatus | null>(null);
 const disableConfirmed = shallowRef(false);
 const root = useTemplateRef<HTMLElement>('root');
 const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
+/**
+ * 套件创建时间只精确到分钟。
+ *
+ * 这一行的用途是「认出眼前这套是哪一次换发出来的」，秒级精度对这个判断没有贡献，
+ * 只会让 `2026-10-25 00:31:20` 比 `2026-10-25 00:31` 多占一位并更难扫读。
+ * 仍走 `toLocaleString(currentLocale)`，不改成仓库里那个固定格式的 `formatDateTime`，
+ * 以免英文态突然换成一套与页面其余位置不同的日期写法。
+ */
+const formatCreatedAt = (ts: number): string =>
+  new Date(ts).toLocaleString(currentLocale.value, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 const clear = (): void => {
   password.value = '';
   draft.value = null;
@@ -226,13 +266,64 @@ watch(
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
 }
+.metadata dt {
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
 .metadata dd {
   margin: 0;
 }
+
+/* 套件编号是十六进制长串，等宽字体让相邻两套的差别看得出来；
+   `user-select: all` 让单击即整串选中。仍沿用容器的 `overflow-wrap: anywhere`，
+   窄窗口下宁可折行也不要横向溢出。 */
+.metadata__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-ligatures: none;
+  user-select: all;
+}
+.state-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.state-line__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.state-line__dot--on {
+  background: #67c23a;
+}
+.state-line__dot--off {
+  background: var(--el-text-color-placeholder);
+}
+.state-alert {
+  margin: 0 0 14px;
+}
+
+/* 停用是全弹窗唯一的不可逆动作，原先只靠 20px 外边距与上文分离——警告语、勾选框、
+   红色按钮三段裸排在一片空白里，读起来像没人认领的孤儿控件。给它一层危险色容器，
+   边界本身就是「这一段会丢数据」的语义；颜色沿用仓库既有的 danger-light-9/7 档位。 */
 .disable-section {
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  padding: 14px 16px;
   margin-top: 20px;
+  background: var(--el-color-danger-light-9);
+  border: 1px solid var(--el-color-danger-light-7);
+  border-radius: 8px;
+}
+
+.disable-section p {
+  margin: 0;
+}
+
+/* `.disable-section` 是 grid，按钮默认被拉成整行宽——低频破坏性动作反而成了
+   全屏最响的一块。收回内容宽度，与上方那颗主操作按钮同一档。 */
+.disable-section__action {
+  justify-self: start;
 }
 .disable-check {
   height: auto;

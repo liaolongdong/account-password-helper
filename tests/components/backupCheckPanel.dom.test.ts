@@ -11,12 +11,13 @@ import { BackupImportUserError } from '@/utils/backupExport';
 import { verifyBackupFile } from '@/utils/backup/verifyBackupFile';
 import type { BackupVerificationResult } from '@/utils/backup/type';
 import { currentLocale, registerMessages, t, useI18n } from '@/utils/i18n';
+import enCommon from '@/utils/i18n/locales/en/common.json';
 import enOptions from '@/utils/i18n/locales/en/options.json';
 
 // 解密正确性由 verifyBackupFile.test 的真实 Web Crypto 往返覆盖；这里控制异步完成时机。
 vi.mock('@/utils/backup/verifyBackupFile', () => ({ verifyBackupFile: vi.fn() }));
 vi.mock('@/utils/storage/configManager', () => ({ markVerifiedBackupAt: vi.fn() }));
-registerMessages('en', enOptions);
+registerMessages('en', enCommon, enOptions);
 
 /**
  * WxtVitest 不带 SFC 插件；用已有 Vue 编译器和 TypeScript 编译真实组件，免改依赖/配置。
@@ -119,21 +120,37 @@ describe('BackupCheckPanel 只读交互', () => {
     const password = element<HTMLInputElement>('input[type="password"]');
     expect(file.labels?.[0]?.textContent).toContain(t('options.forgot.checkFile'));
     expect(password.labels?.[0]?.textContent).toContain(t('options.forgot.checkPassword'));
-    expect(element<HTMLButtonElement>('button').disabled).toBe(true);
+    expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(true);
     await selectFile();
     await enterPassword('   ');
-    expect(element<HTMLButtonElement>('button').disabled).toBe(true);
+    expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(true);
     expect(verifyBackupFile).not.toHaveBeenCalled();
+  });
+
+  it('文件选择经 el-button 转发到隐藏 input，选中的文件名可见回显', async () => {
+    // 原生 input 已 `display:none`，取文件入口必须是那颗按钮；而 `input.value` 在拿到
+    // 文件后立即清空（否则重挑同一份文件不再触发 change），所以「选到了哪份」只能由组件自己说。
+    const file = element<HTMLInputElement>('input[type="file"]');
+    const picker = element<HTMLButtonElement>('button[type="button"]');
+    const nativeClick = vi.spyOn(file, 'click');
+    picker.click();
+    expect(nativeClick).toHaveBeenCalledTimes(1);
+    expect(host.textContent).toContain(t('common.noFileSelected'));
+
+    await selectFile('my-backup.aph');
+    expect(host.textContent).toContain(t('common.fileSelected', { name: 'my-backup.aph' }));
+    expect(host.textContent).not.toContain(t('common.noFileSelected'));
+    expect(file.value).toBe('');
   });
 
   it('等待时禁止重复验证，成功仅播报类型与条数并明确尚未导入', async () => {
     const pending = pendingCheck();
     const file = await selectFile();
     await enterPassword();
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     await nextTick();
-    expect(element<HTMLButtonElement>('button').disabled).toBe(true);
-    element<HTMLButtonElement>('button').click();
+    expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(true);
+    element<HTMLButtonElement>('button[type="submit"]').click();
     expect(verifyBackupFile).toHaveBeenCalledTimes(1);
     expect(verifyBackupFile).toHaveBeenCalledWith(file, 'synthetic-password');
     pending.resolve({ kind: 'passwords', count: 3 });
@@ -144,14 +161,14 @@ describe('BackupCheckPanel 只读交互', () => {
     );
     expect(host.textContent).toContain(t('options.forgot.checkOnly'));
     expect(host.textContent).not.toContain('synthetic-password');
-    expect(element<HTMLButtonElement>('button').disabled).toBe(false);
+    expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(false);
   });
 
   it('身份库空备份显示正确类型与零条数', async () => {
     vi.mocked(verifyBackupFile).mockResolvedValue({ kind: 'identities', count: 0 });
     await selectFile('synthetic.aphid');
     await enterPassword();
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     await settle();
     expect(host.textContent).toContain(
       t('options.forgot.checkSuccess', { kind: t('options.forgot.checkIdentities'), count: 0 }),
@@ -162,7 +179,7 @@ describe('BackupCheckPanel 只读交互', () => {
     vi.mocked(verifyBackupFile).mockResolvedValue({ kind: 'passwords', count: 2 });
     await selectFile();
     await enterPassword();
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     await settle();
     const success = t('options.forgot.checkSuccess', { kind: t('options.forgot.checkPasswords'), count: 2 });
     expect(host.textContent).toContain(success);
@@ -175,25 +192,25 @@ describe('BackupCheckPanel 只读交互', () => {
     const pending = pendingCheck();
     await selectFile();
     await enterPassword();
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     await nextTick();
     if (changed === 'file') await selectFile('other.aphid');
     else await enterPassword('different-password');
     // Web Crypto 无取消 API，旧任务完成前仍禁按钮，避免叠加昂贵解密。
-    expect(element<HTMLButtonElement>('button').disabled).toBe(true);
+    expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(true);
     pending.resolve({ kind: 'passwords', count: 9 });
     await settle();
     expect(host.textContent).not.toContain(
       t('options.forgot.checkSuccess', { kind: t('options.forgot.checkPasswords'), count: 9 }),
     );
-    expect(element<HTMLButtonElement>('button').disabled).toBe(false);
+    expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(false);
   });
 
   it('修改输入后，迟到失败也不能覆盖新输入的状态', async () => {
     const pending = pendingCheck();
     await selectFile();
     await enterPassword();
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     await enterPassword('different-password');
     pending.reject(new BackupImportUserError('old-error'));
     await settle();
@@ -204,12 +221,12 @@ describe('BackupCheckPanel 只读交互', () => {
     vi.mocked(verifyBackupFile).mockRejectedValueOnce(new BackupImportUserError('File exceeds allowed size'));
     await selectFile();
     await enterPassword();
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     await settle();
     expect(element<HTMLElement>('[aria-live="polite"]').textContent).toContain('File exceeds allowed size');
     expect(host.querySelector('.el-alert--success')).toBeNull();
     vi.mocked(verifyBackupFile).mockRejectedValueOnce(new Error('synthetic-sensitive-details'));
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     await settle();
     expect(host.textContent).toContain(t('options.forgot.checkFailed'));
     expect(host.textContent).not.toContain('synthetic-sensitive-details');
@@ -221,7 +238,7 @@ describe('BackupCheckPanel 只读交互', () => {
     await selectFile();
     await enterPassword();
     const oldPassword = element<HTMLInputElement>('input[type="password"]');
-    element<HTMLButtonElement>('button').click();
+    element<HTMLButtonElement>('button[type="submit"]').click();
     visible.value = false;
     await nextTick();
     expect(oldPassword.value).toBe('');
@@ -231,7 +248,7 @@ describe('BackupCheckPanel 只读交互', () => {
     await settle();
     expect(element<HTMLInputElement>('input[type="file"]').value).toBe('');
     expect(element<HTMLInputElement>('input[type="password"]').value).toBe('');
-    expect(element<HTMLButtonElement>('button').disabled).toBe(true);
+    expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(true);
     expect(host.textContent).not.toContain('99');
     expect(host.textContent).not.toContain('synthetic.aph');
   });

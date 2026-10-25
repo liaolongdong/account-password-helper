@@ -32,5 +32,8 @@
   "common.showPassword": "显示密码",
   "common.hidePassword": "隐藏密码",
   "common.noData": "暂无数据",
-  "common.noMatch": "无匹配结果"
+  "common.noMatch": "无匹配结果",
+  "common.chooseFile": "选择文件",
+  "common.noFileSelected": "尚未选择文件",
+  "common.fileSelected": "已选择：{name}"
 }

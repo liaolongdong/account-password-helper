@@ -49,8 +49,15 @@
             @confirm="recover"
           />
         </template>
-        <form
+        <!--
+          `el-form label-position="top"` 而不是裸 `<form>`：下面两个 `el-form-item` 原先没有
+          表单上下文，EP 退回默认的行内右对齐布局，「新主密码」被挤到输入框左边，
+          与上方 RecoveryKeyInput 自己的堆叠标签在同一个弹窗里长成两种样子。
+          ElForm 的 emits 只声明了 `validate`，`@submit.prevent` 仍会落到根 `<form>` 上。
+        -->
+        <el-form
           v-else
+          label-position="top"
           @submit.prevent="prepare"
         >
           <p>{{ t('recovery.resetIntro') }}</p>
@@ -109,7 +116,7 @@
           >
             {{ t('recovery.prepareReset') }}
           </el-button>
-        </form>
+        </el-form>
         <p
           v-if="error"
           class="recovery-error"
