@@ -1,6 +1,6 @@
 {
   "recovery.settingsTitle": "Offline recovery key",
-  "recovery.settingsIntro": "Optional recovery for this device's current vault. Anyone with this key and a copy of the local vault can decrypt it. Keep the kit offline, separate from this device and your backups. It is not a backup and cannot restore deleted data.",
+  "recovery.settingsIntro": "Optional. Use it to recover this device's vault when the master password is forgotten. The recovery key is a 72-character hexadecimal string; the recovery kit is that key together with its kit id, downloadable as an .aphrecovery file. Anyone holding the recovery key and a copy of this vault can decrypt your data, so keep the kit offline — apart from this computer and from your backups. A recovery kit is not a backup: it only unlocks the current vault on this device, cannot bring back deleted data, and does not carry over to another machine.",
   "recovery.useKey": "Use an offline recovery key",
   "recovery.loading": "Reading recovery settings…",
   "recovery.enabled": "Offline recovery is enabled on this device.",

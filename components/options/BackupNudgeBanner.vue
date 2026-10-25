@@ -122,6 +122,7 @@ const file = computed(() => (props.vault === 'identity' ? '.aphid' : '.aph'));
   flex-shrink: 0;
   gap: 8px;
   align-items: center;
+  align-self: center;
 }
 
 /* 小屏：动作按钮换到下一行，不把正文挤成一列竖条 */
