@@ -131,6 +131,17 @@ async function click(key: string) {
   button(key).click();
   await settle();
 }
+function checkbox(label: string): HTMLInputElement {
+  const node = [...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].find(input =>
+    input.closest('label')?.textContent?.includes(t(label)),
+  );
+  expect(node, label).toBeTruthy();
+  return node!;
+}
+async function check(label: string) {
+  checkbox(label).click();
+  await settle();
+}
 /** 已渲染的 ElMessage 文案（改密弹窗的失败反馈历来走 toast，这条口径由断言钉住） */
 function toastText(): string {
   return [...document.querySelectorAll('.el-message')].map(node => node.textContent?.trim() ?? '').join(' | ');
@@ -212,6 +223,13 @@ describe('RecoveryKitSaveStep', () => {
     expect(button('recovery.confirmSaved').disabled).toBe(true);
   });
 
+  it('requires the plaintext acknowledgment before the kit download is enabled', async () => {
+    await mount(RecoveryKitSaveStep, { material: draft.material });
+    expect(button('recovery.downloadKit').disabled, '未确认明文风险时下载必须禁用').toBe(true);
+    await check('recovery.plaintextAck');
+    expect(button('recovery.downloadKit').disabled).toBe(false);
+  });
+
   it('attaches the kit download anchor to the document before clicking it, and names it after the kit id', async () => {
     // jsdom 不实现 createObjectURL：就地桩掉，这条断言量的只是「游离 `<a>` 在部分浏览器是空操作」
     // 这个真实缺陷——点完就会隐藏原码，静默失败等于让用户丢掉唯一一份密钥。
@@ -226,6 +244,7 @@ describe('RecoveryKitSaveStep', () => {
     };
     try {
       await mount(RecoveryKitSaveStep, { material: draft.material });
+      await check('recovery.plaintextAck');
       await click('recovery.downloadKit');
     } finally {
       HTMLAnchorElement.prototype.click = nativeClick;
@@ -399,6 +418,22 @@ describe('RecoveryResetDialog', () => {
     expect(document.body.textContent).toContain(t('recovery.error.stale'));
   });
 
+  it('结构损坏不亮跳过门：它不是解密失败，勾选也不可能成功', async () => {
+    api.getRecoveryStatus.mockResolvedValue({ enabled: true, config: draft.material.config, corrupted: false });
+    api.recoverMasterPassword.mockRejectedValueOnce(
+      Object.assign(new Error('VAULT_DATA_CORRUPTED'), { code: 'VAULT_DATA_CORRUPTED' }),
+    );
+    await mount(RecoveryResetDialog);
+    await fillReset();
+    await click('recovery.prepareReset');
+    await until(() => expect(api.preparePasswordRecovery).toHaveBeenCalled());
+    await confirmKit();
+    await until(() => expect(api.recoverMasterPassword).toHaveBeenCalledTimes(1));
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(document.body.textContent).not.toContain(t('recovery.skipNote'));
+    expect(document.body.textContent).toContain(t('recovery.error.corrupted'));
+  });
+
   it('rejects weak or mismatched passwords before calling recovery', async () => {
     api.getRecoveryStatus.mockResolvedValue({ enabled: true, config: draft.material.config, corrupted: false });
     await mount(RecoveryResetDialog);
@@ -535,5 +570,57 @@ describe('ChangeMasterPasswordDialog recovery replacement', () => {
       }),
     );
     await until(() => expect(opened.value).toBe(false));
+  });
+
+  it('offers the informed carry even when offline recovery is disabled', async () => {
+    api.prepareChangedPasswordRecovery.mockResolvedValue(null);
+    api.changeMasterPassword.mockRejectedValueOnce(
+      Object.assign(new Error('UNDECRYPTABLE_RECORDS'), { code: 'UNDECRYPTABLE_RECORDS' }),
+    );
+    await mount(ChangeMasterPasswordDialog);
+    await fillChange();
+    await until(() => expect(api.changeMasterPassword).toHaveBeenCalledTimes(1));
+    expect(api.changeMasterPassword).toHaveBeenNthCalledWith(1, 'Current!pass82', 'Fresh!pass82');
+    expect(checkbox('recovery.skipChangeConfirm').checked).toBe(false);
+
+    await check('recovery.skipChangeConfirm');
+    await click('options.changePwd.confirm');
+    await until(() =>
+      expect(api.changeMasterPassword).toHaveBeenNthCalledWith(2, 'Current!pass82', 'Fresh!pass82', undefined, true),
+    );
+    await until(() => expect(opened.value).toBe(false));
+    expect(toastText()).toContain(t('recovery.partialChangeNote'));
+  });
+
+  it('offers the same informed carry after a password change is blocked by undecryptable records', async () => {
+    api.prepareChangedPasswordRecovery.mockResolvedValue(draft);
+    api.changeMasterPassword.mockRejectedValueOnce(
+      Object.assign(new Error('UNDECRYPTABLE_RECORDS'), { code: 'UNDECRYPTABLE_RECORDS' }),
+    );
+    await mount(ChangeMasterPasswordDialog);
+    await fillChange();
+    await confirmKit();
+    await until(() => expect(api.changeMasterPassword).toHaveBeenCalledTimes(1));
+    expect(api.changeMasterPassword).toHaveBeenNthCalledWith(1, 'Current!pass82', 'Fresh!pass82', {
+      draft,
+      confirmation: draft.material.recoveryKey,
+    });
+    // 默认 fail-closed：没勾选前不会把 allowUndecryptable 带下去
+    expect(checkbox('recovery.skipChangeConfirm').checked).toBe(false);
+
+    await check('recovery.skipChangeConfirm');
+    await enter('recovery.confirmKey', draft.material.recoveryKey);
+    await click('recovery.confirmSaved');
+    await until(() =>
+      expect(api.changeMasterPassword).toHaveBeenNthCalledWith(
+        2,
+        'Current!pass82',
+        'Fresh!pass82',
+        { draft, confirmation: draft.material.recoveryKey },
+        true,
+      ),
+    );
+    await until(() => expect(opened.value).toBe(false));
+    expect(toastText()).toContain(t('recovery.partialChangeNote'));
   });
 });

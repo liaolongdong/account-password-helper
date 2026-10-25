@@ -329,6 +329,44 @@ describe('recovery review regressions', () => {
     });
   }, 90_000);
 
+  it('lets a password change carry an undecryptable trash record only after explicit consent', async () => {
+    await enroll();
+    const broken = {
+      id: 'broken-trash',
+      encrypted: true,
+      username: 'fixture',
+      password: 'not-a-valid-ciphertext',
+      url: '',
+      tag: '',
+      remark: '',
+      totp: '',
+      createTime: 1,
+      updateTime: 1,
+      deletedAt: 1,
+    };
+    await chrome.storage.local.set({ [STORAGE_KEYS.TRASH]: [broken] });
+    const prepared = await prepareChangedPasswordRecovery(OLD_PASSWORD, NEW_PASSWORD);
+    expect(prepared).not.toBeNull();
+    const replacement = prepared!;
+    const before = await chrome.storage.local.get(null);
+    const replacementArgs = { draft: replacement, confirmation: replacement.material.recoveryKey };
+
+    await expect(changeMasterPassword(OLD_PASSWORD, NEW_PASSWORD, replacementArgs)).rejects.toMatchObject({
+      code: 'UNDECRYPTABLE_RECORDS',
+    });
+    expect(await chrome.storage.local.get(null)).toEqual(before);
+
+    await changeMasterPassword(OLD_PASSWORD, NEW_PASSWORD, replacementArgs, true);
+    const after = (await chrome.storage.local.get(null)) as Record<string, unknown>;
+    // 坏记录字节级原样保留；其余域完成换钥，新主密码可解、旧主密码失效。
+    expect(after[STORAGE_KEYS.TRASH]).toEqual([broken]);
+    const newKey = await deriveEncryptionKey(NEW_PASSWORD);
+    const passwords = after[STORAGE_KEYS.PASSWORDS] as EncryptedPasswordEntry[];
+    expect(await decryptPasswordEntry(passwords[0], '', newKey)).toEqual(PASSWORD);
+    expect(await verifyMasterPassword(NEW_PASSWORD)).toBe(true);
+    expect(await verifyMasterPassword(OLD_PASSWORD)).toBe(false);
+  }, 90_000);
+
   it.each([
     STORAGE_KEYS.PASSWORDS,
     STORAGE_KEYS.TRASH,
@@ -346,7 +384,7 @@ describe('recovery review regressions', () => {
         withVaultKeyTransition(() =>
           commitVaultRekey({ oldKey, newKey: oldKey, newMasterConfig: oldConfig, mode: 'recovery' }),
         ),
-      ).rejects.toMatchObject({ code: 'RECOVERY_INCOMPLETE' });
+      ).rejects.toMatchObject({ code: 'VAULT_DATA_CORRUPTED' });
       expect(await chrome.storage.local.get(null)).toEqual(before);
     },
     90_000,

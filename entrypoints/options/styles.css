@@ -16,6 +16,11 @@
   margin: 0 32px 10px;
 }
 
+/* 坏记录提示：与列表信息同一条左右基线，避免贴着头部或表格 */
+.undecryptable-alert {
+  margin: 0 32px 12px;
+}
+
 /* 弹窗样式 */
 .dialog-footer {
   display: flex;

@@ -659,7 +659,7 @@
             <li>
               <strong>「忘记密码？查看找回方法」：</strong
               >主密码本身不能找回，提示语只是记忆辅助、不是安全提问。若已提前启用离线恢复且保留匹配密钥，可在锁屏输入密钥或导入套件，设置新主密码，再保存并验证新套件，恢复当前本机的密码、密码回收站、密码历史、个人信息与个人信息回收站。
-              任一数据无法解密都会阻止原地恢复，不静默删除记录或宣称部分成功；成功后保持锁定，用新主密码解锁。
+              默认任一数据无法解密都会阻止原地恢复，数据不做任何改动；只有恢复被中止后，用户明确知情选择携带，才会恢复其余数据，解不开的记录会原样留在库里、新主密码无法读取，也不会出现在列表或备份中。成功后保持锁定，用新主密码解锁。
               没有可用密钥时，先在向导只读验证 <code>.aph</code> / <code>.aphid</code>，再到另一设备或独立浏览器 Profile
               导入核对，最后才考虑清除原库，不能先清再试。
               两种独立备份格式不变，仍需<strong>导出时的主密码</strong>，新恢复密钥不能解开旧备份；若导出时与当前是同一密码且已遗忘，旧备份仍打不开。明文
@@ -898,7 +898,13 @@
             retains access to those copied data even after replacement or disabling. If exposure is suspected, change
             the master password to rotate the data key; historical copies cannot be recalled. Ordinary password changes
             with recovery enabled also require saving and verifying a new kit first; after success old R no longer works
-            at the current local entry point. Users without recovery keep the original password-change interaction.
+            at the current local entry point. Users without recovery keep the original password-change interaction. If a password or trash record cannot be decrypted, the change aborts by default; after the abort, an explicit informed opt-in can carry those records through, but the new master password cannot read them.
+          </p>
+          <p>
+            <strong>The recovery kit is unencrypted plaintext:</strong> <code>.aphrecovery</code> contains the recovery key.
+            Anyone who has it and this device's vault data can decrypt the vault; exposure is equivalent to a second master key.
+            Keep it separate from the device and data backups, do not leave it in Downloads or send it by email or cloud drive,
+            and delete the old kit after replacing it.
           </p>
           <p>
             <strong>What "stay signed in" really means:</strong> while a session is valid, the key material that
@@ -1113,8 +1119,7 @@
               hints aid memory, not security-question unlocking. If recovery was enabled beforehand and you kept its
               matching key, enter the key or import the kit on the lock screen, set a new master password, then save and
               verify a new kit to recover the current local passwords, password trash, password history, personal info
-              and personal info trash. Any undecryptable data blocks in-place recovery, without silently deleting
-              records or claiming partial success. After success the vault stays locked; unlock with the new master
+              and personal info trash. By default, any undecryptable data blocks in-place recovery and nothing is changed. Only after such an abort, and only with explicit informed consent, can the rest be recovered; those records stay in the vault as-is, remain unreadable under the new master password, and are omitted from lists and backups. After success the vault stays locked; unlock with the new master
               password. Without a usable key, verify <code>.aph</code> / <code>.aphid</code> read-only in the wizard,
               then import on another device or in a separate browser profile to check the result before considering a
               wipe — never wipe first and test later. Both independent backup formats are unchanged and still need their

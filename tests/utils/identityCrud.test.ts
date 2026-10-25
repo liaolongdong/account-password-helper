@@ -278,6 +278,18 @@ describe('reencryptAll', () => {
     expect(result.find(r => r.id === 'broken')?.encryptedPayload).toBe('corrupted');
     expect(JSON.parse(dec(result.find(r => r.id === 'ok')!.encryptedPayload, 'NEW'))).toEqual({});
   });
+
+  it('把失败条目回调给换钥编排层，便于只按条数记日志', async () => {
+    const broken: IdentityRecord = { id: 'broken', encryptedPayload: 'corrupted', createTime: 1, updateTime: 1 };
+    const ok: IdentityRecord = { id: 'ok', encryptedPayload: enc('{}', 'OLD'), createTime: 1, updateTime: 1 };
+    const onFailure = vi.fn();
+
+    const result = await reencryptAll([broken, ok], 'OLD', 'NEW', onFailure);
+
+    expect(result).toHaveLength(2);
+    expect(onFailure).toHaveBeenCalledTimes(1);
+    expect(onFailure).toHaveBeenCalledWith(broken);
+  });
 });
 
 describe('replaceAllIdentityRaw', () => {

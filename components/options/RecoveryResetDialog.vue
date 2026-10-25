@@ -63,19 +63,12 @@
             把解不开的条目原样携带过去。放在这里而不是开头，因为「你的库里有一条坏记录」
             这件事只有试过才知道，预先摆出来只会让所有人先读一遍坏消息。
           -->
-          <div
+          <RecoverySkipConsent
             v-if="offerSkip"
-            class="recovery-skip"
-          >
-            <el-checkbox
-              v-model="allowSkip"
-              :disabled="busy"
-              class="recovery-skip__check"
-            >
-              {{ t('recovery.skipConfirm') }}
-            </el-checkbox>
-            <p class="recovery-skip__note">{{ t('recovery.skipNote') }}</p>
-          </div>
+            v-model="allowSkip"
+            :disabled="busy"
+            mode="recovery"
+          />
         </template>
         <!--
           `el-form label-position="top"` 而不是裸 `<form>`：下面两个 `el-form-item` 原先没有
@@ -211,6 +204,7 @@ import CapsLockHint from '@/components/CapsLockHint.vue';
 import PasswordStrengthPopover from './PasswordStrengthPopover.vue';
 import RecoveryKeyInput from './RecoveryKeyInput.vue';
 import RecoveryKitSaveStep from './RecoveryKitSaveStep.vue';
+import RecoverySkipConsent from './RecoverySkipConsent.vue';
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; recovered: [] }>();
@@ -344,28 +338,6 @@ watch(
 }
 .recovery-error {
   color: var(--el-color-danger);
-}
-
-/* 知情跳过：这是「用一部分数据换其余数据可用」的决定，容器要配得上它的分量。
-   沿用仓库既有的 danger-light-9/7 危险档；语义仍由文字承载，不靠颜色单独表达。 */
-.recovery-skip {
-  display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  margin-top: 4px;
-  background: var(--el-color-danger-light-9);
-  border: 1px solid var(--el-color-danger-light-7);
-  border-radius: 8px;
-}
-
-.recovery-skip__check {
-  height: auto;
-  white-space: normal;
-}
-
-.recovery-skip__check :deep(.el-checkbox__label) {
-  line-height: 1.5;
-  white-space: normal;
 }
 
 .recovery-skip__note {

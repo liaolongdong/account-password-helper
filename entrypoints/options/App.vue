@@ -70,6 +70,17 @@
         @open-about="showAboutDrawer = true"
       />
 
+      <!-- 部分/全部记录无法解密：列表与备份都会静默漏条，必须持续可见 -->
+      <el-alert
+        v-if="undecryptableCount > 0"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="undecryptable-alert"
+      >
+        {{ t('options.undecryptableNotice', { count: undecryptableCount }) }}
+      </el-alert>
+
       <!-- 版本更新：已有密码库的用户升级后一次性弹窗，首次安装不打扰 -->
       <WhatsNewDialog
         :model-value="whatsNewVisible"
@@ -711,9 +722,14 @@ const {
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
   if (passwords.value.length === 0) {
-    ElMessage.warning(t('message.noDataToBackup'));
+    ElMessage.warning(
+      undecryptableCount.value > 0
+        ? t('options.backup.noReadableData', { count: undecryptableCount.value })
+        : t('message.noDataToBackup'),
+    );
     return;
   }
+  if (!(await confirmIncompleteBackup())) return;
   const masterPassword = await promptAndVerifyMasterPassword(
     t('options.backup.exportTitle'),
     t('options.backup.exportPrompt'),
@@ -903,6 +919,8 @@ const {
   filterTags,
   filterSites,
   filteredPasswords,
+  undecryptableCount,
+  confirmIncompleteBackup,
   pagedEntries,
   currentPage,
   pageSize,

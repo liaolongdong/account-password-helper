@@ -14,9 +14,16 @@
         data-recovery-key
         >{{ material.recoveryKey }}</code
       >
+      <el-checkbox
+        v-model="acknowledged"
+        :disabled="busy"
+        class="plaintext-ack"
+      >
+        {{ t('recovery.plaintextAck') }}
+      </el-checkbox>
       <div class="actions">
         <el-button
-          :disabled="busy"
+          :disabled="busy || !acknowledged"
           @click="downloadKit"
           >{{ t('recovery.downloadKit') }}</el-button
         >
@@ -72,6 +79,8 @@ const { t } = useI18n();
 const root = useTemplateRef<HTMLElement>('root');
 const code = useTemplateRef<HTMLElement>('code');
 const hidden = shallowRef(false);
+/** 下载前必须显式确认套件文件是未加密明文；手抄/继续保存不受此门限制 */
+const acknowledged = shallowRef(false);
 const confirmation = shallowRef('');
 const error = shallowRef('');
 let downloadUrl: string | undefined;
@@ -125,6 +134,7 @@ const confirm = (): void => {
 };
 const clear = (): void => {
   epoch++;
+  acknowledged.value = false;
   confirmation.value = '';
   error.value = '';
   hidden.value = true;
@@ -165,6 +175,14 @@ onBeforeUnmount(() => {
   background: var(--aph-surface-hover);
   border: 1px solid var(--aph-surface-line);
   border-radius: 6px;
+}
+.plaintext-ack {
+  height: auto;
+  white-space: normal;
+}
+.plaintext-ack :deep(.el-checkbox__label) {
+  line-height: 1.5;
+  white-space: normal;
 }
 .actions {
   display: flex;

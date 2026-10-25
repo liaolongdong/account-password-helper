@@ -1031,7 +1031,8 @@ const backupChipDetail = computed(() =>
 }
 
 :deep(.header-actions .el-button--primary:not(.is-link, .is-text):hover) {
-  color: var(--aph-primary-strong);
+  /* hover 底色比白底更浅，文字必须继续压暗：六套主题在 92% 混色下为 4.86–4.98:1。 */
+  color: color-mix(in srgb, var(--aph-primary-strong) 92%, #000);
   background: var(--aph-surface-hover);
   border-color: var(--aph-surface-hover);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);

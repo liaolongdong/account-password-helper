@@ -29,6 +29,7 @@ const RECOVERY_ERROR_KEYS: Record<VaultErrorCode, string> = {
   [VAULT_ERROR_CODES.RECOVERY_REPLACEMENT_REQUIRED]: 'recovery.error.replacementRequired',
   [VAULT_ERROR_CODES.RECOVERY_SAME_PASSWORD]: 'recovery.error.samePassword',
   [VAULT_ERROR_CODES.RECOVERY_INCOMPLETE]: 'recovery.error.incomplete',
+  [VAULT_ERROR_CODES.UNDECRYPTABLE_RECORDS]: 'recovery.error.undecryptableRecords',
   [VAULT_ERROR_CODES.RECOVERY_FILE_TOO_LARGE]: 'recovery.fileTooLarge',
   [VAULT_ERROR_CODES.VAULT_DATA_CORRUPTED]: 'recovery.error.corrupted',
   [VAULT_ERROR_CODES.VAULT_BUSY]: 'recovery.error.busy',

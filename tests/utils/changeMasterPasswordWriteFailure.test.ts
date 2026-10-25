@@ -251,7 +251,7 @@ describe('写盘失败：回滚与会话清理', () => {
 });
 
 describe('写盘之前的失败：不写、不清会话', () => {
-  it('旧钥解不开某条密码：直接抛出，storage 未被触碰', async () => {
+  it('旧钥解不开某条密码：按稳定错误码中止，storage 未被触碰', async () => {
     const enc = await import('@/utils/encryption');
     vi.mocked(enc.decryptPasswordEntry).mockImplementation(async entry => {
       if ((entry as unknown as { id: string }).id === 'p1') throw new Error('bad key');
@@ -259,7 +259,9 @@ describe('写盘之前的失败：不写、不清会话', () => {
     });
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toThrow('bad key');
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toMatchObject({
+      code: 'UNDECRYPTABLE_RECORDS',
+    });
 
     expect(localSet).not.toHaveBeenCalled();
     expect(clearSession, '会话密钥尚未准备，无需回滚，也不该被顺带清掉').not.toHaveBeenCalled();

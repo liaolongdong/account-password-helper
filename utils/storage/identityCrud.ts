@@ -287,10 +287,16 @@ export async function deleteIdentities(ids: string[]): Promise<void> {
  * @param newKey 新数据密钥（hex）
  * @returns 全部记录（成功者已换新钥，失败者保持旧密文原样）
  */
-export async function reencryptAll(raw: IdentityRecord[], oldKey: string, newKey: string): Promise<IdentityRecord[]> {
+export async function reencryptAll(
+  raw: IdentityRecord[],
+  oldKey: string,
+  newKey: string,
+  onFailure?: (record: IdentityRecord) => void,
+): Promise<IdentityRecord[]> {
   const enc = await _getEncryption();
   // 条目级并行（与 changeMasterPassword 的密码/回收站/历史三段同口径）：
   // 顺序与入参一致，单条失败仍「原样携带」，只是串行 await 的 ~2× 固定开销被批内并发摊掉。
+  // `onFailure` 只给换钥编排层数条数用；日志不写 id，避免把条目元数据带进日志。
   return mapWithConcurrency(raw, async record => {
     try {
       const json = await enc.decryptData(record.encryptedPayload, oldKey);
@@ -300,7 +306,8 @@ export async function reencryptAll(raw: IdentityRecord[], oldKey: string, newKey
         encryptedPayload: await enc.encryptData(JSON.stringify(payload), newKey),
       };
     } catch {
-      logger.warn('跳过无法重加密的身份条目（原样保留）: ' + record.id);
+      onFailure?.(record);
+      logger.warn('跳过无法重加密的身份条目（原样保留）');
       return record;
     }
   });

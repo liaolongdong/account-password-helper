@@ -126,6 +126,13 @@
           <CapsLockHint v-if="confirmCapsLockOn" />
         </el-form-item>
       </el-form>
+      <!-- 恢复开启时它出现在套件步骤之后；恢复关闭时改密仍可能被坏记录挡住，所以必须放在两个分支之外。 -->
+      <RecoverySkipConsent
+        v-if="offerSkip"
+        v-model="allowSkip"
+        :disabled="loading"
+        mode="change"
+      />
     </div>
 
     <template #footer>
@@ -159,11 +166,12 @@ import { ElMessage, type FormInstance, type FormRules, type FormItemRule } from 
 import { View, Hide } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from './PasswordStrengthPopover.vue';
 import RecoveryKitSaveStep from './RecoveryKitSaveStep.vue';
+import RecoverySkipConsent from './RecoverySkipConsent.vue';
 import CapsLockHint from '@/components/CapsLockHint.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
-import { clearRecoveryInputs, recoveryErrorMessage } from '@/utils/recoveryUi';
+import { clearRecoveryInputs, recoveryErrorCode, recoveryErrorMessage } from '@/utils/recoveryUi';
 import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 import { logger } from '@/utils/logger';
 import type { RecoveryDraft } from '@/utils/storage/recoveryTypes';
@@ -212,6 +220,10 @@ const handleNewPasswordBlur = (): void => {
 
 const formRef = ref<FormInstance>();
 const draft = shallowRef<RecoveryDraft | null>(null);
+/** 改密确实被「有记录解不开」挡过一次后，才亮出知情携带的门 */
+const offerSkip = shallowRef(false);
+/** 用户已勾选知情携带；下一次提交会把 allowUndecryptable 传给存储层 */
+const allowSkip = shallowRef(false);
 const sensitiveRoot = useTemplateRef<HTMLElement>('sensitiveRoot');
 const newPasswordFocused = ref(false);
 
@@ -271,6 +283,8 @@ const clearSecrets = (): void => {
   form.newPassword = '';
   form.confirmPassword = '';
   draft.value = null;
+  offerSkip.value = false;
+  allowSkip.value = false;
   newPasswordFocused.value = false;
   formRef.value?.clearValidate();
   resetOldCapsLockState();
@@ -318,10 +332,12 @@ const requestClose = (value: boolean): void => {
  * 收尾：`relock-required` 表示数据与新校验值已经提交，只是会话材料没能发布。
  * 此时仍报「修改成功」会误导用户以为解锁态延续，必须改口为「请用新主密码重新解锁」。
  */
-const finish = (outcome?: 'relock-required'): void => {
+const finish = (outcome?: 'relock-required', partial = false): void => {
   invalidate();
   if (outcome === 'relock-required') {
     ElMessage.warning(t('recovery.relockRequired'));
+  } else if (partial) {
+    ElMessage.warning(t('recovery.partialChangeNote'));
   } else {
     ElMessage.success(t('options.changePwd.success'));
   }
@@ -346,25 +362,52 @@ const handleSubmit = () =>
     if (prepared) {
       clearRecoveryInputs(sensitiveRoot.value);
       newPasswordFocused.value = false;
+      offerSkip.value = false;
+      allowSkip.value = false;
       draft.value = prepared;
       return;
     }
-    const outcome = await changeMasterPassword(form.oldPassword, form.newPassword);
-    if (isCurrent()) finish(outcome);
+    try {
+      const outcome = allowSkip.value
+        ? await changeMasterPassword(form.oldPassword, form.newPassword, undefined, true)
+        : await changeMasterPassword(form.oldPassword, form.newPassword);
+      if (isCurrent()) finish(outcome, allowSkip.value);
+    } catch (cause: unknown) {
+      maybeOfferSkip(cause);
+      throw cause;
+    }
   });
+
+/**
+ * 默认仍是整笔中止；只有「密码/回收站里有记录解不开」这一种失败才亮知情门。
+ * 结构损坏走 VAULT_DATA_CORRUPTED，不会伪造这扇门（见 assertDomainsIntact）。
+ */
+const maybeOfferSkip = (cause: unknown): void => {
+  if (!allowSkip.value && recoveryErrorCode(cause) === VAULT_ERROR_CODES.UNDECRYPTABLE_RECORDS) {
+    offerSkip.value = true;
+  }
+};
 
 const confirmReplacement = (confirmation: string) =>
   run(async isCurrent => {
-    if (!draft.value) return;
-    const outcome = await changeMasterPassword(form.oldPassword, form.newPassword, {
-      draft: draft.value,
-      confirmation,
-    });
-    if (isCurrent()) finish(outcome);
+    const currentDraft = draft.value;
+    if (!currentDraft) return;
+    try {
+      const replacement = { draft: currentDraft, confirmation };
+      const outcome = allowSkip.value
+        ? await changeMasterPassword(form.oldPassword, form.newPassword, replacement, true)
+        : await changeMasterPassword(form.oldPassword, form.newPassword, replacement);
+      if (isCurrent()) finish(outcome, allowSkip.value);
+    } catch (cause: unknown) {
+      maybeOfferSkip(cause);
+      throw cause;
+    }
   });
 /** 退回编辑只作废未提交的套件草稿；表单里已输入的密码沿用，失败反馈一律走 toast（无内联态可清）。 */
 const backToEdit = (): void => {
   if (loading.value) return;
   draft.value = null;
+  offerSkip.value = false;
+  allowSkip.value = false;
 };
 </script>
