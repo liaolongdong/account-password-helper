@@ -7,7 +7,7 @@
  * hover 混色比例，按真实背景重算，避免「令牌达标、hover 不达标」再次静默上线。
  */
 import { describe, expect, it } from 'vitest';
-import { readSource } from '../helpers/architectureScan';
+import { listSourceFiles, readSource } from '../helpers/architectureScan';
 
 interface ThemeTokens {
   name: string;
@@ -160,6 +160,99 @@ describe('浅色告警文字的 WCAG AA 对比度', () => {
   it('EP 原来的语义色在这些底上确实不达 AA（证明上面那条不是空跑）', () => {
     for (const [foreground, background] of Object.entries(EP_SEMANTIC_ON_LIGHT)) {
       expect(contrast(foreground, background), `${foreground} on ${background}`).toBeLessThan(4.5);
+    }
+  });
+});
+
+/**
+ * 语义色只当图形，不当文字
+ *
+ * 白底上 `--el-color-danger` 2.90:1、`--el-color-warning` 2.19:1，压在任何浅底都不达 AA，
+ * 而报错与安全披露恰恰是最需要读清的字。文字一律走 `--aph-danger-strong` /
+ * `--aph-warning-strong`（保色相与饱和度、只压暗度，八种浅底最差 4.53 / 4.61:1）。
+ * 下面这份清单是**仅剩的图形用法**（图标、星标、图标底框）——新增一处语义色文字就会变红；
+ * 清单里的项被删掉同样会红，防守卫自己腐烂成一份过期的白名单。
+ */
+const GRAPHICAL_SEMANTIC_USES: Record<string, string[]> = {
+  'components/options/BackupNudgeBanner.vue': ['.backup-nudge__icon', '.backup-nudge--never .backup-nudge__icon'],
+  'components/options/EmptyGuide.vue': ['.empty-guide__card-icon--success', '.empty-guide__card-icon--warning'],
+  'components/options/PasswordDetailDrawer.vue': ['.detail-header__star'],
+  'components/options/ReviewPrompt.vue': ['.review-prompt__icon'],
+};
+
+/** 逐行找 `color: var(--el-color-x);`，回溯最近一个以 `{` 结尾的行当选择器 */
+function semanticColorSelectors(relPath: string): string[] {
+  const lines = readSource(relPath).split('\n');
+  const found: string[] = [];
+  lines.forEach((line, index) => {
+    if (!/^\s*color:\s*var\(--el-color-(?:danger|error|warning|success)\);\s*$/.test(line)) return;
+    for (let scan = index - 1; scan >= 0; scan -= 1) {
+      const trimmed = lines[scan].trimEnd();
+      if (trimmed.endsWith('{')) {
+        found.push(trimmed.replace(/\{$/, '').trim());
+        return;
+      }
+    }
+    found.push('<未找到选择器>');
+  });
+  return found;
+}
+
+/** 设计系统里的全部浅底（含各主题浅色面与语义浅底），文字必须在最差一面也达标 */
+const LIGHT_SURFACES: Record<string, string> = {
+  white: '#ffffff',
+  'surface-2': '#f8fbff',
+  'primary-bg': '#ecf5ff',
+  'surface-hover': '#f0f9ff',
+  surface: '#e8f4fd',
+  'warning-light-9': '#fdf6ec',
+  'danger-light-9': '#fef0f0',
+  'info-light-9': '#f4f4f5',
+};
+
+describe('语义色不当文字', () => {
+  const tokens = readSource('assets/theme/tokens.css');
+
+  it('抽取到两个强档语义文字令牌，避免守卫空跑', () => {
+    expect(tokens).toMatch(/--aph-danger-strong:\s*(#[0-9a-fA-F]{6})/);
+    expect(tokens).toMatch(/--aph-warning-strong:\s*(#[0-9a-fA-F]{6})/);
+  });
+
+  it('两个令牌在八种浅底的最差一面仍 >= 4.5:1', () => {
+    for (const name of ['danger', 'warning'] as const) {
+      const hex = tokens.match(new RegExp(`--aph-${name}-strong:\\s*(#[0-9a-fA-F]{6})`))?.[1];
+      expect(hex, `缺少 --aph-${name}-strong`).toBeTruthy();
+      for (const [surface, background] of Object.entries(LIGHT_SURFACES)) {
+        expect(contrast(hex!, background), `${name} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('EP 原色在这些底上确实不达 AA（证明上面那条不是空跑）', () => {
+    for (const [foreground, background] of Object.entries(EP_SEMANTIC_ON_LIGHT)) {
+      expect(contrast(foreground, background), `${foreground} on ${background}`).toBeLessThan(4.5);
+    }
+  });
+
+  it('EP 自己的报错文字（表单校验与 message-box）也被接管，且各带一层父选择器', () => {
+    // 只钉本仓源码里的 `color: var(--el-color-x)` 挡不住这条：它来自 Element Plus 的
+    // `.el-form-item__error`。全仓 153 处 el-form-item，校验反馈是最常出现的必读文字。
+    expect(tokens).toMatch(/\.el-form-item \.el-form-item__error\s*\{\s*color: var\(--aph-danger-strong\)/);
+    expect(tokens).toMatch(/\.el-message-box \.el-message-box__errormsg\s*\{\s*color: var\(--aph-danger-strong\)/);
+  });
+
+  it('全仓语义色 color: 只剩图形用法，且白名单一项都没烂掉', () => {
+    const sources = [...listSourceFiles('components', ['.vue']), ...listSourceFiles('entrypoints', ['.vue'])];
+    const actual = new Map<string, string[]>();
+    for (const rel of sources) {
+      const selectors = semanticColorSelectors(rel);
+      if (selectors.length) actual.set(rel, selectors);
+    }
+    expect([...actual.keys()].sort(), '出现语义色文字或新增图形用法').toEqual(
+      Object.keys(GRAPHICAL_SEMANTIC_USES).sort(),
+    );
+    for (const [rel, selectors] of actual) {
+      expect(selectors.sort(), rel).toEqual([...GRAPHICAL_SEMANTIC_USES[rel]].sort());
     }
   });
 });

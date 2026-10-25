@@ -30,6 +30,21 @@
      只在扩展页样式里使用，内容脚本 Shadow DOM 不注入（`utils/theme.ts` 的 THEME_SHADOW_TOKENS 无需同步）。 */
   --aph-primary-rgb: 64 158 255;
 
+  /* 语义色「强」档：与 `--aph-primary-strong` 同一配方（保色相与饱和度、只压暗度），
+     用途也同一类——语义色当**文字**压浅色底时不达 WCAG AA：
+     `--el-color-danger` #f56c6c 白底只有 2.90:1、`--el-color-warning` #e6a23c 只有 2.19:1，
+     而它们压的正是校验报错与安全披露这类必须读清的字。
+     取值按「设计系统里全部 8 种浅底（白 / surface / surface-2 / surface-hover / primary-bg /
+     warning-9 / danger-9 / info-9）中最差的一面」定，不是只对白底达标：
+     danger 最差 4.53:1（压 --aph-surface 上），warning 最差 4.61:1。
+     刻意不复用 `--el-color-danger-dark-2`：那是 +20% 黑，白底只有 4.11:1，浅底更差。
+     语义色不参与换肤（本文件头部已声明「成功/警告/错误保持全主题一致」），
+     所以这里各一个值、六套主题块无需配；内容脚本不用 Element Plus，
+     `utils/theme.ts` 的 THEME_SHADOW_TOKENS 也无需镜像。
+     只用于文字：图标、圆点、填充与描边继续用 `--el-color-*` 原色，语义色相不丢。 */
+  --aph-danger-strong: #dd0f0f;
+  --aph-warning-strong: #976213;
+
   /* 品牌浅色填充 / 边框 */
   --aph-primary-bg: #ecf5ff;
   --aph-primary-bg-hover: #f0f7ff;
@@ -259,4 +274,19 @@
 
 .el-alert.is-light .el-alert__content .el-alert__description {
   color: var(--el-text-color-regular);
+}
+
+/* ===== Element Plus 覆写：表单与弹窗的报错文字 =====
+ * 与上一条同一个理由，但覆盖面更大：EP 把 `.el-form-item__error` 直接写成
+ * `color: var(--el-color-danger)`（12px，白底 2.90:1），而本仓有 153 处 el-form-item，
+ * 「主密码强度不够」「两次输入不一致」这类校验反馈是全扩展出现频率最高的必读文字；
+ * `el-message-box` 的内联错误同理。两者都换到 `--aph-danger-strong`。
+ * 各多带一层父选择器抬到 (0,2,0)，压过 EP 的 (0,1,0)——本文件排在 EP 各 chunk 之前，
+ * 同权重会输。报错图标（`.el-input__validateIcon`）继续用原色，它不是文字。 */
+.el-form-item .el-form-item__error {
+  color: var(--aph-danger-strong);
+}
+
+.el-message-box .el-message-box__errormsg {
+  color: var(--aph-danger-strong);
 }

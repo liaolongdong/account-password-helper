@@ -399,7 +399,7 @@ watch(
 
 /* 线上/无法识别的环境用警示色：文字已写着 prod，颜色只是加强，不单独承担语义 */
 .env-pill--danger {
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
   background: var(--el-color-danger-light-9);
   border-color: var(--el-color-danger-light-7);
 }

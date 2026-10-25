@@ -197,6 +197,6 @@ onBeforeUnmount(() => {
   white-space: normal;
 }
 .save-error {
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
 }
 </style>

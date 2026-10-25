@@ -344,6 +344,6 @@ watch(
   white-space: normal;
 }
 .recovery-error {
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
 }
 </style>

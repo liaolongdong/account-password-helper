@@ -1069,7 +1069,7 @@ const handleFileChange = async (event: Event): Promise<void> => {
 }
 
 .identity-selectbar__count.is-limit {
-  color: var(--el-color-warning);
+  color: var(--aph-warning-strong);
 }
 
 .identity-selectbar__actions {

@@ -162,7 +162,7 @@ const handleSave = async (): Promise<void> => {
 
 .form-tip__caution {
   margin-top: 4px;
-  color: var(--el-color-warning);
+  color: var(--aph-warning-strong);
 }
 
 .dialog-body-scroll {

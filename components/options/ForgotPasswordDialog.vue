@@ -125,7 +125,7 @@ const { t } = useI18n();
 
 .forgot-path__warn {
   margin: 6px 0 0;
-  color: var(--el-color-warning);
+  color: var(--aph-warning-strong);
 }
 
 .forgot-path--last {

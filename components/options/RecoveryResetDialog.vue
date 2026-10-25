@@ -337,7 +337,7 @@ watch(
   margin-top: 16px;
 }
 .recovery-error {
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
 }
 
 .recovery-skip__note {

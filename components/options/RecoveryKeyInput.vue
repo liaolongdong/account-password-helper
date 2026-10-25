@@ -190,6 +190,6 @@ onBeforeUnmount(() => {
 }
 .input-error {
   margin: 0;
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
 }
 </style>

@@ -251,7 +251,7 @@ const clearError = () => {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.4;
-  color: var(--el-color-error);
+  color: var(--aph-danger-strong);
 }
 
 /* 忘记密码提示 */
