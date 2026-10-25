@@ -526,6 +526,24 @@ describe('ChangeMasterPasswordDialog recovery replacement', () => {
     );
     await until(() => expect(api.changeMasterPassword).toHaveBeenCalledWith('Current!pass82', 'Fresh!pass82'));
   });
+  it('warns on the first screen that the held kit dies, before any password is typed', async () => {
+    api.getRecoveryStatus.mockResolvedValue({ enabled: true, config: draft.material.config, corrupted: false });
+    await mount(ChangeMasterPasswordDialog);
+    await until(() =>
+      expect(document.querySelector('.el-dialog__body')?.textContent).toContain(
+        t('options.changePwd.alertDescRecovery'),
+      ),
+    );
+    // 第一屏仍是表单本身：提前披露不等于把用户提前推进套件步骤
+    expect(document.querySelector('[data-recovery-key]')).toBeNull();
+  });
+  it('keeps the first screen free of recovery copy for users who never enabled it', async () => {
+    await mount(ChangeMasterPasswordDialog);
+    await settle();
+    expect(document.querySelector('.el-dialog__body')?.textContent).not.toContain(
+      t('options.changePwd.alertDescRecovery'),
+    );
+  });
   it('keeps the pre-existing localized toast for change-password failures instead of an inline alert', async () => {
     api.changeMasterPassword.mockRejectedValue(
       Object.assign(new Error('当前密码验证失败'), { code: 'WRONG_PASSWORD' }),

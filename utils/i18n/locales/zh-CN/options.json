@@ -362,6 +362,7 @@
   "options.autoSave.saved": "自动保存设置已保存",
   "options.changePwd.alertTitle": "修改主密码将重新加密所有数据，请确保新密码安全且牢记。",
   "options.changePwd.alertDesc": "已导出的加密备份（.aph 文件）不受影响，仍使用导出时的密码解密。",
+  "options.changePwd.alertDescRecovery": "已启用离线恢复：这次改密会同时换发恢复套件，手上这份改完即失效，需要重新保存。",
   "options.changePwd.oldPassword": "当前密码",
   "options.changePwd.oldPasswordPlaceholder": "请输入当前主密码",
   "options.changePwd.newPassword": "新密码",

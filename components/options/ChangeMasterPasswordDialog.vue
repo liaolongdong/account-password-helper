@@ -15,10 +15,19 @@
         type="warning"
         :closable="false"
         show-icon
+        class="change-pwd-alert"
         style="margin-bottom: 16px"
       >
         <template #title>{{ t('options.changePwd.alertTitle') }}</template>
-        <template #default>{{ t('options.changePwd.alertDesc') }}</template>
+        <template #default>
+          {{ t('options.changePwd.alertDesc') }}
+          <span
+            v-if="recoveryEnabled"
+            class="change-pwd-alert__recovery"
+          >
+            {{ t('options.changePwd.alertDescRecovery') }}
+          </span>
+        </template>
       </el-alert>
 
       <template v-if="draft">
@@ -161,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, shallowRef, useTemplateRef } from 'vue';
+import { ref, reactive, computed, shallowRef, useTemplateRef, onMounted } from 'vue';
 import { ElMessage, type FormInstance, type FormRules, type FormItemRule } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from './PasswordStrengthPopover.vue';
@@ -220,6 +229,27 @@ const handleNewPasswordBlur = (): void => {
 
 const formRef = ref<FormInstance>();
 const draft = shallowRef<RecoveryDraft | null>(null);
+/**
+ * 第一屏要不要提前点名「旧套件作废」
+ *
+ * 判据与套件那一步是否出现完全同源（`prepareChangedPasswordRecovery` 也只认
+ * `getRecoveryStatus().enabled`），所以这里只是把同一个事实往前搬一屏，不另立规则。
+ * 本弹窗由父级 `v-if` 挂载，开一次读一次，无需 watch。刻意不走 `useRecoveryOperation.run`：
+ * 那会把 `busy` 点亮，等于给「打开弹窗」新增一个禁用表单的瞬间，改变既有交互。
+ * 读失败按未启用处理——真正的门禁在存储层（`RECOVERY_REPLACEMENT_REQUIRED`），
+ * 少一句话不会让任何人绕过换发。
+ */
+const recoveryEnabled = ref(false);
+onMounted(() => {
+  void (async () => {
+    try {
+      const api = await import('@/utils/storage/recovery');
+      recoveryEnabled.value = (await api.getRecoveryStatus()).enabled;
+    } catch (error) {
+      logger.warn('读取离线恢复启用态失败，第一屏按未启用呈现:', error);
+    }
+  })();
+});
 /** 改密确实被「有记录解不开」挡过一次后，才亮出知情携带的门 */
 const offerSkip = shallowRef(false);
 /** 用户已勾选知情携带；下一次提交会把 allowUndecryptable 传给存储层 */
@@ -411,3 +441,25 @@ const backToEdit = (): void => {
   allowSkip.value = false;
 };
 </script>
+
+<style scoped>
+/* EP 把浅色告警的标题与描述都刷成语义色：`--el-color-warning` 压在
+   `--el-color-warning-light-9` 上实测只有约 2.0:1，整段「改密前必须看懂」的说明
+   几乎读不动。这里回到常规文字层级（标题 12.4:1 / 正文 5.7:1），告警的语义仍由
+   左侧图标与底色承担，不是靠颜色单独表达状态。 */
+.change-pwd-alert :deep(.el-alert__title) {
+  color: var(--el-text-color-primary);
+}
+
+.change-pwd-alert :deep(.el-alert__description) {
+  color: var(--el-text-color-regular);
+}
+
+/* 补的那句用 span + display:block，不用 p：EP 会把默认插槽整个包进
+   `<p class="el-alert__description">`，再放一个 p 就是非法嵌套——浏览器重新解析时
+   会把它拆成兄弟节点，脱离上面那条颜色覆盖。 */
+.change-pwd-alert__recovery {
+  display: block;
+  margin-top: 4px;
+}
+</style>

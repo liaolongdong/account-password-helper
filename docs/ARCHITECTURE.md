@@ -531,7 +531,7 @@ graph TB
 
 - 入口：密码管理页「安全设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
 - 流程：验证当前主密码 → 检查并解密本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）→ 新数据钥重新加密 → 配套提交新密文、主密码配置与会话材料（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。五域容器形状畸形都会中止两条链路；密码与密码回收站任一解不开即中止换钥（用户在中止后明确知情选择携带时，可把坏记录原样保留并恢复其余数据）；解不开的历史与个人信息记录按既有口径原样保留（换钥不删数据）。离线恢复默认走严格档：五域任一解不开都以 `RECOVERY_INCOMPLETE` 中止，不以删记录换取「成功」；同样只有用户明确知情选择携带后才允许部分恢复。改密路径对应 `UNDECRYPTABLE_RECORDS`；容器形状畸形则抛 `VAULT_DATA_CORRUPTED`，避免 UI 亮出永远走不通的跳过门。
-- **离线恢复已启用时**：改密前必须先保存并回填验证换发的新 `.aphrecovery` 套件，再提交换钥与新恢复包；成功后旧恢复密钥不再适用于当前本机入口。未启用者保留原改密交互，不会自动迁移为启用。
+- **离线恢复已启用时**：改密前必须先保存并回填验证换发的新 `.aphrecovery` 套件，再提交换钥与新恢复包；成功后旧恢复密钥不再适用于当前本机入口。未启用者保留原改密交互，不会自动迁移为启用。**「手上这份旧套件即将作废」的披露前置到弹窗第一屏的常驻告警**（判据与套件那一步是否出现同源，都是 `getRecoveryStatus().enabled`；弹窗由 `v-if` 挂载，开一次读一次），用户不必先填完三个密码、在第二屏才发现这件事；未启用者第一屏文案一字未变。
 - **隔离与发布顺序**：同源 Web Locks 的 shared 普通写 lease 与 exclusive key-transition 相斥，拿不到锁即 busy 失败、不等待；shared lease 不把所有普通 CRUD 串行化。新会话钥仅在匹配的 `storage.local` 提交完成后发布，其他扩展页只采纳与本地配置匹配的材料；提交失败按失败关闭处理，不先发布新钥（见 [utils/storage/vaultWriteLock.ts](../utils/storage/vaultWriteLock.ts) 与 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts)）。
 - 配套值合批写入是避免钥匙与密文错配的实现约束，**不代表 `storage.local.set()` 提供通用 ACID 事务或完整断电保证**。实际崩溃、并发与会话发布路径须由发布前验收覆盖，不能以设计说明代替验证结果。
 - 独立加密备份 `.aph` / `.aphid` 格式不变，仍需各自导出时的主密码；新主密码或新恢复密钥不会自动打开旧备份。若导出时与当前是同一密码且遗忘，旧备份仍不可解。
