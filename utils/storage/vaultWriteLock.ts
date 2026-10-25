@@ -1,4 +1,11 @@
-import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
+import type { VaultErrorCode } from '@/utils/recoveryTypes';
+
+// 刻意不把 `VAULT_ERROR_CODES` 当值导入：本模块在 popup 首屏的 eager 依赖图里，
+// 为一个常量引入值依赖，Rollup 就会把 `recoveryTypes` 切成独立 chunk 挂进 popup.html
+// 的 modulepreload（eager 文件数 +1，被 `tests/architecture/sidepanelClosure.test.ts` 挡下）。
+// 类型导入会被编译期擦除，零运行时成本；下面这个具名常量仍要求字面量是 `VaultErrorCode`
+// 的成员，登记表里改名或拼错照样编译失败。
+const VAULT_BUSY: VaultErrorCode = 'VAULT_BUSY';
 
 const VAULT_WRITE_LOCK = 'aph-vault-key-transition';
 
@@ -21,7 +28,7 @@ const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(re
  */
 export function withVaultMutation<T>(operation: () => Promise<T>): Promise<T> {
   return navigator.locks.request(VAULT_WRITE_LOCK, { mode: 'shared', ifAvailable: true }, async lock => {
-    if (!lock) throw Object.assign(new Error('Vault is busy changing keys'), { code: VAULT_ERROR_CODES.VAULT_BUSY });
+    if (!lock) throw Object.assign(new Error('Vault is busy changing keys'), { code: VAULT_BUSY });
     return operation();
   });
 }
@@ -29,7 +36,7 @@ export function withVaultMutation<T>(operation: () => Promise<T>): Promise<T> {
 /** Exclusive key-transition leases stay fail-fast: the transition is the rare, user-initiated side. */
 export function withVaultKeyTransition<T>(operation: () => Promise<T>): Promise<T> {
   return navigator.locks.request(VAULT_WRITE_LOCK, { mode: 'exclusive', ifAvailable: true }, async lock => {
-    if (!lock) throw Object.assign(new Error('Vault has an unfinished write'), { code: VAULT_ERROR_CODES.VAULT_BUSY });
+    if (!lock) throw Object.assign(new Error('Vault has an unfinished write'), { code: VAULT_BUSY });
     return operation();
   });
 }
@@ -49,7 +56,7 @@ export async function withVaultMutationRetry<T>(
     try {
       return await withVaultMutation(operation);
     } catch (error) {
-      if ((error as { code?: string })?.code !== VAULT_ERROR_CODES.VAULT_BUSY || attempt >= attempts - 1) throw error;
+      if ((error as { code?: string })?.code !== VAULT_BUSY || attempt >= attempts - 1) throw error;
       await wait(delayMs);
     }
   }

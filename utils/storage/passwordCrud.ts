@@ -4,7 +4,13 @@ import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
-import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
+// 刻意不把 `VAULT_ERROR_CODES` 当值导入：本模块在 popup 首屏的 eager 依赖图里，
+// 为一个常量引入值依赖，Rollup 就会把 `recoveryTypes` 切成独立 chunk 挂进 popup.html
+// 的 modulepreload（eager 文件数 +1，被 `tests/architecture/sidepanelClosure.test.ts` 挡下）。
+// 类型导入会被编译期擦除，零运行时成本；下面这个具名常量仍要求字面量是 `VaultErrorCode`
+// 的成员，登记表里改名或拼错照样编译失败。
+const VAULT_BUSY: VaultErrorCode = 'VAULT_BUSY';
+import type { VaultErrorCode } from '@/utils/recoveryTypes';
 import { getSessionDataKey } from './facades';
 import { isExactHostMatch } from '@/utils/domain';
 import { applySavedSortConfig } from './configManager';
@@ -412,7 +418,7 @@ async function flushMetadataUpdates(): Promise<void> {
     });
   } catch (error) {
     logger.error('批量更新元数据失败:', error);
-    if ((error as { code?: string })?.code === VAULT_ERROR_CODES.VAULT_BUSY) {
+    if ((error as { code?: string })?.code === VAULT_BUSY) {
       requeueMetadataUpdates(batch);
       scheduleMetadataRetry();
     }

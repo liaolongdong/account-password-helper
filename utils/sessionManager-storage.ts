@@ -3,10 +3,13 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { lazyImport } from '@/utils/lazyImport';
 import { bytesToHex } from '@/utils/crypto-light';
+import type { VaultErrorCode } from './recoveryTypes';
+// 同上：本模块在 popup 首屏 eager 图内，只借类型，不为一个常量加值依赖。
+const WRONG_PASSWORD: VaultErrorCode = 'WRONG_PASSWORD';
+
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { withVaultMutation } from '@/utils/storage/vaultWriteLock';
 import { verifyMasterPassword } from '@/utils/storage/masterPassword';
-import { VAULT_ERROR_CODES } from './recoveryTypes';
 import {
   recoverBrowserStartupRelockAfterAuthentication,
   waitForBrowserStartupRelockBeforeAuthentication,
@@ -689,8 +692,15 @@ async function createSessionInternal(masterPassword: string, validityHours: numb
     }
     // 外部 UI 的验证可能早于另一上下文换钥：必须在本次 lease 内重验当前配置。
     // 带稳定码抛出：调用方按码分流呈现，不该靠匹配中文串认这个失败（文案一改就静默降级）。
+    //
+    // 这里的 `'WRONG_PASSWORD'` 刻意不换成 `VAULT_ERROR_CODES.WRONG_PASSWORD`：本模块在 popup
+    // 首屏的 eager 依赖图里，而 `recoveryTypes` 的其余引用方全是类型导入。一旦为拿一个常量
+    // 引入值依赖，Rollup 就把 `recoveryTypes` 切成独立 chunk 挂进 popup.html 的 modulepreload，
+    // eager 文件数 44 → 45，被 `tests/architecture/sidepanelClosure.test.ts` 的预算守卫挡下
+    // （与 `HeaderBar` 那个键帽 glyph 同一取舍）。码的登记仍以 `recoveryTypes` 为唯一真源，
+    // `recoveryUi.ts` 的映射表在编译期保证这个码有文案。
     if (!(await verifyMasterPassword(masterPassword))) {
-      throw Object.assign(new Error('主密码验证失败'), { code: VAULT_ERROR_CODES.WRONG_PASSWORD });
+      throw Object.assign(new Error('主密码验证失败'), { code: WRONG_PASSWORD });
     }
     invalidateSessionCache();
     const enc = await _getEncryption();

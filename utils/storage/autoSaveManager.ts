@@ -19,7 +19,13 @@ import {
   type PortScope,
 } from '@/utils/domain';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
-import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
+// 刻意不把 `VAULT_ERROR_CODES` 当值导入：本模块在 popup 首屏的 eager 依赖图里，
+// 为一个常量引入值依赖，Rollup 就会把 `recoveryTypes` 切成独立 chunk 挂进 popup.html
+// 的 modulepreload（eager 文件数 +1，被 `tests/architecture/sidepanelClosure.test.ts` 挡下）。
+// 类型导入会被编译期擦除，零运行时成本；下面这个具名常量仍要求字面量是 `VaultErrorCode`
+// 的成员，登记表里改名或拼错照样编译失败。
+const VAULT_BUSY: VaultErrorCode = 'VAULT_BUSY';
+import type { VaultErrorCode } from '@/utils/recoveryTypes';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
@@ -288,7 +294,7 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     if (isVaultCapacityError(error)) {
       return { success: false, message: tl('bg.autoSave.capacityReached', { max: MAX_PASSWORD_ENTRIES }) };
     }
-    if ((error as { code?: string })?.code === VAULT_ERROR_CODES.VAULT_BUSY) {
+    if ((error as { code?: string })?.code === VAULT_BUSY) {
       // 换钥窗口内重试仍拿不到租约：给本地化文案，绝不把存储层的英文内部串抛到页面上
       return { success: false, message: tl('bg.autoSave.busy') };
     }
