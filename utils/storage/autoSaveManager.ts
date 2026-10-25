@@ -19,6 +19,7 @@ import {
   type PortScope,
 } from '@/utils/domain';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
+import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
@@ -287,7 +288,7 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     if (isVaultCapacityError(error)) {
       return { success: false, message: tl('bg.autoSave.capacityReached', { max: MAX_PASSWORD_ENTRIES }) };
     }
-    if ((error as { code?: string })?.code === 'VAULT_BUSY') {
+    if ((error as { code?: string })?.code === VAULT_ERROR_CODES.VAULT_BUSY) {
       // 换钥窗口内重试仍拿不到租约：给本地化文案，绝不把存储层的英文内部串抛到页面上
       return { success: false, message: tl('bg.autoSave.busy') };
     }

@@ -4,6 +4,7 @@ import { StorageUtils } from '@/utils/storage';
 import { lockSession } from '@/utils/sessionLock';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
+import { evaluateStrengthRules, type StrengthRuleId } from '@/utils/passwordStrengthCore';
 import type { OptionsFirstView } from '@/utils/optionsFirstView';
 
 /** 输入框抖动动画持续时间（毫秒） */
@@ -76,34 +77,43 @@ export function useAuthFlow(options: {
   const verifyFailCount = ref(0);
 
   /** 设置表单校验规则（computed 保证语言切换后错误提示同步更新） */
+  /**
+   * 强度规则标识 → 失败文案
+   *
+   * 判定谓词住在 `utils/passwordStrengthCore.ts`，这里只负责贴 i18n 文案。
+   * 刻意写成函数而不是常量表：`setupRules` 是 computed，语言切换后要能拿到新文案。
+   */
+  const strengthRuleMessage = (id: StrengthRuleId): string => {
+    switch (id) {
+      case 'minLength':
+        return t('auth.ruleMinLength');
+      case 'hasLetter':
+        return t('auth.ruleNeedLetter');
+      case 'hasNumber':
+        return t('auth.ruleNeedNumber');
+      case 'hasSymbol':
+        return t('auth.ruleNeedSymbol');
+    }
+  };
+
   const setupRules = computed<FormRules>(() => ({
     password: [
       { required: true, message: t('auth.rulePasswordRequired'), trigger: 'blur' },
-      { min: 8, message: t('auth.ruleMinLength'), trigger: 'blur' },
       {
         validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
           if (!value) {
             callback();
             return;
           }
-
-          const hasLetter = /[a-zA-Z]/.test(value);
-          const hasNumber = /[0-9]/.test(value);
-          const hasSpecialChar = /[!@#$%^&*()_+\-={}[\];':"\\|,.<>/?~`]/.test(value);
-
-          if (!hasLetter) {
-            callback(new Error(t('auth.ruleNeedLetter')));
+          // 四条规则全部走 `evaluateStrengthRules`，不再本地抄一份正则：
+          // 改密弹窗与恢复链路都按这套判定的「全通过」收口，创建侧若各自表述，
+          // 就会漂出「创建时不允许的强度，改密时能设进去」这类口径差。
+          // 返回顺序固定为 长度→字母→数字→符号，首条失败即报，与原行为一致。
+          const failed = evaluateStrengthRules(value).find(rule => !rule.passed);
+          if (failed) {
+            callback(new Error(strengthRuleMessage(failed.id)));
             return;
           }
-          if (!hasNumber) {
-            callback(new Error(t('auth.ruleNeedNumber')));
-            return;
-          }
-          if (!hasSpecialChar) {
-            callback(new Error(t('auth.ruleNeedSymbol')));
-            return;
-          }
-
           callback();
         },
         trigger: 'blur',

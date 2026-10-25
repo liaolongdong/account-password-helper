@@ -39,7 +39,10 @@ export const MAX_MASTER_PASSWORD_HINT_LENGTH = 120;
 function normalizeHint(raw: string | undefined): string {
   const trimmed = String(raw ?? '').trim();
   if (!trimmed) return '';
-  return trimmed.slice(0, MAX_MASTER_PASSWORD_HINT_LENGTH);
+  // 按码位（code point）截断，不按 UTF-16 码元：`slice` 会把 emoji 或生僻字所在的
+  // 代理对劈成一半，留下一个孤立代理项落盘——它渲染成 U+FFFD，且再也无法被原样比对回去。
+  // 上限语义与 docs/ARCHITECTURE 写的「120 码位」一致。
+  return Array.from(trimmed).slice(0, MAX_MASTER_PASSWORD_HINT_LENGTH).join('');
 }
 
 /**

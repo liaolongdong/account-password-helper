@@ -7,6 +7,7 @@ import { timingSafeEqual } from '@/utils/crypto-light';
 import { evaluateStrengthCore } from '@/utils/passwordStrengthCore';
 import type { MasterPasswordConfig } from '@/utils/types';
 import type { RecoveryDraft, VaultRecoverySnapshot } from './recoveryTypes';
+import { VAULT_ERROR_CODES, type VaultErrorCode } from '@/utils/recoveryTypes';
 
 const getEncryption = lazyImport(() => import('@/utils/encryption'));
 const getRecoveryCrypto = lazyImport(() => import('@/utils/recoveryCrypto'));
@@ -17,7 +18,7 @@ const getRecoveryCrypto = lazyImport(() => import('@/utils/recoveryCrypto'));
  * 沿用改造前 `changeMasterPassword` 的「code + 中文 message」双形态——现有多条测试断言
  * message 原文，弹窗则读 code；两者都不能在本次改动里悄悄换掉。
  */
-export function recoveryError(code: string, message?: string): Error & { code: string } {
+export function recoveryError(code: VaultErrorCode, message?: string): Error & { code: VaultErrorCode } {
   return Object.assign(new Error(message ?? code), { code });
 }
 
@@ -47,14 +48,14 @@ export async function readVaultRecoverySnapshot(): Promise<VaultRecoverySnapshot
     typeof master.hashedPassword !== 'string' ||
     !master.hashedPassword
   ) {
-    throw recoveryError('RECOVERY_INVALID');
+    throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INVALID);
   }
   const storedRecovery = await chrome.storage.local.get(STORAGE_KEYS.RECOVERY_CONFIG);
   return { master, recovery: storedRecovery[STORAGE_KEYS.RECOVERY_CONFIG] };
 }
 
 export function assertSameMaster(expected: MasterPasswordConfig, current: MasterPasswordConfig): void {
-  if (masterFingerprint(expected) !== masterFingerprint(current)) throw recoveryError('RECOVERY_STALE');
+  if (masterFingerprint(expected) !== masterFingerprint(current)) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_STALE);
 }
 
 export function assertCurrentRecoveryDraft(draft: RecoveryDraft, snapshot: VaultRecoverySnapshot): void {
@@ -63,14 +64,29 @@ export function assertCurrentRecoveryDraft(draft: RecoveryDraft, snapshot: Vault
     draft.sourceMasterFingerprint !== masterFingerprint(snapshot.master) ||
     draft.sourceRecoveryId !== recoverySourceId(snapshot.recovery)
   ) {
-    throw recoveryError('RECOVERY_STALE');
+    throw recoveryError(VAULT_ERROR_CODES.RECOVERY_STALE);
   }
 }
 
-export function normalizeNewRecoveryPassword(password: string): string {
+/**
+ * 归一化并校验「新主密码」——所有换钥路径的唯一门槛。
+ *
+ * 刻意放在存储层而不是只做在弹窗里：UI 校验是可以被绕过的（漏挂 validator、将来的新入口、
+ * 直接调用存储层的脚本），而主密码强度就是数据密钥强度。创建主密码时要求四条规则全通过，
+ * 换钥时若只判 `level !== 'weak'`（通过数 ≥2 即算 medium），就等于开了一条
+ * 「把库降级到比首次设置更弱的密钥」的通道。
+ *
+ * 三条换钥路径（改密 / 首次启用恢复 / 恢复解锁换钥）共用本函数，
+ * 判定与 `composables/useAuthFlow.ts` 的创建表单同源于 `passwordStrengthCore`。
+ *
+ * @param password 新主密码明文（仅用于本机校验，绝不落盘）
+ * @returns 去除首尾空白后的密码
+ * @throws `EMPTY_PASSWORD` 空密码；`WEAK_PASSWORD` 未四条全通过
+ */
+export function normalizeNewMasterPassword(password: string): string {
   const value = typeof password === 'string' ? password.trim() : '';
-  if (!value) throw recoveryError('EMPTY_PASSWORD');
-  if (!evaluateStrengthCore(value).allPassed) throw recoveryError('WEAK_PASSWORD');
+  if (!value) throw recoveryError(VAULT_ERROR_CODES.EMPTY_PASSWORD);
+  if (!evaluateStrengthCore(value).allPassed) throw recoveryError(VAULT_ERROR_CODES.WEAK_PASSWORD);
   return value;
 }
 
@@ -81,7 +97,7 @@ export function normalizeNewRecoveryPassword(password: string): string {
  * 换钥不再等于撤销旧副本。宁可让用户重输一次，也不能留下这种静默失效的恢复材料。
  */
 export function assertRotatedDataKey(oldKey: string, newKey: string): void {
-  if (timingSafeEqual(oldKey, newKey)) throw recoveryError('RECOVERY_SAME_PASSWORD');
+  if (timingSafeEqual(oldKey, newKey)) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_SAME_PASSWORD);
 }
 
 /**
@@ -126,5 +142,5 @@ export async function verifyRecoveryReplacement(
 ): Promise<void> {
   const recoveryCrypto = await getRecoveryCrypto();
   const recovered = await recoveryCrypto.unwrapRecoveryDataKey(draft?.material?.config, confirmation, newMaster);
-  if (!timingSafeEqual(recovered, dataKey)) throw recoveryError('RECOVERY_INVALID');
+  if (!timingSafeEqual(recovered, dataKey)) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INVALID);
 }

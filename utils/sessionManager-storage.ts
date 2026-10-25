@@ -6,6 +6,7 @@ import { bytesToHex } from '@/utils/crypto-light';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { withVaultMutation } from '@/utils/storage/vaultWriteLock';
 import { verifyMasterPassword } from '@/utils/storage/masterPassword';
+import { VAULT_ERROR_CODES } from './recoveryTypes';
 import {
   recoverBrowserStartupRelockAfterAuthentication,
   waitForBrowserStartupRelockBeforeAuthentication,
@@ -687,8 +688,9 @@ async function createSessionInternal(masterPassword: string, validityHours: numb
       throw new Error('浏览器启动安全检查尚未完成，请稍后重试');
     }
     // 外部 UI 的验证可能早于另一上下文换钥：必须在本次 lease 内重验当前配置。
+    // 带稳定码抛出：调用方按码分流呈现，不该靠匹配中文串认这个失败（文案一改就静默降级）。
     if (!(await verifyMasterPassword(masterPassword))) {
-      throw new Error('主密码验证失败');
+      throw Object.assign(new Error('主密码验证失败'), { code: VAULT_ERROR_CODES.WRONG_PASSWORD });
     }
     invalidateSessionCache();
     const enc = await _getEncryption();
@@ -895,7 +897,10 @@ async function _doClearSession(): Promise<void> {
     try {
       // 同时更新锁定状态镜像：侧边栏 isSessionQuicklyKnownInvalid() 下次打开时
       // 可通过纯内存 IPC 立即感知锁定，无需等待 storage.local 磁盘读取
-      await chrome.storage.session.remove(SESSION_MEMORY_KEYS.DATA_KEY);
+      // 成对删除：读侧（getSessionDataKey 的缓存路径）拿 `DATA_KEY` 与 `DATA_KEY_WRAPPED`
+      // 配对来判断「这份明文镜像是否还对应当前密文」。只删前者会让锁定后的会话里
+      // 残留一枚孤立的配对指纹，与 `publishSessionRekey` 的成对移除口径不一致。
+      await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
       void chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } }).catch(() => {});
     } catch {
       // storage.session 不可用时忽略

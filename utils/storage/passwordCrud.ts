@@ -4,6 +4,7 @@ import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
+import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 import { getSessionDataKey } from './facades';
 import { isExactHostMatch } from '@/utils/domain';
 import { applySavedSortConfig } from './configManager';
@@ -411,7 +412,7 @@ async function flushMetadataUpdates(): Promise<void> {
     });
   } catch (error) {
     logger.error('批量更新元数据失败:', error);
-    if ((error as { code?: string })?.code === 'VAULT_BUSY') {
+    if ((error as { code?: string })?.code === VAULT_ERROR_CODES.VAULT_BUSY) {
       requeueMetadataUpdates(batch);
       scheduleMetadataRetry();
     }

@@ -44,4 +44,29 @@ describe('rekey session publication', () => {
       (await chrome.storage.session.get(SESSION_MEMORY_KEYS.DATA_KEY))[SESSION_MEMORY_KEYS.DATA_KEY],
     ).toBeUndefined();
   });
+
+  it('锁定会话时成对删除明文镜像与其配对指纹，不留孤立条目', async () => {
+    const session = await import('@/utils/sessionManager-storage');
+    const prepared = await session.prepareSessionRekey(KEY, 24);
+    await chrome.storage.local.set(prepared);
+    await session.publishSessionRekey(KEY, prepared);
+
+    // 先确认两枚都真的在，否则下面的「都空了」可以空过
+    const published = await chrome.storage.session.get([
+      SESSION_MEMORY_KEYS.DATA_KEY,
+      SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED,
+    ]);
+    expect(published[SESSION_MEMORY_KEYS.DATA_KEY]).toBe(KEY);
+    expect(published[SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]).toBeTypeOf('string');
+
+    await session.clearSession();
+
+    // 读侧靠这两枚配对判断「内存里的明文镜像是否还对应当前密文」；只删前者会在锁定后的
+    // 会话里残留一枚孤立指纹，与 publishSessionRekey 的成对移除口径不一致。
+    const after = await chrome.storage.session.get([
+      SESSION_MEMORY_KEYS.DATA_KEY,
+      SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED,
+    ]);
+    expect(after).toEqual({});
+  });
 });

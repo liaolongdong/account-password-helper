@@ -132,7 +132,7 @@ describe('rekey 覆写前的快照复验', () => {
   it('重加密期间回收站被别的标签清空时，中止换钥且不落任何数据写', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toMatchObject({
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toMatchObject({
       code: 'REKEY_CONCURRENT_WRITE',
     });
 
@@ -160,7 +160,7 @@ describe('rekey 覆写前的快照复验', () => {
 
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toMatchObject({
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toMatchObject({
       code: 'REKEY_CONCURRENT_WRITE',
     });
     expect(localSet).not.toHaveBeenCalled();
@@ -171,7 +171,7 @@ describe('rekey 覆写前的快照复验', () => {
     concurrentWriter = false;
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).resolves.toBeUndefined();
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBeUndefined();
 
     expect(localSet).toHaveBeenCalledTimes(1);
     expect((storageData[STORAGE_KEYS.TRASH] as TrashedPasswordEntry[]).map(e => e.id)).toEqual(['t1']);

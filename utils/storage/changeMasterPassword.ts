@@ -18,12 +18,14 @@ import {
   assertRotatedDataKey,
   assertSameMaster,
   buildChangedMasterConfig,
+  normalizeNewMasterPassword,
   readVaultRecoverySnapshot,
   recoveryError,
   verifyRecoveryReplacement,
   RECOVERY_ERROR_MESSAGE,
 } from './recoveryState';
 import type { RecoveryConfirmation, VaultRekeyRequest } from './recoveryTypes';
+import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 
 const getEncryption = lazyImport(() => import('@/utils/encryption'));
 const getSessionManager = lazyImport(() => import('@/utils/sessionManager-storage'));
@@ -44,7 +46,10 @@ function assertDomainsIntact(domains: unknown[], mode: VaultRekeyRequest['mode']
       record => !record || typeof record !== 'object' || typeof (record as Record<string, unknown>)[key] !== 'string',
     );
   });
-  if (corrupted) throw recoveryError(mode === 'recovery' ? 'RECOVERY_INCOMPLETE' : 'VAULT_DATA_CORRUPTED');
+  if (corrupted)
+    throw recoveryError(
+      mode === 'recovery' ? VAULT_ERROR_CODES.RECOVERY_INCOMPLETE : VAULT_ERROR_CODES.VAULT_DATA_CORRUPTED,
+    );
 }
 
 export async function changeMasterPassword(
@@ -54,10 +59,16 @@ export async function changeMasterPassword(
 ): Promise<'relock-required' | void> {
   const oldPw = String(oldPassword || '').trim();
   const newPw = String(newPassword || '').trim();
-  if (!newPw) throw recoveryError('EMPTY_PASSWORD', RECOVERY_ERROR_MESSAGE.EMPTY_PASSWORD);
+  if (!newPw) throw recoveryError(VAULT_ERROR_CODES.EMPTY_PASSWORD, RECOVERY_ERROR_MESSAGE.EMPTY_PASSWORD);
+  // 主密码强度就是数据密钥强度，必须在存储层收口，不能只靠弹窗：创建时要求四条规则全通过，
+  // 换钥时若只判 `level !== 'weak'`（通过数 ≥2 即算 medium），等于开了一条
+  // 「把整库降级到比首次设置更弱的密钥」的通道，且会让同一串密码在启用/未启用离线恢复时
+  // 得到两种结果。与恢复链路共用 `normalizeNewMasterPassword` 这一道门槛。
+  // 位置与空密码校验并列：先拒形态再验旧密，避免为注定失败的提交付一次 PBKDF2。
+  normalizeNewMasterPassword(newPw);
   const authorized = await withVaultMutation(async () => {
     if (!(await verifyMasterPassword(oldPw)))
-      throw recoveryError('WRONG_PASSWORD', RECOVERY_ERROR_MESSAGE.WRONG_PASSWORD);
+      throw recoveryError(VAULT_ERROR_CODES.WRONG_PASSWORD, RECOVERY_ERROR_MESSAGE.WRONG_PASSWORD);
     return readVaultRecoverySnapshot();
   });
   return withVaultKeyTransition(async () => {
@@ -69,8 +80,8 @@ export async function changeMasterPassword(
     const newKey = await encryption.deriveEncryptionKey(newPw);
     // 换发恢复包的前提是数据密钥真的换了；同密码 = 同一把 DK，旧恢复包依旧能解新数据。
     if (hasRecovery) assertRotatedDataKey(oldKey, newKey);
-    if (hasRecovery && !replacement) throw recoveryError('RECOVERY_REPLACEMENT_REQUIRED');
-    if (!hasRecovery && replacement) throw recoveryError('RECOVERY_STALE');
+    if (hasRecovery && !replacement) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_REPLACEMENT_REQUIRED);
+    if (!hasRecovery && replacement) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_STALE);
     const newMasterConfig = await buildChangedMasterConfig(snapshot.master, newPw, true);
     if (replacement) {
       assertCurrentRecoveryDraft(replacement.draft, snapshot);
@@ -113,7 +124,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
       return entry;
     });
   } catch (error) {
-    if (mode === 'recovery') throw recoveryError('RECOVERY_INCOMPLETE');
+    if (mode === 'recovery') throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
     throw error;
   }
 
@@ -121,7 +132,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
     try {
       return { plainPassword: await encryption.decryptData(record.password, oldKey) };
     } catch {
-      if (mode === 'recovery') throw recoveryError('RECOVERY_INCOMPLETE');
+      if (mode === 'recovery') throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
       logger.warn('Unreadable password history retained during key change');
       return null;
     }
@@ -154,7 +165,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
         plaintext = await encryption.decryptData(record.encryptedPayload, oldKey);
         JSON.parse(plaintext);
       } catch {
-        throw recoveryError('RECOVERY_INCOMPLETE');
+        throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
       }
       return { ...record, encryptedPayload: await encryption.encryptData(plaintext, newKey) };
     });
@@ -207,7 +218,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
   // 「新密文 + 旧会话密钥」这条数据完整性守卫去换一位数百分比的换钥耗时。
   if (sessionMoved || original.some((records, index) => JSON.stringify(records) !== JSON.stringify(fresh[index]))) {
     await sessionManager.clearSession().catch(() => {});
-    throw recoveryError('REKEY_CONCURRENT_WRITE', RECOVERY_ERROR_MESSAGE.REKEY_CONCURRENT_WRITE);
+    throw recoveryError(VAULT_ERROR_CODES.REKEY_CONCURRENT_WRITE, RECOVERY_ERROR_MESSAGE.REKEY_CONCURRENT_WRITE);
   }
 
   if (mode === 'recovery') await lockSession();

@@ -10,18 +10,19 @@ import {
   assertSameMaster,
   buildChangedMasterConfig,
   buildRecoveryDraft,
-  normalizeNewRecoveryPassword,
+  normalizeNewMasterPassword,
   readVaultRecoverySnapshot,
   recoveryError,
   verifyRecoveryReplacement,
 } from './recoveryState';
 import type { RecoveryDraft, RecoveryStatus, VaultRecoverySnapshot } from './recoveryTypes';
+import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 
 const getEncryption = lazyImport(() => import('@/utils/encryption'));
 
 async function authorizeMaster(password: string): Promise<VaultRecoverySnapshot> {
   return withVaultMutation(async () => {
-    if (!(await verifyMasterPassword(password))) throw recoveryError('WRONG_PASSWORD');
+    if (!(await verifyMasterPassword(password))) throw recoveryError(VAULT_ERROR_CODES.WRONG_PASSWORD);
     return readVaultRecoverySnapshot();
   });
 }
@@ -70,10 +71,11 @@ export async function disableRecovery(masterPassword: string): Promise<void> {
 }
 
 export async function preparePasswordRecovery(input: string, newPassword: string): Promise<RecoveryDraft> {
-  const password = normalizeNewRecoveryPassword(newPassword);
+  const password = normalizeNewMasterPassword(newPassword);
   return withVaultMutation(async () => {
     const snapshot = await readVaultRecoverySnapshot();
-    if (snapshot.recovery === undefined || snapshot.recovery === null) throw recoveryError('RECOVERY_DISABLED');
+    if (snapshot.recovery === undefined || snapshot.recovery === null)
+      throw recoveryError(VAULT_ERROR_CODES.RECOVERY_DISABLED);
     const oldKey = await unwrapRecoveryDataKey(snapshot.recovery, input, snapshot.master);
     const encryption = await getEncryption();
     const key = await encryption.deriveEncryptionKey(password);
@@ -89,10 +91,11 @@ export async function recoverMasterPassword(
   draft: RecoveryDraft,
   confirmation: string,
 ): Promise<void> {
-  const password = normalizeNewRecoveryPassword(newPassword);
+  const password = normalizeNewMasterPassword(newPassword);
   await withVaultKeyTransition(async () => {
     const snapshot = await readVaultRecoverySnapshot();
-    if (snapshot.recovery === undefined || snapshot.recovery === null) throw recoveryError('RECOVERY_DISABLED');
+    if (snapshot.recovery === undefined || snapshot.recovery === null)
+      throw recoveryError(VAULT_ERROR_CODES.RECOVERY_DISABLED);
     assertCurrentRecoveryDraft(draft, snapshot);
     const oldKey = await unwrapRecoveryDataKey(snapshot.recovery, input, snapshot.master);
     const encryption = await getEncryption();
@@ -117,7 +120,7 @@ export async function prepareChangedPasswordRecovery(
   return withVaultMutation(async () => {
     const status = await getRecoveryStatus();
     if (!status.enabled) return null;
-    const password = normalizeNewRecoveryPassword(newPassword);
+    const password = normalizeNewMasterPassword(newPassword);
     const snapshot = await authorizeMaster(oldPassword);
     const encryption = await getEncryption();
     const [oldKey, key] = await Promise.all([

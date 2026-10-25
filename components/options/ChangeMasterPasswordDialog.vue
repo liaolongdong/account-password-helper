@@ -164,6 +164,7 @@ import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
 import { clearRecoveryInputs, recoveryErrorMessage } from '@/utils/recoveryUi';
+import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 import { logger } from '@/utils/logger';
 import type { RecoveryDraft } from '@/utils/storage/recoveryTypes';
 import { changeMasterPassword } from '@/utils/storage/changeMasterPassword';
@@ -223,9 +224,18 @@ const form = reactive({
 const newPasswordRef = computed(() => form.newPassword);
 const { strength: passwordStrength, rules: passwordRules } = usePasswordStrength(newPasswordRef);
 
-/** 密码强度校验器：必须至少为「中」 */
+/**
+ * 新密码强度校验器：必须四条规则全通过（≥8 位 + 字母 + 数字 + 符号）
+ *
+ * 原先判的是 `level === 'weak'`，而 `level` 在通过数 ≥2 时即升为 `medium`
+ * （`utils/passwordStrengthCore.ts` 的等级映射），等于只要求四条里的两条——
+ * 于是「创建主密码时不允许的强度，改密时能设进去」，把库降级到比首次设置更弱的密钥。
+ * 同时存储层的 `normalizeNewMasterPassword` 判的就是 `allPassed`，同一串密码会在
+ * 启用/未启用离线恢复时得到两种结果，弹窗放行、提交被拒。
+ * 对齐到 `allPassed` 后三处（创建 / 改密 / 恢复换钥）共用同一道门槛。
+ */
 const strengthValidator: NonNullable<FormItemRule['validator']> = (_rule, _value, callback) => {
-  if (form.newPassword && passwordStrength.value.level === 'weak') {
+  if (form.newPassword && !passwordStrength.value.allPassed) {
     callback(new Error(t('options.changePwd.weakPassword')));
   } else {
     callback();
@@ -271,25 +281,27 @@ const clearSecrets = (): void => {
 /**
  * 失败呈现沿用改造前的口径：既有三个码各自的本机文案 toast，其余落到通用兜底。
  *
- * 存储层用 `Object.assign(new Error(...), { code })` 携带稳定错误码，直出的 `error.message`
- * 是存储层中文串，塞进本地化模板会让英文界面夹进中文，所以按码分流；未登记的码才回退到
- * 改造前的 `options.changePwd.failed` 兜底串，不让既有反馈渠道被内联告警换掉。
+ * 存储层用 `Object.assign(new Error(...), { code })` 携带稳定错误码，一律**按码**分流。
+ * 这里曾有一条 `msg.includes('验证失败')` 兜底，靠匹配中文串认出「不带码的旧密码校验失败」；
+ * 现在抛方（`sessionManager-storage.ts`）已补齐 `WRONG_PASSWORD` 码，文案一改就静默降级成
+ * 通用错误的脆弱匹配随之删除。
+ * 未登记的码回落到 `options.changePwd.failed` 兜底串，但不再插值原始 `message`：
+ * 本仓在 `utils/backupExport.ts` 已确立「解析/解密链路上的原始异常可能携带解密片段，
+ * 不得进入用户可见文案与日志」的口径，此处与之对齐，只报「未知错误」。
  */
 const presentChangeError = (cause: unknown): void => {
   logger.error('修改主密码失败:', cause);
-  const { message: msg = '', code } = (cause ?? {}) as { message?: string; code?: string };
-  if (code === 'REKEY_CONCURRENT_WRITE') {
+  const { code } = (cause ?? {}) as { code?: string };
+  if (code === VAULT_ERROR_CODES.REKEY_CONCURRENT_WRITE) {
     // 重加密期间另一张管理页标签写过数据，快照复验主动取消了这次换钥（数据仍完整可读）
     ElMessage.error(t('options.changePwd.concurrentWrite'));
-  } else if (code === 'WRONG_PASSWORD' || msg.includes('验证失败')) {
+  } else if (code === VAULT_ERROR_CODES.WRONG_PASSWORD) {
     ElMessage.error(t('options.changePwd.wrongOldPassword'));
-  } else if (code === 'EMPTY_PASSWORD') {
+  } else if (code === VAULT_ERROR_CODES.EMPTY_PASSWORD) {
     // 纯空白新密码过得了 required/min 规则，归一化后在存储层被拒，这里给出本地化提示
     ElMessage.error(t('options.changePwd.newPasswordRequired'));
   } else {
-    ElMessage.error(
-      recoveryErrorMessage(cause, t('options.changePwd.failed', { msg: msg || t('message.unknownError') })),
-    );
+    ElMessage.error(recoveryErrorMessage(cause, t('options.changePwd.failed', { msg: t('message.unknownError') })));
   }
 };
 const {

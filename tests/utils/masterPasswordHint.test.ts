@@ -70,6 +70,20 @@ describe('setMasterPassword 的提示语落盘', () => {
     expect(config.hint).toHaveLength(MAX_MASTER_PASSWORD_HINT_LENGTH);
   });
 
+  it('按码位而非 UTF-16 码元截断，不在代理对中间下刀', async () => {
+    // 每个 emoji 占 2 个 UTF-16 码元。前缀一个 BMP 字符后，上限 120 恰好落在某个 emoji 的
+    // 中间：`String.prototype.slice` 会留下一个没有配对的高代理项，读出来是 U+FFFD，
+    // 且用户再输入同样的提示语时永远比对不上。docs/ARCHITECTURE 写的上限语义是「120 码位」。
+    const hint = `a${'🔑'.repeat(MAX_MASTER_PASSWORD_HINT_LENGTH)}`;
+    await setMasterPassword('Master#123', hint);
+
+    const config = store[STORAGE_KEYS.MASTER_PASSWORD] as { hint: string };
+    expect(Array.from(config.hint)).toHaveLength(MAX_MASTER_PASSWORD_HINT_LENGTH);
+    // 孤立代理项两个方向都不许出现
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(config.hint)).toBe(false);
+    expect(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(config.hint)).toBe(false);
+  });
+
   it('未传提示语时省略该字段（而非写入空串），存量形状不变', async () => {
     await setMasterPassword('Master#123');
 

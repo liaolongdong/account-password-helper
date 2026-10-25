@@ -1,3 +1,5 @@
+import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
+
 const VAULT_WRITE_LOCK = 'aph-vault-key-transition';
 
 /** 重试预算：换钥是低频、秒级完成的用户动作，一次短暂等待就能覆盖绝大多数碰撞。 */
@@ -19,7 +21,7 @@ const wait = (ms: number): Promise<void> => new Promise(resolve => setTimeout(re
  */
 export function withVaultMutation<T>(operation: () => Promise<T>): Promise<T> {
   return navigator.locks.request(VAULT_WRITE_LOCK, { mode: 'shared', ifAvailable: true }, async lock => {
-    if (!lock) throw Object.assign(new Error('Vault is busy changing keys'), { code: 'VAULT_BUSY' });
+    if (!lock) throw Object.assign(new Error('Vault is busy changing keys'), { code: VAULT_ERROR_CODES.VAULT_BUSY });
     return operation();
   });
 }
@@ -27,7 +29,7 @@ export function withVaultMutation<T>(operation: () => Promise<T>): Promise<T> {
 /** Exclusive key-transition leases stay fail-fast: the transition is the rare, user-initiated side. */
 export function withVaultKeyTransition<T>(operation: () => Promise<T>): Promise<T> {
   return navigator.locks.request(VAULT_WRITE_LOCK, { mode: 'exclusive', ifAvailable: true }, async lock => {
-    if (!lock) throw Object.assign(new Error('Vault has an unfinished write'), { code: 'VAULT_BUSY' });
+    if (!lock) throw Object.assign(new Error('Vault has an unfinished write'), { code: VAULT_ERROR_CODES.VAULT_BUSY });
     return operation();
   });
 }
@@ -47,7 +49,7 @@ export async function withVaultMutationRetry<T>(
     try {
       return await withVaultMutation(operation);
     } catch (error) {
-      if ((error as { code?: string })?.code !== 'VAULT_BUSY' || attempt >= attempts - 1) throw error;
+      if ((error as { code?: string })?.code !== VAULT_ERROR_CODES.VAULT_BUSY || attempt >= attempts - 1) throw error;
       await wait(delayMs);
     }
   }

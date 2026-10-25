@@ -122,16 +122,16 @@ afterEach(() => {
 describe('changeMasterPassword 纳入身份库 rekey', () => {
   it('身份库用新钥重新加密：新钥可解回原文、旧钥不可解', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     const identity = (storageData[STORAGE_KEYS.IDENTITY] as IdentityRecord[])[0];
-    expect(dec(identity.encryptedPayload, 'key:new-pw')).toBe(identityPayloadJson);
+    expect(dec(identity.encryptedPayload, 'key:New-pw#1')).toBe(identityPayloadJson);
     expect(() => dec(identity.encryptedPayload, 'key:old-pw')).toThrow('key mismatch');
   });
 
   it('身份库并入同一次原子写入（无第二次补写）', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     expect(localSet).toHaveBeenCalledTimes(1);
     const writtenItems = localSet.mock.calls[0][0] as Record<string, unknown>;
@@ -143,7 +143,7 @@ describe('changeMasterPassword 纳入身份库 rekey', () => {
     failIdentityRead = true;
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toThrow('identity read boom');
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toThrow('identity read boom');
     expect(localSet).not.toHaveBeenCalled();
   });
 
@@ -152,7 +152,7 @@ describe('changeMasterPassword 纳入身份库 rekey', () => {
     (storageData[STORAGE_KEYS.IDENTITY] as IdentityRecord[]).push(broken);
 
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     const identity = storageData[STORAGE_KEYS.IDENTITY] as IdentityRecord[];
     expect(identity.find(r => r.id === 'broken')?.encryptedPayload).toBe('corrupted');
@@ -173,7 +173,7 @@ describe('changeMasterPassword 纳入身份库 rekey', () => {
     ];
 
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     const trash = storageData[STORAGE_KEYS.IDENTITY_TRASH] as {
       id: string;
@@ -181,7 +181,7 @@ describe('changeMasterPassword 纳入身份库 rekey', () => {
       deletedAt: number;
     }[];
     expect(trash).toHaveLength(1);
-    expect(dec(trash[0].encryptedPayload, 'key:new-pw')).toBe(identityPayloadJson);
+    expect(dec(trash[0].encryptedPayload, 'key:New-pw#1')).toBe(identityPayloadJson);
     expect(() => dec(trash[0].encryptedPayload, 'key:old-pw')).toThrow('key mismatch');
     expect(trash[0].deletedAt).toBe(987654321);
 

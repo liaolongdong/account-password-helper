@@ -164,7 +164,7 @@ describe('原子写入成功时的载荷形状', () => {
   it('五块数据 + 校验哈希 + 会话密钥材料在同一次 set 里落盘', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     expect(localSet).toHaveBeenCalledTimes(1);
     const payload = localSet.mock.calls[0][0] as Record<string, unknown>;
@@ -186,10 +186,10 @@ describe('原子写入成功时的载荷形状', () => {
   it('准备会话密钥发生在写盘之前，且落盘的校验值由新密码派生', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
-    expect(prepareSessionRekey).toHaveBeenCalledWith('key:new-pw', 24);
-    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
+    expect(prepareSessionRekey).toHaveBeenCalledWith('key:New-pw#1', 24);
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
   });
 });
 
@@ -201,14 +201,14 @@ describe('写盘失败：回滚与会话清理', () => {
     localSet.mockRejectedValueOnce(error);
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toBe(error);
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toBe(error);
   });
 
   it('磁盘仍是旧密文与旧校验值：失败的 rekey 不留半成品', async () => {
     localSet.mockRejectedValueOnce(writeError());
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw').catch(() => undefined);
+    await changeMasterPassword('old-pw', 'New-pw#1').catch(() => undefined);
 
     const entries = storageData[STORAGE_KEYS.PASSWORDS] as { password: string }[];
     expect(entries[0]?.password).toBe('cipher');
@@ -225,7 +225,7 @@ describe('写盘失败：回滚与会话清理', () => {
     localSet.mockRejectedValueOnce(writeError());
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw').catch(() => undefined);
+    await changeMasterPassword('old-pw', 'New-pw#1').catch(() => undefined);
 
     expect(clearSession).toHaveBeenCalledTimes(1);
   });
@@ -236,7 +236,7 @@ describe('写盘失败：回滚与会话清理', () => {
     clearSession.mockRejectedValueOnce(new Error('clearSession unavailable'));
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toBe(error);
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toBe(error);
     expect(clearSession).toHaveBeenCalledTimes(1);
   });
 
@@ -244,7 +244,7 @@ describe('写盘失败：回滚与会话清理', () => {
     localSet.mockRejectedValueOnce(writeError());
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw').catch(() => undefined);
+    await changeMasterPassword('old-pw', 'New-pw#1').catch(() => undefined);
 
     expect(localRemove).not.toHaveBeenCalled();
   });
@@ -259,7 +259,7 @@ describe('写盘之前的失败：不写、不清会话', () => {
     });
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toThrow('bad key');
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toThrow('bad key');
 
     expect(localSet).not.toHaveBeenCalled();
     expect(clearSession, '会话密钥尚未准备，无需回滚，也不该被顺带清掉').not.toHaveBeenCalled();
@@ -271,7 +271,7 @@ describe('写盘之前的失败：不写、不清会话', () => {
     vi.mocked(masterPassword.verifyMasterPassword).mockResolvedValueOnce(false);
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('wrong-old', 'new-pw')).rejects.toThrow('当前密码验证失败');
+    await expect(changeMasterPassword('wrong-old', 'New-pw#1')).rejects.toThrow('当前密码验证失败');
 
     expect(deriveEncryptionKey).not.toHaveBeenCalled();
     expect(localSet).not.toHaveBeenCalled();
@@ -290,9 +290,9 @@ describe('提交成功之后的失败：不得伪装成未提交', () => {
     publishSessionRekey.mockRejectedValueOnce(new Error('session readback failed'));
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).resolves.toBe('relock-required');
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBe('relock-required');
 
-    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
     expect(clearSession, '发布失败必须清会话，避免留下新钥/旧库不一致的解锁态').toHaveBeenCalledTimes(1);
   });
 
@@ -300,10 +300,10 @@ describe('提交成功之后的失败：不得伪装成未提交', () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
     localRemove.mockRejectedValueOnce(new Error('remove unavailable'));
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).resolves.toBeUndefined();
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBeUndefined();
 
     expect(clearSession).not.toHaveBeenCalled();
-    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
   });
 });
 
@@ -328,7 +328,7 @@ describe('并发锁定与提交守卫', () => {
     });
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toMatchObject({ code: 'REKEY_CONCURRENT_WRITE' });
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toMatchObject({ code: 'REKEY_CONCURRENT_WRITE' });
     expect(localSet).not.toHaveBeenCalled();
     expect(publishSessionRekey).not.toHaveBeenCalled();
     expect(clearSession).toHaveBeenCalled();
