@@ -190,13 +190,27 @@
 }
 
 /* 链接按钮优化 */
+
+/* primary / info 型 link 的文字直接压在页面白底上，`--aph-primary` 在这里只有 2.78:1，
+   14px 文字不达 WCAG AA 4.5:1（锁屏的「使用离线恢复密钥」就是典型一处）。静息态改用
+   `--aph-primary-strong`。hover 刻意走「更深」而不是仓库惯例的「更浅」——提亮会把文字
+   推到读不清的那一侧，压暗则两档都留在合规区间内。 */
+:deep(.el-button--primary.is-link) {
+  font-weight: 400;
+  color: var(--aph-primary-strong);
+}
+
+:deep(.el-button--primary.is-link:hover) {
+  color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
+}
+
 :deep(.el-button--info.is-link) {
   font-weight: 400;
-  color: var(--aph-primary);
+  color: var(--aph-primary-strong);
 }
 
 :deep(.el-button--info.is-link:hover) {
-  color: var(--aph-primary-hover);
+  color: color-mix(in srgb, var(--aph-primary-strong) 78%, #000);
 }
 
 :deep(.el-button--danger.is-link) {

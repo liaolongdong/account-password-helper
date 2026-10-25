@@ -16,6 +16,14 @@
   /* 品牌主色及其状态 */
   --aph-primary: #409eff;
   --aph-primary-hover: #66b3ff;
+  --aph-primary-strong: #0072e8;
+
+  /* 主色「强」档：把品牌色保持色相与饱和度、只压暗度得到的深色。
+     用途是「品牌色文字压在白色/近白底上」——`--aph-primary` 本身在中性白底上只有
+     2.4~3.2:1，14px 文字不达 WCAG AA 4.5:1（管理页头部的实心主按钮、各处 primary link 都是这一类）。
+     六套主题各自配值，实测在白底上统一 4.60:1。
+     刻意不复用 `--el-color-primary-dark-2`：那是主色 +20% 黑，最差一套只有 3.68:1，仍不达标。
+     只在扩展页样式里使用，内容脚本 Shadow DOM 不注入（`utils/theme.ts` 的 THEME_SHADOW_TOKENS 无需同步）。 */
   --aph-primary-rgb: 64 158 255;
 
   /* 品牌浅色填充 / 边框 */
@@ -64,6 +72,7 @@
 :root[data-theme='green'] {
   --aph-primary: #69b599;
   --aph-primary-hover: #88c5ae;
+  --aph-primary-strong: #408169;
   --aph-primary-rgb: 105 181 153;
   --aph-primary-bg: #f2f9f6;
   --aph-primary-bg-hover: #f5faf8;
@@ -87,6 +96,7 @@
 :root[data-theme='pink'] {
   --aph-primary: #d87998;
   --aph-primary-hover: #e199b1;
+  --aph-primary-strong: #c94570;
   --aph-primary-rgb: 216 121 152;
   --aph-primary-bg: #fbf0f4;
   --aph-primary-bg-hover: #fcf4f6;
@@ -110,6 +120,7 @@
 :root[data-theme='mauve'] {
   --aph-primary: #ad84cd;
   --aph-primary-hover: #c0a0da;
+  --aph-primary-strong: #935dbd;
   --aph-primary-rgb: 173 132 205;
   --aph-primary-bg: #f6f2fa;
   --aph-primary-bg-hover: #f8f4fb;
@@ -133,6 +144,7 @@
 :root[data-theme='orange'] {
   --aph-primary: #e28e65;
   --aph-primary-hover: #eaa886;
+  --aph-primary-strong: #be5624;
   --aph-primary-rgb: 226 142 101;
   --aph-primary-bg: #fcf3ef;
   --aph-primary-bg-hover: #fdf6f3;
@@ -156,6 +168,7 @@
 :root[data-theme='slate'] {
   --aph-primary: #7f92b4;
   --aph-primary-hover: #98a7c2;
+  --aph-primary-strong: #5e76a0;
   --aph-primary-rgb: 127 146 180;
   --aph-primary-bg: #f3f5f8;
   --aph-primary-bg-hover: #f6f7fa;
