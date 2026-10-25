@@ -39,6 +39,19 @@ const RECOVERY_ERROR_KEYS: Record<VaultErrorCode, string> = {
 };
 
 /**
+ * 取异常上携带的稳定错误码。
+ *
+ * 存储层统一用 `Object.assign(new Error(...), { code })` 抛错；调用方要按码分流
+ * （比如决定要不要亮出「知情跳过」这扇门），但绝不该去匹配 message 文本——
+ * 文案一改就静默失效。
+ */
+export function recoveryErrorCode(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? ((error as { code: unknown }).code as string | undefined)
+    : undefined;
+}
+
+/**
  * 仅翻译允许的稳定 code，永不把异常 message、输入或完整对象回显/记录。
  *
  * @param error 存储层抛出的带 `code` 异常
@@ -47,8 +60,7 @@ const RECOVERY_ERROR_KEYS: Record<VaultErrorCode, string> = {
  * @returns 面向用户的本地化错误文案
  */
 export function recoveryErrorMessage(error: unknown, fallback?: string): string {
-  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
-  const key = typeof code === 'string' ? RECOVERY_ERROR_KEYS[code as VaultErrorCode] : undefined;
+  const key = RECOVERY_ERROR_KEYS[recoveryErrorCode(error) as VaultErrorCode];
   return key ? t(key) : (fallback ?? t('recovery.error.failed'));
 }
 

@@ -85,11 +85,19 @@ export async function preparePasswordRecovery(input: string, newPassword: string
   });
 }
 
+/**
+ * 用恢复码换回本机当前库：解出数据密钥 → 全库重加密 → 换发新套件 → 保持锁定。
+ *
+ * @param allowUndecryptable 用户已知情同意时，允许把解不开的条目原样携带过这次换钥，
+ *   从而在「库里已有一条坏记录」的情况下仍救回其余数据。默认 `false` 维持整笔中止——
+ *   半恢复的库比不恢复更糟，除非用户明确知道自己在换什么。
+ */
 export async function recoverMasterPassword(
   input: string,
   newPassword: string,
   draft: RecoveryDraft,
   confirmation: string,
+  allowUndecryptable = false,
 ): Promise<void> {
   const password = normalizeNewMasterPassword(newPassword);
   await withVaultKeyTransition(async () => {
@@ -109,6 +117,7 @@ export async function recoverMasterPassword(
       newMasterConfig: nextMaster,
       replacementRecovery: draft.material.config,
       mode: 'recovery',
+      allowUndecryptable,
     });
   });
 }

@@ -99,7 +99,7 @@ export async function changeMasterPassword(
 
 /** The caller holds the exclusive key-transition lease; no authentication is bypassed by this internal commit stage. */
 export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'relock-required' | void> {
-  const { oldKey, newKey, newMasterConfig, replacementRecovery, mode } = request;
+  const { oldKey, newKey, newMasterConfig, replacementRecovery, mode, allowUndecryptable } = request;
   const encryption = await getEncryption();
   const rawPasswords = await getAllPasswordsRaw();
   const rawTrash = await getAllTrashRaw();
@@ -108,20 +108,39 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
   const identityTrashRaw = await getAllIdentityTrashRaw();
   assertDomainsIntact([rawPasswords, rawTrash, rawHistory, identityRaw, identityTrashRaw], mode);
 
-  let decryptedPasswords: PasswordEntry[];
-  let decryptedTrash: TrashedPasswordEntry[];
+  // 不可解条目的处置。默认一律整笔中止，保住「要么全换、要么不动」的原子性。
+  // 恢复流程额外开放 `allowUndecryptable`：用户明确知情后，把解不开的条目**原样携带**过这次
+  // 换钥（不重加密、不删除），换回其余数据可用——它们留在库里，但新数据密钥永远读不出它们。
+  // 这不是新造状态：读路径早已用 `allSettled` 容忍不可解条目（`getAllPasswordsDetailed` 的
+  // `undecryptableCount`），改密路径的身份库与历史也早已原样携带。相比「一条坏记录就把用户
+  // 逼回清空」，救回其余数据是更好的结局，前提是这一下必须由用户点头。
+  const tolerateUndecryptable = mode === 'recovery' && allowUndecryptable === true;
+  let carriedUndecryptable = 0;
+
+  type Outcome<T> = { plain: T } | { carry: EncryptedPasswordEntry };
+  let passwordOutcomes: Outcome<PasswordEntry>[];
+  let trashOutcomes: Outcome<TrashedPasswordEntry>[];
   try {
-    decryptedPasswords = await mapWithConcurrency(rawPasswords, async entry =>
-      'encrypted' in entry && entry.encrypted === true
-        ? encryption.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey)
-        : (entry as PasswordEntry),
-    );
-    decryptedTrash = await mapWithConcurrency(rawTrash, async entry => {
-      if ('encrypted' in entry && entry.encrypted === true) {
-        const plain = await encryption.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey);
-        return { ...plain, deletedAt: entry.deletedAt };
+    passwordOutcomes = await mapWithConcurrency(rawPasswords, async (entry): Promise<Outcome<PasswordEntry>> => {
+      if (!('encrypted' in entry && entry.encrypted === true)) return { plain: entry as PasswordEntry };
+      try {
+        return { plain: await encryption.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey) };
+      } catch (error) {
+        if (!tolerateUndecryptable) throw error;
+        carriedUndecryptable += 1;
+        return { carry: entry as EncryptedPasswordEntry };
       }
-      return entry;
+    });
+    trashOutcomes = await mapWithConcurrency(rawTrash, async (entry): Promise<Outcome<TrashedPasswordEntry>> => {
+      if (!('encrypted' in entry && entry.encrypted === true)) return { plain: entry };
+      try {
+        const plain = await encryption.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey);
+        return { plain: { ...plain, deletedAt: entry.deletedAt } };
+      } catch (error) {
+        if (!tolerateUndecryptable) throw error;
+        carriedUndecryptable += 1;
+        return { carry: entry };
+      }
     });
   } catch (error) {
     if (mode === 'recovery') throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
@@ -132,7 +151,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
     try {
       return { plainPassword: await encryption.decryptData(record.password, oldKey) };
     } catch {
-      if (mode === 'recovery') throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
+      if (mode === 'recovery' && !tolerateUndecryptable) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
       logger.warn('Unreadable password history retained during key change');
       return null;
     }
@@ -143,12 +162,15 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
     if (outcome) decryptedHistory.push({ ...rawHistory[index], password: outcome.plainPassword });
     else unrecoverableHistory.push(rawHistory[index]);
   });
+  if (mode === 'recovery') carriedUndecryptable += unrecoverableHistory.length;
 
-  const reEncryptedPasswords = await mapWithConcurrency(decryptedPasswords, entry =>
-    encryption.encryptPasswordEntry(entry, '', newKey),
+  // 携带过来的条目原样写回：它们仍是被旧数据密钥加密的密文，字节一个不动。
+  const reEncryptedPasswords = await mapWithConcurrency(passwordOutcomes, async outcome =>
+    'carry' in outcome ? outcome.carry : encryption.encryptPasswordEntry(outcome.plain, '', newKey),
   );
-  const reEncryptedTrash = await mapWithConcurrency(decryptedTrash, async entry => {
-    const { deletedAt, ...plainEntry } = entry;
+  const reEncryptedTrash = await mapWithConcurrency(trashOutcomes, async outcome => {
+    if ('carry' in outcome) return outcome.carry as TrashedPasswordEntry;
+    const { deletedAt, ...plainEntry } = outcome.plain;
     const encrypted = await encryption.encryptPasswordEntry(plainEntry, '', newKey);
     return { ...encrypted, deletedAt };
   });
@@ -170,10 +192,14 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
       return { ...record, encryptedPayload: await encryption.encryptData(plaintext, newKey) };
     });
   }
+  // 身份库两域：未开启知情跳过时保持原有的零容忍；开启后交给 `reencryptAll`，
+  // 它本就是改密路径「单条失败原样携带」的实现，语义与上面的密码域携带一致。
   const reEncryptedIdentity =
-    mode === 'recovery' ? await recoverIdentities(identityRaw) : await reencryptAll(identityRaw, oldKey, newKey);
+    mode === 'recovery' && !tolerateUndecryptable
+      ? await recoverIdentities(identityRaw)
+      : await reencryptAll(identityRaw, oldKey, newKey);
   const identityTrashResult =
-    mode === 'recovery'
+    mode === 'recovery' && !tolerateUndecryptable
       ? await recoverIdentities(identityTrashRaw)
       : await reencryptAll(identityTrashRaw, oldKey, newKey);
   const reEncryptedIdentityTrash = identityTrashResult.map((record, index) => ({
@@ -219,6 +245,11 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
   if (sessionMoved || original.some((records, index) => JSON.stringify(records) !== JSON.stringify(fresh[index]))) {
     await sessionManager.clearSession().catch(() => {});
     throw recoveryError(VAULT_ERROR_CODES.REKEY_CONCURRENT_WRITE, RECOVERY_ERROR_MESSAGE.REKEY_CONCURRENT_WRITE);
+  }
+
+  if (tolerateUndecryptable && carriedUndecryptable > 0) {
+    // 只记条数，不记 id 或任何密文片段：留一条可供支持排查的轨迹，同时不把敏感材料写进日志。
+    logger.warn(`Recovery completed with ${carriedUndecryptable} undecryptable record(s) carried through as-is`);
   }
 
   if (mode === 'recovery') await lockSession();

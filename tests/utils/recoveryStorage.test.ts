@@ -197,6 +197,37 @@ describe('offline recovery of the current vault', () => {
     expect(await chrome.storage.local.get(null)).toEqual(before);
   }, 90_000);
 
+  it('carries the undecryptable record through and recovers everything else once the user consents', async () => {
+    const enrolled = await enroll();
+    const replacement = await preparePasswordRecovery(enrolled.material.recoveryKey, NEW_PASSWORD);
+    const broken = { id: 'broken', encryptedPayload: 'invalid', createTime: 1, updateTime: 1, deletedAt: 1 };
+    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY_TRASH]: [broken] });
+
+    await recoverMasterPassword(
+      enrolled.material.recoveryKey,
+      NEW_PASSWORD,
+      replacement,
+      replacement.material.recoveryKey,
+      true,
+    );
+
+    const after = (await chrome.storage.local.get(null)) as Record<string, unknown>;
+    // 坏记录原样携带：字节一个不动，既不重加密也不删除。
+    expect(after[STORAGE_KEYS.IDENTITY_TRASH]).toEqual([broken]);
+
+    // 其余各域确实换到了新数据密钥——这才是这扇门存在的理由：
+    // 一条坏记录不该把用户逼回「清空全部」这条唯一出路。
+    const newKey = await deriveEncryptionKey(NEW_PASSWORD);
+    const passwords = after[STORAGE_KEYS.PASSWORDS] as EncryptedPasswordEntry[];
+    const restored = await decryptPasswordEntry(passwords[0], '', newKey);
+    expect(restored.password).toBe(PASSWORD.password);
+    const identities = after[STORAGE_KEYS.IDENTITY] as IdentityRecord[];
+    expect(JSON.parse(await decryptData(identities[0].encryptedPayload, newKey))).toEqual(IDENTITY);
+    expect(await verifyMasterPassword(NEW_PASSWORD)).toBe(true);
+    // 旧主密码不再能验证：换钥是真的提交了，不是半途状态
+    expect(await verifyMasterPassword(OLD_PASSWORD)).toBe(false);
+  }, 90_000);
+
   it('rejects recovery while an ordinary write is running', async () => {
     const enrolled = await enroll();
     const replacement = await preparePasswordRecovery(enrolled.material.recoveryKey, NEW_PASSWORD);

@@ -16,12 +16,22 @@
       class="dialog-body-scroll recovery-body"
       :aria-busy="busy"
     >
-      <p
-        v-if="completed"
-        role="status"
-      >
-        {{ t('recovery.resetSuccess') }}
-      </p>
+      <!--
+        两条成功文案必须整体待在同一个 `v-if` 分支里：`<template v-else>` 认的是紧邻的
+        上一个 `v-if`，中间多插一个独立 `v-if` 就会把 v-else 挂错对象，导致恢复成功后
+        整个表单又渲染回来（敏感输入框重新出现在「已完成」界面上）。
+      -->
+      <template v-if="completed">
+        <p role="status">{{ t('recovery.resetSuccess') }}</p>
+        <!-- 走过知情跳过就不能只报「恢复完成」——那会把「有几条永远读不出来了」藏起来。 -->
+        <p
+          v-if="usedSkip"
+          class="recovery-skip__note"
+          role="status"
+        >
+          {{ t('recovery.resetPartialNote') }}
+        </p>
+      </template>
       <template v-else>
         <p
           v-if="!status"
@@ -48,6 +58,24 @@
             :busy="busy"
             @confirm="recover"
           />
+          <!--
+            只有真的被零容忍挡过一次才亮这扇门：默认仍是整笔中止，勾选并重新确认才会
+            把解不开的条目原样携带过去。放在这里而不是开头，因为「你的库里有一条坏记录」
+            这件事只有试过才知道，预先摆出来只会让所有人先读一遍坏消息。
+          -->
+          <div
+            v-if="offerSkip"
+            class="recovery-skip"
+          >
+            <el-checkbox
+              v-model="allowSkip"
+              :disabled="busy"
+              class="recovery-skip__check"
+            >
+              {{ t('recovery.skipConfirm') }}
+            </el-checkbox>
+            <p class="recovery-skip__note">{{ t('recovery.skipNote') }}</p>
+          </div>
         </template>
         <!--
           `el-form label-position="top"` 而不是裸 `<form>`：下面两个 `el-form-item` 原先没有
@@ -173,8 +201,8 @@
 import { computed, shallowRef, useTemplateRef, watch } from 'vue';
 import { View, Hide } from '@element-plus/icons-vue';
 import type { RecoveryDraft, RecoveryStatus } from '@/utils/storage/recoveryTypes';
-import { RECOVERY_FORMAT } from '@/utils/recoveryTypes';
-import { clearRecoveryInputs } from '@/utils/recoveryUi';
+import { RECOVERY_FORMAT, VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
+import { clearRecoveryInputs, recoveryErrorCode } from '@/utils/recoveryUi';
 import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
 import { evaluatePasswordStrengthAsync, usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
@@ -192,6 +220,12 @@ const password = shallowRef('');
 const confirmPassword = shallowRef('');
 const passwordFocused = shallowRef(false);
 const completed = shallowRef(false);
+/** 恢复因「本机有记录解不开」而中止过：亮出知情跳过这一扇门 */
+const offerSkip = shallowRef(false);
+/** 用户已勾选知情跳过；下一次 `recover` 会把解不开的条目原样携带 */
+const allowSkip = shallowRef(false);
+/** 本次恢复确实携带过不可解条目，成功文案要补一句，不能只报「恢复完成」 */
+const usedSkip = shallowRef(false);
 const status = shallowRef<RecoveryStatus | null>(null);
 const draft = shallowRef<RecoveryDraft | null>(null);
 const root = useTemplateRef<HTMLElement>('root');
@@ -213,6 +247,9 @@ const clear = (): void => {
   passwordFocused.value = false;
   draft.value = null;
   completed.value = false;
+  offerSkip.value = false;
+  allowSkip.value = false;
+  usedSkip.value = false;
   resetPasswordCaps();
   resetConfirmCaps();
   clearRecoveryInputs(root.value);
@@ -263,10 +300,22 @@ const recover = (confirmation: string) =>
     if (!draft.value) return;
     const api = await import('@/utils/storage/recovery');
     if (!isCurrent() || !draft.value) return;
-    await api.recoverMasterPassword(recoveryInput.value, password.value, draft.value, confirmation);
+    try {
+      await api.recoverMasterPassword(recoveryInput.value, password.value, draft.value, confirmation, allowSkip.value);
+    } catch (cause: unknown) {
+      // 零容忍把「库里已有一条坏记录」的用户逼回唯一出路 = 清空全部数据。
+      // 这里不吞错、不改呈现口径（照旧交给 `run` 本地化），只在失败确实是这个原因时
+      // 亮出一扇需要用户明确勾选才走得通的门：原样携带解不开的条目，换回其余数据可用。
+      if (!allowSkip.value && recoveryErrorCode(cause) === VAULT_ERROR_CODES.RECOVERY_INCOMPLETE) {
+        offerSkip.value = true;
+      }
+      throw cause;
+    }
     if (!isCurrent()) return;
+    const skipped = allowSkip.value;
     invalidate();
     completed.value = true;
+    usedSkip.value = skipped;
     emit('recovered');
   });
 const backToEdit = (): void => {
@@ -295,5 +344,34 @@ watch(
 }
 .recovery-error {
   color: var(--el-color-danger);
+}
+
+/* 知情跳过：这是「用一部分数据换其余数据可用」的决定，容器要配得上它的分量。
+   沿用仓库既有的 danger-light-9/7 危险档；语义仍由文字承载，不靠颜色单独表达。 */
+.recovery-skip {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-top: 4px;
+  background: var(--el-color-danger-light-9);
+  border: 1px solid var(--el-color-danger-light-7);
+  border-radius: 8px;
+}
+
+.recovery-skip__check {
+  height: auto;
+  white-space: normal;
+}
+
+.recovery-skip__check :deep(.el-checkbox__label) {
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.recovery-skip__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
 }
 </style>

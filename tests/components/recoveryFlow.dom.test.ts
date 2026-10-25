@@ -322,11 +322,81 @@ describe('RecoveryResetDialog', () => {
         'Fresh!pass82',
         draft,
         draft.material.recoveryKey,
+        // 第 5 个参数是「知情跳过」，默认必须 fail-closed：没勾选过就传 false
+        false,
       ),
     );
     await until(() => expect(recovered).toHaveBeenCalledTimes(1));
     expect(document.body.textContent).toContain(t('recovery.resetSuccess'));
+    // 没走过知情跳过，就不该冒出「部分数据已不可读」的追加说明
+    expect(document.body.textContent).not.toContain(t('recovery.resetPartialNote'));
     expect(document.querySelector('input[type="password"]')).toBeNull();
+  });
+
+  it('只在零容忍真的挡过一次之后才亮出知情跳过，并把同意带到存储层', async () => {
+    api.getRecoveryStatus.mockResolvedValue({ enabled: true, config: draft.material.config, corrupted: false });
+    const incomplete = () => Object.assign(new Error('RECOVERY_INCOMPLETE'), { code: 'RECOVERY_INCOMPLETE' });
+    // 前两次提交都被零容忍中止；第三次（勾选后）走默认的成功返回
+    api.recoverMasterPassword.mockRejectedValueOnce(incomplete()).mockRejectedValueOnce(incomplete());
+    await mount(RecoveryResetDialog);
+    await fillReset();
+    await click('recovery.prepareReset');
+    await until(() => expect(api.preparePasswordRecovery).toHaveBeenCalled());
+    await confirmKit();
+    await until(() => expect(api.recoverMasterPassword).toHaveBeenCalledTimes(1));
+
+    // 门只在失败原因确实是「有记录解不开」时出现，且必须用户主动勾选
+    const check = document.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    expect(check).toBeTruthy();
+    expect(check.checked).toBe(false);
+    expect(document.body.textContent).toContain(t('recovery.skipNote'));
+
+    // 不勾选就重试：仍然按 fail-closed 传 false，行为与修复前一致
+    await enter('recovery.confirmKey', draft.material.recoveryKey);
+    await click('recovery.confirmSaved');
+    await until(() => expect(api.recoverMasterPassword).toHaveBeenCalledTimes(2));
+    expect(api.recoverMasterPassword).toHaveBeenLastCalledWith(
+      'saved-old-recovery-key',
+      'Fresh!pass82',
+      draft,
+      draft.material.recoveryKey,
+      false,
+    );
+
+    // 勾选后重试：把知情同意带到存储层，并在成功文案里点明有记录被跳过
+    check.click();
+    await settle();
+    expect(check.checked).toBe(true);
+    await enter('recovery.confirmKey', draft.material.recoveryKey);
+    await click('recovery.confirmSaved');
+    await until(() =>
+      expect(api.recoverMasterPassword).toHaveBeenLastCalledWith(
+        'saved-old-recovery-key',
+        'Fresh!pass82',
+        draft,
+        draft.material.recoveryKey,
+        true,
+      ),
+    );
+    await until(() => expect(recovered).toHaveBeenCalledTimes(1));
+    expect(document.body.textContent).toContain(t('recovery.resetSuccess'));
+    expect(document.body.textContent).toContain(t('recovery.resetPartialNote'));
+  });
+
+  it('其它失败原因不会伪造出一扇跳过的门', async () => {
+    api.getRecoveryStatus.mockResolvedValue({ enabled: true, config: draft.material.config, corrupted: false });
+    api.recoverMasterPassword.mockRejectedValueOnce(
+      Object.assign(new Error('RECOVERY_STALE'), { code: 'RECOVERY_STALE' }),
+    );
+    await mount(RecoveryResetDialog);
+    await fillReset();
+    await click('recovery.prepareReset');
+    await until(() => expect(api.preparePasswordRecovery).toHaveBeenCalled());
+    await confirmKit();
+    await until(() => expect(api.recoverMasterPassword).toHaveBeenCalledTimes(1));
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(document.body.textContent).not.toContain(t('recovery.skipNote'));
+    expect(document.body.textContent).toContain(t('recovery.error.stale'));
   });
 
   it('rejects weak or mismatched passwords before calling recovery', async () => {
