@@ -443,21 +443,10 @@ const backToEdit = (): void => {
 </script>
 
 <style scoped>
-/* EP 把浅色告警的标题与描述都刷成语义色：`--el-color-warning` 压在
-   `--el-color-warning-light-9` 上实测只有约 2.0:1，整段「改密前必须看懂」的说明
-   几乎读不动。这里回到常规文字层级（标题 12.4:1 / 正文 5.7:1），告警的语义仍由
-   左侧图标与底色承担，不是靠颜色单独表达状态。 */
-.change-pwd-alert :deep(.el-alert__title) {
-  color: var(--el-text-color-primary);
-}
-
-.change-pwd-alert :deep(.el-alert__description) {
-  color: var(--el-text-color-regular);
-}
-
-/* 补的那句用 span + display:block，不用 p：EP 会把默认插槽整个包进
+/* 标题与描述的文字颜色由 `assets/theme/tokens.css` 的浅色告警覆写统一负责，这里不重复一份。
+   补的那句用 span + display:block，不用 p：EP 会把默认插槽整个包进
    `<p class="el-alert__description">`，再放一个 p 就是非法嵌套——浏览器重新解析时
-   会把它拆成兄弟节点，脱离上面那条颜色覆盖。 */
+   会把它拆成兄弟节点，脱离那条颜色覆盖。 */
 .change-pwd-alert__recovery {
   display: block;
   margin-top: 4px;

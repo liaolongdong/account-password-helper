@@ -108,3 +108,58 @@ describe('主色实心按钮的 WCAG AA 对比度', () => {
     }
   });
 });
+
+/**
+ * 浅色告警的文字层级（`assets/theme/tokens.css` 末尾的 EP 覆写）
+ *
+ * EP 把 `.el-alert--x.is-light` 整块刷成语义色，压在各自的 light-9 底色上只有 2.0~2.6:1，
+ * 而告警承载的是必须读懂的说明文字。覆写把标题 / 描述收回 `--el-text-color-primary` /
+ * `--el-text-color-regular`，语义色留给图标（图标从根节点继承，不在这两个节点里）。
+ * 下面两组十六进制是 Element Plus 的固定值（中性文字色与语义浅底不随主题变），
+ * 故按字面量断言；真要改 EP 版本，这几条会红，届时按新版取值复核而不是删断言。
+ */
+const ALERT_TEXT = {
+  title: '#303133', // --el-text-color-primary
+  description: '#606266', // --el-text-color-regular
+};
+
+const ALERT_LIGHT_BACKGROUNDS: Record<string, string> = {
+  'warning-light-9': '#fdf6ec',
+  'error-light-9': '#fef0f0',
+  'info-light-9': '#f4f4f5',
+  'aph-surface（info 在本仓的底色覆写）': '#e8f4fd',
+};
+
+/** EP 原本刷在浅色告警上的语义色：逐个证明它们确实不达 AA，否则这组断言是空跑 */
+const EP_SEMANTIC_ON_LIGHT: Record<string, string> = {
+  '#e6a23c': '#fdf6ec',
+  '#f56c6c': '#fef0f0',
+  '#909399': '#f4f4f5',
+};
+
+describe('浅色告警文字的 WCAG AA 对比度', () => {
+  const tokens = readSource('assets/theme/tokens.css');
+
+  it('覆写规则在位，且只锁 .is-light（is-dark 是白字压实底，该跟语义色）', () => {
+    expect(tokens).toMatch(
+      /\.el-alert\.is-light \.el-alert__content \.el-alert__title\s*\{\s*color: var\(--el-text-color-primary\)/,
+    );
+    expect(tokens).toMatch(
+      /\.el-alert\.is-light \.el-alert__content \.el-alert__description\s*\{\s*color: var\(--el-text-color-regular\)/,
+    );
+    expect(tokens).not.toMatch(/\.el-alert\.is-dark[^{]*\{\s*color/);
+  });
+
+  it('标题与描述在四种浅底上均 >= 4.5:1', () => {
+    for (const [label, background] of Object.entries(ALERT_LIGHT_BACKGROUNDS)) {
+      expect(contrast(ALERT_TEXT.title, background), `title on ${label}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(ALERT_TEXT.description, background), `description on ${label}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('EP 原来的语义色在这些底上确实不达 AA（证明上面那条不是空跑）', () => {
+    for (const [foreground, background] of Object.entries(EP_SEMANTIC_ON_LIGHT)) {
+      expect(contrast(foreground, background), `${foreground} on ${background}`).toBeLessThan(4.5);
+    }
+  });
+});

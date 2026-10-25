@@ -284,7 +284,7 @@ graph TB
 │   ├── icon.svg                    # 当前生效图标
 │   └── variants/                   # 4 款钥匙主题候选图标
 ├── assets/theme/                   # 主题 CSS Design Tokens
-│   └── tokens.css                  # 主题令牌定义（`--aph-*` 变量，6 套色彩方案）
+│   └── tokens.css                  # 主题令牌定义（`--aph-*` 变量，6 套色彩方案）+ 扩展页共用的 Element Plus 覆写
 ├── public/icon/                    # 构建期 PNG 产物（WXT 自动注入 manifest）
 ├── scripts/generate-icons.mjs      # SVG → 多尺寸 PNG 生成脚本
 ├── types/global.d.ts               # 全局类型补充
@@ -487,7 +487,7 @@ graph TB
 
 - 提供 6 款色彩主题：晴空蓝（默认）、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰（见 [utils/theme.ts](../utils/theme.ts)）。
 - 主题配置保存在悬浮按钮偏好中，有三种方式进入设置：①密码管理页「偏好设置」按钮；②悬浮按钮齿轮图标；③侧边栏右上角齿轮图标。
-- 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。
+- 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。该文件同时是**扩展页共用的 Element Plus 覆写层**：EP 的组件样式在打包后排在它之后，同特异性的规则会被 EP 反压，因此这里的覆写一律靠多带一层真实 DOM（如 `.el-alert.is-light .el-alert__content .el-alert__title`）抬特异性取胜，而不是靠样式顺序。浅色告警的标题 / 描述就是这样从 EP 的语义色（实测 2.04~~2.80:1，不达 WCAG AA）收回常规文字层级（11.7~~12.1:1 / 5.5~5.7:1），语义色留给图标与底色。内容脚本不用 Element Plus，故 `utils/theme.ts` 的 SHADOW_* 令牌无需镜像。
 - 内容脚本注入式 UI 的换肤程度按实现如实区分：Closed Shadow DOM 一档（悬浮按钮、内联填充面板、活码胶囊、填充失败气泡、保存密码提示）把 `--aph-*` 令牌内联写入宿主，与扩展页面同步生效；light DOM 一档里密码可见性切换按钮把主题令牌内联写到自身元素（跟随换肤），原生通知条配色固定、不随换肤变化。
 - 切换主题即时生效，无需刷新页面。
 

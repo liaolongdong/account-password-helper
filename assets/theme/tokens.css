@@ -241,3 +241,22 @@
 .el-drawer .el-drawer__header {
   margin-bottom: 4px;
 }
+
+/* ===== Element Plus 覆写：浅色告警的文字对比度 =====
+ * EP 把整块浅色告警刷成语义色（`.el-alert--x.is-light { color: var(--el-color-x) }`，
+ * 描述再显式来一遍同色）。实测压在各自的 light-9 底色上：warning 2.04:1、error 2.61:1，
+ * 而告警里放的是「改密会作废旧套件」这类必须读懂的说明文字，14px 远低于 WCAG AA 的 4.5:1。
+ * 只收回标题与描述两级文字颜色，语义仍由图标与底色承担——图标从告警根节点继承颜色，
+ * 不在被改写的两个节点里，所以色相不丢，也不违反「不能只用颜色表达状态」。
+ * `is-dark` 是白字压实底，本来就该跟语义色走，故选择器锁死 `.is-light`。
+ * 两条各带一层 `.el-alert__content` 抬到 (0,4,0)，稳过 EP 的
+ * `.el-alert--x.is-light .el-alert__description` (0,3,0)：本文件打包后排在前面的
+ * EP css chunk 之前，同权重会被 EP 反压（同上一条抽屉覆写的理由）。
+ * 内容脚本不用 Element Plus，因此不需要在 utils/theme.ts 的 SHADOW_* 里配镜像。 */
+.el-alert.is-light .el-alert__content .el-alert__title {
+  color: var(--el-text-color-primary);
+}
+
+.el-alert.is-light .el-alert__content .el-alert__description {
+  color: var(--el-text-color-regular);
+}
