@@ -4,8 +4,8 @@ import { STORAGE_KEYS } from '../utils/storageKeys';
 /**
  * 管理页头部在窄视口下的横向溢出守卫（评审报告 2026-10-26 未验证项 ① 的补做）
  *
- * 为什么必须有真机这一条：`.header-status` 写着 `flex-shrink: 0`，里面三枚控件
- * （备份徽标 / 会话徽标 / 一键锁定）都不换行，父行 `.header-title-row` 是 `flex-wrap: wrap`。
+ * 为什么必须有真机这一条：状态区原先写着 `flex-shrink: 0`，里面三枚控件（备份徽标 / 会话徽标 /
+ * 一键锁定）都不换行，父行 `.header-title-row` 是 `flex-wrap: wrap`。
  * 「标题先换行、状态区整块挪到下一行」是设计意图；但**状态区自己有多宽**取决于文案长度——
  * 备份徽标 `critical` 档在英文态是长句，会话徽标随剩余时间变字，锁定按钮固定。
  * 源码层的判据（`tests/architecture/*`、骨架对齐断言）量不到像素，只有真实排版能回答
@@ -20,8 +20,13 @@ import { STORAGE_KEYS } from '../utils/storageKeys';
  * 顺带量到一条**低于本守卫下限的真实缺陷**：320px 时状态区右缘 371px（zh）/ 419px（en），
  * 360px 同样越界，而 `scrollWidth` 仍等于 `clientWidth`——越界的部分不会给出横向滚动条，
  * 也就是看不见也够不着。试过只给 `.header-status` 加 `flex-wrap: wrap`：读数一字未变
- * （`flex-shrink: 0` 让这块永不被压窄，内部换行也就无从触发），说明真正的改法是让它能收缩或封顶，
- * 属窄屏布局变更，等用户拍板后再动，本守卫先钉住产品当前承诺的 480px 下限。
+ * （`flex-shrink: 0` 让这块永不被压窄，内部换行也就无从触发）。
+ *
+ * **同日的修复与复测（`d4784d1`）**：状态区改为可收缩 + 内部换行。修复后按档位实测——
+ * 320px 中文态折成两行（徽标 + 会话在上、锁定在下），锁定按钮右缘 300 ≤ 320 且中心点命中自己；
+ * 480 / 640 / 1280 三枚控件仍在同一行，右缘 399（zh）/ 419（en）/ 1248，与修复前逐字相同。
+ * 于是档位表补上 320 / 360 与一档宽屏（1280），并把「宽屏必须仍是一行」写成断言 ⑨——
+ * 没有它，「≥420px 外观不变」只是一句推论。
  */
 
 /** 切换界面语言（与 `identity-vault-selectbar-density.spec.ts` 同一手法） */
@@ -77,7 +82,7 @@ const headerGeometry = (page: import('@playwright/test').Page) =>
     };
   });
 
-for (const width of [320, 360, 480, 640]) {
+for (const width of [320, 360, 480, 640, 1280]) {
   for (const locale of ['zh-CN', 'en'] as const) {
     test(`${width}px / ${locale}：头部不顶出横向滚动条，状态区内控件不被裁切`, async ({ optionsPage: page }) => {
       // 徽标在空库时是 hidden（没有数据可欠），而 `critical` 才是这行最宽的一档：
@@ -92,9 +97,8 @@ for (const width of [320, 360, 480, 640]) {
 
       // 上一步 createEntry 留下的 `el-message` 从顶部居中滑出，会临时压住头部的某一枚控件；
       // 不等它散场，命中测试就会读到浮层而不是控件（同一轮里越靠后的宽度越容易「自己好了」）。
-      await page
-        .waitForFunction(() => !document.querySelector('.el-message'), null, { timeout: 15_000 })
-        .catch(() => undefined);
+      // 这里刻意不 `.catch()`：提示若赖着不走，本就是缺陷，静默放行等于把它藏进断言里。
+      await page.waitForFunction(() => !document.querySelector('.el-message'), null, { timeout: 15_000 });
 
       const g = await headerGeometry(page);
 
@@ -103,7 +107,8 @@ for (const width of [320, 360, 480, 640]) {
         g.scrollWidth,
         `横向溢出：scrollWidth ${g.scrollWidth} > clientWidth ${g.clientWidth}`,
       ).toBeLessThanOrEqual(g.clientWidth);
-      // ② 状态区整体必须留在视口内——`flex-shrink: 0` 让它不压缩，只能整块换行
+      // ② 状态区整体必须留在视口内——修复前写着 `flex-shrink: 0`，这块永不被压窄，
+      //    窄窗口里整块被推出视口且不给出横向滚动条
       expect(g.status!.left, `状态区左缘越出视口：${g.status!.left}`).toBeGreaterThanOrEqual(0);
       expect(g.status!.right, `状态区右缘越出视口：${g.status!.right} > ${g.innerWidth}`).toBeLessThanOrEqual(
         g.innerWidth,
@@ -171,27 +176,23 @@ for (const width of [320, 360, 480, 640]) {
        * 这条是补测出来的缺陷留下的账：状态区原先写着 `flex-shrink: 0`，窗口 <420px 时这颗按钮
        * 整块被推出视口，而 `scrollWidth === clientWidth`——没有横向滚动条可以找回，用户失去的是
        * 离座前锁库的能力。中心点 `elementFromPoint` 命中它自己，才算「可达」，光看右缘数字不够。
+       *
+       * 只认「命中它自己或它自己的后代」：`h.contains(el)` 这种反向包含会被 loading 态的
+       * `pointer-events: none` 蒙过去——那时命中到的是父容器，等于什么都没测。
+       * 返回形状也统一成一份，别让「找不到」那条分支把 `inside` / `right` 抹掉。
        */
       const lockHit = await page.evaluate(() => {
         const el = document.querySelector('.lock-btn');
-        if (!el) return { present: false };
-        const b = el.getBoundingClientRect();
+        const b = el?.getBoundingClientRect();
+        if (!el || !b) return { present: false, inside: false, hit: false, right: 0, innerWidth: window.innerWidth };
         const cx = b.x + b.width / 2;
         const cy = b.y + b.height / 2;
-        if (cx < 0 || cx >= window.innerWidth || cy < 0 || cy >= window.innerHeight) {
-          return {
-            present: true,
-            inside: false,
-            hit: false,
-            right: Math.round(b.right),
-            innerWidth: window.innerWidth,
-          };
-        }
-        const h = document.elementFromPoint(cx, cy);
+        const onScreen = cx >= 0 && cx < window.innerWidth && cy >= 0 && cy < window.innerHeight;
+        const h = onScreen ? document.elementFromPoint(cx, cy) : null;
         return {
           present: true,
           inside: b.right <= window.innerWidth + 0.5,
-          hit: !!h && (h === el || el.contains(h) || h.contains(el)),
+          hit: !!h && (h === el || el.contains(h)),
           right: Math.round(b.right),
           innerWidth: window.innerWidth,
         };
@@ -199,6 +200,21 @@ for (const width of [320, 360, 480, 640]) {
       expect(lockHit.present, `${width}px / ${locale} 下找不到「立即锁定」`).toBe(true);
       expect(lockHit.inside, `「立即锁定」右缘 ${lockHit.right} 越出 ${lockHit.innerWidth} 视口`).toBe(true);
       expect(lockHit.hit, `${width}px / ${locale} 下「立即锁定」中心点命中不到自己`).toBe(true);
+
+      /**
+       * ⑨ 宽窗口下三枚控件必须仍在同一行
+       *
+       * `HeaderBar.vue` 的注释承诺「≥420px 三枚仍在一行、外观不变」，而 ③ 为了不误报窄屏换行，
+       * 只在同一行时才比左右缘——它永远不会因为「宽屏莫名折成两行」而红。这条把承诺补成判据：
+       * 实测 480 / 640 / 1280 三档中英两态都是 `rows: 1`（右缘 399 / 419 / 1248）。
+       */
+      if (width >= 420) {
+        const rows = new Set(g.chips.map(c => c.top));
+        expect(
+          rows.size,
+          `${width}px / ${locale} 态下状态区折成 ${rows.size} 行：${JSON.stringify(g.chips.map(c => [c.cls, c.top]))}`,
+        ).toBe(1);
+      }
     });
   }
 }
