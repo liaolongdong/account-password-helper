@@ -144,17 +144,20 @@
       >
     </div>
     <template #footer>
-      <el-button
-        v-if="draft"
-        :disabled="busy"
-        @click="backToEdit"
-        >{{ t('recovery.backToEdit') }}</el-button
-      >
-      <el-button
-        :disabled="busy"
-        @click="requestClose(false)"
-        >{{ t('common.cancel') }}</el-button
-      >
+      <!-- 仓库既有的页脚约定：15 处弹窗用 .dialog-footer 收口相邻 12px 边距，不再各写各的 -->
+      <div class="dialog-footer">
+        <el-button
+          v-if="draft"
+          :disabled="busy"
+          @click="backToEdit"
+          >{{ t('recovery.backToEdit') }}</el-button
+        >
+        <el-button
+          :disabled="busy"
+          @click="requestClose(false)"
+          >{{ t('common.cancel') }}</el-button
+        >
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -305,7 +308,8 @@ watch(
   border-radius: 50%;
 }
 .state-line__dot--on {
-  background: #67c23a;
+  /* 与 `--aph-*` 令牌同族的既有 EP 语义色，非新造调色板 */
+  background: var(--el-color-success);
 }
 .state-line__dot--off {
   background: var(--el-text-color-placeholder);
@@ -345,5 +349,10 @@ watch(
 }
 .recovery-error {
   color: var(--aph-danger-strong);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

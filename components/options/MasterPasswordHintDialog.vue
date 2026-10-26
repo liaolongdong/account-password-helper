@@ -157,4 +157,9 @@ const handleClear = async (): Promise<void> => {
 .hint-form {
   margin-top: 16px;
 }
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+}
 </style>

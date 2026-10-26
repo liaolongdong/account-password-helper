@@ -67,15 +67,17 @@
     </div>
 
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">
-        {{ t('common.cancel') }}
-      </el-button>
-      <el-button
-        type="danger"
-        @click="emit('reset')"
-      >
-        {{ t('options.forgot.resetBtn') }}
-      </el-button>
+      <div class="dialog-footer">
+        <el-button @click="emit('update:modelValue', false)">
+          {{ t('common.cancel') }}
+        </el-button>
+        <el-button
+          type="danger"
+          @click="emit('reset')"
+        >
+          {{ t('options.forgot.resetBtn') }}
+        </el-button>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -154,5 +156,10 @@ const { t } = useI18n();
 
 .forgot-path--last {
   margin-bottom: 0;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>
