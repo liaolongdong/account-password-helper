@@ -34,6 +34,24 @@ export function recoverySourceId(value: unknown): string | null {
   return 'corrupted';
 }
 
+/**
+ * 本机是否登记过离线恢复密钥（只看「有没有这份配置」，不解析内容）。
+ *
+ * 与 `getRecoveryStatus().enabled` 同口径：值为 `undefined`/`null` 才算未启用；
+ * 形状损坏也算「登记过」，因为那正是要把用户引到恢复界面去处理的场景。
+ *
+ * 刻意留在这里而不是复用 `getRecoveryStatus`：那个函数所在的 `recovery.ts` 静态依赖
+ * `changeMasterPassword`（含整库重加密逻辑），锁定页只需要一个布尔位，不该为一个位
+ * 把 ~20 KB 的换钥依赖图拉进首帧窗口（评审报告 P2-17）。本模块只依赖懒加载的加密入口，
+ * 且此处不调用它。
+ * @returns 已登记（含损坏形态）为 true
+ */
+export async function isRecoveryEnrolled(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(STORAGE_KEYS.RECOVERY_CONFIG);
+  const value: unknown = stored[STORAGE_KEYS.RECOVERY_CONFIG];
+  return value !== undefined && value !== null;
+}
+
 export async function readVaultRecoverySnapshot(): Promise<VaultRecoverySnapshot> {
   const storedMaster = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
   const master = storedMaster[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;

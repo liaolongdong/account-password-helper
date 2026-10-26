@@ -220,10 +220,12 @@ const showRecoveryDialog = shallowRef(false);
 const recoveryAvailable = shallowRef(false);
 
 onMounted(() => {
-  void import('@/utils/storage/recovery')
-    .then(api => api.getRecoveryStatus())
-    .then(status => {
-      recoveryAvailable.value = status.enabled;
+  // 只为一个布尔位：读恢复配置的「存在性」，别把 changeMasterPassword 的整条换钥依赖图
+  // （~20 KB chunk + 一次额外盘读）拉进锁定态的首帧窗口（评审报告 P2-17）。
+  void import('@/utils/storage/recoveryState')
+    .then(api => api.isRecoveryEnrolled())
+    .then(enrolled => {
+      recoveryAvailable.value = enrolled;
     })
     .catch(() => {
       recoveryAvailable.value = false;
