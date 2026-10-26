@@ -229,6 +229,13 @@ HKDF-SHA256 域分离 + 每套件随机 16B id 作 salt + 一次一 12B IV + AES
 
 **一处如实更正**：`dc36ae9`（P2-17）当时只跑了恢复相关的存储用例与构建，没重跑 `tests/components`，因此它是带着一盏红灯进的仓（`recoveryFlow.dom.test.ts` 两条依赖旧读取路径的用例），由 `0b5ee43` 补平。教训：改了被 dom 测试挂载的组件，最小验证集必须含 `tests/components`，不能只看同域的存储用例。
 
+**对外镜像一致性复核（2026-10-26 · SEO 侧）**：`e1619cd` 往 README 中英与 CWS 商店长描述中英补了冷却口径，随后核了三件事——
+① `llms-full.txt` / `llms.txt` 由 `scripts/build-blog-pages.mjs:1146` 从「`llms.txt` 摘要 + 中英博客正文」生成，**不含 README 正文**
+（`grep -c "只读验证" llms-full.txt` = 0），所以这次文案改动不会让它们过期，无需重跑 `pnpm gen:blog`；
+② `index.html` 的 FAQ 三处镜像（JSON-LD、可见 FAQ、内嵌 i18n 对象）没加冷却说明，理由是那三段讲的是「恢复路径能不能救数据」，
+一句 30 秒的按钮节流不改变其中任何一条事实——不是漏更；③ `tests/docs`（含 `seoSurface.test.ts` 与 `blogDiscovery.test.ts`）
+在改动之后跑过，20 文件 / 737 例全绿。
+
 同一类盲区还有第二笔，只是它更隐蔽：`e8de51a`（P2-12 冷却）的用例是**绿的**，却因 `vm` 沙箱没有 `setInterval` 而在 `startCooldown()` 中途抛错，只执行到「显示 30 秒」那一行——vitest 已把这条 unhandled rejection 和「可能是假通过」的警告打在报告里，被当成噪声放过了。判据是：跑测试时 `Errors` 一栏非零，与红灯同级对待。由 `ff024a2` 补运行时至真跑完整闭环。
 
 **未落地项与原因**：
