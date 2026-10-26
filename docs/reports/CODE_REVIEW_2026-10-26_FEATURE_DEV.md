@@ -189,7 +189,7 @@ HKDF-SHA256 域分离 + 每套件随机 16B id 作 salt + 一次一 12B IV + AES
 ## 未验证项与限制
 
 - ~~未跑 `pnpm lint` / `lint:style` / `build`~~（2026-10-26 落地轮已解除）：`pnpm lint`、`pnpm lint:style`、`pnpm typecheck`、`pnpm build` 与 `pnpm test:run` 均已在 `feature-dev` 的当前状态跑过并通过。报告成文时之所以列为不可信，是当时主树混着并行会话的未完成改动；本批提交（`3e784e8`…`3ccbf58`）之后重跑，结论未变。**新发现的格式类问题**：`styles.css` 那份 `.dialog-footer` / `.form-tip` 对 teleport 出去的弹窗内容不生效（见执行记录 `806013f`）。
-- **未做真机与浏览器验证**：需目测的三项——① 管理页 480/640px、英文、徽标 `critical` + 个人信息标签下 `.header-status`（`flex-shrink:0` 且无 wrap）是否横向溢出；② 六套主题下头部徽标静止/hover/focus-visible 的实测对比度与焦点环可见性；③ ~~侧边栏「帮助 → 数据与安全」第 12 条英文态 `{days}` 是否原样上屏~~——已由源数据核销：`utils/i18n/locales/{en,zh-CN}/help.json` 里唯一的占位符只剩 `help.versionLabel` 的 `{version}`，两个调用点（`GuideView.vue:36`、`HelpDialog.vue:28`）都传了 `{ version }`，`{days}` 在 P2-9 那笔已改掉。**仍属未验证**：① 与 ② 需要把扩展真的加载进浏览器；`e2e/` 用的是持久化上下文 + `--load-extension`，本机缺 Chrome for Testing（品牌版 Chrome ≥135 忽略该开关），本轮尝试下载 CfT 156.0.8078.47 超时未成（curl exit 28）。补做路径已存在：`E2E_EXECUTABLE_PATH` 指向 CfT 后 `pnpm test:e2e`，且该套件已是 PR 门禁，CI 会跑。若要做，须按既有结论在**隔离 worktree** 内跑（CfT + 端口隔离），主树测的是别人的包。
+- **未做真机与浏览器验证**：需目测的三项——① 管理页 480/640px、英文、徽标 `critical` + 个人信息标签下 `.header-status`（`flex-shrink:0` 且无 wrap）是否横向溢出；② ~~六套主题下头部徽标静止/hover/focus-visible 的实测对比度与焦点环可见性~~——已用 Chrome for Testing 158 截图取像素实测（方法见下方「实测对比度矩阵」）；③ ~~侧边栏「帮助 → 数据与安全」第 12 条英文态 `{days}` 是否原样上屏~~——已由源数据核销：`utils/i18n/locales/{en,zh-CN}/help.json` 里唯一的占位符只剩 `help.versionLabel` 的 `{version}`，两个调用点（`GuideView.vue:36`、`HelpDialog.vue:28`）都传了 `{ version }`，`{days}` 在 P2-9 那笔已改掉。本机现已备好可复现路径：`E2E_EXECUTABLE_PATH` 指向 Chrome for Testing（本次用的是 npmmirror 的 158.0.8123.0，`~/.cache/aph-e2e/chrome-mac-x64/`）+ `E2E_SKIP_BUILD=1`，`pnpm exec playwright test e2e/…` 即可跑；上面那套取像素探针是一次性的，用完已删（断言只有「键盘能走焦到徽标」是有价值的，对比度本身是读数不是断言）。`e2e/` 用的是持久化上下文 + `--load-extension`，本机缺 Chrome for Testing（品牌版 Chrome ≥135 忽略该开关），本轮尝试下载 CfT 156.0.8078.47 超时未成（curl exit 28）。补做路径已存在：`E2E_EXECUTABLE_PATH` 指向 CfT 后 `pnpm test:e2e`，且该套件已是 PR 门禁，CI 会跑。若要做，须按既有结论在**隔离 worktree** 内跑（CfT + 端口隔离），主树测的是别人的包。
 - **性能绝对值不可跨批次采信**：P1-4 的 433 ms 取自 `PERF_ISSUE89` 报告的本机实测；P2-15/16/17 的 KB 与 ms 为按 `utils/identity/constants.ts` 上限与既有 rmw 口径的推算；包体数字来自既有 `.output/chrome-mv3`（时间戳 10-26 00:36，是并行会话产物，结构判据可采信、绝对字节只作相对参考）。
 - **`34f572b` 的影响面**：该提交回退了主色/图标配色并收缩了 `themeContrast.test.ts` 的守卫（−233 行）。本报告 P2-7/8/14 关于「守卫测不到渐变底 / `var()` 形式」的表述基于 `32c1f64`，需在稳定态重扫一遍再决定是否仍成立。
 - **◐ 标记项**：行号由子代理给出、主代理未逐条复验，动手前请再 `git show 32c1f64:<file>` 对一次。
@@ -230,8 +230,21 @@ HKDF-SHA256 域分离 + 每套件随机 16B id 作 salt + 一次一 12B IV + AES
 
 **未落地项与原因**：
 
-- **配色三项仍在等逐项批复**（P2-7 / P2-8 / P2-14）：数字已算好，改主题色按仓库纪律不构成可擅自执行的动作。已批复并完成的是 P2-4（加编辑入口）与 P2-20（只进长描述）。
+- **配色三项仍在等逐项批复**（P2-7 / P2-8 / P2-14）：改主题色按仓库纪律不构成可擅自执行的动作。已批复并完成的是 P2-4（加编辑入口）与 P2-20（只进长描述）。
+
+  **实测对比度矩阵（2026-10-26 补，Chrome for Testing 158 headless + 截图取像素）**：徽标底是「半透明白 + 主题渐变 + `backdrop-filter: blur(10px)`」，推算只能取渐变端点，因此这里改读屏幕上的实际像素——白字取文字盒内最亮 0.3% 分位，底取文字盒下方那条内边距带（无字形无图标），WCAG 相对亮度按 2.4 次幂公式算。全新 profile 落一条条目并分别把 `last_verified_backup_at` / `last_identity_backup_at` 置为「无 / 45 天前 / 刚刚」三态，逐套主题切 `data-theme` 后取图：
+
+  | 档位（实测类名）        | 实测底色的范围            | 白字实测      | 换成 `--aph-text-primary` #1f2937 后 |
+  | ----------------------- | ------------------------- | ------------- | ------------------------------------ |
+  | `backup-chip--critical` | 221–242, 113–121, 110–130 | **2.80–3.01** | 4.88–5.24                            |
+  | `backup-chip--urgent`   | 209–230, 159–167, 69–89   | **2.18–2.29** | 6.41–6.72                            |
+  | `backup-chip--ok`       | 114–235, 159–201, 142–255 | **1.88–2.24** | 6.55–7.83                            |
+
+  三点结论：① 三档白字全部低于 12px 正文要求的 4.5:1，`critical` 只压着 3:1 这条图形/大字号线；② 本报告的 P2-7/8/14 原先给 `critical` 的推算值 2.16–2.26 偏悲观，实测是 2.80–3.01（`urgent` 与 `ok` 的推算与实测吻合）；③ 换成现有深色令牌后三档全部 ≥4.88，不需新造颜色。
+
+  **焦点环（键盘 Tab 走焦实测）**：三档都亮起 `outline: solid 2px rgba(255,255,255,0.7)`，`critical` 档另有一层 `rgba(245,108,108,…)` 的呼吸光晕（截图时处于动画中途，alpha 读数 0.055–0.31 不等，不作判据）。按同一实测底色算，这枚白环与它所环绕的徽标底色之间只有 **1.57–2.22:1**，低于 WCAG 2.4.11 / 1.4.11 对焦点指示器要求的 3:1；环的外半落在头部渐变上，那一侧的相邻色本次未单独取样，要判「完全不可见」还差这一步。
   - 基础徽标（白 15% 玻璃底 + 白 90% 文字，取各主题渐变较亮一端）：default 1.85 / green 1.67 / pink 1.84 / mauve 1.86 / orange 1.71 / slate 1.97；纯白文字也只有 1.76–2.09。文字改用现有 `--aph-text-primary #1f2937` → 6.22–8.33。底色压深色玻璃到黑 18% 仍只有 2.90–3.53，要到 4.5 得压到约 40%，玻璃感尽失。ok 档状态灯 `#86efac` 在该底上 1.26–1.49，够不到 3:1 的图形线。`urgent/critical` 白字 2.16–2.26 / 2.77–2.95 → 换现有 `--aph-warning-strong` / `--aph-danger-strong` 作底色为 5.61 / 5.64。小字 `#909399` 白底 3.08、最暗浅底 2.87 → 现有 `--aph-text-secondary #565d6b` 为 6.62 / 6.17。裸 `#67c23a` 白底 2.24 → `--aph-success-strong` 5.63。
+
 - **P2-15（徽标为读「有没有个人信息」这一位而整包读 `IDENTITY`）需要一次取舍**：不新增持久化计数键，就得把这部分结论推迟到首帧之后（改变可见时序，属需确认项）；新增写侧计数则要动 `identityCrud` / 回收站 / 导入多条写路径。本轮按纪律不动，等指令。
 - **未动（P2/P3 择机）**：P2-6（未来 `version` 的前向兼容，今天只有 v1）、P3 剩余项（`ForgotPasswordDialog` 的 `width="620px"` 与同分支新弹窗不同、`HeaderBar` 徽标 `title` 与 `aria-label` 同串、重复的文件选择器（**本轮判断为不合并**：两处的业务约束不同——一处要粘套件码 + 显隐切换 + 分组格式校验，一处要大小/条数上限与只读回执，按「看起来相似但约束不同不得强行合并」保留两份）、11 处同构租约包装（**本轮判断为不合并**：核到的形态是 `export async function X(...) { return withVaultMutation(() => XInternal(...)); }` ——一行委托，重复的正是「这个导出会取写租约」这条边界事实本身；换成 `protectedByWriteLease(XInternal)` 后，取租约这件事从对外签名上消失，泛型 `(...args: A)` 还会丢掉每个参数的具名与 JSDoc。按「不为形式上的抽象增加层级」保留原样），`utils/recoveryTypes.ts` 与 `utils/storage/recoveryTypes.ts` 同名异目录）。已落地的是 `prepareSessionRekey` 的类型交接（`e53aecb`）与 `utils/backup/type.ts` 的单复数（`5012dc0`）；**`utils/recoveryTypes.ts` 与 `utils/storage/recoveryTypes.ts` 同名异目录本轮仍不动**，并给出理由：改名要动 18 个文件、其中 5 个是加密/存储模块与 4 处「为守 popup eager 体积而刻意 `import type`」的注释锚点，收益只有可读性，与本分支合入 `main` 的冲突面不成比例；要做应在独立分支一次做完（含把「全库错误码登记表」从 recovery 命名的文件里分出去）。
 - **`ValiditySettingDialog` 的两处死类名（新发现，需拍板）**：该文件连 `<style>` 块都没有，模板上的 `.form-tip` 与 `.dialog-footer` 都落在 `styles.css` 那份不生效的声明上——提示文字因此走的是默认 14px 正文色，而非同族设置弹窗的 12px 柔和色。补声明会把可见文字变小变淡，属视觉变化，按「不许未经确认改呈现」的纪律先登记：`dialogFooterDensityWiring` 把它作为唯一例外收进登记表（修好却不删条目即红），`.form-tip` 是否统一等用户批复一并处理。
