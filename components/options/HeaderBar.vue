@@ -607,9 +607,16 @@ const backupChipDetail = computed(() =>
 /* 状态区：备份徽标 + 会话徽标 + 一键锁定，同一视觉域内相邻，窄屏一起换行而不挤压标题 */
 .header-status {
   display: flex;
-  flex-shrink: 0;
+
+  /* 实测：`flex-shrink: 0` 让这块永不被压窄，窗口 <420px 时「立即锁定」整颗被推出视口，
+     而 documentElement.scrollWidth === clientWidth，没有横向滚动条可以找回——丢的是
+     离座前锁库这个高频安全动作。改成可收缩 + 内部换行，≥420px 三枚仍在一行、外观不变。 */
+  flex-shrink: 1;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 /* 备份徽标：与会话徽标同族的半透明 chip，四档颜色由 level 类名切换。
@@ -645,8 +652,11 @@ const backupChipDetail = computed(() =>
   box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
 }
 
+/* 实测（截图取像素，六套主题）：白环 vs 徽标底 1.57–2.22、vs 外侧头部渐变 1.73–2.06，
+   两侧都够不到 WCAG 2.4.11 / 1.4.11 要求的 3:1。徽标底与渐变同为中间调，
+   换更亮的白救不了外侧——深色环对两者分别约 4.9–5.2 与 5–6，一次过两侧。 */
 .backup-chip:focus-visible {
-  outline: 2px solid rgb(255 255 255 / 70%);
+  outline: 2px solid var(--aph-text-primary);
   outline-offset: 2px;
 }
 
@@ -869,8 +879,11 @@ const backupChipDetail = computed(() =>
   box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
 }
 
+/* 实测（截图取像素，六套主题）：白环 vs 徽标底 1.57–2.22、vs 外侧头部渐变 1.73–2.06，
+   两侧都够不到 WCAG 2.4.11 / 1.4.11 要求的 3:1。徽标底与渐变同为中间调，
+   换更亮的白救不了外侧——深色环对两者分别约 4.9–5.2 与 5–6，一次过两侧。 */
 .session-chip:focus-visible {
-  outline: 2px solid rgb(255 255 255 / 70%);
+  outline: 2px solid var(--aph-text-primary);
   outline-offset: 2px;
 }
 

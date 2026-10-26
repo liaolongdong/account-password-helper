@@ -66,6 +66,8 @@ const headerGeometry = (page: import('@playwright/test').Page) =>
           cls: el.className.toString(),
           left: Math.round(box.left),
           right: Math.round(box.right),
+          top: Math.round(box.top),
+          bottom: Math.round(box.bottom),
           width: Math.round(box.width),
           height: Math.round(box.height),
           textClipped: label ? label.scrollWidth > label.clientWidth + 1 : false,
@@ -75,7 +77,7 @@ const headerGeometry = (page: import('@playwright/test').Page) =>
     };
   });
 
-for (const width of [480, 640]) {
+for (const width of [320, 360, 480, 640]) {
   for (const locale of ['zh-CN', 'en'] as const) {
     test(`${width}px / ${locale}：头部不顶出横向滚动条，状态区内控件不被裁切`, async ({ optionsPage: page }) => {
       // 徽标在空库时是 hidden（没有数据可欠），而 `critical` 才是这行最宽的一档：
@@ -87,6 +89,12 @@ for (const width of [480, 640]) {
       await expect
         .poll(() => headerGeometry(page).then(g => g.chips.length), `${locale} 态下状态区控件数`)
         .toBeGreaterThan(0);
+
+      // 上一步 createEntry 留下的 `el-message` 从顶部居中滑出，会临时压住头部的某一枚控件；
+      // 不等它散场，命中测试就会读到浮层而不是控件（同一轮里越靠后的宽度越容易「自己好了」）。
+      await page
+        .waitForFunction(() => !document.querySelector('.el-message'), null, { timeout: 15_000 })
+        .catch(() => undefined);
 
       const g = await headerGeometry(page);
 
@@ -100,10 +108,17 @@ for (const width of [480, 640]) {
       expect(g.status!.right, `状态区右缘越出视口：${g.status!.right} > ${g.innerWidth}`).toBeLessThanOrEqual(
         g.innerWidth,
       );
-      // ③ 控件之间不得互相压叠（右邻的左缘必须让开左邻的右缘）
+      /**
+       * ③ 同一行内的控件不得互相压叠
+       *
+       * 只在垂直区间真的重叠时比左右缘：窄屏下状态区会折成多行（这正是 320/360 不丢按钮的前提），
+       * 跨行比左右缘会把正常的换行读成「压叠」。
+       */
       for (let i = 1; i < g.chips.length; i++) {
         const prev = g.chips[i - 1]!;
         const cur = g.chips[i]!;
+        const sameRow = cur.top < prev.bottom && prev.top < cur.bottom;
+        if (!sameRow) continue;
         expect(cur.left, `${cur.cls} 压到了 ${prev.cls} 上（${prev.cls} 右缘 ${prev.right}）`).toBeGreaterThanOrEqual(
           prev.right,
         );
@@ -149,6 +164,41 @@ for (const width of [480, 640]) {
         );
       }
       expect(reached, `${width}px / ${locale} 态下键盘走不到备份徽标`).toBe(true);
+
+      /**
+       * ⑧ 「立即锁定」必须真的点得到
+       *
+       * 这条是补测出来的缺陷留下的账：状态区原先写着 `flex-shrink: 0`，窗口 <420px 时这颗按钮
+       * 整块被推出视口，而 `scrollWidth === clientWidth`——没有横向滚动条可以找回，用户失去的是
+       * 离座前锁库的能力。中心点 `elementFromPoint` 命中它自己，才算「可达」，光看右缘数字不够。
+       */
+      const lockHit = await page.evaluate(() => {
+        const el = document.querySelector('.lock-btn');
+        if (!el) return { present: false };
+        const b = el.getBoundingClientRect();
+        const cx = b.x + b.width / 2;
+        const cy = b.y + b.height / 2;
+        if (cx < 0 || cx >= window.innerWidth || cy < 0 || cy >= window.innerHeight) {
+          return {
+            present: true,
+            inside: false,
+            hit: false,
+            right: Math.round(b.right),
+            innerWidth: window.innerWidth,
+          };
+        }
+        const h = document.elementFromPoint(cx, cy);
+        return {
+          present: true,
+          inside: b.right <= window.innerWidth + 0.5,
+          hit: !!h && (h === el || el.contains(h) || h.contains(el)),
+          right: Math.round(b.right),
+          innerWidth: window.innerWidth,
+        };
+      });
+      expect(lockHit.present, `${width}px / ${locale} 下找不到「立即锁定」`).toBe(true);
+      expect(lockHit.inside, `「立即锁定」右缘 ${lockHit.right} 越出 ${lockHit.innerWidth} 视口`).toBe(true);
+      expect(lockHit.hit, `${width}px / ${locale} 下「立即锁定」中心点命中不到自己`).toBe(true);
     });
   }
 }
