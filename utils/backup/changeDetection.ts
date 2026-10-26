@@ -265,8 +265,6 @@ export interface BackupChipState {
   level: BackupChipLevel;
   /** 决定档位的那一库，供文案与 `aria-label` 指明范围 */
   worstVault: 'passwords' | 'identity';
-  /** 最差库的备份时间戳（从未备份时为 null），供「N 天」计算 */
-  worstLastBackupAt: number | null;
   /** 两库各自档位与天数，供 tooltip / `aria-label` 分行陈述，不让徽标替两个库撒一个统一的谎 */
   perVault: { passwords: BackupVaultChipDetail; identity: BackupVaultChipDetail };
   /** 距最差库上次备份的整天数；从未备份时为 null */
@@ -354,7 +352,6 @@ export function decideBackupChipState(input: {
       visible: false,
       level: 'ok',
       worstVault: 'passwords',
-      worstLastBackupAt: null,
       perVault: { passwords: detail(passwords, null), identity: detail(identity, null) },
       ageDays: null,
     };
@@ -377,7 +374,6 @@ export function decideBackupChipState(input: {
     visible: true,
     level: VERDICT_TO_LEVEL[worstVerdict as Exclude<BackupVaultVerdict, 'hidden'>],
     worstVault,
-    worstLastBackupAt: worstBackupAt,
     perVault: {
       passwords: detail(passwords, input.passwords.lastBackupAt),
       identity: detail(identity, input.identity.lastBackupAt),

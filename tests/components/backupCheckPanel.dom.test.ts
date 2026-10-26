@@ -9,6 +9,8 @@ import { ElAlert, ElButton, ElInput } from 'element-plus';
 import { readSource } from '@/tests/helpers/architectureScan';
 import { BackupImportUserError } from '@/utils/backupExport';
 import { verifyBackupFile } from '@/utils/backup/verifyBackupFile';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import CapsLockHint from '@/components/CapsLockHint.vue';
 import type { BackupVerificationResult } from '@/utils/backup/type';
 import { currentLocale, registerMessages, t, useI18n } from '@/utils/i18n';
 import enCommon from '@/utils/i18n/locales/en/common.json';
@@ -35,6 +37,8 @@ function loadPanel(): Component {
     '@/utils/backup/verifyBackupFile': { verifyBackupFile },
     '@/utils/backupExport': { BackupImportUserError },
     '@/utils/i18n': { useI18n },
+    '@/composables/useCapsLockDetection': { useCapsLockDetection },
+    '@/components/CapsLockHint.vue': { default: CapsLockHint },
   };
   runInNewContext(compiled.outputText, {
     exports,

@@ -60,7 +60,11 @@
         show-password
         :placeholder="t('options.forgot.checkPasswordPlaceholder')"
         autocomplete="off"
+        @keydown="handleCapsKeyEvent"
+        @keyup="handleCapsKeyEvent"
+        @blur="resetCapsLockState"
       />
+      <CapsLockHint v-if="capsLockOn" />
       <el-button
         class="backup-check__button"
         native-type="submit"
@@ -119,9 +123,14 @@ import type { BackupVerificationResult } from '@/utils/backup/type';
 import { verifyBackupFile } from '@/utils/backup/verifyBackupFile';
 import { BackupImportUserError } from '@/utils/backupExport';
 import { useI18n } from '@/utils/i18n';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import CapsLockHint from '@/components/CapsLockHint.vue';
 
 /** 只读验证区：独占临时输入，不向父级传递密码、文件或解密数据；父级关闭时卸载。 */
 const { t } = useI18n();
+// 这里输入的是「导出那一刻的主密码」：Caps Lock 开着会静默地把每次尝试都判成失败，
+// 而失败看起来又像文件本身的问题——与解锁页、复验弹窗同口径给出提示。
+const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
 const id = useId();
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput');
 const passwordInput = useTemplateRef<InputInstance>('passwordInput');
@@ -228,6 +237,7 @@ async function handleVerify(): Promise<void> {
 onBeforeUnmount(() => {
   disposed = true;
   stopCooldownTimer();
+  resetCapsLockState();
   generation++;
   password.value = '';
   selectedFile.value = null;

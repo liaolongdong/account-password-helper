@@ -17,7 +17,6 @@
         :closable="false"
         show-icon
         class="change-pwd-alert"
-        style="margin-bottom: 16px"
       >
         <template #title>{{ t('options.changePwd.alertTitle') }}</template>
         <template #default>
@@ -452,6 +451,10 @@ const backToEdit = (): void => {
    补的那句用 span + display:block，不用 p：EP 会把默认插槽整个包进
    `<p class="el-alert__description">`，再放一个 p 就是非法嵌套——浏览器重新解析时
    会把它拆成兄弟节点，脱离那条颜色覆盖。 */
+.change-pwd-alert {
+  margin-bottom: 16px;
+}
+
 .change-pwd-alert__recovery {
   display: block;
   margin-top: 4px;
