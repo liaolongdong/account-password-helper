@@ -13,20 +13,16 @@ const getEncryption = lazyImport(() => import('@/utils/encryption'));
 const getRecoveryCrypto = lazyImport(() => import('@/utils/recoveryCrypto'));
 
 /**
- * 带机器可读 code 的错误：调用方按 code 映射 i18n 文案，message 只作诊断兜底。
+ * 带机器可读 code 的错误：调用方一律按 code 映射 i18n 文案（见 `utils/recoveryUi.ts`），
+ * `Error.message` 只放 code 本身作诊断兜底。
  *
- * 沿用改造前 `changeMasterPassword` 的「code + 中文 message」双形态——现有多条测试断言
- * message 原文，弹窗则读 code；两者都不能在本次改动里悄悄换掉。
+ * 存储层不再另存一份面向用户的中文文案表：那会让同一句话有两处事实来源（另一处是
+ * `recoveryUi` 的码→key 映射表），改文案时必然漂移，也违背「不在 TS 中硬编码可见字符串」
+ * 与「按码分流、不匹配文案」两条既有约定。测试据此断言 code 而不是文案原文。
  */
-export function recoveryError(code: VaultErrorCode, message?: string): Error & { code: VaultErrorCode } {
-  return Object.assign(new Error(message ?? code), { code });
+export function recoveryError(code: VaultErrorCode): Error & { code: VaultErrorCode } {
+  return Object.assign(new Error(code), { code });
 }
-
-export const RECOVERY_ERROR_MESSAGE = {
-  WRONG_PASSWORD: '当前密码验证失败',
-  EMPTY_PASSWORD: '密码不能为空',
-  REKEY_CONCURRENT_WRITE: '检测到其他页面的改动刚刚写入，本次修改已安全取消，请重试',
-} as const;
 
 export function masterFingerprint(config: MasterPasswordConfig): string {
   return JSON.stringify([config.salt, config.hashedPassword, config.kdf ?? null]);

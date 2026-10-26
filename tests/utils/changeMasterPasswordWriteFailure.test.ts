@@ -298,7 +298,7 @@ describe('写盘之前的失败：不写、不清会话', () => {
     vi.mocked(masterPassword.verifyMasterPassword).mockResolvedValueOnce(false);
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('wrong-old', 'New-pw#1')).rejects.toThrow('当前密码验证失败');
+    await expect(changeMasterPassword('wrong-old', 'New-pw#1')).rejects.toMatchObject({ code: 'WRONG_PASSWORD' });
 
     expect(deriveEncryptionKey).not.toHaveBeenCalled();
     expect(localSet).not.toHaveBeenCalled();

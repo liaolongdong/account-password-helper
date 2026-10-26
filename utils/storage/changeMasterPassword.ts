@@ -22,7 +22,6 @@ import {
   readVaultRecoverySnapshot,
   recoveryError,
   verifyRecoveryReplacement,
-  RECOVERY_ERROR_MESSAGE,
 } from './recoveryState';
 import type { RecoveryConfirmation, VaultRekeyRequest, VaultRekeyResult } from './recoveryTypes';
 import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
@@ -65,7 +64,7 @@ export async function changeMasterPassword(
 ): Promise<VaultRekeyResult> {
   const oldPw = String(oldPassword || '').trim();
   const newPw = String(newPassword || '').trim();
-  if (!newPw) throw recoveryError(VAULT_ERROR_CODES.EMPTY_PASSWORD, RECOVERY_ERROR_MESSAGE.EMPTY_PASSWORD);
+  if (!newPw) throw recoveryError(VAULT_ERROR_CODES.EMPTY_PASSWORD);
   // 主密码强度就是数据密钥强度，必须在存储层收口，不能只靠弹窗：创建时要求四条规则全通过，
   // 换钥时若只判 `level !== 'weak'`（通过数 ≥2 即算 medium），等于开了一条
   // 「把整库降级到比首次设置更弱的密钥」的通道，且会让同一串密码在启用/未启用离线恢复时
@@ -73,8 +72,7 @@ export async function changeMasterPassword(
   // 位置与空密码校验并列：先拒形态再验旧密，避免为注定失败的提交付一次 PBKDF2。
   normalizeNewMasterPassword(newPw);
   const authorized = await withVaultMutation(async () => {
-    if (!(await verifyMasterPassword(oldPw)))
-      throw recoveryError(VAULT_ERROR_CODES.WRONG_PASSWORD, RECOVERY_ERROR_MESSAGE.WRONG_PASSWORD);
+    if (!(await verifyMasterPassword(oldPw))) throw recoveryError(VAULT_ERROR_CODES.WRONG_PASSWORD);
     return readVaultRecoverySnapshot();
   });
   return withVaultKeyTransition(async () => {
@@ -270,7 +268,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<Vaul
   // 「新密文 + 旧会话密钥」这条数据完整性守卫去换一位数百分比的换钥耗时。
   if (sessionMoved || original.some((records, index) => JSON.stringify(records) !== JSON.stringify(fresh[index]))) {
     await sessionManager.clearSession().catch(() => {});
-    throw recoveryError(VAULT_ERROR_CODES.REKEY_CONCURRENT_WRITE, RECOVERY_ERROR_MESSAGE.REKEY_CONCURRENT_WRITE);
+    throw recoveryError(VAULT_ERROR_CODES.REKEY_CONCURRENT_WRITE);
   }
 
   if (carriedUndecryptable > 0) {

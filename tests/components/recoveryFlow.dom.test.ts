@@ -550,9 +550,7 @@ describe('ChangeMasterPasswordDialog recovery replacement', () => {
     );
   });
   it('keeps the pre-existing localized toast for change-password failures instead of an inline alert', async () => {
-    api.changeMasterPassword.mockRejectedValue(
-      Object.assign(new Error('当前密码验证失败'), { code: 'WRONG_PASSWORD' }),
-    );
+    api.changeMasterPassword.mockRejectedValue(Object.assign(new Error('WRONG_PASSWORD'), { code: 'WRONG_PASSWORD' }));
     await mount(ChangeMasterPasswordDialog);
     await fillChange();
     await until(() => expect(toastText()).toContain(t('options.changePwd.wrongOldPassword')));
