@@ -126,6 +126,25 @@ describe('Options 首屏骨架的视图切换', () => {
     for (const cls of ['backup-chip', 'session-chip', 'lock-btn']) {
       expect(HEADER, `真实头部不再有 .${cls}，骨架占位需要同步`).toContain(`class="${cls}"`);
     }
+
+    /**
+     * 占位高度必须等于真实徽标高度（评审报告 P2-13）。
+     *
+     * 上面只断言「存在 + 顺序」，量不到尺寸：骨架徽标一度是 28px 对真实 32px，
+     * 淡出那一帧整行往下坠 4px——位置对、尺寸错同样是一次可见位移。
+     */
+    const realHeight = (cls: string): string | undefined =>
+      HEADER.match(new RegExp(`\\.${cls} \\{[^}]*?height: (\\d+px)`))?.[1];
+    const skeletonHeight = (cls: string): string | undefined =>
+      HTML.match(new RegExp(`\\.${cls} \\{[\\s\\S]*?height: (\\d+px)`))?.[1];
+    for (const [skeletonCls, realCls] of [
+      ['sk-backup', 'backup-chip'],
+      ['sk-session', 'session-chip'],
+    ] as const) {
+      const want = realHeight(realCls);
+      expect(want, `真实头部读不到 .${realCls} 的高度，本条判据需要先修取证方式`).toBeTruthy();
+      expect(skeletonHeight(skeletonCls), `骨架 .${skeletonCls} 与真实 .${realCls} 高度不一致`).toBe(want);
+    }
   });
 
   it('有效期入口与侧边栏 / 悬浮按钮的管理入口都按会话状态预判首屏', () => {

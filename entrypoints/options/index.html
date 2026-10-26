@@ -262,7 +262,9 @@
         gap: 7px;
         align-items: center;
         width: 124px;
-        height: 28px;
+        /* 与真实徽标同高（`.backup-chip` / `.session-chip` = 32px）：
+           骨架淡出时头部整行不得因 4px 落差跳动 */
+        height: 32px;
         padding: 0 14px;
         background: rgb(255 255 255 / 15%);
         border: 1px solid rgb(255 255 255 / 25%);
@@ -299,7 +301,9 @@
         gap: 7px;
         align-items: center;
         width: 116px;
-        height: 28px;
+        /* 与真实徽标同高（`.backup-chip` / `.session-chip` = 32px）：
+           骨架淡出时头部整行不得因 4px 落差跳动 */
+        height: 32px;
         padding: 0 14px;
         background: rgb(255 255 255 / 15%);
         border: 1px solid rgb(255 255 255 / 25%);
