@@ -46,6 +46,22 @@ function loadPanel(): Component {
       if (!(name in dependencies)) throw new Error(`Unexpected component dependency: ${name}`);
       return dependencies[name];
     },
+    /**
+     * vm 上下文默认不带定时器，而冷却 tick 用的是全局 `setInterval`。
+     * 早先没注入时，`startCooldown` 在设完剩余秒数那一行就当场抛错（vitest 记一条 unhandled
+     * rejection 并警告「可能是假通过」），30 秒到期→解禁这条路径静默不执行，测试却照样绿。
+     * 这里延迟取当前 globalThis，测试里 `vi.useFakeTimers()` 换掉的假定时器才接得上。
+     */
+    setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
+    clearInterval: (id: ReturnType<typeof setInterval>) => clearInterval(id),
+    /**
+     * vm 上下文自带另一个 realm 的 `Date`，vitest 的假时钟够不着它——冷却 tick 按
+     * `until - Date.now()` 反推剩余秒数，用的是宿主 realm 的时间，于是推进假时钟读数纹丝不动。
+     * 也不能直接塞 `globalThis.Date`：上下文在导入期就建好了，那一刻快照到的是**真** Date，
+     * 之后 `useFakeTimers()` 换掉的只是宿主 globalThis 上的属性。故给一个延迟取用的 `now`，
+     * 组件只用到 `Date.now()`，这一层就够，拨动假时钟后倒计时才真的往下走。
+     */
+    Date: { now: () => Date.now() },
   });
   if (!exports.default) throw new Error('Compiled component is missing');
   return exports.default;
@@ -115,6 +131,8 @@ afterEach(() => {
   app.unmount();
   host.remove();
   vi.restoreAllMocks();
+  // 冷却那条用例换了假时钟，不还原会把假定时器漏给后面的用例
+  vi.useRealTimers();
   currentLocale.value = 'zh-CN';
 });
 
@@ -175,6 +193,7 @@ describe('BackupCheckPanel 只读交互', () => {
    * 每次还白付一次 600k 迭代的 PBKDF2。连续三次失败后进入 30 秒冷却，按钮禁用并给出剩余秒数。
    */
   it('连续三次失败进入冷却：按钮禁用、给出剩余秒数，且不再调用解密', async () => {
+    vi.useFakeTimers();
     vi.mocked(verifyBackupFile).mockRejectedValue(new BackupImportUserError('synthetic-mismatch'));
     const submit = () => element<HTMLButtonElement>('button[type="submit"]');
     await selectFile();
@@ -192,6 +211,25 @@ describe('BackupCheckPanel 只读交互', () => {
     submit().click();
     await settle();
     expect(verifyBackupFile).toHaveBeenCalledTimes(3);
+
+    /**
+     * 倒计时与解禁：冷却不是「按钮永久灰掉」。
+     * tick 按 `until - Date.now()` 反推剩余，故推进假时钟即可断言真实读数；
+     * 到期后连续失败计数归零，第四次尝试要能再次走进解密。
+     */
+    vi.advanceTimersByTime(10_000);
+    await nextTick();
+    expect(host.textContent).toContain('20');
+    submit().click();
+    await settle();
+    expect(verifyBackupFile).toHaveBeenCalledTimes(3);
+
+    vi.advanceTimersByTime(20_000);
+    await nextTick();
+    expect(submit().disabled, '30 秒已过后按钮应重新可用').toBe(false);
+    submit().click();
+    await settle();
+    expect(verifyBackupFile).toHaveBeenCalledTimes(4);
   });
 
   it('成功一次会清零连续失败计数，冷却只针对「连续」失败', async () => {
