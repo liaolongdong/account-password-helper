@@ -421,6 +421,22 @@ let _metadataFlushTimer: ReturnType<typeof setTimeout> | null = null;
  */
 const _metadataFlushResolvers: Array<() => void> = [];
 
+/** 回队重试的次数上限：与 `vaultWriteLock` 的重试档位同口径，避免忙等期间无限排队 */
+const METADATA_RETRY_LIMIT = 3;
+let _metadataRetryAttempts = 0;
+
+/**
+ * 结算防抖窗口内累积的调用 Promise。
+ *
+ * 调用时机只有两个：本次真的落盘成功，或明确放弃（写入失败 / 重试预算耗尽）。
+ * `updatePasswordInSession` 对外的语义是「数据实际写入后 resolve」，在回队重试途中就结算
+ * 等于向调用方谎报已保存——而 SW 恰好在那 1.5 秒里被回收时，收藏 / 使用痕迹就静默丢了。
+ * 预算耗尽仍要结算一次（避免调用方永挂），同时留一条 warn 说明这次没落盘。
+ */
+function settleMetadataFlushResolvers(): void {
+  _metadataFlushResolvers.splice(0).forEach(resolve => resolve());
+}
+
 /** 防抖延迟（毫秒）：收集窗口内的多次更新合并为单次 storage 写入 */
 const METADATA_FLUSH_DELAY_MS = 1500;
 
@@ -476,12 +492,23 @@ async function flushMetadataUpdates(): Promise<void> {
         }
       }
     });
+    settleMetadataFlushResolvers();
+    _metadataRetryAttempts = 0;
   } catch (error) {
     logger.error('批量更新元数据失败:', error);
-    if ((error as { code?: string })?.code === VAULT_BUSY) {
+    const busy = (error as { code?: string })?.code === VAULT_BUSY;
+    if (busy && _metadataRetryAttempts < METADATA_RETRY_LIMIT) {
+      // 换钥进行中：回队并延后重试，resolve 暂时保持 pending——对外语义是「已落盘」
+      _metadataRetryAttempts += 1;
       requeueMetadataUpdates(batch);
-      scheduleMetadataRetry();
+      if (scheduleMetadataRetry()) return;
     }
+    if (busy) {
+      requeueMetadataUpdates(batch);
+      logger.warn(`元数据回队重试预算耗尽（${METADATA_RETRY_LIMIT} 次），本次改动留待下一次触发落盘`);
+    }
+    // 真·写盘失败或预算耗尽：结算以免调用方 Promise 永挂
+    settleMetadataFlushResolvers();
   }
 }
 
@@ -498,14 +525,17 @@ function requeueMetadataUpdates(batch: Map<string, MetadataUpdate>): void {
   }
 }
 
-/** 换钥结束后重排一次 flush；已有排程时不叠加，避免忙等期间定时器堆积。 */
-function scheduleMetadataRetry(): void {
-  if (_metadataFlushTimer) return;
+/**
+ * 换钥结束后重排一次 flush；已有排程时不叠加，避免忙等期间定时器堆积。
+ * @returns 是否成功排入重试（已排程时返回 false，由那一次 flush 负责结算）
+ */
+function scheduleMetadataRetry(): boolean {
+  if (_metadataFlushTimer) return false;
   _metadataFlushTimer = setTimeout(() => {
-    void flushMetadataUpdates().finally(() => {
-      _metadataFlushResolvers.splice(0).forEach(resolve => resolve());
-    });
+    // 结算时机交给 flush 本身：只有真的落盘（或明确放弃）才 resolve
+    void flushMetadataUpdates();
   }, METADATA_FLUSH_DELAY_MS);
+  return true;
 }
 
 /**
@@ -532,13 +562,9 @@ export function updatePasswordInSession(id: string, updates: MetadataUpdate): Pr
     // 入队 resolve：即使本次定时器随后被 clearTimeout 取消，
     // 也会在下一次 flush 完成时统一 resolve，避免 Promise 永挂
     _metadataFlushResolvers.push(resolve);
-    _metadataFlushTimer = setTimeout(async () => {
-      try {
-        await flushMetadataUpdates();
-      } finally {
-        // 一次性 resolve 窗口内累积的全部调用（含 flush 异常场景）
-        _metadataFlushResolvers.splice(0).forEach(r => r());
-      }
+    _metadataFlushTimer = setTimeout(() => {
+      // 结算交给 flush：落盘成功、写入失败或预算耗尽各结算一次；回队重试期间保持 pending
+      void flushMetadataUpdates();
     }, METADATA_FLUSH_DELAY_MS);
   });
 }

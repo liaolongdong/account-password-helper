@@ -190,12 +190,20 @@ describe('ordinary vault writers vs real exclusive key transition', () => {
     const { updatePasswordInSession } = await import('@/utils/storage/passwordCrud');
     vi.useFakeTimers();
     const update = updatePasswordInSession('p1', { favorite: true });
+    let settled = false;
+    void update.then(() => {
+      settled = true;
+    });
     await withVaultKeyTransition(async () => {
       const set = vi.spyOn(chrome.storage.local, 'set');
       await vi.advanceTimersByTimeAsync(1500);
-      await update;
+      // 被换钥拒下时不得结算：提前 resolve 等于向调用方谎报「已保存」
+      expect(settled, 'BUSY 回队期间调用方的 Promise 必须保持 pending').toBe(false);
       expect(set).not.toHaveBeenCalled();
     });
+    await vi.advanceTimersByTimeAsync(1500);
+    await update;
+    expect(settled).toBe(true);
   });
 
   /**
@@ -208,13 +216,19 @@ describe('ordinary vault writers vs real exclusive key transition', () => {
     const { updatePasswordInSession, getAllPasswordsRaw } = await import('@/utils/storage/passwordCrud');
     vi.useFakeTimers();
     const update = updatePasswordInSession('p1', { favorite: true });
+    let settled = false;
+    void update.then(() => {
+      settled = true;
+    });
     await withVaultKeyTransition(async () => {
       await vi.advanceTimersByTimeAsync(1500);
-      await update;
+      expect(settled, '回队重试期间不得结算').toBe(false);
       const [held] = await getAllPasswordsRaw();
       expect((held as { favorite?: boolean }).favorite).toBeFalsy();
     });
     await vi.advanceTimersByTimeAsync(1500);
+    await update;
+    expect(settled, '换钥结束后重试必须把这次改动兑现并结算').toBe(true);
     const [stored] = await getAllPasswordsRaw();
     expect((stored as { favorite?: boolean }).favorite).toBe(true);
   });
@@ -224,14 +238,16 @@ describe('ordinary vault writers vs real exclusive key transition', () => {
     const { updatePasswordInSession, getAllPasswordsRaw } = await import('@/utils/storage/passwordCrud');
     vi.useFakeTimers();
     const first = updatePasswordInSession('p1', { favorite: true });
+    let second: Promise<void> | undefined;
     await withVaultKeyTransition(async () => {
       await vi.advanceTimersByTimeAsync(1500);
-      await first;
-      const second = updatePasswordInSession('p1', { favorite: false });
+      second = updatePasswordInSession('p1', { favorite: false });
       await vi.advanceTimersByTimeAsync(1500);
-      await second;
+      // 两次都被拒：谁都不能提前结算，否则调用方以为已经保存
     });
     await vi.advanceTimersByTimeAsync(1500);
+    await first;
+    await second;
     const [stored] = await getAllPasswordsRaw();
     expect((stored as { favorite?: boolean }).favorite).toBe(false);
   });
