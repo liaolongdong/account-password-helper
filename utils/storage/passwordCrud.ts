@@ -423,7 +423,11 @@ const _metadataFlushResolvers: Array<() => void> = [];
 
 /** 回队重试的次数上限：与 `vaultWriteLock` 的重试档位同口径，避免忙等期间无限排队 */
 const METADATA_RETRY_LIMIT = 3;
+/** 快预算耗尽后的有界长退避：让没人再操作时队列也能自己落地，又不变成无限忙等 */
+const METADATA_BACKOFF_RETRIES = 2;
+const METADATA_BACKOFF_FACTOR = 5;
 let _metadataRetryAttempts = 0;
+let _metadataBackoffAttempts = 0;
 
 /**
  * 结算防抖窗口内累积的调用 Promise。
@@ -494,6 +498,7 @@ async function flushMetadataUpdates(): Promise<void> {
     });
     settleMetadataFlushResolvers();
     _metadataRetryAttempts = 0;
+    _metadataBackoffAttempts = 0;
   } catch (error) {
     logger.error('批量更新元数据失败:', error);
     const busy = (error as { code?: string })?.code === VAULT_BUSY;
@@ -501,11 +506,22 @@ async function flushMetadataUpdates(): Promise<void> {
       // 换钥进行中：回队并延后重试，resolve 暂时保持 pending——对外语义是「已落盘」
       _metadataRetryAttempts += 1;
       requeueMetadataUpdates(batch);
-      if (scheduleMetadataRetry()) return;
+      // 排不上重试只可能是「已经有一次重试在排着」：那次 flush 才是结算时刻，
+      // 此处既不该结算，也不该报「预算耗尽」。
+      scheduleMetadataRetry();
+      return;
     }
     if (busy) {
       requeueMetadataUpdates(batch);
-      logger.warn(`元数据回队重试预算耗尽（${METADATA_RETRY_LIMIT} 次），本次改动留待下一次触发落盘`);
+      // 结算照旧发生（不让调用方 Promise 永挂），但「留待下一次触发」不能只是一句 warn：
+      // 此后没有第二次元数据操作、SW 又被回收的话，这笔收藏就只活在内存里。
+      // 所以耗尽时再排一次有界长退避，让空闲队列自己落地；上限仍在，避免换钥卡死时忙等。
+      const backed = scheduleMetadataBackoffRetry();
+      logger.warn(
+        backed
+          ? `元数据快重试预算耗尽（${METADATA_RETRY_LIMIT} 次），已排 ${METADATA_FLUSH_DELAY_MS * METADATA_BACKOFF_FACTOR}ms 长退避`
+          : `元数据回队重试预算耗尽（长退避 ${METADATA_BACKOFF_RETRIES} 次也用尽），本次改动留待下一次触发落盘`,
+      );
     }
     // 真·写盘失败或预算耗尽：结算以免调用方 Promise 永挂
     settleMetadataFlushResolvers();
@@ -529,6 +545,19 @@ function requeueMetadataUpdates(batch: Map<string, MetadataUpdate>): void {
  * 换钥结束后重排一次 flush；已有排程时不叠加，避免忙等期间定时器堆积。
  * @returns 是否成功排入重试（已排程时返回 false，由那一次 flush 负责结算）
  */
+/**
+ * 快预算耗尽后的长退避排程；已排到长退避上限则不再续排。
+ * @returns 是否真的排上了一次
+ */
+function scheduleMetadataBackoffRetry(): boolean {
+  if (_metadataFlushTimer || _metadataBackoffAttempts >= METADATA_BACKOFF_RETRIES) return false;
+  _metadataBackoffAttempts += 1;
+  _metadataFlushTimer = setTimeout(() => {
+    void flushMetadataUpdates();
+  }, METADATA_FLUSH_DELAY_MS * METADATA_BACKOFF_FACTOR);
+  return true;
+}
+
 function scheduleMetadataRetry(): boolean {
   if (_metadataFlushTimer) return false;
   _metadataFlushTimer = setTimeout(() => {
