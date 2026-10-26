@@ -127,3 +127,40 @@ describe('校验哈希透明升级的上下文门禁', () => {
     expect(after.salt, '升级必须沿用原 salt，否则存量用户永久解不开').toBe(salt);
   }, 30_000);
 });
+
+/**
+ * 判定面本身：漏判一次，本文件上面那两条守卫就都白设
+ *
+ * `about:srcdoc` 是本机评审时发现的漏网——MV3 会把内容脚本按父页面的规则注进 srcdoc 框架，
+ * 而它的 `location.protocol` 是 `about:`，不在协议清单里，于是被当成扩展自身上下文放行。
+ * `about:blank` 必须继续判为扩展侧：MV3 SW 与测试夹具的空文档都长这样，判反会让该跑的迁移不跑。
+ */
+describe('isWebPageContext 的判定面', () => {
+  const at = (href: string, protocol: string) => {
+    (globalThis as Record<string, unknown>).window = { location: { href, protocol } };
+  };
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).window;
+  });
+
+  it.each([
+    ['https://evil.example/login', 'https:', true],
+    ['http://localhost:8899/demo', 'http:', true],
+    ['file:///Users/me/vault.html', 'file:', true],
+    ['about:srcdoc', 'about:', true],
+    ['chrome-extension://abc/options.html', 'chrome-extension:', false],
+    ['about:blank', 'about:', false],
+  ] as const)('%s → %s', (href, protocol, expected) => {
+    at(href, protocol);
+    return import('@/utils/runtimeContext').then(({ isWebPageContext }) => {
+      expect(isWebPageContext(), `${href} 的归属判错`).toBe(expected);
+    });
+  });
+
+  it('没有 window（MV3 Service Worker 形态）按扩展自身上下文处理', async () => {
+    delete (globalThis as Record<string, unknown>).window;
+    const { isWebPageContext } = await import('@/utils/runtimeContext');
+    expect(isWebPageContext()).toBe(false);
+  });
+});
