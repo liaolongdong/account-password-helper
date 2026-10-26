@@ -27,7 +27,7 @@ import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
 import { moveIdentitiesToTrash } from './identityTrashManager';
-import { withVaultMutation } from './vaultWriteLock';
+import { withVaultCommit, withVaultMutation } from './vaultWriteLock';
 import { verifyMasterPassword } from './masterPassword';
 
 /**
@@ -166,7 +166,7 @@ export async function getAllIdentity(
  * @param masterPassword 锁定态显式传入；会话有效时省略
  */
 export async function saveIdentity(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
-  return withVaultMutation(() => saveIdentityInternal(payload, masterPassword));
+  return withVaultMutation(() => withVaultCommit(() => saveIdentityInternal(payload, masterPassword)));
 }
 
 async function saveIdentityInternal(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
@@ -219,7 +219,9 @@ export async function updateIdentity(
   expectedUpdateTime: number,
   masterPassword?: string,
 ): Promise<void> {
-  return withVaultMutation(() => updateIdentityInternal(id, patch, expectedUpdateTime, masterPassword));
+  return withVaultMutation(() =>
+    withVaultCommit(() => updateIdentityInternal(id, patch, expectedUpdateTime, masterPassword)),
+  );
 }
 
 async function updateIdentityInternal(
@@ -321,7 +323,7 @@ export async function reencryptAll(
  * @param records 完整记录列表
  */
 export async function replaceAllIdentityRaw(records: IdentityRecord[]): Promise<void> {
-  return withVaultMutation(() => replaceAllIdentityRawInternal(records));
+  return withVaultMutation(() => withVaultCommit(() => replaceAllIdentityRawInternal(records)));
 }
 
 async function replaceAllIdentityRawInternal(records: IdentityRecord[]): Promise<void> {
@@ -355,7 +357,7 @@ export async function replaceAllIdentity(
   entries: Array<Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }>,
   masterPassword?: string,
 ): Promise<void> {
-  return withVaultMutation(() => replaceAllIdentityInternal(entries, masterPassword));
+  return withVaultMutation(() => withVaultCommit(() => replaceAllIdentityInternal(entries, masterPassword)));
 }
 
 async function replaceAllIdentityInternal(
@@ -381,7 +383,7 @@ async function replaceAllIdentityInternal(
       encryptedPayload: await enc.encryptData(JSON.stringify(entry.payload), key),
     });
   }
-  await replaceAllIdentityRaw([...reencrypted, ...preserved]);
+  await replaceAllIdentityRawInternal([...reencrypted, ...preserved]);
 }
 
 // ==================== 列表偏好（非 PII，明文单键） ====================

@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { deleteHistoryByEntryIds } from './passwordHistory';
 import { pauseReminders, removeReminders, resumeReminders } from './reminderManager';
 import { assertWithinCapacity } from './vaultCapacity';
-import { withVaultMutation } from './vaultWriteLock';
+import { withVaultCommit, withVaultMutation } from './vaultWriteLock';
 
 /**
  * 回收站写入串行队列
@@ -18,7 +18,8 @@ let trashMutationQueue: Promise<unknown> = Promise.resolve();
 
 function enqueueTrashMutation<T>(task: () => Promise<T>): Promise<T> {
   // 排队本身不持 lease：轮到实际读改写时才获取，避免等待中的任务占住换钥锁。
-  const run = () => withVaultMutation(task);
+  // commit 锁把跨上下文的整包读改写也串起来；shared 租约只挡换钥，不互斥写者。
+  const run = () => withVaultMutation(() => withVaultCommit(task));
   const next = trashMutationQueue.then(run, run);
   trashMutationQueue = next.then(
     () => undefined,
