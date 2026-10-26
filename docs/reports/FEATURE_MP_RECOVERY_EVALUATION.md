@@ -137,3 +137,23 @@
 - 到期提醒表的账号名是另一处刻意明文（`ARCHITECTURE.md` 安全一节已披露），
   本轮把提示语列为「明文例外之二」并同处披露。
 - 档位 A 未动 `.aph` / `.aphid` 容器版本（仍为 `version: 1`）、未动密文格式、未动权限与网络行为。
+
+## 复核更正（2026-10-26 执行评审时逐条对源码）
+
+本节不改上文的历史判断，只把「文中写着、代码里不是那样」的部分就地记账，避免下一个 contributor 按旧假设改代码。
+
+- §4 说找回向导是「纯展示组件，不 import 存储与加密模块」——**已不成立**：`ForgotPasswordDialog.vue` 嵌入
+  `BackupCheckPanel.vue` → `utils/backup/verifyBackupFile.ts` → `utils/backupExport.ts` → `@/utils/storage/configManager`，
+  且 `PasswordVerifyView.vue` 静态引入该向导、`entrypoints/options/App.vue` 再静态引入该视图，整条链进管理页 eager 图。
+  `tests/architecture/backupCheckWiring.test.ts` 只正则扫本文件的 `@/utils/storage`，等于把「不依赖存储」
+  悄悄缩成「不直接引用存储」，所以它没响。真实边界是：向导自身不持密码/文件/解密数据，但它承载的验证区会读存储。
+- §二 表第二行「设置主密码当页就把『抄一次恢复码』摆在面前（可跳过，但必须显式跳过）」——**未实施**：
+  设置主密码那一步没有恢复码入口，恢复的入口在「安全设置」下拉与命令面板。本项不在 §〇 的偏离表里。
+- §5.1 前置「会话有效（拿得到 `getSessionDataKey()`）」——**实施为更保守的形态**：登记/启用要求重输当前主密码
+  （`authorizeMaster` 验密 + 快照），恢复链路另付两次 PBKDF2。方向保守，但同样未登记为偏离。
+- §六 两条文案门禁只做一半：撤销只说「仅移除本机入口」，没写明「撤销后回到忘记即清空」；
+  「新机器需重新登记」只出现在对话框介绍里，帮助（`help.gs.*`）没有对应条目。
+- §〇 D1 点名的函数是 `deriveWrapKey`，代码实为 `deriveWrappingKey`（`utils/recoveryCrypto.ts`）。
+- 未登记的偏离另有三条：`options.forgot.resetBody` 曾写「仍需两次确认」而路径只有一次
+  `ElMessageBox.confirm`、`auth.resetConfirm` 的清空清单漏「修改历史」、英文帮助 `help.gd.12` 写了
+  调用方从不传参的 `{days}` 占位符。三者均已随评审执行修正。

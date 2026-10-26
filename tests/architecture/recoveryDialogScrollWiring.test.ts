@@ -100,3 +100,23 @@ describe('恢复相关弹窗沿用统一的滚动约定', () => {
     }
   });
 });
+
+/**
+ * 草稿态不得被 Esc / X 静默丢掉（评审报告 P2-11）。
+ *
+ * 恢复套件一旦生成，用户可能已经点了下载或抄了码；此时按 Esc 或点 X 会让草稿失效，
+ * 手里留下一份永远无效的文件，而且界面上没有任何一句话解释发生了什么
+ * （`utils/storage/recovery.ts` 只在 activate 时落盘）。因此草稿存续期间关掉这两个
+ * 隐式出口，退出只走弹窗内那条会显式清草稿并说明后果的 `recovery.backToEdit`。
+ */
+describe('恢复弹窗的草稿不被隐式关闭丢掉', () => {
+  it.each(['components/options/RecoverySettingsDialog.vue', 'components/options/RecoveryResetDialog.vue'])(
+    '%s 在有草稿时禁掉 Esc 与 X，出口留在弹窗内',
+    file => {
+      const text = source(file);
+      expect(text, `${file} 的 Esc 仍可能在草稿存续时静默丢掉它`).toMatch(/:close-on-press-escape="!busy && !draft"/);
+      expect(text, `${file} 的 X 仍可能在草稿存续时静默丢掉它`).toMatch(/:show-close="!busy && !draft"/);
+      expect(text, `${file} 缺了显式退回出口的文案键`).toContain('recovery.backToEdit');
+    },
+  );
+});

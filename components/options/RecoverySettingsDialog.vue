@@ -5,8 +5,8 @@
     width="min(520px, calc(100vw - 24px))"
     align-center
     :close-on-click-modal="false"
-    :close-on-press-escape="!busy"
-    :show-close="!busy"
+    :close-on-press-escape="!busy && !draft"
+    :show-close="!busy && !draft"
     destroy-on-close
     @update:model-value="requestClose"
   >
