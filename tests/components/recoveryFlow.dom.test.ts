@@ -30,6 +30,7 @@ import type { RecoveryDraft } from '@/utils/storage/recoveryTypes';
 // These boundary doubles control completion order without writing any vault.
 const api = vi.hoisted(() => ({
   getRecoveryStatus: vi.fn(),
+  isRecoveryEnrolled: vi.fn(async () => false),
   prepareRecoveryEnrollment: vi.fn(),
   activateRecovery: vi.fn(),
   disableRecovery: vi.fn(),
@@ -39,6 +40,12 @@ const api = vi.hoisted(() => ({
   changeMasterPassword: vi.fn(),
 }));
 vi.mock('@/utils/storage/recovery', () => api);
+// 锁定页现在只问「登记过没有」这一个布尔位（`recoveryState.isRecoveryEnrolled`），不再为它
+// 拉起整条 `recovery.ts` → `changeMasterPassword` 依赖图；其余导出保持真实实现。
+vi.mock('@/utils/storage/recoveryState', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/utils/storage/recoveryState')>()),
+  isRecoveryEnrolled: api.isRecoveryEnrolled,
+}));
 vi.mock('@/utils/storage/changeMasterPassword', () => ({ changeMasterPassword: api.changeMasterPassword }));
 
 /**
@@ -479,7 +486,7 @@ describe('PasswordVerifyView recovery entry', () => {
     });
     await settle();
     await settle();
-    await until(() => expect(api.getRecoveryStatus).toHaveBeenCalledTimes(1));
+    await until(() => expect(api.isRecoveryEnrolled).toHaveBeenCalledTimes(1));
     expect(document.querySelector(`[aria-label="${t('recovery.useKey')}"]`)).toBeNull();
     expect([...document.querySelectorAll('button')].some(el => el.textContent?.trim() === t('recovery.useKey'))).toBe(
       false,
@@ -490,6 +497,8 @@ describe('PasswordVerifyView recovery entry', () => {
   });
 
   it('forwards recovered and clears the unlock password without leaving secrets behind', async () => {
+    // 锁定页问的是「登记过没有」这一个位；恢复弹窗自己还要一份完整状态，两者都要喂
+    api.isRecoveryEnrolled.mockResolvedValue(true);
     api.getRecoveryStatus.mockResolvedValue({ enabled: true, config: draft.material.config, corrupted: false });
     await mount(PasswordVerifyView, {
       verifyForm: { password: 'previous-unlock-attempt', validityHours: 24 },
@@ -502,7 +511,7 @@ describe('PasswordVerifyView recovery entry', () => {
       failCount: 0,
     });
     // 挂载时读一次只为决定入口是否出现；弹窗尚未打开
-    await until(() => expect(api.getRecoveryStatus).toHaveBeenCalledTimes(1));
+    await until(() => expect(api.isRecoveryEnrolled).toHaveBeenCalledTimes(1));
     await click('recovery.useKey');
     await settle();
     await fillReset();
