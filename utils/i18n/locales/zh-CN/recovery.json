@@ -19,7 +19,7 @@
   "recovery.activated": "恢复套件已确认并启用，请妥善离线保管。",
   "recovery.saveTitle": "保存新的恢复套件",
   "recovery.saveWarning": "请下载套件或完整抄写恢复密钥，保存在不解锁此库也能取到的位置。套件文件是未加密的明文，拿到它的人就能解开这台电脑的库——请像密码一样保管，不要留在下载目录，也不要经邮件或网盘传递。此时尚未启用或更改任何数据。下一步将隐藏原码，请从已保存的材料回填确认。",
-  "recovery.plaintextAck": "我已知晓：套件文件是未加密的明文，拿到它和本机库数据即可解密；请像密码一样保管。",
+  "recovery.plaintextAck": "我已知晓：恢复密钥和套件文件都是未加密的明文，拿到它和本机库数据即可解密；请像密码一样保管。",
   "recovery.downloadKit": "下载 .aphrecovery 套件",
   "recovery.savedContinue": "我已保存，隐藏原码",
   "recovery.reenterHint": "原码已隐藏。请从保存的副本输入密钥，或选择刚下载的套件文件，不要把此窗口当作唯一副本。",
@@ -66,5 +66,6 @@
   "recovery.error.emptyPassword": "请输入非空主密码，首尾空格会被忽略。",
   "recovery.error.concurrentWrite": "其他窗口修改了当前库，本次改密未提交。请返回后重试。",
   "recovery.error.busy": "当前库正在执行其他操作，请等待完成后重试。",
-  "recovery.error.failed": "操作未能完成，请保留当前密码和恢复材料后重试；数据未被清空。"
+  "recovery.error.failed": "操作未能完成，请保留当前密码和恢复材料后重试；数据未被清空。",
+  "recovery.loadFailed": "恢复向导没能加载出来，数据没有被改动。刷新本页面后重试。"
 }

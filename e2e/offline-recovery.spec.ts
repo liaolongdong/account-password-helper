@@ -36,8 +36,14 @@ const saveStep = (page: Page): Locator => page.getByRole('region', { name: textO
 const readKey = async (step: Locator): Promise<string> =>
   (await step.locator('[data-recovery-key]').innerText()).trim();
 
-/** 隐藏原码 → 从「已保存的副本」回填 → 确认 */
+/** 勾选明文知情同意 → 隐藏原码 → 从「已保存的副本」回填 → 确认 */
 async function confirmSavedKey(page: Page, key: string): Promise<void> {
+  // 知情同意现在是两颗按钮共同的门（下载 = 多一份副本；隐藏原码 = 销毁屏幕上唯一一份），
+  // 不先勾上，「我已保存」是禁用的。
+  // 点 label 而不是原始 input：EP 把 `.el-checkbox__original` 藏成不可见，直接 check 会超时。
+  const ack = saveStep(page).locator('.plaintext-ack');
+  await ack.click();
+  await expect(ack.locator('input')).toBeChecked();
   await saveStep(page)
     .getByRole('button', { name: textOf('recovery.savedContinue') })
     .click();
@@ -136,8 +142,76 @@ test.describe('离线恢复密钥', () => {
     expect(originalConfigId).toBeTruthy();
 
     await lockSession(page);
-    await page.getByRole('button', { name: textOf('recovery.useKey') }).click();
+
+    // 恢复密钥登记过之后，锁定页那一行才真的有两枚按钮：这是全套用例里唯一能量到
+    // 「逃生出口排布」的现场。两个断言各守一个真机读数过的缺陷——
+    // 中文三枚合计 362px / 英文两枚 393px 都超过 350px 可用行宽而折行，
+    // 以及 link 按钮那 8px 左内边距让文字看起来没和主按钮对齐。
+    const actionRow = await page.evaluate(() => {
+      const row = document.querySelector<HTMLElement>('.verify-actions');
+      const primary = document.querySelector<HTMLElement>('.verify-form .el-button--primary');
+      if (!row || !primary) return null;
+      const buttons = [...row.querySelectorAll<HTMLElement>('.el-button')];
+      const textX = (el: HTMLElement) => {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        return Math.round(r.getBoundingClientRect().x);
+      };
+      const ys = buttons.map(el => el.getBoundingClientRect().y);
+      return {
+        count: buttons.length,
+        // 不能按「不同的 y 值个数」判行：`margin-right:auto` 分掉的是小数宽度，
+        // 同一行的按钮可以量出 410 与 411 两个 y（真机复现过），必须按像素差判。
+        ySpread: ys.length ? Math.round(Math.max(...ys) - Math.min(...ys)) : 0,
+        firstTextX: buttons.length ? textX(buttons[0]) : null,
+        primaryX: Math.round(primary.getBoundingClientRect().x),
+      };
+    });
+    expect(actionRow, '锁定页动作行没渲染出来').not.toBeNull();
+    const row = actionRow as NonNullable<typeof actionRow>;
+    expect(row.count, '本机已登记恢复密钥，动作行应有「用密钥取回」和「忘记密码」两枚').toBe(2);
+    expect(row.ySpread, '逃生出口折成了两行（整行右对齐随之失效）').toBeLessThanOrEqual(2);
+    expect(Math.abs((row.firstTextX ?? 0) - row.primaryX), '首枚按钮的文字没和主按钮左边缘同基线').toBeLessThanOrEqual(
+      1,
+    );
+
+    // 找回向导里的那枚：恢复弹窗必须打开，且向导得真的让位——
+    // 同 tick「关一个 + 开一个」会在 300ms 淡出期把两份文字叠成一屏糊字。
+    await page.getByRole('button', { name: textOf('auth.forgotPassword') }).click();
+    const wizard = page.getByRole('dialog').filter({ hasText: textOf('options.forgot.title') });
+    await expect(wizard).toBeVisible();
+
+    // 向导里那颗恢复按钮要和它上面的正文同一条左基线：
+    // EP 的 link 按钮自带内边距，文字会被推离段落左缘，读出来就是「没左对齐」。
+    const wizardAlign = await page.evaluate(() => {
+      const btn = document.querySelector<HTMLElement>('.forgot-path .el-button');
+      const li = btn?.closest('.forgot-path');
+      const body = li?.querySelector<HTMLElement>('.forgot-path__body');
+      if (!btn || !body) return null;
+      const bodyRange = document.createRange();
+      bodyRange.selectNodeContents(body);
+      const btnRange = document.createRange();
+      btnRange.selectNodeContents(btn);
+      return {
+        bodyX: Math.round(bodyRange.getBoundingClientRect().x),
+        btnTextX: Math.round(btnRange.getBoundingClientRect().x),
+      };
+    });
+    expect(wizardAlign, '量不到找回向导里的恢复按钮').not.toBeNull();
+    const wa = wizardAlign as NonNullable<typeof wizardAlign>;
+    expect(
+      wa.btnTextX - wa.bodyX,
+      `向导里的恢复按钮文字偏离正文左基线 ${wa.btnTextX - wa.bodyX}px`,
+    ).toBeLessThanOrEqual(1);
+
+    await wizard.getByRole('button', { name: textOf('options.forgot.recoveryAction') }).click();
     const reset = page.getByRole('dialog').filter({ hasText: textOf('recovery.resetTitle') });
+    await expect(reset).toBeVisible();
+    await expect(wizard, '恢复弹窗打开后找回向导没有让位，两层模态叠字').toBeHidden({ timeout: 30_000 });
+    await reset.getByRole('button', { name: textOf('common.cancel') }).click();
+    await expect(reset).toBeHidden({ timeout: 30_000 });
+
+    await page.getByRole('button', { name: textOf('recovery.useKey') }).click();
     await expect(reset).toBeVisible();
 
     await reset.getByLabel(textOf('recovery.newPassword')).fill(RECOVERED_PASSWORD);

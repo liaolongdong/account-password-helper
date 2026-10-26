@@ -29,7 +29,7 @@
         >
         <el-button
           type="primary"
-          :disabled="busy"
+          :disabled="busy || !acknowledged"
           @click="hideCode"
           >{{ t('recovery.savedContinue') }}</el-button
         >
@@ -79,7 +79,14 @@ const { t } = useI18n();
 const root = useTemplateRef<HTMLElement>('root');
 const code = useTemplateRef<HTMLElement>('code');
 const hidden = shallowRef(false);
-/** 下载前必须显式确认套件文件是未加密明文；手抄/继续保存不受此门限制 */
+/**
+ * 下载与「我已保存，隐藏原码」都必须先显式确认明文风险。
+ *
+ * 两道门拦的是两种不同的损失：下载会**多**一份副本（泄露风险），而隐藏原码会
+ * `textContent = ''` 掉屏幕上**唯一**一份（丢失风险，且不可逆——只能换发新套件）。
+ * 门只装在下载上时，恰好放过了后果更重的那一下；而知情同意的对象本来就该是
+ * 「密钥材料」而不是「套件文件」，手抄路径同样适用。
+ */
 const acknowledged = shallowRef(false);
 const confirmation = shallowRef('');
 const error = shallowRef('');
@@ -117,7 +124,7 @@ const downloadKit = (): void => {
   }
 };
 const hideCode = async (): Promise<void> => {
-  if (props.busy) return;
+  if (props.busy || !acknowledged.value) return;
   const token = epoch;
   if (code.value) code.value.textContent = '';
   hidden.value = true;

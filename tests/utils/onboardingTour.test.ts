@@ -168,9 +168,9 @@ describe('pickSteps：按锚点存在性裁剪剧本', () => {
     expect(picked.map(step => step.id)).toEqual(TOUR_STEPS.map(step => step.id));
   });
 
-  it('无锚点步（欢迎 + 打开侧边栏）永远保留', () => {
+  it('无锚点步（欢迎 + 打开侧边栏 + 留退路）永远保留', () => {
     const picked = pickSteps(TOUR_STEPS, () => false);
-    expect(picked.map(step => step.id)).toEqual(['welcome', 'sidepanel']);
+    expect(picked.map(step => step.id)).toEqual(['welcome', 'sidepanel', 'retreat']);
   });
 
   it('空库引导卡与搜索栏互斥：只留当下存在的那一条', () => {
@@ -182,6 +182,7 @@ describe('pickSteps：按锚点存在性裁剪剧本', () => {
       'sidepanel',
       'empty',
       'data',
+      'retreat',
       'settings',
       'health',
       'personalize',
@@ -192,6 +193,7 @@ describe('pickSteps：按锚点存在性裁剪剧本', () => {
       'sidepanel',
       'search',
       'data',
+      'retreat',
       'settings',
       'health',
       'personalize',
@@ -227,11 +229,13 @@ describe('TOUR_STEPS：剧本自身约束', () => {
    *
    * 这条守卫的本意从来是「不许出现来历不明的无锚点步」。`sidepanel` 的无锚点是结构性的：
    * 侧边栏不在 Options 的 DOM 里，聚光灯圈不到，只能整屏幕布 + 卡内动作按钮。
-   * 白名单写法保留了原来那条的牙——将来再冒出第三个无锚点 id，或者谁把居中偏好改掉，照样变红。
+   * `retreat` 的无锚点是内容性的：它同时指向「数据管理」和「安全设置」两个菜单，
+   * 圈住任何一个都会把另一条退路说丢，这一步要的是读字而不是看按钮。
+   * 白名单写法保留了原来那条的牙——将来再冒出第四个无锚点 id，或者谁把居中偏好改掉，照样变红。
    */
-  it('无锚点步恰为白名单那两个，都居中、欢迎仍排首位', () => {
+  it('无锚点步恰为白名单那三个，都居中、欢迎仍排首位', () => {
     const anchorless = TOUR_STEPS.filter(step => step.anchor === null);
-    expect(anchorless.map(step => step.id)).toEqual(['welcome', 'sidepanel']);
+    expect(anchorless.map(step => step.id)).toEqual(['welcome', 'sidepanel', 'retreat']);
     for (const step of anchorless) expect(step.prefer).toBe('center');
     expect(TOUR_STEPS[0].anchor).toBeNull();
   });

@@ -7,6 +7,7 @@
     :close-on-click-modal="false"
     class="forgot-dialog"
     @update:model-value="emit('update:modelValue', $event)"
+    @closed="emit('closed')"
   >
     <div class="dialog-body-scroll forgot-body">
       <el-alert
@@ -109,8 +110,10 @@ defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
-  /** 交回解锁页既有的恢复流程：先收掉向导，再由父级打开同一个恢复弹窗（不在本组件复制实现） */
+  /** 交回解锁页既有的恢复流程：父级等本向导淡出结束（`closed`）再开恢复弹窗，避免两层模态叠字 */
   'use-recovery': [];
+  /** el-dialog 的 leave 过渡结束，供父级安排后续模态 */
+  closed: [];
   reset: [];
 }>();
 
@@ -142,6 +145,13 @@ const { t } = useI18n();
 
 .forgot-path__body {
   margin: 0;
+}
+
+/* 恢复入口那颗 link 按钮自带 2px 内边距（真机量到文字比正文右移 3px，含亚像素取整），
+   读出来就是「没左对齐」。归零左内边距后与 `.forgot-path__body` 共用同一条左基线
+   （右边距保留，命中区不动）。 */
+.forgot-path :deep(.el-button.is-link) {
+  padding-left: 0;
 }
 
 .forgot-path__list {

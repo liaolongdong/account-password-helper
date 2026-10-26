@@ -103,10 +103,10 @@ const otherVaultFile = computed(() => fileOf(props.otherVault ?? props.vault));
   gap: 12px;
   align-items: flex-start;
   padding: 14px 18px;
-  margin-bottom: 16px;
+  margin: 0 32px 16px;
   background: var(--el-color-warning-light-9);
   border: 1px solid var(--el-color-warning-light-7);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .backup-nudge--never {
@@ -172,6 +172,15 @@ const otherVaultFile = computed(() => fileOf(props.otherVault ?? props.vault));
 
 .backup-nudge__actions :deep(.el-button.is-link) {
   padding: 4px 8px;
+}
+
+/* 左右基线：与搜索条 / 密码列表 / 安全起步清单共用同一条 32px 缩进，窄屏一起降到 16px。
+   这里此前只写 `margin-bottom`，于是它是全页唯一贴着视口边缘通栏铺开的色块。 */
+@media (width <= 768px) {
+  .backup-nudge {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
 }
 
 /* 小屏：动作按钮换到下一行，不把正文挤成一列竖条 */

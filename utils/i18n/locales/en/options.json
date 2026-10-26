@@ -23,7 +23,7 @@
   "options.header.backupChipVaultState": "{vault}: {state}",
   "options.header.backupChipAria": "Backup status: {detail}. Activate to export an encrypted backup",
   "options.backupNudge.title": "A backup is still this vault's most complete way back",
-  "options.backupNudge.never": "No encrypted backup has passed its integrity self-check yet. Export a {file} and keep it outside the vault — after a device change, a reinstall or a mistaken wipe, it is the only way to get your data back. An offline recovery key only unlocks the current vault on this device; it is not a substitute for a backup.",
+  "options.backupNudge.never": "No encrypted backup has passed its integrity self-check yet. Export a {file} and keep it outside the vault — after a device change, a reinstall or a mistaken wipe, that export is the only procedure that can bring your data back. An offline recovery key can only unlock the data in the current vault on this device; it is no substitute for a backup.",
   "options.backupNudge.stale": "It has been {days} days since the last verified backup, and the vault may have changed since then. Exporting a {file} costs one more master-password check and never touches the vault itself.",
   "options.backupNudge.otherOwed": "{vault}: also waiting on a backup — finish the one named here and this banner points at it next.",
   "options.backupNudge.action": "Back up now",

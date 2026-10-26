@@ -21,6 +21,20 @@
   margin: 0 32px 12px;
 }
 
+/*
+ * 主内容区的左右基线：搜索条与密码列表在窄屏会把自己从 32px 降到 16px，
+ * 上面这两条纯文字行原本没有对应断点，视口 <768px 时会比它们各宽出 16px。
+ */
+@media (width <= 768px) {
+  .password-list-info {
+    margin: 0 16px 10px;
+  }
+
+  .undecryptable-alert {
+    margin: 0 16px 12px;
+  }
+}
+
 /* 弹窗样式 */
 .dialog-footer {
   display: flex;

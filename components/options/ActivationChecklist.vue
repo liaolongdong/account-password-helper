@@ -266,6 +266,15 @@ const runAction = (action: ActivationAction): void => {
   color: var(--el-text-color-placeholder, #a8abb2);
 }
 
+/* 与搜索条 / 密码列表同一条左右基线：窄屏一起从 32px 降到 16px，
+   否则视口 <768px 时它比下面的搜索条各多 16px，基线照样错位 */
+@media (width <= 768px) {
+  .activation {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .activation__progress-fill {
     transition: none;

@@ -168,6 +168,7 @@ async function fillReset() {
   await enter('recovery.confirmPassword', 'Fresh!pass82');
 }
 async function confirmKit() {
+  await check('recovery.plaintextAck');
   await click('recovery.savedContinue');
   expect(document.querySelector('[data-recovery-key]')).toBeNull();
   await enter('recovery.confirmKey', draft.material.recoveryKey);
@@ -208,6 +209,7 @@ describe('RecoveryKitSaveStep', () => {
     expect(document.querySelector('[data-recovery-key]')?.textContent).toBe(draft.material.recoveryKey);
     expect(document.querySelector(`[aria-label="${t('recovery.confirmKey')}"]`)).toBeNull();
     expect(confirmed).not.toHaveBeenCalled();
+    await check('recovery.plaintextAck');
     await click('recovery.savedContinue');
     expect(document.body.textContent).not.toContain(draft.material.recoveryKey);
     expect(button('recovery.confirmSaved').disabled).toBe(true);
@@ -218,6 +220,7 @@ describe('RecoveryKitSaveStep', () => {
 
   it('rejects oversized files before reading and oversized decoded text before accepting it', async () => {
     await mount(RecoveryKitSaveStep, { material: draft.material });
+    await check('recovery.plaintextAck');
     await click('recovery.savedContinue');
     const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]')!;
     const read = vi.fn().mockResolvedValue('x'.repeat(4097));
@@ -235,11 +238,14 @@ describe('RecoveryKitSaveStep', () => {
     expect(button('recovery.confirmSaved').disabled).toBe(true);
   });
 
-  it('requires the plaintext acknowledgment before the kit download is enabled', async () => {
+  it('requires the plaintext acknowledgment before either button: download and hide-the-code', async () => {
     await mount(RecoveryKitSaveStep, { material: draft.material });
     expect(button('recovery.downloadKit').disabled, '未确认明文风险时下载必须禁用').toBe(true);
+    // 「隐藏原码」销毁的是屏幕上唯一一份材料，后果比「多一份副本」更重，必须同样受门
+    expect(button('recovery.savedContinue').disabled, '未确认明文风险时「我已保存」也必须禁用').toBe(true);
     await check('recovery.plaintextAck');
     expect(button('recovery.downloadKit').disabled).toBe(false);
+    expect(button('recovery.savedContinue').disabled).toBe(false);
   });
 
   it('attaches the kit download anchor to the document before clicking it, and names it after the kit id', async () => {

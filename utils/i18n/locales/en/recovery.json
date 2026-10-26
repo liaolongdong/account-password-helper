@@ -19,7 +19,7 @@
   "recovery.activated": "Recovery kit confirmed and activated. Store it securely offline.",
   "recovery.saveTitle": "Save your new recovery kit",
   "recovery.saveWarning": "Download the kit, or write the recovery key out in full, and keep it somewhere you can reach without unlocking this vault. The kit file is UNENCRYPTED plaintext — anyone who has it can decrypt this device's vault. Guard it like a password: don't leave it in Downloads, and don't send it by email or cloud drive. Nothing has been enabled or changed yet. The next step hides the original code, so confirm by entering it back from the copy you just saved.",
-  "recovery.plaintextAck": "I understand the kit file is unencrypted plaintext: anyone who has it and this device's vault data can decrypt it. Guard it like a password.",
+  "recovery.plaintextAck": "I understand the recovery key and the kit file are unencrypted plaintext: anyone who has them and this device's vault data can decrypt it. Guard them like a password.",
   "recovery.downloadKit": "Download .aphrecovery kit",
   "recovery.savedContinue": "I saved it — hide the key",
   "recovery.reenterHint": "The original key is now hidden. Enter the key from your saved copy, or select the file you downloaded. Do not rely on this window as your only copy.",
@@ -66,5 +66,6 @@
   "recovery.error.emptyPassword": "Enter a non-empty master password. Leading and trailing spaces are ignored.",
   "recovery.error.concurrentWrite": "Another window changed the vault. No password change was committed. Go back and try again.",
   "recovery.error.busy": "The vault is busy with another operation. Wait for it to finish, then try again.",
-  "recovery.error.failed": "The operation could not be completed. Keep your current password and recovery material, and try again. No data was cleared."
+  "recovery.error.failed": "The operation could not be completed. Keep your current password and recovery material, and try again. No data was cleared.",
+  "recovery.loadFailed": "The recovery screen didn't load. No data was changed — reload this page and try again."
 }

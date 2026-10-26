@@ -105,6 +105,8 @@ export const SIDEPANEL_STEP_ID = 'sidepanel';
  * 侧边栏叫出来形成「存 → 取」闭环（`welcome.desc` 那句「日常用侧边栏就够了」就在这一步兑现），
  * 然后是日常会用到的检索、导入、自动化与体检，最后收尾在个性化。
  * `empty` 与 `search` 互斥（空库时前者存在、有数据时后者存在），由锚点存在性自动二选一。
+ * `retreat` 也刻意不带锚点：它同时指向「数据管理」和「安全设置」两个菜单，
+ * 圈住其中一个就会把另一条退路说丢，这一步要的是读字而不是看按钮。
  */
 export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'welcome', anchor: null, prefer: 'center' },
@@ -113,6 +115,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'empty', anchor: 'empty', prefer: 'top' },
   { id: 'search', anchor: 'search', prefer: 'bottom' },
   { id: 'data', anchor: 'data', prefer: 'bottom', hasTip: true },
+  { id: 'retreat', anchor: null, prefer: 'center', hasTip: true },
   { id: 'settings', anchor: 'settings', prefer: 'bottom' },
   { id: 'health', anchor: 'health', prefer: 'bottom' },
   { id: 'personalize', anchor: 'personalize', prefer: 'top' },

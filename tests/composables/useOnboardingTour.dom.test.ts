@@ -153,7 +153,14 @@ describe('锚点查询与剧本裁剪', () => {
     const { tour, dispose } = mountTour();
 
     expect(await tour.start()).toBe(true);
-    expect(tour.steps.value.map(step => step.id)).toEqual(['welcome', 'add', 'sidepanel', 'search', 'health']);
+    expect(tour.steps.value.map(step => step.id)).toEqual([
+      'welcome',
+      'add',
+      'sidepanel',
+      'search',
+      'retreat',
+      'health',
+    ]);
     dispose();
   });
 
@@ -173,13 +180,14 @@ describe('锚点查询与剧本裁剪', () => {
     withSearch.dispose();
   });
 
-  it('两个无锚点步恒在剧本里（锚点全缺时也能打开，不摆空弹窗）', async () => {
+  it('三个无锚点步恒在剧本里（锚点全缺时也能打开，不摆空弹窗）', async () => {
     buildPage([]);
     const { tour, dispose } = mountTour();
 
     expect(await tour.start()).toBe(true);
-    // `sidepanel` 指的是侧边栏本身，不在本页 DOM 里，因此它和欢迎步一样不依赖锚点
-    expect(tour.steps.value.map(step => step.id)).toEqual(['welcome', 'sidepanel']);
+    // `sidepanel` 指的是侧边栏本身，不在本页 DOM 里；`retreat` 同时跨两个菜单，圈住任一个都会说丢另一条退路。
+    // 两者都和欢迎步一样不依赖锚点。
+    expect(tour.steps.value.map(step => step.id)).toEqual(['welcome', 'sidepanel', 'retreat']);
     expect(tour.spot.value).toBeNull();
     expect(tour.placement.value).toEqual({ side: 'center', top: 0, left: 0 });
     dispose();
