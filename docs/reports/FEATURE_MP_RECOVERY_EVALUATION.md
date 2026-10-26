@@ -147,6 +147,11 @@
   且 `PasswordVerifyView.vue` 静态引入该向导、`entrypoints/options/App.vue` 再静态引入该视图，整条链进管理页 eager 图。
   `tests/architecture/backupCheckWiring.test.ts` 只正则扫本文件的 `@/utils/storage`，等于把「不依赖存储」
   悄悄缩成「不直接引用存储」，所以它没响。真实边界是：向导自身不持密码/文件/解密数据，但它承载的验证区会读存储。
+  **2026-10-26 已把这条线钉进判据**：`backupCheckWiring.test.ts` 新增按 import 闭包断言——只读链
+  `BackupCheckPanel → verifyBackupFile → backupExport → storage/configManager` 作为事实写进断言（不再只写在注释里），
+  同时禁止闭包触到 `sessionManager*` / `encryption` / `storage/masterPassword` / `changeMasterPassword` /
+  `storage/recovery` / `passwordCrud` / `trashManager` 这些写侧模块；把 `lockSession` 临时 import 进验证区即验红。
+  同文件那条单用例标题也从「无存储访问」改成「本文件不直接引用存储层」，标题不再替闭包背书。
 - §二 表第二行「设置主密码当页就把『抄一次恢复码』摆在面前（可跳过，但必须显式跳过）」——**未实施**：
   设置主密码那一步没有恢复码入口，恢复的入口在「安全设置」下拉与命令面板。本项不在 §〇 的偏离表里。
 - §5.1 前置「会话有效（拿得到 `getSessionDataKey()`）」——**实施为更保守的形态**：登记/启用要求重输当前主密码
