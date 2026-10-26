@@ -75,6 +75,58 @@ export async function getAllPasswordsRaw(): Promise<(PasswordEntry | EncryptedPa
 }
 
 /**
+ * 以「重新读取最新列表 + 把本次改动合并上去」结束一次整数组覆写。
+ *
+ * `withVaultMutation` 用的是 shared 租约（见 `vaultWriteLock` 头注）：它挡住的是独占换钥，
+ * **不串行化写者与写者**。而本模块的写全是「读整包 → 改一格 → 写整包」，中间还夹着解密、
+ * 历史快照、再加密等 await 边界（2000 条量级为数百毫秒）。两个来源交错时——管理页编辑、
+ * 网页登录自动保存、另一张管理页标签——后写者会带着自己的旧快照把前写者的行整片抹掉，
+ * 且双方都收到成功回执，丢的那条无从察觉。
+ *
+ * 落盘前重读并把改动按 id 合并到最新快照，竞态窗口从「数秒的加解密」缩到「一次 set 往返」；
+ * 目标行若已被别处删除则返回 `null` 跳过落盘——以删除为准，不复活记录。
+ *
+ * 代价：每次落盘多一次 `PASSWORDS` 读取（2000 条约百毫秒级 IO，Windows 慢盘更甚）。
+ * 这是刻意取舍：静默丢数据不可挽回，而保存/编辑是低频用户动作；`agents.md` 的排序也把
+ * 数据正确性放在性能之前。热路径的元数据批量落盘走 `flushMetadataUpdates`，
+ * 那里读与写之间只剩一次 session 打标，不套用本函数。
+ *
+ * @param mutate 收到最新列表，返回要落盘的列表；返回 `null` 表示本次不写
+ */
+async function commitPasswordRows(
+  mutate: (fresh: (PasswordEntry | EncryptedPasswordEntry)[]) => (PasswordEntry | EncryptedPasswordEntry)[] | null,
+): Promise<void> {
+  const fresh = await getAllPasswordsRaw();
+  const next = mutate(fresh);
+  if (next === null) return;
+  await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: next });
+}
+
+/**
+ * 本上下文内的密码库写队列：把「读整包 → 改 → 合并落盘」整段串行起来。
+ *
+ * 为什么合并落盘还不够：共享租约不互斥，同一页面里两次几乎同时发起的写会在同一次事件循环
+ * 内各自完成落盘前的重读，两边看到的都是同一份旧快照，后落盘者依旧会抹掉前者的行。
+ * 排队之后，后一次写读到的一定是前一次已落盘的结果；合并落盘则负责跨上下文（管理页 /
+ * SW 自动保存 / 另一张标签）那一部分——跨上下文无法共享内存队列，只能靠落盘前的重读把窗口
+ * 压到一次 `set` 往返。
+ *
+ * 队列只覆盖整包覆写型写入；`flushMetadataUpdates`（收藏/使用痕迹的防抖批量落盘）自带
+ * 读-改-写的紧邻顺序，不排入，避免把高频小改动的延迟串到用户可见的保存动作后面。
+ */
+let passwordWriteChain: Promise<void> = Promise.resolve();
+
+function queuePasswordWrite<T>(task: () => Promise<T>): Promise<T> {
+  // 前一次失败不得阻断队列：用 fulfilled 链继续排下一位
+  const result = passwordWriteChain.then(task, task);
+  passwordWriteChain = result.then(
+    () => {},
+    () => {},
+  );
+  return result;
+}
+
+/**
  * 保存密码条目（始终以密文落盘）
  */
 export async function savePassword(
@@ -82,7 +134,7 @@ export async function savePassword(
   masterPassword?: string,
   copyItemId?: string,
 ): Promise<PasswordEntry> {
-  return withVaultMutation(() => savePasswordInternal(entry, masterPassword, copyItemId));
+  return queuePasswordWrite(() => withVaultMutation(() => savePasswordInternal(entry, masterPassword, copyItemId)));
 }
 
 async function savePasswordInternal(
@@ -114,20 +166,17 @@ async function savePasswordInternal(
     const enc = await _getEncryption();
     const encryptedEntry = await enc.encryptPasswordEntry(newEntry, masterPassword ?? '', key);
 
-    const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
-    if (copyItemId) {
-      const copyIndex = entriesToSave.findIndex(p => p.id === copyItemId);
+    await commitPasswordRows(list => {
+      // 容量守卫按最新长度重算：本事务开头那次读取到此刻之间，别的来源可能已写入新行
+      assertWithinCapacity(list.length, 1);
+      const next = [...list];
+      const copyIndex = copyItemId ? next.findIndex(p => p.id === copyItemId) : -1;
       if (copyIndex !== -1) {
-        entriesToSave.splice(copyIndex + 1, 0, encryptedEntry);
+        next.splice(copyIndex + 1, 0, encryptedEntry);
       } else {
-        entriesToSave.push(encryptedEntry);
+        next.push(encryptedEntry);
       }
-    } else {
-      entriesToSave.push(encryptedEntry);
-    }
-
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.PASSWORDS]: entriesToSave,
+      return next;
     });
 
     // 返回明文条目供 UI 就地展示
@@ -145,7 +194,7 @@ export async function batchSavePasswords(
   entries: Omit<PasswordEntry, 'id' | 'order'>[],
   masterPassword?: string,
 ): Promise<PasswordEntry[]> {
-  return withVaultMutation(() => batchSavePasswordsInternal(entries, masterPassword));
+  return queuePasswordWrite(() => withVaultMutation(() => batchSavePasswordsInternal(entries, masterPassword)));
 }
 
 async function batchSavePasswordsInternal(
@@ -180,10 +229,10 @@ async function batchSavePasswordsInternal(
     const encryptedNewEntries = await mapWithConcurrency(newEntries, entry =>
       enc.encryptPasswordEntry(entry, masterPassword ?? '', key),
     );
-    const combinedEntries: (PasswordEntry | EncryptedPasswordEntry)[] = [...existingPasswords, ...encryptedNewEntries];
-
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.PASSWORDS]: combinedEntries,
+    await commitPasswordRows(list => {
+      // 整批仍要过容量守卫，且按重读后的长度计（口径与开头那次守卫一致：要么全写要么全不写）
+      assertWithinCapacity(list.length, encryptedNewEntries.length);
+      return [...list, ...encryptedNewEntries];
     });
 
     return newEntries;
@@ -201,7 +250,7 @@ export async function updatePassword(
   updates: Partial<PasswordEntry>,
   masterPassword?: string,
 ): Promise<void> {
-  return withVaultMutation(() => updatePasswordInternal(id, updates, masterPassword));
+  return queuePasswordWrite(() => withVaultMutation(() => updatePasswordInternal(id, updates, masterPassword)));
 }
 
 async function updatePasswordInternal(
@@ -214,7 +263,6 @@ async function updatePasswordInternal(
     const index = passwords.findIndex(p => p.id === id);
     if (index === -1) return;
 
-    const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
     const current = passwords[index];
 
     // 仅更新非敏感元数据（favorite/favoriteUsedAt/lastUsedAt/tag/order 等）：
@@ -223,9 +271,16 @@ async function updatePasswordInternal(
     if (!updatesTouchSensitiveFields(updates)) {
       // updateTime 优先尊重调用方显式传入：收藏/取消收藏传入原值即保持不变
       // （只改收藏时间 favoriteUsedAt，不推高 updateTime），未传时默认 Date.now()
-      entriesToSave[index] = { ...current, ...updates, updateTime: updates.updateTime ?? Date.now() } as
+      const patched = { ...current, ...updates, updateTime: updates.updateTime ?? Date.now() } as
         PasswordEntry | EncryptedPasswordEntry;
-      await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: entriesToSave });
+      await commitPasswordRows(list => {
+        const at = list.findIndex(p => p.id === id);
+        // 期间被别的来源删除：以删除为准，不用本次编辑把记录复活回来
+        if (at === -1) return null;
+        const next = [...list];
+        next[at] = patched;
+        return next;
+      });
       return;
     }
 
@@ -244,10 +299,15 @@ async function updatePasswordInternal(
 
     // 同上：显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
     const updatedPlain: PasswordEntry = { ...currentPlain, ...updates, updateTime: updates.updateTime ?? Date.now() };
-    entriesToSave[index] = await enc.encryptPasswordEntry(updatedPlain, masterPassword ?? '', key);
+    const reEncrypted = await enc.encryptPasswordEntry(updatedPlain, masterPassword ?? '', key);
 
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.PASSWORDS]: entriesToSave,
+    await commitPasswordRows(list => {
+      const at = list.findIndex(p => p.id === id);
+      // 解密→再加密之间可达数百毫秒，期间另一来源删掉这条时，本次写不得把它复活
+      if (at === -1) return null;
+      const next = [...list];
+      next[at] = reEncrypted;
+      return next;
     });
   } catch (error) {
     logger.error('更新密码失败:', error);
