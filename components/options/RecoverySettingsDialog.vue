@@ -168,7 +168,7 @@ import { ElMessage } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import type { RecoveryDraft, RecoveryStatus } from '@/utils/storage/recoveryTypes';
 import { clearRecoveryInputs } from '@/utils/recoveryUi';
-import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
+import { loadRecoveryStatus, useRecoveryOperation } from '@/composables/useRecoveryOperation';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
 import CapsLockHint from '@/components/CapsLockHint.vue';
@@ -213,13 +213,7 @@ const requestClose = (value: boolean): void => {
   invalidate();
   emit('update:modelValue', false);
 };
-const loadStatus = () =>
-  run(async isCurrent => {
-    const api = await import('@/utils/storage/recovery');
-    if (!isCurrent()) return;
-    const result = await api.getRecoveryStatus();
-    if (isCurrent()) status.value = result;
-  });
+const loadStatus = (): Promise<void> => loadRecoveryStatus(run, status);
 const prepare = () =>
   run(async isCurrent => {
     if (!password.value.trim() || !status.value || draft.value) return;

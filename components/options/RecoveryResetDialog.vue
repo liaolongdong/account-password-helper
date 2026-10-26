@@ -199,7 +199,7 @@ import { View, Hide } from '@element-plus/icons-vue';
 import type { RecoveryDraft, RecoveryStatus } from '@/utils/storage/recoveryTypes';
 import { RECOVERY_FORMAT, VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 import { clearRecoveryInputs, recoveryErrorCode } from '@/utils/recoveryUi';
-import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
+import { loadRecoveryStatus, useRecoveryOperation } from '@/composables/useRecoveryOperation';
 import { evaluatePasswordStrengthAsync, usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
@@ -257,13 +257,7 @@ const requestClose = (value: boolean): void => {
   invalidate();
   emit('update:modelValue', false);
 };
-const loadStatus = () =>
-  run(async isCurrent => {
-    const api = await import('@/utils/storage/recovery');
-    if (!isCurrent()) return;
-    const result = await api.getRecoveryStatus();
-    if (isCurrent()) status.value = result;
-  });
+const loadStatus = (): Promise<void> => loadRecoveryStatus(run, status);
 const prepare = () =>
   run(async isCurrent => {
     if (!status.value?.enabled || status.value.corrupted || draft.value) return;
