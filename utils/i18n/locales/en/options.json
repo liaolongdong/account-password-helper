@@ -577,6 +577,7 @@
   "options.forgot.checkPasswords": "Password backup (.aph)",
   "options.forgot.checkIdentities": "Personal info backup (.aphid)",
   "options.forgot.checkFailureTitle": "Verification failed; original vault unchanged",
+  "options.forgot.checkCooling": "Too many failed checks. Try again in {seconds}s.",
   "options.forgot.checkUnsupported": "Only .aph password backups and .aphid personal info backups are supported.",
   "options.forgot.checkPasswordRequired": "Enter the master password used to export this backup.",
   "options.forgot.checkFailed": "Unable to verify this backup. Check the file and try again; do not erase the original vault to retry."

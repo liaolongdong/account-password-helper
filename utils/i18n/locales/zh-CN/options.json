@@ -577,6 +577,7 @@
   "options.forgot.checkPasswords": "密码备份（.aph）",
   "options.forgot.checkIdentities": "个人信息备份（.aphid）",
   "options.forgot.checkFailureTitle": "验证未通过，原库未改动",
+  "options.forgot.checkCooling": "连续验证失败次数过多，请在 {seconds} 秒后重试。",
   "options.forgot.checkUnsupported": "仅支持 .aph 密码备份或 .aphid 个人信息备份。",
   "options.forgot.checkPasswordRequired": "请输入导出这份备份时的主密码。",
   "options.forgot.checkFailed": "无法验证备份，请检查文件后重试；不要为重试而清空原库。"

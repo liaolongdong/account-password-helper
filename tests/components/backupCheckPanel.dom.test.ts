@@ -164,6 +164,60 @@ describe('BackupCheckPanel 只读交互', () => {
     expect(element<HTMLButtonElement>('button[type="submit"]').disabled).toBe(false);
   });
 
+  /**
+   * 锁定页也能用这块验证区，而且它不需要当前主密码（评审报告 P2-12）。
+   *
+   * 没有节流时，任何拿到 `.aph` / `.aphid` 文件的人都能在这里无限次磨「导出那一刻的主密码」，
+   * 每次还白付一次 600k 迭代的 PBKDF2。连续三次失败后进入 30 秒冷却，按钮禁用并给出剩余秒数。
+   */
+  it('连续三次失败进入冷却：按钮禁用、给出剩余秒数，且不再调用解密', async () => {
+    vi.mocked(verifyBackupFile).mockRejectedValue(new BackupImportUserError('synthetic-mismatch'));
+    const submit = () => element<HTMLButtonElement>('button[type="submit"]');
+    await selectFile();
+    await enterPassword();
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      submit().click();
+      await settle();
+    }
+
+    expect(verifyBackupFile).toHaveBeenCalledTimes(3);
+    expect(submit().disabled, '冷却期内不得继续磨口令').toBe(true);
+    expect(host.textContent).toContain('30');
+
+    submit().click();
+    await settle();
+    expect(verifyBackupFile).toHaveBeenCalledTimes(3);
+  });
+
+  it('成功一次会清零连续失败计数，冷却只针对「连续」失败', async () => {
+    const submit = () => element<HTMLButtonElement>('button[type="submit"]');
+    const failOnce = () =>
+      vi.mocked(verifyBackupFile).mockRejectedValueOnce(new BackupImportUserError('synthetic-mismatch'));
+    await selectFile();
+    await enterPassword();
+
+    failOnce();
+    submit().click();
+    await settle();
+    failOnce();
+    submit().click();
+    await settle();
+    vi.mocked(verifyBackupFile).mockResolvedValueOnce({ kind: 'passwords', count: 1 });
+    submit().click();
+    await settle();
+
+    failOnce();
+    submit().click();
+    await settle();
+    failOnce();
+    submit().click();
+    await settle();
+
+    expect(verifyBackupFile).toHaveBeenCalledTimes(5);
+    expect(submit().disabled, '非连续失败不该触发冷却').toBe(false);
+  });
+
   it('身份库空备份显示正确类型与零条数', async () => {
     vi.mocked(verifyBackupFile).mockResolvedValue({ kind: 'identities', count: 0 });
     await selectFile('synthetic.aphid');

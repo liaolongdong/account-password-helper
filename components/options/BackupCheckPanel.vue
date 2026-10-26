@@ -100,6 +100,14 @@
         :title="t('options.forgot.checkFailureTitle')"
         :description="errorMessage"
       />
+      <el-alert
+        v-if="cooling"
+        class="backup-check__result"
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="t('options.forgot.checkCooling', { seconds: remainingSeconds })"
+      />
     </div>
   </section>
 </template>
@@ -125,7 +133,43 @@ const errorMessage = shallowRef('');
 let generation = 0;
 let disposed = false;
 
-const canVerify = computed(() => !checking.value && selectedFile.value !== null && password.value.trim() !== '');
+/**
+ * 连续失败到阈值后进入冷却。
+ *
+ * 这块验证区在**锁定时也可用**，且不需要当前主密码——只要手上有一份 `.aph` / `.aphid`，
+ * 就能在这里无限次猜「导出那一刻的主密码」，每次还白付 600k 次 PBKDF2。没有节流时，
+ * 拿到机器或拿到备份文件的人可以离线慢慢磨。冷却只在组件生命周期内计数（本面板关闭即卸载，
+ * 计数随之归零），它挡的是「一次会话里的连续磨密码」，不替代口令本身的强度。
+ */
+const MAX_VERIFY_FAILURES = 3;
+const VERIFY_COOLDOWN_MS = 30_000;
+const failureCount = shallowRef(0);
+const remainingSeconds = shallowRef(0);
+const cooling = computed(() => remainingSeconds.value > 0);
+let cooldownTimer: ReturnType<typeof setInterval> | null = null;
+
+const stopCooldownTimer = (): void => {
+  if (cooldownTimer) clearInterval(cooldownTimer);
+  cooldownTimer = null;
+};
+
+const startCooldown = (): void => {
+  const until = Date.now() + VERIFY_COOLDOWN_MS;
+  remainingSeconds.value = Math.ceil(VERIFY_COOLDOWN_MS / 1000);
+  stopCooldownTimer();
+  cooldownTimer = setInterval(() => {
+    const left = Math.ceil((until - Date.now()) / 1000);
+    remainingSeconds.value = Math.max(left, 0);
+    if (left <= 0) {
+      stopCooldownTimer();
+      failureCount.value = 0;
+    }
+  }, 1000);
+};
+
+const canVerify = computed(
+  () => !checking.value && !cooling.value && selectedFile.value !== null && password.value.trim() !== '',
+);
 const successMessage = computed(() => {
   if (!result.value) return '';
   const kind =
@@ -166,10 +210,15 @@ async function handleVerify(): Promise<void> {
   errorMessage.value = '';
   try {
     const summary = await verifyBackupFile(selectedFile.value, password.value);
-    if (!disposed && requestGeneration === generation) result.value = summary;
+    if (!disposed && requestGeneration === generation) {
+      result.value = summary;
+      failureCount.value = 0;
+    }
   } catch (error: unknown) {
     if (!disposed && requestGeneration === generation) {
       errorMessage.value = error instanceof BackupImportUserError ? error.message : t('options.forgot.checkFailed');
+      failureCount.value += 1;
+      if (failureCount.value >= MAX_VERIFY_FAILURES) startCooldown();
     }
   } finally {
     if (!disposed) checking.value = false;
@@ -178,6 +227,7 @@ async function handleVerify(): Promise<void> {
 
 onBeforeUnmount(() => {
   disposed = true;
+  stopCooldownTimer();
   generation++;
   password.value = '';
   selectedFile.value = null;

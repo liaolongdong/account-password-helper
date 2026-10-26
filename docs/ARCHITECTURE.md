@@ -304,7 +304,7 @@ graph TB
 - **大写锁定实时提示**：主密码相关输入框（首次设置、解锁验证视图、验证弹窗、修改主密码、加密备份导入）通过 `KeyboardEvent.getModifierState('CapsLock')` 在 keydown/keyup 实时判定大写锁定状态（见 [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)），开启时在输入框下方展示琥珀色警示行（见 [CapsLockHint.vue](../components/CapsLockHint.vue)），避免大小写误输入被当成「密码错误」；提示行用 `role="status"` 让屏幕阅读器非打断播报，失焦即复位，不留残留提示。
 
 - **密码提示语**：设置主密码时可选填一句提示（`master_password_config.hint`，明文、上限 120 码位，见 [masterPassword.ts](../utils/storage/masterPassword.ts) 的 `MAX_MASTER_PASSWORD_HINT_LENGTH`），解锁页在连续输错达 `MAX_FAIL_BEFORE_HINT`（定义于 [useAuthFlow.ts](../composables/useAuthFlow.ts)，与敏感操作复验弹窗共用同一档位）后把它显示在错误提示下方；点「重置全部数据」的入口不直接清空，而是先打开找回向导。写提示语不再只有「首次设置」那一次：「安全设置 → 主密码提示语」可随时修改或清除（`updateMasterPasswordHint` 只改 `hint`，保留 `salt`/`hashedPassword`/`kdf`，因此不会影响离线恢复套件对校验配置的绑定；清除按「省略字段」落盘，与读端「缺失即未设置」同口径）。
-- **忘记密码向导**（[ForgotPasswordDialog.vue](../components/options/ForgotPasswordDialog.vue)）：提示语只作记忆辅助，不是安全提问；有提前启用且匹配的恢复密钥时，可恢复当前本机库（见下节）。备份路径提供 `.aph` / `.aphid` **只读验证**，不写入或清除当前库；须输入该文件导出时的主密码。先验证，再推荐另一设备或独立浏览器 Profile 导入核对，最后才考虑二次确认后的重置，不能先清再试。CSV/JSON 明文导出也是可用数据来源；无可用恢复密钥、可解备份或明文导出时，数据仍无法恢复。备份只还原导出快照，密码导入追加不去重、个人信息需独立 `.aphid`，回收站与历史不在这些备份内；若导出时与当前是同一密码且遗忘，旧备份也打不开。
+- **忘记密码向导**（[ForgotPasswordDialog.vue](../components/options/ForgotPasswordDialog.vue)）：提示语只作记忆辅助，不是安全提问；有提前启用且匹配的恢复密钥时，可恢复当前本机库（见下节）。备份路径提供 `.aph` / `.aphid` **只读验证**，不写入或清除当前库；须输入该文件导出时的主密码。该验证在锁定时也可用且不校验当前主密码，因此连续 3 次失败会进入 30 秒冷却——否则拿到备份文件的人可以在这里无限次磨「导出时的主密码」，每次还白付一次 600k 迭代的 PBKDF2。先验证，再推荐另一设备或独立浏览器 Profile 导入核对，最后才考虑二次确认后的重置，不能先清再试。CSV/JSON 明文导出也是可用数据来源；无可用恢复密钥、可解备份或明文导出时，数据仍无法恢复。备份只还原导出快照，密码导入追加不去重、个人信息需独立 `.aphid`，回收站与历史不在这些备份内；若导出时与当前是同一密码且遗忘，旧备份也打不开。
 
 #### 可选离线恢复本机库
 
