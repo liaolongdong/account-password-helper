@@ -214,6 +214,8 @@ HKDF-SHA256 域分离 + 每套件随机 16B id 作 salt + 一次一 12B IV + AES
 | `0b5ee43` | dc36ae9 的漏测      | 补回锁定页读取路径改动漏掉的 `recoveryFlow.dom.test.ts` 两条用例——那笔提交当时带着红灯进仓，见下方「一处如实更正」                                                                                                                               |
 | `400da87` | **P2-4**            | 提示语可在「安全设置 → 主密码提示语」随时修改或清除：`updateMasterPasswordHint` 只改 `hint`、逐字保留 `salt`/`hashedPassword`/`kdf`（不动恢复套件绑定的校验配置），清除按省略字段落盘，落盘前重读合并；14 份对外文档写死的命令条数随真源 29 → 30 |
 | `e8de51a` | **P2-12**           | 只读验证备份连续失败 3 次进入 30 秒冷却：锁定页也能用这块区域且它只要「导出时的口令」，此前可无限次离线磨口令，每次还白付一次 600k PBKDF2                                                                                                        |
+| `d3cc635` | P3 批次             | 备份口令输入补 Caps Lock 提示（帮助清单同步）；改密弹窗内联样式挪进 scoped；删掉只写不读的 `worstLastBackupAt`                                                                                                                                   |
+| `27cb218` | **P2-19**           | `backupNudge` / `backupNudgeOtherVault` 的判据从 `App.vue` 迁进 `changeDetection.decideBackupNudge`，入口只留装配与 UI 出口分派；判据侧统一用 `isVerdictOwedNow` 决定「下一份」点不点名                                                          |
 
 **验证口径**：每轮改动跑 `pnpm typecheck` + 相关用例 + 改动文件的 `eslint/prettier/stylelint`；最终全量 `pnpm test:run` 314 文件 / 4569 例全绿，整仓 `pnpm lint`（`--max-warnings 0`）与 `pnpm build` 通过。新写的每条判据都做过反向取证——把被修的东西改回去，判据必须变红（P0-1、P1-1、P2-1、P2-3、P2-12、P2-13 均已验证）。
 
@@ -224,5 +226,5 @@ HKDF-SHA256 域分离 + 每套件随机 16B id 作 salt + 一次一 12B IV + AES
 - **配色三项仍在等逐项批复**（P2-7 / P2-8 / P2-14）：数字已算好，改主题色按仓库纪律不构成可擅自执行的动作。已批复并完成的是 P2-4（加编辑入口）与 P2-20（只进长描述）。
   - 基础徽标（白 15% 玻璃底 + 白 90% 文字，取各主题渐变较亮一端）：default 1.85 / green 1.67 / pink 1.84 / mauve 1.86 / orange 1.71 / slate 1.97；纯白文字也只有 1.76–2.09。文字改用现有 `--aph-text-primary #1f2937` → 6.22–8.33。底色压深色玻璃到黑 18% 仍只有 2.90–3.53，要到 4.5 得压到约 40%，玻璃感尽失。ok 档状态灯 `#86efac` 在该底上 1.26–1.49，够不到 3:1 的图形线。`urgent/critical` 白字 2.16–2.26 / 2.77–2.95 → 换现有 `--aph-warning-strong` / `--aph-danger-strong` 作底色为 5.61 / 5.64。小字 `#909399` 白底 3.08、最暗浅底 2.87 → 现有 `--aph-text-secondary #565d6b` 为 6.62 / 6.17。裸 `#67c23a` 白底 2.24 → `--aph-success-strong` 5.63。
 - **P2-15（徽标为读「有没有个人信息」这一位而整包读 `IDENTITY`）需要一次取舍**：不新增持久化计数键，就得把这部分结论推迟到首帧之后（改变可见时序，属需确认项）；新增写侧计数则要动 `identityCrud` / 回收站 / 导入多条写路径。本轮按纪律不动，等指令。
-- **未动（P2/P3 择机）**：P2-6（未来 `version` 的前向兼容，今天只有 v1）、P2-11（套件草稿被静默丢弃）、P2-19（`App.vue` 备份提醒判据下沉）、P2-22（设计稿 §4「纯展示组件不 import 存储」已与实现不符，需在文档更正）、P3 全部。
+- **未动（P2/P3 择机）**：P2-6（未来 `version` 的前向兼容，今天只有 v1）、P3 剩余项（四处新弹窗页脚未用 `.dialog-footer` 约定、`ForgotPasswordDialog` 的 `width="620px"` 与同分支新弹窗不同、`HeaderBar` 徽标 `title` 与 `aria-label` 同串、重复的文件选择器与 `loadStatus`、11 处同构租约包装、`utils/recoveryTypes.ts` 与 `utils/storage/recoveryTypes.ts` 同名异目录、`prepareSessionRekey` 用 `Record<string, unknown>` 交接会话材料等）。
 - **刻意不回退**：P2-16 的历史快照串行化是本分支自己的正确性修复（防止换钥完成后迟到写回旧钥密文），只保留「可与本次写入合并为单次 set」的优化思路，未在本轮执行。
