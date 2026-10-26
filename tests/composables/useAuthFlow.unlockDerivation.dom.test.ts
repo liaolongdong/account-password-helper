@@ -58,6 +58,17 @@ describe('解锁只付一次慢哈希派生', () => {
     expect(flow.verifyFailCount.value).toBe(0);
   });
 
+  it('以提交事件载荷为准：父级 props 尚未同步时也不误报空密码', async () => {
+    const flow = await loadFlow();
+    flow.verifyForm.value.password = '';
+    flow.verifyForm.value.validityHours = 24;
+
+    await flow.handleVerifySubmit('right-from-child');
+
+    expect(storage.createSession).toHaveBeenCalledWith('right-from-child', 24);
+    expect(flow.isAuthenticated.value).toBe(true);
+  });
+
   it('密码错误：计一次失败、清空输入，且不把有效期偏好写进存储', async () => {
     storage.createSession.mockRejectedValue(Object.assign(new Error('主密码验证失败'), { code: 'WRONG_PASSWORD' }));
     const flow = await loadFlow();

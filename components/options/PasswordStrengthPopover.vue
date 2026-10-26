@@ -1,7 +1,11 @@
 <template>
+  <!--
+    窄屏下不能固定在输入框右侧：320–640px 时 220px 的气泡会越过视口，既留下一条
+    横向滚动条，也把规则面板切掉一半。下方起始位在任何宽度都落在输入框内。
+  -->
   <el-popover
     :visible="visible"
-    placement="right"
+    placement="bottom-start"
     :width="220"
     :show-arrow="true"
     popper-class="password-rules-popover"

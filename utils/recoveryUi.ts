@@ -1,3 +1,4 @@
+import { ElMessageBox } from 'element-plus';
 import { t } from '@/utils/i18n';
 import { RECOVERY_FORMAT, VAULT_ERROR_CODES, type VaultErrorCode } from './recoveryTypes';
 
@@ -70,4 +71,35 @@ export function clearRecoveryInputs(root: HTMLElement | null | undefined): void 
   root?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(input => {
     input.value = '';
   });
+}
+
+/**
+ * 草稿态关闭前的知情确认。
+ *
+ * Esc/X 已关掉，但页脚「取消」仍是一键退出；刚下载/抄下的套件会随草稿作废，
+ * 必须让用户看到后果再决定。取消确认返回 false，调用方保持弹窗打开。
+ */
+export async function confirmDiscardRecoveryDraft(): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(t('recovery.discardDraftMessage'), t('recovery.discardDraftTitle'), {
+      confirmButtonText: t('recovery.discardDraftConfirm'),
+      cancelButtonText: t('common.cancel'),
+      confirmButtonClass: 'el-button--danger',
+      type: 'warning',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 切到恢复套件步骤后把焦点送到新内容。
+ *
+ * 提交按钮被 `v-if` 移除时，Element Plus 的 focus-trap 未必会把焦点拉回；不处理就会出现
+ * 「焦点悬空、Tab 落到遮罩后页面」的状态。`RecoveryKitSaveStep` 的根节点带 `tabindex="-1"`，
+ * 这里只负责在 DOM flush 后聚焦它。
+ */
+export function focusRecoveryKitStep(root: HTMLElement | null | undefined): void {
+  root?.querySelector<HTMLElement>('.save-step')?.focus();
 }

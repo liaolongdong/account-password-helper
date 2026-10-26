@@ -160,6 +160,25 @@ test.describe('认证屏与主内容区版式', () => {
       expect(tailBottom, `${vp.label} 滚到底后安全声明仍不可达`).toBeLessThanOrEqual(viewportHeight + 1);
     }
 
+    // 密码强度气泡在窄屏必须留在视口内：旧实现固定 placement="right"，320px 时把
+    // 文档撑到 511px，横向滚动条恰好出现在第一次设置主密码的页面。
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.waitForTimeout(300);
+    await page.getByPlaceholder(textOf('auth.setupPasswordPlaceholder')).focus();
+    await page.waitForTimeout(300);
+    const horizontal = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(
+      horizontal.scrollWidth,
+      `窄屏聚焦密码框后出现横向滚动（${horizontal.scrollWidth} > ${horizontal.clientWidth}）`,
+    ).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+    await page.locator('.setup-header').click();
+    await page.waitForTimeout(200);
+
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForTimeout(300);
     const align = await measureAlignment(page, '.setup-header', '.form-card');
     expect(align, '量不到设置页标题').not.toBeNull();
     const a = align as NonNullable<typeof align>;
@@ -258,6 +277,31 @@ test.describe('认证屏与主内容区版式', () => {
     expect(rightEdge, '量不到动作行末枚按钮').not.toBeNull();
     const edge = rightEdge as NonNullable<typeof rightEdge>;
     expect(edge.textRight - edge.rowRight, '末枚按钮文字右缘没贴到行右缘').toBeLessThanOrEqual(1);
+
+    // 找回向导在窄屏必须完整落在视口内；它曾固定 620px，320px 下右侧按钮与 X 被推到横向滚动区。
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.waitForTimeout(300);
+    await page.getByRole('button', { name: textOf('auth.forgotPassword') }).click();
+    const forgot = page.getByRole('dialog').filter({ hasText: textOf('options.forgot.title') });
+    await expect(forgot).toBeVisible();
+    const forgotDialog = page.locator('.el-dialog').filter({ hasText: textOf('options.forgot.title') });
+    await expect(forgotDialog).toBeVisible();
+    const forgotBox = await forgotDialog.evaluate(el => {
+      const box = el.getBoundingClientRect();
+      return {
+        left: Math.round(box.left),
+        right: Math.round(box.right),
+        innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(forgotBox, '量不到找回向导').not.toBeNull();
+    const box = forgotBox as NonNullable<typeof forgotBox>;
+    expect(box.left, '找回向导左侧越出视口').toBeGreaterThanOrEqual(0);
+    expect(box.right, '找回向导右侧越出视口').toBeLessThanOrEqual(box.innerWidth + 1);
+    expect(box.scrollWidth, '找回向导把文档撑出了横向滚动').toBeLessThanOrEqual(box.innerWidth + 1);
+    await forgot.getByRole('button', { name: textOf('common.cancel') }).click();
+    await expect(forgot).toBeHidden();
 
     // 整屏不裁切这条对解锁页同样成立
     for (const vp of SMALL_VIEWPORTS.slice(0, 2)) {

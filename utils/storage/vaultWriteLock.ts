@@ -9,6 +9,15 @@ const VAULT_BUSY: VaultErrorCode = 'VAULT_BUSY';
 
 const VAULT_WRITE_LOCK = 'aph-vault-key-transition';
 
+/**
+ * 普通写入提交锁：所有“读整包 → 改 → 写整包”的提交都必须在这把锁下完成。
+ *
+ * 它与 key-transition 锁分开：换钥仍用 shared/exclusive 的 fail-fast 语义挡住写者；
+ * 提交锁则把写者之间的「落盘前重读 + 写」串成队列，跨扩展上下文也成立。不能用同一把
+ * shared 租约兼做这件事——shared 模式不互斥，正是旧报告 P1-1 漏掉的那一维。
+ */
+const VAULT_COMMIT_LOCK = 'aph-vault-commit';
+
 /** 重试预算：换钥是低频、秒级完成的用户动作，一次短暂等待就能覆盖绝大多数碰撞。 */
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 250;
@@ -40,6 +49,28 @@ export function withVaultKeyTransition<T>(operation: () => Promise<T>): Promise<
     if (!lock) throw Object.assign(new Error('Vault has an unfinished write'), { code: VAULT_BUSY });
     return operation();
   });
+}
+
+/**
+ * 排队等待独占租约的破坏性操作（目前只有“清空全部数据”）。
+ *
+ * 普通换钥失败即回执，让用户重试；但重置不能这样做：它一旦与在途元数据 flush 交错，
+ * 旧整包可能在 clear() 之后被写回。这里不使用 ifAvailable，先等所有 shared 写者结束，
+ * 再执行清空；清空完成后才释放租约，新的写者只能读到空库。
+ *
+ * 不要给普通写入或换钥使用：它会让 UI 无限等待一个卡住的写者；这是破坏性重置的专属口径。
+ */
+export function withVaultKeyTransitionQueued<T>(operation: () => Promise<T>): Promise<T> {
+  return navigator.locks.request(VAULT_WRITE_LOCK, { mode: 'exclusive' }, () => operation());
+}
+
+/**
+ * 串行化跨上下文的整包提交（读最新快照 + 合并 + 单次 set）。
+ *
+ * 只在已经持有 `withVaultMutation` 的写路径内调用；不要在这里再取 key-transition 锁。
+ */
+export function withVaultCommit<T>(operation: () => Promise<T>): Promise<T> {
+  return navigator.locks.request(VAULT_COMMIT_LOCK, { mode: 'exclusive' }, () => operation());
 }
 
 /**

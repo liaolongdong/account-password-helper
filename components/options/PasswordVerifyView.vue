@@ -84,6 +84,7 @@
                 <span class="verify-hint-inline__label">{{ t('auth.hintShown') }}</span>
                 <span
                   v-if="!hintCollapsed"
+                  id="verify-hint-text"
                   class="verify-hint-inline__text"
                   >{{ hint }}</span
                 >
@@ -92,6 +93,8 @@
                   size="small"
                   type="info"
                   link
+                  :aria-expanded="!hintCollapsed"
+                  aria-controls="verify-hint-text"
                   @click="hintCollapsed = !hintCollapsed"
                 >
                   {{ hintCollapsed ? t('auth.hintExpand') : t('auth.hintCollapse') }}
@@ -251,7 +254,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  submit: [];
+  submit: [password: string];
   debug: [];
   reset: [];
   recovered: [];
@@ -295,6 +298,7 @@ const openRecovery = (): void => {
   if (props.verifyLoading) return;
   formModel.password = '';
   resetCapsLockState();
+  recoveryChunkFailed.value = false;
   showRecoveryDialog.value = true;
 };
 
@@ -338,12 +342,15 @@ const handleConfirmReset = () => {
 /** 主密码输入框大写锁定检测（误开大写锁定时即时提示） */
 const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
 
-/** 提交前本地表单校验，通过后通知父组件 */
+/** 提交前本地表单校验，通过后把**当前**输入值一并交给父级 */
 const handleSubmit = async () => {
-  if (!localVerifyFormRef.value || props.verifyLoading || showRecoveryDialog.value) return;
+  // chunk 加载失败时 showRecoveryDialog 仍为真，但恢复弹窗并不存在；此时不能再让
+  // 「验证密码」静默失效——把失败态从阻塞条件里排除，只让真正打开的模态阻塞提交。
+  if (!localVerifyFormRef.value || props.verifyLoading || (showRecoveryDialog.value && !recoveryChunkFailed.value))
+    return;
   try {
     await localVerifyFormRef.value.validate();
-    emit('submit');
+    emit('submit', formModel.password);
   } catch {
     // 校验未通过
   }
@@ -355,13 +362,25 @@ const formModel = reactive({
   validityHours: props.verifyForm.validityHours,
 });
 
+/**
+ * 两个字段分别监听，不能用 `deep` 监听整个 `verifyForm`。
+ *
+ * 父级在切换到解锁视图后会异步补写 `validityHours`；deep watch 会把这次更新也当成
+ * 「密码变了」，用父级当时的空密码覆盖用户已经输入的值——快速输入时提交就会看到空密码。
+ * 只有 `password` 本身变化（例如输错后父级清空）才同步到子组件。
+ */
 watch(
-  () => props.verifyForm,
+  () => props.verifyForm.password,
   val => {
-    formModel.password = val.password;
-    formModel.validityHours = val.validityHours;
+    formModel.password = val;
   },
-  { deep: true },
+);
+
+watch(
+  () => props.verifyForm.validityHours,
+  val => {
+    formModel.validityHours = val;
+  },
 );
 
 watch(formModel, val => {

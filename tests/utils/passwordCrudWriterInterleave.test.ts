@@ -152,4 +152,30 @@ describe('并发写者不得互相抹掉对方的行', () => {
 
     expect(store[STORAGE_KEYS.PASSWORDS], '以删除为准：不得把已被删掉的行写回整包').toEqual([row('b')]);
   });
+
+  it('同一条记录的敏感编辑与元数据写并发时，不以旧密文回卷密码', async () => {
+    const crud = await import('@/utils/storage/passwordCrud');
+    const set = chrome.storage.local.set as unknown as ReturnType<typeof vi.fn>;
+    const original = set.getMockImplementation() as ((items: Record<string, unknown>) => Promise<void>) | undefined;
+    set.mockImplementation(async (items: Record<string, unknown>) => {
+      const rows = items[STORAGE_KEYS.PASSWORDS];
+      // 模拟跨上下文交错：元数据写者以旧密文落盘时慢一拍，敏感写者先完成。
+      if (
+        Array.isArray(rows) &&
+        rows.some(row => row.id === 'a' && row.favorite === true && row.password === 'cipher-a')
+      ) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      await original?.(items);
+    });
+
+    await Promise.all([
+      crud.updatePassword('a', { password: 'new-plain-password' } as Partial<PasswordEntry>),
+      crud.batchUpdatePasswordMetadata([{ id: 'a', updates: { favorite: true } }]),
+    ]);
+
+    const saved = rows().find(row => row.id === 'a');
+    expect(saved?.favorite, '收藏改动应当落盘').toBe(true);
+    expect(saved?.password, '元数据写者用旧密文回卷了并发完成的密码编辑').toBe('new-plain-password');
+  });
 });

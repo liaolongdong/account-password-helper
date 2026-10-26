@@ -1,9 +1,11 @@
 import type { MasterPasswordConfig } from '@/utils/types';
+import type { VaultErrorCode } from '@/utils/recoveryTypes';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { hashPassword, generateSalt, timingSafeEqual } from '@/utils/crypto-light';
 import { isWebPageContext } from '@/utils/runtimeContext';
-import { withVaultMutation } from './vaultWriteLock';
+import { evaluateStrengthCore } from '@/utils/passwordStrengthCore';
+import { withVaultKeyTransitionQueued, withVaultMutation } from './vaultWriteLock';
 
 /**
  * 惰性加载加密模块（仅用于 PBKDF2 校验哈希派生）
@@ -23,6 +25,9 @@ async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
  * 当前校验哈希使用的 KDF 算法标记
  */
 const CURRENT_VERIFIER_KDF = 'pbkdf2-sha256' as const;
+
+/** 与 `normalizeNewMasterPassword` 同码；这里只借用类型，避免把错误码登记表拉进 popup 首屏。 */
+const WEAK_PASSWORD: VaultErrorCode = 'WEAK_PASSWORD';
 
 /**
  * 主密码提示语的最大字符数
@@ -91,6 +96,10 @@ async function setMasterPasswordInternal(password: string, hint?: string): Promi
     const cleanPassword = String(password || '').trim();
     if (!cleanPassword) {
       throw new Error('密码不能为空');
+    }
+    // 主密码强度是数据密钥强度：UI 校验可以被绕过，存储层必须与改密/恢复共用同一道门槛。
+    if (!evaluateStrengthCore(cleanPassword).allPassed) {
+      throw Object.assign(new Error(WEAK_PASSWORD), { code: WEAK_PASSWORD });
     }
 
     const salt = generateSalt();
@@ -233,7 +242,7 @@ export async function getMasterPasswordHint(): Promise<string> {
  * 重置主密码（清空主密码配置）
  */
 export async function resetMasterPassword(): Promise<void> {
-  return withVaultMutation(resetMasterPasswordInternal);
+  return withVaultKeyTransitionQueued(resetMasterPasswordInternal);
 }
 
 async function resetMasterPasswordInternal(): Promise<void> {
@@ -249,7 +258,7 @@ async function resetMasterPasswordInternal(): Promise<void> {
  * 清空所有数据
  */
 export async function clearAllData(): Promise<void> {
-  return withVaultMutation(clearAllDataInternal);
+  return withVaultKeyTransitionQueued(clearAllDataInternal);
 }
 
 async function clearAllDataInternal(): Promise<void> {

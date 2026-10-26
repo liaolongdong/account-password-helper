@@ -67,5 +67,8 @@
   "recovery.error.concurrentWrite": "Another window changed the vault. No password change was committed. Go back and try again.",
   "recovery.error.busy": "The vault is busy with another operation. Wait for it to finish, then try again.",
   "recovery.error.failed": "The operation could not be completed. Keep your current password and recovery material, and try again. No data was cleared.",
-  "recovery.loadFailed": "The recovery screen didn't load. No data was changed — reload this page and try again."
+  "recovery.loadFailed": "The recovery screen didn't load. No data was changed — reload this page and try again.",
+  "recovery.discardDraftTitle": "Discard the new kit?",
+  "recovery.discardDraftMessage": "The recovery key and kit you just generated will be invalidated and you will need to issue a new one. Close anyway?",
+  "recovery.discardDraftConfirm": "Discard and close"
 }

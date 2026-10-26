@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
-import { withVaultKeyTransition } from '@/utils/storage/vaultWriteLock';
+import { withVaultKeyTransition, withVaultMutation } from '@/utils/storage/vaultWriteLock';
 
 vi.mock('@/utils/browserStartupRelock', () => ({
   waitForBrowserStartupRelockBeforeAuthentication: vi.fn(async () => true),
@@ -82,8 +82,6 @@ async function writers() {
     cleanExpiredIdentityTrash: () => identityTrash.cleanExpiredIdentityTrash(),
     setMasterPassword: () => master.setMasterPassword('fixture-master'),
     verifyMasterPassword: () => master.verifyMasterPassword('fixture-master'),
-    resetMasterPassword: () => master.resetMasterPassword(),
-    clearAllData: () => master.clearAllData(),
     createSession: () => session.createSession('fixture-master', 24),
     autoSavePassword: () =>
       auto.autoSavePassword({
@@ -114,6 +112,31 @@ describe('ordinary vault writers vs real exclusive key transition', () => {
         expect(clear, `${name} cleared while exclusive was held`).not.toHaveBeenCalled();
       }
     });
+  });
+
+  it('clearAllData 排队等待在途 shared 写者，释放后才清空', async () => {
+    const { clearAllData } = await import('@/utils/storage/masterPassword');
+    const entered = deferred();
+    const release = deferred();
+    const held = withVaultMutation(async () => {
+      entered.resolve();
+      await release.promise;
+    });
+    await entered.promise;
+
+    let cleared = false;
+    const clear = vi.spyOn(chrome.storage.local, 'clear').mockImplementation(async () => {
+      cleared = true;
+    });
+    const reset = clearAllData();
+    await Promise.resolve();
+    expect(cleared, '在途写者仍持 shared 租约时，重置不得提前 clear').toBe(false);
+
+    release.resolve();
+    await held;
+    await reset;
+    expect(cleared).toBe(true);
+    clear.mockRestore();
   });
 
   it.each([

@@ -2,6 +2,7 @@
   <section
     ref="root"
     class="save-step"
+    tabindex="-1"
     :aria-label="t('recovery.saveTitle')"
     :aria-busy="busy"
   >

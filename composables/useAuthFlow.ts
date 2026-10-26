@@ -116,8 +116,14 @@ export function useAuthFlow(options: {
           // 四条规则全部走 `evaluateStrengthRules`，不再本地抄一份正则：
           // 改密弹窗与恢复链路都按这套判定的「全通过」收口，创建侧若各自表述，
           // 就会漂出「创建时不允许的强度，改密时能设进去」这类口径差。
+          // 首尾空白在存储层会被剥除；这里先 trim 再判，避免「看着够长、落盘后被拒」。
+          const candidate = String(value ?? '').trim();
+          if (!candidate) {
+            callback(new Error(t('auth.rulePasswordRequired')));
+            return;
+          }
           // 返回顺序固定为 长度→字母→数字→符号，首条失败即报，与原行为一致。
-          const failed = evaluateStrengthRules(value).find(rule => !rule.passed);
+          const failed = evaluateStrengthRules(candidate).find(rule => !rule.passed);
           if (failed) {
             callback(new Error(strengthRuleMessage(failed.id)));
             return;
@@ -196,8 +202,11 @@ export function useAuthFlow(options: {
           }
           isAuthenticated.value = true;
         } else {
+          const wasVerifyVisible = showPasswordVerify.value;
           showMasterPasswordSetup.value = false;
           isAuthenticated.value = false;
+          // 只在进入解锁视图时同步清空；重复的 checkAuth 不能抹掉用户已经输入的内容。
+          if (!wasVerifyVisible) verifyForm.value.password = '';
           showPasswordVerify.value = true;
           reportFirstView('verify');
 
@@ -218,7 +227,9 @@ export function useAuthFlow(options: {
       }
     } catch (error) {
       logger.error('Options: 检查认证状态失败:', error);
+      const wasVerifyVisible = showPasswordVerify.value;
       showMasterPasswordSetup.value = false;
+      if (!wasVerifyVisible) verifyForm.value.password = '';
       showPasswordVerify.value = true;
       isAuthenticated.value = false;
       reportFirstView('verify');
@@ -276,12 +287,16 @@ export function useAuthFlow(options: {
   };
 
   // 处理密码验证（表单验证由 PasswordVerifyView 组件处理）
-  const handleVerifySubmit = async () => {
+  const handleVerifySubmit = async (submittedPassword?: string) => {
     try {
-      if (!verifyForm.value.password.trim()) {
+      // 子组件的输入与父级 props 是异步同步的；提交必须以子组件此刻的值（事件载荷）为准，
+      // 否则快速输入后立刻回车可能读到父级尚未更新的空值。
+      const password = (submittedPassword ?? verifyForm.value.password).trim();
+      if (!password) {
         verifyError.value = t('auth.verifyPasswordPlaceholder');
         return;
       }
+      verifyForm.value.password = password;
 
       verifyLoading.value = true;
       verifyError.value = '';
@@ -292,7 +307,7 @@ export function useAuthFlow(options: {
       // 配置（外部 UI 的验证可能早于另一上下文换钥，这道复验不能省），预检等于让每次解锁多付
       // 一次 600k 迭代的 PBKDF2（本机约 430ms），解锁时长平白多出近一半。失败按稳定码分流。
       try {
-        await StorageUtils.createSession(verifyForm.value.password.trim(), verifyForm.value.validityHours);
+        await StorageUtils.createSession(password, verifyForm.value.validityHours);
       } catch (authError) {
         const code = (authError as { code?: string } | undefined)?.code;
         if (code === VAULT_BUSY) {
@@ -310,7 +325,7 @@ export function useAuthFlow(options: {
       verifyFailCount.value = 0;
       // 有效期偏好只在认证成功之后落盘：失败的那一次不该改动库里的设置
       await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
-      await StorageUtils.migrateUnencryptedEntries(verifyForm.value.password.trim());
+      await StorageUtils.migrateUnencryptedEntries(password);
 
       showPasswordVerify.value = false;
       showMasterPasswordSetup.value = false;
@@ -347,14 +362,15 @@ export function useAuthFlow(options: {
 
     // 提示语的显示门槛是「本次解锁连续输错 N 次」；页面不重新挂载，所以重新进入解锁视图时
     // 必须先归零再切视图，否则上一轮的失败会累加到这一轮，让提示语早于阈值出现。
+    const wasVerifyVisible = showPasswordVerify.value;
     verifyFailCount.value = 0;
     showMasterPasswordSetup.value = false;
+    if (!wasVerifyVisible) verifyForm.value.password = '';
     showPasswordVerify.value = true;
     isAuthenticated.value = false;
 
     void Promise.all([StorageUtils.getMasterPasswordValidityHours(), StorageUtils.getMasterPasswordHint()]).then(
       ([validityHours, hint]) => {
-        verifyForm.value.password = '';
         verifyForm.value.validityHours = validityHours;
         masterPasswordHint.value = hint;
       },

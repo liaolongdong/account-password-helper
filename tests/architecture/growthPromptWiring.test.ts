@@ -93,12 +93,11 @@ describe('更新弹窗与评价引导接线', () => {
     expect(flushEnd, '找不到防抖写入入口').toBeGreaterThan(flushStart);
 
     const flush = CRUD.slice(flushStart, flushEnd);
-    const writePasswords = flush.search(
-      /await chrome\.storage\.local\.set\(\{ \[STORAGE_KEYS\.PASSWORDS\]: passwords \}\)/,
-    );
+    // 落盘改走 commitPasswordRows（读最新快照 + 合并 + 单次 set）；它 resolve 之后才记账。
+    const writePasswords = flush.search(/await commitPasswordRows\(/);
     expect(writePasswords, '密码数组落盘点不见了，顺序断言失去意义').toBeGreaterThan(-1);
     expect(
-      flush.slice(writePasswords).search(/hasFillUpdate[\s\S]{0,60}void markFirstQuickFill\(\)/),
+      flush.slice(writePasswords).search(/hasFillUpdate[\s\S]{0,300}void markFirstQuickFill\(\)/),
       '锚点记账点不见了，或未排在密码落盘成功之后',
     ).toBeGreaterThan(-1);
   });

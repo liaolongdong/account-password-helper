@@ -21,6 +21,7 @@ vi.mock('@/utils/storage/vaultWriteLock', () => ({
   withVaultMutation,
   withVaultKeyTransition: (cb: () => Promise<unknown>) => cb(),
   withVaultMutationRetry: (cb: () => Promise<unknown>) => cb(),
+  withVaultCommit: (cb: () => Promise<unknown>) => cb(),
 }));
 
 let store: Record<string, unknown>;

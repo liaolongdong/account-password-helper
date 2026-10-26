@@ -66,6 +66,11 @@ describe('normalizeNewMasterPassword 与核心判定同源', () => {
 });
 
 describe('强度门槛不得只落在 UI 上', () => {
+  it('首次设置存储层也拒绝弱主密码', async () => {
+    const { setMasterPassword } = await import('@/utils/storage/masterPassword');
+    await expect(setMasterPassword('weak-only-password')).rejects.toMatchObject({ code: 'WEAK_PASSWORD' });
+  });
+
   it('改密存储层在验旧密码之前先过强度门槛', async () => {
     const source = readSource('utils/storage/changeMasterPassword.ts');
     const gate = source.indexOf('normalizeNewMasterPassword(newPw)');

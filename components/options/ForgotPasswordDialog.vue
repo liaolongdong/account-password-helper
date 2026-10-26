@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue"
     :title="t('options.forgot.title')"
-    width="620px"
+    width="min(620px, calc(100vw - 24px))"
     align-center
     :close-on-click-modal="false"
     class="forgot-dialog"

@@ -67,5 +67,8 @@
   "recovery.error.concurrentWrite": "其他窗口修改了当前库，本次改密未提交。请返回后重试。",
   "recovery.error.busy": "当前库正在执行其他操作，请等待完成后重试。",
   "recovery.error.failed": "操作未能完成，请保留当前密码和恢复材料后重试；数据未被清空。",
-  "recovery.loadFailed": "恢复向导没能加载出来，数据没有被改动。刷新本页面后重试。"
+  "recovery.loadFailed": "恢复向导没能加载出来，数据没有被改动。刷新本页面后重试。",
+  "recovery.discardDraftTitle": "放弃新套件？",
+  "recovery.discardDraftMessage": "刚生成的恢复密钥和套件文件会当场作废，需要重新换发。确定关闭吗？",
+  "recovery.discardDraftConfirm": "放弃并关闭"
 }

@@ -301,8 +301,11 @@
     <IdentityVaultDialog
       v-model="showIdentityVaultDialog"
       :vault="identityVault"
+      :return-available="vaultReturnAvailable"
+      :return-site="vaultReturnSiteLabel"
       @add="openIdentityForm(null)"
       @edit="openIdentityForm"
+      @return-to-source="handleVaultReturnToSource"
     />
 
     <!-- 身份信息新增/编辑表单弹窗 -->
@@ -465,6 +468,7 @@ import { useBackupChip } from '@/composables/useBackupChip';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
+import { useVaultReturn } from '@/composables/useVaultReturn';
 import { useCommandPalette } from '@/composables/useCommandPalette';
 import { useOnboardingTour } from '@/composables/useOnboardingTour';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
@@ -813,6 +817,30 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
 };
 
 /**
+ * 身份库取完值后的「回到原网页」出口
+ *
+ * 状态与三条结束时机都收在 `useVaultReturn` 里；这里只补上第四处——弹窗一关就作废意图，
+ * 让「用户已经拿走值了」与「这条意图还活着」保持同一件事。
+ */
+const vaultReturn = useVaultReturn();
+
+/** 模板绑定用的两个只读态（解构出来才会被模板自动解包 ref） */
+const { available: vaultReturnAvailable, siteLabel: vaultReturnSiteLabel } = vaultReturn;
+
+watch(showIdentityVaultDialog, visible => {
+  if (!visible) vaultReturn.forget();
+});
+
+/** 回程成功顺带收起库弹窗：切走标签页却把解密明文留在后台弹窗里，是最容易忘收的尾 */
+const handleVaultReturnToSource = async (): Promise<void> => {
+  if (await vaultReturn.returnToSource()) {
+    showIdentityVaultDialog.value = false;
+    return;
+  }
+  ElMessage.warning(t('identity.return.tabGone'));
+};
+
+/**
  * 从页面侧身份提示打开身份库
  *
  * 进来的是一个标签（后台已按既有检索口径各收口一次，非法值即 `undefined`）：搜索词预填
@@ -826,9 +854,12 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
  * 因此恒停在「全部」档，交给检索词收敛。
  *
  * @param keyword 已收口的搜索词，缺失时不预填
+ * @param sourceTabId 已收口的来源标签页 ID，缺失时本轮不提供「回到原网页」
  */
-const openIdentityVaultFromPage = (keyword?: string): void => {
-  void openIdentityVaultWithVerify(keyword);
+const openIdentityVaultFromPage = async (keyword?: string, sourceTabId?: number): Promise<void> => {
+  // 先过门槛、后记来源：复验被取消时弹窗没开，留下一条「能把你切走」的意图只会变成脏状态。
+  const opened = await openIdentityVaultWithVerify(keyword);
+  if (opened) void vaultReturn.remember(sourceTabId);
 };
 
 /**
@@ -1574,7 +1605,7 @@ watch(isAuthenticated, authenticated => {
  * 以收集依赖，若此时 setupForm / passwordForm 尚未初始化（TDZ）会抛
  * ReferenceError 导致整页白屏。
  */
-const setupPasswordRef = computed(() => setupForm.value.password);
+const setupPasswordRef = computed(() => setupForm.value.password.trim());
 const { rules: passwordRules, strength: passwordStrength } = usePasswordStrength(setupPasswordRef);
 
 const formPasswordRef = computed(() => passwordForm.value.password);

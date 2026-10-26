@@ -179,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, shallowRef, useTemplateRef, onMounted } from 'vue';
+import { ref, reactive, computed, shallowRef, useTemplateRef, onMounted, nextTick } from 'vue';
 import { ElMessage, type FormInstance, type FormRules, type FormItemRule } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from './PasswordStrengthPopover.vue';
@@ -189,7 +189,13 @@ import CapsLockHint from '@/components/CapsLockHint.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
-import { clearRecoveryInputs, recoveryErrorCode, recoveryErrorMessage } from '@/utils/recoveryUi';
+import {
+  clearRecoveryInputs,
+  confirmDiscardRecoveryDraft,
+  focusRecoveryKitStep,
+  recoveryErrorCode,
+  recoveryErrorMessage,
+} from '@/utils/recoveryUi';
 import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 import { logger } from '@/utils/logger';
 import type { RecoveryDraft, VaultRekeyResult } from '@/utils/storage/recoveryTypes';
@@ -272,7 +278,7 @@ const form = reactive({
   confirmPassword: '',
 });
 
-const newPasswordRef = computed(() => form.newPassword);
+const newPasswordRef = computed(() => form.newPassword.trim());
 const { strength: passwordStrength, rules: passwordRules } = usePasswordStrength(newPasswordRef);
 
 /**
@@ -362,8 +368,9 @@ const {
   run,
   invalidate,
 } = useRecoveryOperation(() => props.modelValue, clearSecrets, presentChangeError);
-const requestClose = (value: boolean): void => {
+const requestClose = async (value: boolean): Promise<void> => {
   if (loading.value || value) return;
+  if (draft.value && !(await confirmDiscardRecoveryDraft())) return;
   invalidate();
   emit('update:modelValue', false);
 };
@@ -408,6 +415,8 @@ const handleSubmit = () =>
       offerSkip.value = false;
       allowSkip.value = false;
       draft.value = prepared;
+      await nextTick();
+      if (isCurrent()) focusRecoveryKitStep(sensitiveRoot.value);
       return;
     }
     try {

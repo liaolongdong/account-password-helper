@@ -885,8 +885,9 @@
               It uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations)
               and fields are authenticated-encrypted with AES-256-GCM, while credentials are never uploaded to any
               server; the only outbound request is an anonymous version check every 6 hours that carries no vault
-              content and no personal identifier. A forgotten master password can't be recovered, so keep encrypted
-              backups; as with any extension, avoid banking / payment credentials.
+              content and no personal identifier. A forgotten master password cannot be recovered by default — an
+              offline recovery key enrolled in advance is the exception — so keep encrypted backups; as with any
+              extension, avoid banking / payment credentials.
             </p>
           </div>
           <div class="faq-item">
