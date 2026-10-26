@@ -308,7 +308,15 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<Vaul
     // 「未提交」错误——否则用户以为旧密码仍有效，重试必然失败。
     if (hadLiveSession && sessionKeysToWrite) {
       try {
-        await sessionManager.publishSessionRekey(newKey, sessionKeysToWrite);
+        const adopted = await sessionManager.publishSessionRekey(newKey, sessionKeysToWrite);
+        if (!adopted) {
+          // 没能采纳＝这中间有别的上下文把库锁了（或本上下文的会话已变动）。刚写回盘上的
+          // 会话材料必须撤销，否则用户按下的立即锁定会被这次换钥复活成解锁态；撤销走
+          // `clearSession`，它与锁定路径同一口径，不在这儿另抄一份键名清单。
+          logger.warn('Vault key change committed but session adoption refused; keeping ciphertext locked out');
+          await sessionManager.clearSession().catch(() => {});
+          return { relockRequired: true, carriedUndecryptable };
+        }
       } catch (error) {
         logger.error('Post-commit session refresh failed; forcing relock:', error);
         await sessionManager.clearSession().catch(() => {});

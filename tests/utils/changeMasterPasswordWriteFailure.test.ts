@@ -23,7 +23,7 @@ import type { EncryptedPasswordEntry } from '@/utils/types';
 
 const { prepareSessionRekey, publishSessionRekey, clearSession } = vi.hoisted(() => ({
   prepareSessionRekey: vi.fn<(dataKey: string, validityHours: number) => Promise<Record<string, unknown>>>(),
-  publishSessionRekey: vi.fn<(dataKey: string, prepared: Record<string, unknown>) => Promise<void>>(),
+  publishSessionRekey: vi.fn<(dataKey: string, prepared: Record<string, unknown>) => Promise<boolean>>(),
   clearSession: vi.fn<() => Promise<void>>(),
 }));
 
@@ -111,7 +111,9 @@ beforeEach(() => {
     [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
   }));
   clearSession.mockResolvedValue(undefined);
-  publishSessionRekey.mockResolvedValue(undefined);
+  // 新契约：发布回执「是否真的采纳」。桩返回 undefined 会被调用方读成「没采纳」，
+  // 于是每次改密都被判成需要重新解锁——那是桩的口径没跟上，不是产品的行为。
+  publishSessionRekey.mockResolvedValue(true);
   deriveEncryptionKey.mockImplementation(async (password: string) => `key:${password}`);
   deriveVerifierHash.mockImplementation(async (password: string) => `verifier:${password}`);
 
@@ -313,6 +315,25 @@ describe('写盘之前的失败：不写、不清会话', () => {
  * - 只剩旧版遗留 blob 清理失败：一致性不受影响，保持成功语义，不得反向推翻已提交的事实。
  */
 describe('提交成功之后的失败：不得伪装成未提交', () => {
+  /**
+   * 「没采纳」不等于「抛错」，但后果必须一样。
+   *
+   * `publishSessionRekey` 原先在不采纳时静默 `return`（返回 undefined），调用方只看 throw，
+   * 于是「别的上下文在提交与发布之间把库锁了」这一路会回执 `relockRequired:false`：
+   * UI 说「改密成功且保持解锁」，而这次换钥刚把会话材料写回盘上，等于把用户按下的立即锁定复活。
+   * 现在回执 `false` 与抛错走同一收尾：清会话一次、报需要重新解锁、新钥密文保留。
+   */
+  it('发布回执未采纳（false）时同样强制重新解锁，而不是谎报保持解锁', async () => {
+    publishSessionRekey.mockResolvedValueOnce(false);
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#9')).resolves.toMatchObject({ relockRequired: true });
+
+    expect(clearSession).toHaveBeenCalledTimes(1);
+    const payload = localSet.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload[STORAGE_KEYS.MASTER_PASSWORD]).toBeTruthy();
+  });
+
   it('发布新会话密钥失败时返回 relock-required，并把已提交的新密钥留在盘上', async () => {
     publishSessionRekey.mockRejectedValueOnce(new Error('session readback failed'));
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');

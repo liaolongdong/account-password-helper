@@ -807,11 +807,30 @@ export async function prepareSessionRekey(dataKey: string, validityHours: number
   };
 }
 
-export async function publishSessionRekey(dataKey: string, prepared: PreparedSessionRekey): Promise<void> {
+/**
+ * 采纳刚随密文一起提交的新会话材料，返回**是否真的采纳**。
+ *
+ * 三种不采纳一律回执 `false`，调用方必须据此撤销材料并改报「需要重新解锁」：静默 `return`
+ * 会让 UI 回执「改密成功且保持解锁」，而盘上留下的新会话材料会把用户刚按下的立即锁定复活成
+ * 解锁态——与评审报告 P0-1 判为最严重的那一类「让锁说谎」同源。
+ * 其中第三条判据只能靠 `SESSION_LOCK_STATE` 镜像：别的上下文 `clearSession()` 删掉的
+ * `WRAPPED_DATA_KEY` 已被本次提交重新写过，逐字节比对反而通过。
+ */
+export async function publishSessionRekey(dataKey: string, prepared: PreparedSessionRekey): Promise<boolean> {
   const epoch = sessionEpoch;
   const wrapped = prepared[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
   const stored = await chrome.storage.local.get(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
-  if (sessionEpoch !== epoch || stored[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== wrapped) return;
+  if (sessionEpoch !== epoch || stored[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== wrapped) {
+    logger.warn('跳过发布换钥会话材料：本上下文会话已变动，或盘上没有对应的提交');
+    return false;
+  }
+  const lockState = (await chrome.storage.session.get(SESSION_MEMORY_KEYS.SESSION_LOCK_STATE))[
+    SESSION_MEMORY_KEYS.SESSION_LOCK_STATE
+  ] as { locked?: boolean } | undefined;
+  if (lockState?.locked === true) {
+    logger.warn('跳过发布换钥会话材料：另一上下文已锁定当前库，不复活会话');
+    return false;
+  }
   const expiry = prepared[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
   adoptRekeyedSession(wrapped, expiry, prepared[SESSION_STORAGE_KEYS.VALIDITY_HOURS]);
   const adoptedEpoch = sessionEpoch;
@@ -825,10 +844,12 @@ export async function publishSessionRekey(dataKey: string, prepared: PreparedSes
     if (adoptedEpoch !== sessionEpoch) {
       sessionDataKey = null;
       await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
+      return false;
     }
   } catch (error) {
     logger.warn('会话内存镜像写入失败，将从已提交密钥恢复:', error);
   }
+  return true;
 }
 
 /**

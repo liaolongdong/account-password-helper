@@ -45,6 +45,39 @@ describe('rekey session publication', () => {
     ).toBeUndefined();
   });
 
+  /**
+   * 锁定发生在**别的上下文**时，本上下文的 epoch 与盘上读数都看不出这件事
+   *
+   * 别的窗口 `clearSession()` 会删掉盘上的 `session_wrapped_data_key`，但本次事务随后的提交
+   * 又把它写回，于是「与 prepared 逐字节相同」这条复验照样通过。唯一还活着的信号是锁定方在
+   * `storage.session` 里留下的 `SESSION_LOCK_STATE { locked: true }` 镜像——采纳前必须读它。
+   * 回执从静默 `return` 变成 `false`，调用方才可能据此撤销材料并改报「需要重新解锁」。
+   */
+  it('refuses to adopt while another context has recorded a lock, and reports it', async () => {
+    const session = await import('@/utils/sessionManager-storage');
+    const prepared = await session.prepareSessionRekey(KEY, 24);
+    await chrome.storage.local.set(prepared);
+    await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } });
+
+    const published = await session.publishSessionRekey(KEY, prepared);
+
+    expect(published, '锁定镜像在场时发布必须回执未采纳').toBe(false);
+    const mirror = await chrome.storage.session.get(null);
+    expect(mirror[SESSION_MEMORY_KEYS.DATA_KEY]).toBeUndefined();
+    expect(mirror[SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]).toEqual({ locked: true });
+  });
+
+  it('reports adoption explicitly: true on success, false when the committed key is absent', async () => {
+    const session = await import('@/utils/sessionManager-storage');
+    const prepared = await session.prepareSessionRekey(KEY, 24);
+
+    expect(await session.publishSessionRekey(KEY, prepared), '盘上没有对应提交时应回执 false').toBe(false);
+
+    await chrome.storage.local.set(prepared);
+    expect(await session.publishSessionRekey(KEY, prepared)).toBe(true);
+    expect((await chrome.storage.session.get(SESSION_MEMORY_KEYS.DATA_KEY))[SESSION_MEMORY_KEYS.DATA_KEY]).toBe(KEY);
+  });
+
   it('锁定会话时成对删除明文镜像与其配对指纹，不留孤立条目', async () => {
     const session = await import('@/utils/sessionManager-storage');
     const prepared = await session.prepareSessionRekey(KEY, 24);
