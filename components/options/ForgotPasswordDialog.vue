@@ -26,6 +26,22 @@
           <p class="forgot-path__body">{{ t('options.forgot.recallBody') }}</p>
         </li>
 
+        <li
+          v-if="recoveryAvailable"
+          class="forgot-path"
+        >
+          <h4 class="forgot-path__title">{{ t('options.forgot.recoveryTitle') }}</h4>
+          <p class="forgot-path__body">{{ t('options.forgot.recoveryBody') }}</p>
+          <el-button
+            size="small"
+            type="primary"
+            link
+            @click="emit('use-recovery')"
+          >
+            {{ t('options.forgot.recoveryAction') }}
+          </el-button>
+        </li>
+
         <li class="forgot-path">
           <h4 class="forgot-path__title">{{ t('options.forgot.backupTitle') }}</h4>
           <p class="forgot-path__body">{{ t('options.forgot.backupBody') }}</p>
@@ -75,16 +91,24 @@ import { useI18n } from '@/utils/i18n';
  * 验证区独占临时输入，关闭即卸载；向导自身不持有密码、文件或解密数据。
  * 终点 `reset` 事件交回 `useAuthFlow.resetMasterPassword`，
  * 其 `lockSession → clearAllData` 序列与二次确认一律复用，不在本组件复制。
+ *
+ * 「用离线恢复密钥取回」是第二条路径：它是本机数据唯一「不必事先有备份也能取回」的出口，
+ * 入口原先只挂在解锁页的按钮行里，用户读完其余路径就直面红色的「仍然重置全部数据」——
+ * 最该出现退路的地方反倒没有退路，因此在这里显式接回同一套恢复流程（不复制其实现）。
  */
 defineProps<{
   /** 显式声明开关，关闭时同步移除验证区，避免仅隐藏后保留敏感输入。 */
   modelValue: boolean;
   /** 用户是否设置过主密码提示语（决定「先回想」这一步是否出现） */
   hasHint: boolean;
+  /** 本机是否登记过离线恢复密钥（决定「用恢复密钥取回」这一步是否出现） */
+  recoveryAvailable: boolean;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
+  /** 交回解锁页既有的恢复流程：先收掉向导，再由父级打开同一个恢复弹窗（不在本组件复制实现） */
+  'use-recovery': [];
   reset: [];
 }>();
 

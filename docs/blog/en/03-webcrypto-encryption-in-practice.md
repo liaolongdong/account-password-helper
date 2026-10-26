@@ -78,7 +78,7 @@ At v3.0 the project switched licenses from MIT to GPL-3.0 — deliberately. A pa
 The other side of security is knowing your limits:
 
 - This tool is positioned for development, testing, and everyday logins. **Do not store banking or payment credentials in any browser extension.**
-- A forgotten master password cannot be recovered. Enable encrypted backups (.aph files).
+- A forgotten master password cannot be recovered by default. Enable encrypted backups (.aph files) and enroll an offline recovery key as a second way back.
 - The entire encryption implementation is open source. Audits and issues welcome — for a password manager, being read line by line isn't an intrusion; it's the source of trust.
 
 Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). If you're building local-first security tools too, share the traps you've hit in the comments.

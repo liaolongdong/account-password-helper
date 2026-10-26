@@ -231,7 +231,7 @@ Bitwarden、1Password 这类云端管理器解决的是另一类问题：多设�
 - 精确主机名匹配隔离 dev / test / prod，`localhost` 与 `127.0.0.1` 按端口区分；
 - 内置 TOTP、密码生成器与离线安全体检。
 
-它的代价也要说清楚：**不提供跨设备同步**，备份与迁移由你自己掌握；**主密码遗忘无法找回**，需要定期导出加密备份；它保护的是静态数据与本地存储，不能替代操作系统安全，也不能在电脑已被入侵时保证绝对安全。
+它的代价也要说清楚：**不提供跨设备同步**，备份与迁移由你自己掌握；**主密码遗忘默认无法找回**（除非事先登记过离线恢复密钥），需要定期导出加密备份；它保护的是静态数据与本地存储，不能替代操作系统安全，也不能在电脑已被入侵时保证绝对安全。
 
 适合本地优先工具的典型用户：
 
@@ -679,7 +679,7 @@ TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计�
 4. **会话有生命周期。** 默认 24 小时有效期；闲置自动锁定（跟随系统锁屏）与浏览器重启锁定都是可选项、默认关闭；手动一键锁定随时可用。锁定时内存中的密钥句柄与解密快照立即清除。
 5. **代码全开源（GPL-3.0）。** 加密那几行代码、权限声明、每一处网络调用，都可以自己读。3912 项自动化测试覆盖加密、会话、存储与消息路由等关键路径（跑在本地、提交前钩子里，也会在每次 push 与 PR 的仓库 CI 中自动执行）。
 
-同时也要把话说在前面：**这款工具的定位是开发、测试与日常登录场景，不建议在任何浏览器扩展里存放银行、支付类高敏感凭证**；主密码遗忘无法找回，请善用加密备份。诚实的边界声明，是安全产品该有的样子。
+同时也要把话说在前面：**这款工具的定位是开发、测试与日常登录场景，不建议在任何浏览器扩展里存放银行、支付类高敏感凭证**；主密码遗忘默认无法找回——除非你事先在「安全设置」里登记过离线恢复密钥，加密备份则是另一条退路。诚实的边界声明，是安全产品该有的样子。
 
 ### 写给谁
 
@@ -881,7 +881,7 @@ _本文涉及的关键文件：`entrypoints/background/backgroundServices.ts`（
 安全的另一面是自知之明：
 
 - 本工具定位是开发、测试与日常登录场景，**不建议在任何浏览器扩展中存放银行、支付类高敏感凭证**；
-- 主密码遗忘无法找回，请启用加密备份（.aph 文件）；
+- 主密码遗忘默认无法找回：请启用加密备份（.aph 文件），并在「安全设置」里登记离线恢复密钥作为第二退路；
 - 加密实现全部开源，欢迎审计、欢迎提 Issue——对一个密码管理器来说，被人逐行读代码不是冒犯，是信任的来源。
 
 源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。如果你也在做本地优先的安全工具，评论区聊聊你踩过的坑。
@@ -942,7 +942,7 @@ If multi-device access, family sharing or team sharing is the core requirement, 
 - Exact-host matching keeps dev / test / prod apart, and `localhost` / `127.0.0.1` stay per-port;
 - Built-in TOTP, password generator and an offline security check.
 
-The costs are just as real: **no cross-device sync**, so backup and migration are your responsibility; **a forgotten master password cannot be recovered**, so export encrypted backups regularly; and local encryption protects data at rest and in storage, but it cannot replace operating-system security or guarantee safety on an already-compromised machine.
+The costs are just as real: **no cross-device sync**, so backup and migration are your responsibility; **a forgotten master password cannot be recovered by default** (unless you enrolled an offline recovery key), so export encrypted backups regularly; and local encryption protects data at rest and in storage, but it cannot replace operating-system security or guarantee safety on an already-compromised machine.
 
 Local-first tends to fit:
 
@@ -1386,7 +1386,7 @@ A password manager earns trust through verifiable design, not slogans. The hard 
 4. **Sessions have lifecycles.** 24 hours by default (1 hour to 7 days configurable). Idle auto-lock tied to system screen lock, and relock on browser restart, are both opt-in and off by default; one-click manual lock is always available. On any lock path, in-memory key handles and decrypted snapshots are wiped.
 5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 3912 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
 
-An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And the master password cannot be recovered if forgotten — use the encrypted backup feature. Stating boundaries plainly is what security products should do.
+An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And a forgotten master password cannot be recovered by default — unless you enrolled an offline recovery key beforehand, with encrypted backups as the other way back. Stating boundaries plainly is what security products should do.
 
 ### Who It's For
 
@@ -1588,7 +1588,7 @@ At v3.0 the project switched licenses from MIT to GPL-3.0 — deliberately. A pa
 The other side of security is knowing your limits:
 
 - This tool is positioned for development, testing, and everyday logins. **Do not store banking or payment credentials in any browser extension.**
-- A forgotten master password cannot be recovered. Enable encrypted backups (.aph files).
+- A forgotten master password cannot be recovered by default. Enable encrypted backups (.aph files) and enroll an offline recovery key as a second way back.
 - The entire encryption implementation is open source. Audits and issues welcome — for a password manager, being read line by line isn't an intrusion; it's the source of trust.
 
 Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). If you're building local-first security tools too, share the traps you've hit in the comments.

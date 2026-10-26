@@ -54,7 +54,7 @@ If multi-device access, family sharing or team sharing is the core requirement, 
 - Exact-host matching keeps dev / test / prod apart, and `localhost` / `127.0.0.1` stay per-port;
 - Built-in TOTP, password generator and an offline security check.
 
-The costs are just as real: **no cross-device sync**, so backup and migration are your responsibility; **a forgotten master password cannot be recovered**, so export encrypted backups regularly; and local encryption protects data at rest and in storage, but it cannot replace operating-system security or guarantee safety on an already-compromised machine.
+The costs are just as real: **no cross-device sync**, so backup and migration are your responsibility; **a forgotten master password cannot be recovered by default** (unless you enrolled an offline recovery key), so export encrypted backups regularly; and local encryption protects data at rest and in storage, but it cannot replace operating-system security or guarantee safety on an already-compromised machine.
 
 Local-first tends to fit:
 

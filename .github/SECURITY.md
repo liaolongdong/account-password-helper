@@ -18,7 +18,7 @@ Account Password Helper is a **local-first** password manager: credentials are e
 - **Key derivation**: PBKDF2 with 600,000 iterations (Web Crypto API) → 256-bit key from your master password + random salt
 - **Symmetric encryption**: AES-256-GCM authenticated encryption with random IV per field
 - **Encrypted fields**: username, password, URL, remark, TOTP secret
-- **Master password**: never persisted in any recoverable form — only a PBKDF2-SHA256 verifier hash is stored, so a forgotten master password cannot be recovered
+- **Master password**: never persisted in any recoverable form — only a PBKDF2-SHA256 verifier hash is stored, so a forgotten master password cannot be recovered by default. Users who enrolled an offline recovery key (Security settings → recovery kit) can restore the local vault with it
 
 ### Data Storage
 
@@ -61,4 +61,4 @@ As an open-source project, the code is available for public review. We welcome s
 ## Known Limitations
 
 - This extension is designed for development, testing, and everyday sign-in scenarios. We recommend **not** storing highly sensitive credentials (banking, payment, etc.) in any browser extension.
-- The master password **cannot be recovered** if forgotten. Regular backups via encrypted export (.aph) or data export are strongly recommended.
+- The master password **cannot be recovered** if forgotten — unless you enrolled an offline recovery key beforehand, which restores the local vault and lets you set a new master password. Regular backups via encrypted export (.aph) or data export are strongly recommended.

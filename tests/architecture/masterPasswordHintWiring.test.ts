@@ -82,6 +82,28 @@ describe('清空入口经找回向导收口', () => {
     expect(source).toContain("emit('reset')");
   });
 
+  /**
+   * 向导必须给出「用离线恢复密钥取回」这条退路（评审报告 P1-3）。
+   *
+   * 该入口原先只挂在解锁页按钮行里：用户在向导里读完回想/备份/CSV 四条，下一眼就是红色的
+   * 「仍然重置全部数据」，而本机库其实有一条不必事先有备份就能取回的路。向导承诺「按代价从
+   * 小到大排列」，恢复密钥缺席就是承诺与内容不符。断掉接线不会有任何行为测试变红，故在此钉住。
+   */
+  it('向导给出恢复密钥这条退路，并且复用解锁页那套恢复弹窗而不是复制实现', () => {
+    const dialog = readSource(FORGOT_DIALOG);
+    expect(dialog).toContain('v-if="recoveryAvailable"');
+    expect(dialog).toContain("t('options.forgot.recoveryTitle')");
+    expect(dialog).toContain("emit('use-recovery')");
+    expect(dialog).not.toContain('RecoveryResetDialog');
+
+    const view = readSource(VERIFY_VIEW);
+    expect(view).toContain(':recovery-available="recoveryAvailable"');
+    expect(view).toContain('@use-recovery="handleWizardUseRecovery"');
+    // 先收向导再开恢复弹窗：两个居中模态叠着开会留下一层无处可点的遮罩
+    const handler = view.slice(view.indexOf('const handleWizardUseRecovery'));
+    expect(handler.indexOf('showForgotDialog.value = false')).toBeLessThan(handler.indexOf('openRecovery()'));
+  });
+
   it('向导文案走 options 命名空间（Popup 的 auth 依赖图里不含 options，长文案不进弹窗包）', () => {
     const source = readSource(FORGOT_DIALOG);
     expect(source).toContain("t('options.forgot.title')");

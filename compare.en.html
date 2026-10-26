@@ -219,7 +219,7 @@
             "name": "Is a local password manager safe?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Account Password Helper uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations) and sensitive fields are authenticated-encrypted with AES-256-GCM, while credentials are never uploaded to any server; the only outbound request is an anonymous version check every 6 hours, which carries no vault content and no personal identifier. A forgotten master password cannot be recovered, so export regular encrypted backups. As with any extension, avoid storing banking or payment credentials."
+              "text": "Account Password Helper uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations) and sensitive fields are authenticated-encrypted with AES-256-GCM, while credentials are never uploaded to any server; the only outbound request is an anonymous version check every 6 hours, which carries no vault content and no personal identifier. A forgotten master password cannot be recovered by default — an offline recovery key enrolled in advance is the exception — so export regular encrypted backups. As with any extension, avoid storing banking or payment credentials."
             }
           },
           {

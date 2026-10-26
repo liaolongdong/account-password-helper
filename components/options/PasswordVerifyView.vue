@@ -136,6 +136,8 @@
           <ForgotPasswordDialog
             v-model="showForgotDialog"
             :has-hint="Boolean(hint)"
+            :recovery-available="recoveryAvailable"
+            @use-recovery="handleWizardUseRecovery"
             @reset="handleConfirmReset"
           />
           <RecoveryResetDialog
@@ -233,6 +235,16 @@ const openRecovery = (): void => {
   formModel.password = '';
   resetCapsLockState();
   showRecoveryDialog.value = true;
+};
+
+/**
+ * 向导内的「用恢复密钥取回」：先收掉向导再开恢复弹窗。
+ *
+ * 两个都是居中模态，叠着开会留下一层无处可点遮罩；顺序复用按钮行那套流程，不复制实现。
+ */
+const handleWizardUseRecovery = (): void => {
+  showForgotDialog.value = false;
+  openRecovery();
 };
 
 /** 仅刷新认证配置/提示语；不建立会话，也不向解锁框自动填入新密码。 */
