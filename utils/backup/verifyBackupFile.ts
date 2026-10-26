@@ -1,4 +1,4 @@
-import type { BackupVerificationResult } from './type';
+import type { BackupVerificationResult } from './types';
 import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from './constants';
 import { BackupImportUserError, importEncryptedBackup } from '@/utils/backupExport';
 import { getIdentityBackupErrorCode, importIdentityBackup } from '@/utils/identity/backup';

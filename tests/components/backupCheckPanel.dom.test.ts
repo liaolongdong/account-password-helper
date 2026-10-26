@@ -11,7 +11,7 @@ import { BackupImportUserError } from '@/utils/backupExport';
 import { verifyBackupFile } from '@/utils/backup/verifyBackupFile';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import CapsLockHint from '@/components/CapsLockHint.vue';
-import type { BackupVerificationResult } from '@/utils/backup/type';
+import type { BackupVerificationResult } from '@/utils/backup/types';
 import { currentLocale, registerMessages, t, useI18n } from '@/utils/i18n';
 import enCommon from '@/utils/i18n/locales/en/common.json';
 import enOptions from '@/utils/i18n/locales/en/options.json';

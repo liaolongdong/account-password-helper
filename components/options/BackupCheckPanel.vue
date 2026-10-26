@@ -119,7 +119,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, shallowRef, useId, useTemplateRef, watch } from 'vue';
 import type { InputInstance } from 'element-plus';
-import type { BackupVerificationResult } from '@/utils/backup/type';
+import type { BackupVerificationResult } from '@/utils/backup/types';
 import { verifyBackupFile } from '@/utils/backup/verifyBackupFile';
 import { BackupImportUserError } from '@/utils/backupExport';
 import { useI18n } from '@/utils/i18n';
