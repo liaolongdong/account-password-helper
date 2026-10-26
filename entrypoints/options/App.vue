@@ -248,6 +248,9 @@
       @search-identity="onDetailSearchIdentity"
     />
 
+    <!-- 主密码提示语：只有首次设置那一次能写过的时代已结束，这里可随时改或清 -->
+    <MasterPasswordHintDialog v-model="showHintDialog" />
+
     <!-- 有效期设置弹窗 -->
     <ValiditySettingDialog
       v-model="showValiditySetting"
@@ -419,6 +422,9 @@ const ChangeMasterPasswordDialog = defineAsyncComponent(
   () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
 );
 const RecoverySettingsDialog = defineAsyncComponent(() => import('@/components/options/RecoverySettingsDialog.vue'));
+const MasterPasswordHintDialog = defineAsyncComponent(
+  () => import('@/components/options/MasterPasswordHintDialog.vue'),
+);
 const BatchTagDialog = defineAsyncComponent(() => import('@/components/options/BatchTagDialog.vue'));
 const MasterPasswordVerifyDialog = defineAsyncComponent(
   () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
@@ -515,6 +521,7 @@ import {
   Timer,
   Unlock,
   Upload,
+  EditPen,
 } from '@element-plus/icons-vue';
 import type { CommandAction } from '@/utils/commandPalette';
 
@@ -636,6 +643,8 @@ const showChangeMasterPasswordDialog = ref(false);
 
 /** 离线恢复设置仅在用户主动打开时读取配置。 */
 const showRecoverySettingsDialog = ref(false);
+/** 主密码提示语编辑弹窗（此前只有首次设置那一次能写，之后无法改或清） */
+const showHintDialog = ref(false);
 
 /** 偏好设置弹窗可见性 */
 const showPersonalizationDialog = ref(false);
@@ -869,6 +878,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'recovery':
       showRecoverySettingsDialog.value = true;
+      break;
+    case 'hint':
+      showHintDialog.value = true;
       break;
     case 'validity':
       openValiditySetting();
@@ -1738,6 +1750,14 @@ const buildPaletteActions = (): CommandAction[] => [
     icon: Notebook,
     keywords: ['offline', 'recovery', 'kit', '离线', '恢复', '密钥'],
     run: () => (showRecoverySettingsDialog.value = true),
+  },
+  {
+    id: 'hint',
+    group: 'security',
+    label: t('options.header.hint'),
+    icon: EditPen,
+    keywords: ['hint', 'password', '提示语', '忘记', '回忆'],
+    run: () => (showHintDialog.value = true),
   },
   {
     id: 'validity',

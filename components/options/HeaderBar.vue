@@ -218,6 +218,12 @@
                 {{ t('recovery.settingsTitle') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="hint"
+                :icon="EditPen"
+              >
+                {{ t('options.header.hint') }}
+              </el-dropdown-item>
+              <el-dropdown-item
                 divided
                 command="validity"
                 :icon="Timer"
@@ -386,6 +392,7 @@ import {
   Search,
   QuestionFilled,
   CopyDocument,
+  EditPen,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import type { BackupChipState, BackupVaultChipDetail } from '@/utils/backup/changeDetection';

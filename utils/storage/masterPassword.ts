@@ -47,6 +47,36 @@ function normalizeHint(raw: string | undefined): string {
 }
 
 /**
+ * 只改提示语，不动校验哈希与盐值。
+ *
+ * 此前提示语只有「首次设置主密码」那一次能写，之后既不能改也不能清：用恢复码换回本机库后，
+ * 那条指向已被遗忘口令的明文提示仍会在连续输错后显示，而唯一消除办法是清空整库。
+ * 现在给出编辑入口。写回刻意保留 `salt` / `hashedPassword` / `kdf` 原样——离线恢复套件的
+ * AAD 与 `masterFingerprint` 都只绑这两项，因此改提示语不会让已登记的套件失效。
+ *
+ * 空串按「未设置」处理：省略该字段而不是留一个空串，与既有读取口径一致
+ * （缺失读出空串即「未设置」，`normalizeHint` 负责去首尾空白与按上限截断）。
+ * @param hint 新提示语；空白串表示清除
+ */
+export async function updateMasterPasswordHint(hint: string): Promise<void> {
+  return withVaultMutation(async () => {
+    // 落盘前重读：租约是 shared 模式，写者之间不互斥。把 hint 合并到最新配置上，
+    // 才不会把期间同时完成的换钥新校验值又写回旧的那一份。
+    const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
+    const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;
+    if (!config || !config.salt || !config.hashedPassword) {
+      // 主密码尚未设置时没有可附加提示语的载体；静默返回会让界面以为已保存
+      throw new Error('MASTER_PASSWORD_NOT_SET');
+    }
+    const next: MasterPasswordConfig = { ...config };
+    delete next.hint;
+    const normalized = normalizeHint(hint);
+    if (normalized) next.hint = normalized;
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: next });
+  });
+}
+
+/**
  * 设置主密码
  *
  * @param password 主密码明文（仅用于本机派生校验哈希与数据密钥，绝不落盘）
