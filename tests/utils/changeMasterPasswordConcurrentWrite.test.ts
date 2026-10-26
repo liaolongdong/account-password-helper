@@ -181,6 +181,32 @@ describe('rekey 覆写前的快照复验', () => {
     expect(passwordsReads).toBe(2);
   });
 
+  /**
+   * 真实 `chrome.storage.local.get` 每次读都反序列化出**新对象**，桩返回同一实例会把这个洞藏起来
+   *
+   * `authGuardKeys` 里除了四个会话标量，还有对象形态的 `master_password_config`
+   * （P1-2 为挡「网页侧透明升级把新校验哈希盖回旧口令」而加）。用 `!==` 比对象，真机上恒等于
+   * 「有漂移」，于是每一次改密都被判成并发写而中止——e2e `security.spec.ts` 正是这样暴露的：
+   * 改密成功提示永远不出现。本仓库的存储桩返回同实例，所以 4500+ 单测全绿也照样漏过。
+   */
+  it('存储每次读都给新对象实例时，正常改密不得被误判为并发写', async () => {
+    concurrentWriter = false;
+    const chromeLocal = (chrome.storage.local as unknown as { get: ReturnType<typeof vi.fn> }).get;
+    chromeLocal.mockImplementation(async (keys: string | string[]) => {
+      const list = Array.isArray(keys) ? keys : [keys];
+      const found: Record<string, unknown> = {};
+      for (const key of list) {
+        if (key in storageData) found[key] = structuredClone(storageData[key]);
+      }
+      return found;
+    });
+
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#3')).resolves.toMatchObject({ relockRequired: false });
+    expect(localSet).toHaveBeenCalledTimes(1);
+  });
+
   it('无并发写时正常落盘，只多读一次、不额外写', async () => {
     concurrentWriter = false;
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');

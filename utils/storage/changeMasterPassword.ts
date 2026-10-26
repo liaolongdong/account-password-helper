@@ -262,7 +262,17 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<Vaul
     chrome.storage.local.get(authGuardKeys),
   ]);
   const original = [rawPasswords, rawTrash, rawHistory, identityRaw, identityTrashRaw];
-  const sessionMoved = authGuardKeys.some(key => sessionBefore[key] !== sessionAfter[key]);
+  /**
+   * 守卫值必须按**值**比，不能按引用比。
+   *
+   * `authGuardKeys` 里除了四个会话标量，还有对象形态的 `master_password_config`；而
+   * `chrome.storage.local.get` 每次读都会反序列化出新实例——按 `!==` 比它，真机上恒为「有漂移」，
+   * 于是每一次正常改密都会被自己判成并发写而中止（e2e `security.spec.ts` 暴露：改密成功提示
+   * 永不出现）。仓库的存储桩返回同一实例，所以全量单测当时照样是绿的。
+   * 对象这一项按 JSON 串比，与下面五域密文的逐字节比对口径一致。
+   */
+  const sameGuardValue = (a: unknown, b: unknown): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);
+  const sessionMoved = authGuardKeys.some(key => !sameGuardValue(sessionBefore[key], sessionAfter[key]));
   // 比对保持逐字节：换成「条数 + id 集合 + max(updateTime)」指纹能省掉 2000 条下约 40～80ms
   // 的同步 stringify，但那段开销被四次 PBKDF2（本机每台 ~2.4s）完全淹没，省它等于拿
   // 「新密文 + 旧会话密钥」这条数据完整性守卫去换一位数百分比的换钥耗时。
