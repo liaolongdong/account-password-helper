@@ -47,7 +47,7 @@ describe('usePasswordManagement.siteFilter', () => {
       ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
       ElMessageBox: { confirm: vi.fn().mockResolvedValue('confirm') },
     });
-    vi.spyOn(StorageUtils, 'getAllPasswords').mockResolvedValue([]);
+    vi.spyOn(StorageUtils, 'getAllPasswordsDetailed').mockResolvedValue({ entries: [], undecryptableCount: 0 });
 
     scope = effectScope();
     mgmt = scope.run(() => usePasswordManagement({ validityForm: ref({ validityHours: 1 }) }))!;

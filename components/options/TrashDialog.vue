@@ -432,7 +432,7 @@ watch(
 
 .trash-stats {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .trash-date {

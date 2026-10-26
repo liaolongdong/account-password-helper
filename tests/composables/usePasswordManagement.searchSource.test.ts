@@ -49,7 +49,7 @@ describe('usePasswordManagement 的检索口径接线', () => {
       ElMessageBox: { confirm: vi.fn().mockResolvedValue('confirm') },
     });
     // `loadPasswords` 等路径会读存储，统一给空数组避免 chrome 桩缺失
-    vi.spyOn(StorageUtils, 'getAllPasswords').mockResolvedValue([]);
+    vi.spyOn(StorageUtils, 'getAllPasswordsDetailed').mockResolvedValue({ entries: [], undecryptableCount: 0 });
 
     scope = effectScope();
     mgmt = scope.run(() => usePasswordManagement({ validityForm: ref({ validityHours: 1 }) }))!;

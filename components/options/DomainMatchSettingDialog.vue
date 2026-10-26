@@ -3,6 +3,7 @@
     :model-value="modelValue"
     :title="t('options.header.domainMatch')"
     width="560px"
+    align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >

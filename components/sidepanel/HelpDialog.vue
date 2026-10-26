@@ -3,6 +3,7 @@
     :model-value="modelValue"
     :title="t('help.title')"
     width="90%"
+    align-center
     :append-to-body="true"
     class="help-dialog"
     @update:model-value="$emit('update:modelValue', $event)"
@@ -102,7 +103,7 @@
             eslint 豁免（清单收缩登记见 `tests/architecture/lintBypassInventory.test.ts`）。
           -->
           <li
-            v-for="(item, idx) in helpItems('help.gs', 11)"
+            v-for="(item, idx) in helpItems('help.gs', 12)"
             :key="idx"
           >
             <RichText :source="item" />
@@ -128,7 +129,7 @@
         </h5>
         <ol>
           <li
-            v-for="(item, idx) in helpItems('help.gd', 11)"
+            v-for="(item, idx) in helpItems('help.gd', 12)"
             :key="idx"
           >
             <RichText :source="item" />
@@ -418,7 +419,7 @@ const handleGoToOptions = () => {
 .help-header__version {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: #9aa3af;
+  color: var(--aph-text-muted);
   text-decoration: none;
   transition: color 0.2s;
 }
@@ -429,17 +430,17 @@ const handleGoToOptions = () => {
 }
 
 .help-header__version:focus-visible {
-  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline: 2px solid var(--aph-primary);
   outline-offset: 1px;
   border-radius: 3px;
 }
 </style>
 
 <style>
-.el-dialog.help-dialog {
-  margin-top: 40px;
-  margin-bottom: 40px;
-}
+/* 这里原来靠 `margin-top/-bottom: 40px` 把弹窗顶开上下边——那是 EP 非居中定位下的补偿。
+   本弹窗现已跟全站统一走 `align-center`（EP 给居中的是 `margin: auto`），再留这两条
+   同特异性的声明就会按样式表顺序互相盖，居中与否变成运气。正文另有
+   `max-height: calc(100vh - 200px)` 兜住高度，不需要额外留白。 */
 
 /* RichText 动态创建的 code 元素不带本组件的 scoped 标识，胶囊样式只能由宿主按后代选择器给；
    选择器前缀收在 .help-dialog 内，不外溢到其他入口的同名标签 */

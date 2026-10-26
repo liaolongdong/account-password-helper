@@ -28,7 +28,6 @@ const SCANNED_DIRS = ['components', 'composables', 'entrypoints', 'utils'];
 /** 存量登记：文件 → 同目录别名导入处数（2026-10-18 实测，只准减不准增） */
 const EXISTING_INVENTORY: Record<string, number> = {
   'components/options/BackupImportDialog.vue': 1,
-  'components/options/ChangeMasterPasswordDialog.vue': 1,
   'components/options/IdentityVaultDialog.vue': 1,
   'components/options/ImportDialog.vue': 1,
   'components/options/MasterPasswordSetupView.vue': 3,

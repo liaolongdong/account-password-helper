@@ -205,6 +205,11 @@ async function readSessionSnapshot(
     const expiry = localResult[SESSION_EXPIRY_KEY] as number | undefined;
     if (!expiry || Date.now() >= expiry) return null;
 
+    // 快照直读刻意**不做**写路径那套 DATA_KEY_WRAPPED 配对校验，这是有意的取舍：
+    // 快照与其密钥由同一写入方成对落到 storage.session，最坏情形是「一对陈旧但自洽的数据」——
+    // 要么旧密钥解不开新快照（AEAD 失败 → 回落到慢路径），要么短暂显示换钥前的列表；
+    // 两种都不会写坏库，而真正会写坏库的提交方一律走 `getSessionDataKey(true)` 现取。
+    // 在这里补一次 storage.local 读，等于把这条 SLA 上最快的路径改成按磁盘往返计费。
     const snapshot = sessionResult[SESSION_MEMORY_KEYS.PASSWORD_CACHE_SNAPSHOT] as string | undefined;
     const dataKey = sessionResult[SESSION_MEMORY_KEYS.DATA_KEY] as string | undefined;
     if (!snapshot || !dataKey) return null;

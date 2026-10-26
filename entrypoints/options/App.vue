@@ -32,9 +32,12 @@
       :verify-error="verifyError"
       :verify-shake="verifyShake"
       :is-dev="isDev"
+      :hint="masterPasswordHint"
+      :fail-count="verifyFailCount"
       @submit="handleVerifySubmit"
       @debug="debugPassword"
       @reset="resetMasterPassword"
+      @recovered="checkAuth"
       @clear-error="verifyError = ''"
       @update:verify-form="Object.assign(verifyForm, $event)"
     />
@@ -50,7 +53,7 @@
         :current-version="currentVersion"
         :health-score="passwords.length ? healthReport.score : undefined"
         :health-grade="passwords.length ? healthReport.grade : undefined"
-        :last-verified-backup-at="lastVerifiedBackupAt"
+        :backup-chip="backupChip"
         :lock-loading="clearSessionLoading"
         @add-password="openAddDialogWithActiveTab"
         @open-health="openHealthDialog"
@@ -66,6 +69,17 @@
         @open-command-palette="paletteOpen"
         @open-about="showAboutDrawer = true"
       />
+
+      <!-- 部分/全部记录无法解密：列表与备份都会静默漏条，必须持续可见 -->
+      <el-alert
+        v-if="undecryptableCount > 0"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="undecryptable-alert"
+      >
+        {{ t('options.undecryptableNotice', { count: undecryptableCount }) }}
+      </el-alert>
 
       <!-- 版本更新：已有密码库的用户升级后一次性弹窗，首次安装不打扰 -->
       <WhatsNewDialog
@@ -86,6 +100,18 @@
         @backup="handleActivationBackup"
         @health="handleActivationHealth"
         @dismiss="handleActivationDismiss"
+      />
+
+      <!-- 会话内备份轻提醒：从未备份，或本次会话刚改过数据且尚未备份时出一次，
+           关闭只作用于本页；清单在场时不叠第二条横幅（判据见上方 backupNudge 计算属性） -->
+      <BackupNudgeBanner
+        v-if="backupNudge"
+        :state="backupNudge.state"
+        :days="backupNudge.days"
+        :vault="backupNudge.vault"
+        :other-vault="backupNudgeOtherVault"
+        @backup="handleBackupNudgeAction"
+        @dismiss="backupNudgeDismissed = true"
       />
 
       <!-- 一次性评价引导：密码多于 1 条、成功填充过且首次填充满 7 天后出现，可延后或永久关闭 -->
@@ -222,6 +248,9 @@
       @search-identity="onDetailSearchIdentity"
     />
 
+    <!-- 主密码提示语：只有首次设置那一次能写过的时代已结束，这里可随时改或清 -->
+    <MasterPasswordHintDialog v-model="showHintDialog" />
+
     <!-- 有效期设置弹窗 -->
     <ValiditySettingDialog
       v-model="showValiditySetting"
@@ -298,8 +327,13 @@
     <!-- 快捷键一览弹窗（只读，改键引导至浏览器内置管理页） -->
     <ShortcutSettingDialog v-model="showShortcutDialog" />
 
-    <!-- 修改主密码弹窗 -->
+    <!-- 恢复与改密持有敏感草稿：仅在认证且打开时加载，锁定即卸载清理。 -->
+    <RecoverySettingsDialog
+      v-if="isAuthenticated && showRecoverySettingsDialog"
+      v-model="showRecoverySettingsDialog"
+    />
     <ChangeMasterPasswordDialog
+      v-if="isAuthenticated && showChangeMasterPasswordDialog"
       v-model="showChangeMasterPasswordDialog"
       @success="loadPasswords"
     />
@@ -387,6 +421,10 @@ const ShortcutSettingDialog = defineAsyncComponent(() => import('@/components/op
 const ChangeMasterPasswordDialog = defineAsyncComponent(
   () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
 );
+const RecoverySettingsDialog = defineAsyncComponent(() => import('@/components/options/RecoverySettingsDialog.vue'));
+const MasterPasswordHintDialog = defineAsyncComponent(
+  () => import('@/components/options/MasterPasswordHintDialog.vue'),
+);
 const BatchTagDialog = defineAsyncComponent(() => import('@/components/options/BatchTagDialog.vue'));
 const MasterPasswordVerifyDialog = defineAsyncComponent(
   () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
@@ -414,6 +452,7 @@ import HeaderBar from '@/components/options/HeaderBar.vue';
 import UndoDeleteToast from '@/components/options/UndoDeleteToast.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import ActivationChecklist from '@/components/options/ActivationChecklist.vue';
+import BackupNudgeBanner from '@/components/options/BackupNudgeBanner.vue';
 import ReviewPrompt from '@/components/options/ReviewPrompt.vue';
 import WhatsNewDialog from '@/components/options/WhatsNewDialog.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
@@ -422,6 +461,7 @@ import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
 import { usePasswordManagement, UNDO_DELETE_WINDOW_MS } from '@/composables/usePasswordManagement';
 import { useStorageWatcher } from '@/composables/useStorageWatcher';
+import { useBackupChip } from '@/composables/useBackupChip';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
@@ -432,6 +472,7 @@ import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
+import { decideBackupNudge } from '@/utils/backup/changeDetection';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
@@ -468,6 +509,7 @@ import {
   FolderChecked,
   InfoFilled,
   Key,
+  Notebook,
   Link,
   Lock,
   Message,
@@ -479,6 +521,7 @@ import {
   Timer,
   Unlock,
   Upload,
+  EditPen,
 } from '@element-plus/icons-vue';
 import type { CommandAction } from '@/utils/commandPalette';
 
@@ -598,6 +641,11 @@ const showShortcutDialog = ref(false);
 /** 修改主密码弹窗可见性 */
 const showChangeMasterPasswordDialog = ref(false);
 
+/** 离线恢复设置仅在用户主动打开时读取配置。 */
+const showRecoverySettingsDialog = ref(false);
+/** 主密码提示语编辑弹窗（此前只有首次设置那一次能写，之后无法改或清） */
+const showHintDialog = ref(false);
+
 /** 偏好设置弹窗可见性 */
 const showPersonalizationDialog = ref(false);
 const personalizationPanelEl = ref<HTMLElement | null>(null);
@@ -666,15 +714,31 @@ const { currentVersion } = useVersionUpdate();
 /** 加密备份导入弹窗可见性 */
 const showBackupImportDialog = ref(false);
 
-/** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
-const lastVerifiedBackupAt = ref<number | null>(null);
+/**
+ * 头部备份徽标（档位判据在 `utils/backup/changeDetection`，这里只装配）
+ *
+ * `lastVerifiedBackupAt` 由本 composable 持有：安全起步清单与徽标读的是同一个时间戳，
+ * 不再各读一遍。条目数由下方 watcher 写入，避免为「有没有密码」再整包读一次 `PASSWORDS`。
+ */
+const {
+  backupChip,
+  lastVerifiedBackupAt,
+  refresh: refreshBackupChip,
+  setPasswordCount,
+  mutatedThisSession,
+} = useBackupChip();
 
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
   if (passwords.value.length === 0) {
-    ElMessage.warning(t('message.noDataToBackup'));
+    ElMessage.warning(
+      undecryptableCount.value > 0
+        ? t('options.backup.noReadableData', { count: undecryptableCount.value })
+        : t('message.noDataToBackup'),
+    );
     return;
   }
+  if (!(await confirmIncompleteBackup())) return;
   const masterPassword = await promptAndVerifyMasterPassword(
     t('options.backup.exportTitle'),
     t('options.backup.exportPrompt'),
@@ -683,8 +747,8 @@ const handleEncryptedBackupExport = async () => {
   try {
     await exportEncryptedBackup(passwords.value, masterPassword);
     ElMessage.success(t('options.backup.exportSuccess'));
-    // 导出内部已在自检通过后落库，回读以反映真实持久态（而非乐观当前时间）
-    lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
+    // 导出内部已在自检通过后落库，重读以反映真实持久态（而非乐观当前时间）
+    await refreshBackupChip();
   } catch (error) {
     logger.error('加密备份导出失败:', error);
     if ((error as { name?: string })?.name === 'BackupVerifyError') {
@@ -812,6 +876,12 @@ const handleSettingsCommand = (command: string) => {
     case 'changeMasterPassword':
       showChangeMasterPasswordDialog.value = true;
       break;
+    case 'recovery':
+      showRecoverySettingsDialog.value = true;
+      break;
+    case 'hint':
+      showHintDialog.value = true;
+      break;
     case 'validity':
       openValiditySetting();
       break;
@@ -861,6 +931,8 @@ const {
   filterTags,
   filterSites,
   filteredPasswords,
+  undecryptableCount,
+  confirmIncompleteBackup,
   pagedEntries,
   currentPage,
   pageSize,
@@ -908,6 +980,10 @@ const {
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
+
+// 把已在手的条目数交给备份徽标（`immediate` 覆盖「会话有效、列表已解密」的直达场景），
+// 徽标因此不需要为「有没有密码」再整包读一次 PASSWORDS
+watch(() => passwords.value.length, setPasswordCount, { immediate: true });
 
 /**
  * 回收站弹窗关闭后，让主表跟上弹窗里改过的档位
@@ -1115,6 +1191,8 @@ const {
   setupRules,
   verifyForm,
   verifyRules,
+  masterPasswordHint,
+  verifyFailCount,
   checkAuth,
   handleSetupSubmit,
   handleVerifySubmit,
@@ -1198,6 +1276,43 @@ const showActivationChecklist = computed(
     activationDoneCount.value < ACTIVATION_TOTAL_STEPS,
 );
 
+/**
+ * 会话内备份轻提醒（R1）
+ *
+ * 出声条件刻意收紧：徽标已到「待备份」档不代表**刚**改过数据（可能只是上月那次改动一直没备份），
+ * 那种情况下头部徽标已经常驻说同一件事，再叠一条横幅就是噪音。因此只认两种情形：
+ * - `critical`：一次都没通过自检导出过（换机 / 重装 / 误删时零退路），清单不在场时持续提示；
+ * - `urgent` + 本次页面会话内确实发生过变更：即用户「刚添加 / 刚改完密码」这个时间点。
+ *
+ * 关闭只作用于本页会话（不新增持久化键、不加闹钟与桌面通知），
+ * 与「安全起步清单」互斥：清单在场时它已经把备份列为待办之一。
+ */
+const backupNudgeDismissed = ref(false);
+const backupNudge = computed(() => {
+  if (backupNudgeDismissed.value || showActivationChecklist.value || !isAuthenticated.value) return null;
+  return decideBackupNudge({ chip: backupChip.value, mutatedThisSession: mutatedThisSession.value });
+});
+
+/**
+ * 另一库是否也该被点名
+ *
+ * 横幅一次只推一份备份（两库是 `.aph` 与 `.aphid` 两份互不覆盖的文件），但用户看不到
+ * 「另一库同样欠着」这件事——它原本只藏在徽标 tooltip 里，而此刻注意力在横幅上。
+ * 收紧口径与横幅自己一致：只认 `never` / `pending`（也就是横幅自己够格出现的两档）。
+ * 另一库是 `stale`（备份已久但期间没改过）时不点名——没有新数据要丢，副句就成了噪音；
+ * 是 `hidden`（空库）或 `ok` 时更不该提。
+ * 备完第一份后徽标档位重算、`worstVault` 翻过去，横幅会自然接手第二份，不必在此并列两条。
+ */
+const backupNudgeOtherVault = computed(() => backupNudge.value?.otherVault ?? null);
+
+/** 轻提醒的出口与徽标同一套分派：欠哪一份备份，就把用户送到哪一份的导出入口 */
+const handleBackupNudgeAction = (): void => {
+  if (backupNudge.value?.vault === 'identity') {
+    void openIdentityVaultWithVerify();
+    return;
+  }
+  handleDataCommand('backupExport');
+};
 /** 读取清单唯一需要异步补齐的两项：暂不提醒时间与体检趋势是否存在 */
 const loadActivationState = async (): Promise<void> => {
   const [state, history] = await Promise.all([getActivationChecklistState(), readHealthHistory()]);
@@ -1425,6 +1540,8 @@ watch(
   authenticated => {
     if (!authenticated) {
       clearPlaintextKeyedCaches();
+      showRecoverySettingsDialog.value = false;
+      showChangeMasterPasswordDialog.value = false;
     }
   },
   { flush: 'sync' },
@@ -1614,6 +1731,22 @@ const buildPaletteActions = (): CommandAction[] => [
     icon: Key,
     keywords: ['master', 'password', 'change'],
     run: () => (showChangeMasterPasswordDialog.value = true),
+  },
+  {
+    id: 'recovery',
+    group: 'security',
+    label: t('recovery.settingsTitle'),
+    icon: Notebook,
+    keywords: ['offline', 'recovery', 'kit', '离线', '恢复', '密钥'],
+    run: () => (showRecoverySettingsDialog.value = true),
+  },
+  {
+    id: 'hint',
+    group: 'security',
+    label: t('options.header.hint'),
+    icon: EditPen,
+    keywords: ['hint', 'password', '提示语', '忘记', '回忆'],
+    run: () => (showHintDialog.value = true),
   },
   {
     id: 'validity',
@@ -1942,8 +2075,8 @@ onMounted(async () => {
   // 整表重排付两遍（本页最贵的单项操作）。它是纯视图偏好，单键读取，不依赖会话态。
   await restorePageSizeConfig();
   await checkAuth();
-  // 读取「最近一次已验证备份」时间戳，供 HeaderBar 展示备份健康提示（时间戳非敏感，读取无需会话态）
-  lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
+  // 备份徽标与清单共用的时间戳：非敏感、单键读取，不挡首帧（徽标在数据到位后自己亮）
+  void refreshBackupChip();
   // 安全起步清单的暂不提醒状态与体检趋势；两项都只读非敏感摘要，失败时降级为未完成
   void loadActivationState();
   // 更新提示与一次性评价引导；版本/关闭标记都只读非敏感数据

@@ -49,6 +49,7 @@ const BUNDLE_NAMESPACES = {
     'onboarding',
     'options',
     'popup',
+    'recovery',
     'session',
     'sidepanel',
     'strength',
@@ -166,6 +167,18 @@ const GUIDE_GRAPH_FILES = ['components/options/GuideView.vue', 'utils/guideNav.t
  */
 const ABOUT_GRAPH_FILES = ['components/options/AboutDrawer.vue'];
 
+/** 离线恢复仅在管理页加载，错误映射与共用保存/文件输入也必须纳入扫描。 */
+const RECOVERY_GRAPH_FILES = [
+  'components/options/RecoverySettingsDialog.vue',
+  'components/options/RecoveryResetDialog.vue',
+  'components/options/RecoveryKitSaveStep.vue',
+  'components/options/RecoveryKeyInput.vue',
+  'components/options/ChangeMasterPasswordDialog.vue',
+  'components/options/PasswordVerifyView.vue',
+  'composables/useRecoveryOperation.ts',
+  'utils/recoveryUi.ts',
+];
+
 /** 读取指定语言的某命名空间语言包 */
 function readNamespace(locale: (typeof LOCALES)[number], ns: string): Record<string, string> {
   return JSON.parse(readFileSync(path.join(LOCALES_DIR, locale, `${ns}.json`), 'utf-8'));
@@ -256,6 +269,28 @@ describe('i18n 语言包命名空间拆分', () => {
 });
 
 describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
+  it('离线恢复依赖图 key 在 options bundle 内，且真实注册覆盖中英文', async () => {
+    const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.options);
+    for (const file of RECOVERY_GRAPH_FILES) {
+      for (const key of extractI18nKeys(file)) {
+        expect(bundleKeys.has(key), `${file} 的 ${key} 未被 options 覆盖`).toBe(true);
+      }
+    }
+    await import('@/utils/i18n/bundles/options');
+    const { t, currentLocale } = await import('@/utils/i18n');
+    const previous = currentLocale.value;
+    try {
+      for (const locale of LOCALES) {
+        currentLocale.value = locale;
+        for (const [key, value] of Object.entries(readNamespace(locale, 'recovery'))) {
+          expect(t(key), `${locale} 未注册 ${key}`).toBe(value);
+        }
+      }
+    } finally {
+      currentLocale.value = previous;
+    }
+  });
+
   it('侧边栏首屏依赖图使用的 key 全部在 sidepanel bundle 内', () => {
     const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.sidepanel);
     for (const file of SIDEPANEL_GRAPH_FILES) {
@@ -381,6 +416,7 @@ describe('侧边栏扫描清单认领完整性', () => {
       ...ONBOARDING_GRAPH_FILES,
       ...GUIDE_GRAPH_FILES,
       ...ABOUT_GRAPH_FILES,
+      ...RECOVERY_GRAPH_FILES,
     ];
     const missing = listed.filter(file => !existsSync(path.join(ROOT, file)));
     expect(missing, `扫描清单指向不存在的文件（重命名或删除后未同步）: ${missing.join(', ')}`).toEqual([]);

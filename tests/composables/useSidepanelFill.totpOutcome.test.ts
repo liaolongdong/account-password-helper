@@ -26,6 +26,9 @@ const generateTOTP = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/totp', () => ({
   generateTOTP: (...args: unknown[]) => generateTOTP(...args),
+  // 剩余时间给满：本文件只关心「回执选了哪个 i18n key」，不掺入等窗逻辑
+  getTotpPeriod: () => 30,
+  getTotpRemaining: () => 30,
 }));
 
 // 文案 mock 成恒等返回 key，使断言只关心「选中了哪个 i18n key」，与语言包字串解耦

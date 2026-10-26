@@ -958,7 +958,7 @@ function openPrefilledRule(rawDomain: string): void {
 
 .text-gray {
   font-size: 13px;
-  color: #999;
+  color: var(--aph-text-muted);
 }
 
 .selector-cell {
@@ -994,7 +994,7 @@ function openPrefilledRule(rawDomain: string): void {
 /* 半条规则的补充说明：与 .selector-tag / code 同字号，但它是解释不是内容，用次级灰 */
 .selector-auto {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 覆盖档位标签：与选择器行的 .selector-tag 同族，但它是「一档设置」不是「一段代码」，
@@ -1013,7 +1013,7 @@ function openPrefilledRule(rawDomain: string): void {
   margin-top: -4px;
   font-size: 13px;
   line-height: 1.5;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 导入/导出口径说明：合并语义与「文件不含凭据」要在点按钮之前就看到，而不是事后补救 */
@@ -1021,7 +1021,7 @@ function openPrefilledRule(rawDomain: string): void {
   margin-top: 12px;
   font-size: 12px;
   line-height: 1.5;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .import-file-input {
@@ -1042,7 +1042,7 @@ function openPrefilledRule(rawDomain: string): void {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.4;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 选择器输入框与「拾取」按钮同一行；输入框吸收剩余宽度，按钮不被压缩 */
@@ -1098,8 +1098,9 @@ function openPrefilledRule(rawDomain: string): void {
   color: var(--el-text-color-secondary);
 }
 
-/* 操作列 link 按钮：抵消 options 全局 .el-button--primary 的实心背景/边框，
-   否则主色文字压在同色背景上不可见（danger 型已由全局样式覆盖） */
+/* 操作列 link 按钮：透明底 + 主色文字。全局 `.el-button--primary` 已排除 `link` / `text`
+   变体，这条对 primary link 属冗余；保留是沿用本文件对操作列 link 的显式定义，
+   也仍兜住 danger 等其它色型（danger 另有全局覆盖）。 */
 :deep(.el-button--primary.is-link),
 :deep(.el-button--primary.is-link:hover) {
   background-color: transparent;

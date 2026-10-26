@@ -3,7 +3,14 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { lazyImport } from '@/utils/lazyImport';
 import { bytesToHex } from '@/utils/crypto-light';
+import type { VaultErrorCode } from './recoveryTypes';
+// 同上：本模块在 popup 首屏 eager 图内，只借类型，不为一个常量加值依赖。
+const WRONG_PASSWORD: VaultErrorCode = 'WRONG_PASSWORD';
+
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
+import { isWebPageContext } from './runtimeContext';
+import { withVaultMutation } from '@/utils/storage/vaultWriteLock';
+import { verifyMasterPassword } from '@/utils/storage/masterPassword';
 import {
   recoverBrowserStartupRelockAfterAuthentication,
   waitForBrowserStartupRelockBeforeAuthentication,
@@ -39,7 +46,7 @@ export const SESSION_STORAGE_KEYS = {
   VALIDITY_HOURS: 'session_validity_hours',
   /** 旧版遗留键（曾用于标记明文解密状态）；现已废弃，仅在 clearSession 时一并清理 */
   PASSWORDS_DECRYPTED: 'session_passwords_decrypted',
-};
+} as const;
 
 // 会话状态管理变量
 /** 会话期数据密钥的密文镜像（storage.local 中 WRAPPED_DATA_KEY 的内存副本；主密码绝不落盘） */
@@ -285,25 +292,50 @@ async function clearSessionIfStillExpired(observedExpiry: number): Promise<void>
  * 三级回退：SW 内存热缓存 → storage.session（跨上下文、活过 SW 终止）→
  * 由持久化的包裹数据密钥解包（AES-GCM，仅在缓存缺失/浏览器重启后执行一次）并回填两级缓存。
  *
- * 注意：不独立校验会话是否过期，调用方须先经过 isSessionValid 门禁。
+ * 默认读路径不独立校验过期，调用方须先经过 isSessionValid 门禁。
+ * @param forceFresh 写入方在 shared lease 内传 true，跳过两级缓存与旧 in-flight，读取当前 local 密钥对及有效期。
  * @returns 数据密钥 hex；无法获取（无有效会话）时返回 null
  */
-export async function getSessionDataKey(): Promise<string | null> {
+export async function getSessionDataKey(forceFresh = false): Promise<string | null> {
   // 捕获当前代际：本函数及其下游解包的任何写回，都必须在 await 后比对代际，
   // 若已变化说明期间发生锁定/清除，陈旧密钥一律丢弃（B6 代际保护）
   const epoch = sessionEpoch;
+
+  if (forceFresh) {
+    // 失效广播先于持久化删除完成时仍需拒绝写入，不能从尚未清除的 local 复活密钥。
+    if (_sessionValidCache?.valid === false) return null;
+    try {
+      return await _unwrapDataKeyFromStorage(epoch, true);
+    } catch {
+      return null;
+    }
+  }
 
   // 1. SW 内存热缓存
   if (sessionDataKey) return sessionDataKey;
 
   // 2. storage.session（仅内存，跨上下文共享，活过 SW 终止）
+  //
+  // 缓存的是明文数据密钥、本身不带版本，因此必须核对它对应的那份包裹密钥：
+  // 换钥（改密 / 恢复）由别的上下文提交后，本上下文可能还没收到 storage 变更事件，
+  // 直接用旧缓存写回五域密文会让新钥解不开。配对不符时视同缓存缺失，回源解包。
   try {
-    const r = await chrome.storage.session.get(SESSION_MEMORY_KEYS.DATA_KEY);
+    const r = await chrome.storage.session.get([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
     const cached = r[SESSION_MEMORY_KEYS.DATA_KEY] as string | undefined;
+    const cachedWrapped = r[SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED] as string | undefined;
     if (cached) {
+      // 快路径优先用内存镜像做配对校验，避免每次读盘（Windows 慢磁盘热路径）。
+      let committed: string | undefined = sessionWrappedDataKey ?? undefined;
+      if (committed === undefined) {
+        committed = (await chrome.storage.local.get(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY))[
+          SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY
+        ] as string | undefined;
+      }
       if (sessionEpoch !== epoch) return null; // await 窗口内已锁定/清除：丢弃陈旧回填
-      sessionDataKey = cached;
-      return cached;
+      if (cachedWrapped && committed && cachedWrapped === committed) {
+        sessionDataKey = cached;
+        return cached;
+      }
     }
   } catch {
     // storage.session 不可用时静默回退到解包路径
@@ -323,14 +355,33 @@ export async function getSessionDataKey(): Promise<string | null> {
  * 仅由 getSessionDataKey 的三级回退在缓存缺失时调用，外层已用 in-flight 锁去重。
  * @returns 数据密钥 hex；无有效会话（无包裹密钥）时返回 null
  */
-async function _unwrapDataKeyFromStorage(epoch: number): Promise<string | null> {
+async function _unwrapDataKeyFromStorage(epoch: number, forceFresh = false): Promise<string | null> {
   // 从存储读取「包裹密钥 + 密文数据密钥」（同一快照，保证配对一致）。
   // 二者由 persistWrappedDataKey 原子性同写，单次 get 取得的必然是匹配的一对，
   // 因此即便升级迁移期多个上下文并发写入不同的随机包裹密钥，也不会解包失败。
-  let snap = await chrome.storage.local.get([SESSION_STORAGE_KEYS.WRAP_KEY, SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]);
+  let snap = await chrome.storage.local.get([
+    SESSION_STORAGE_KEYS.WRAP_KEY,
+    SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
+    ...(forceFresh ? [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] : []),
+  ]);
+  if (sessionEpoch !== epoch) return null;
+  const expiry = snap[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+  if (forceFresh && (typeof expiry !== 'number' || !Number.isFinite(expiry) || Date.now() >= expiry)) return null;
 
-  // 新格式密文缺失：尝试从存储恢复会话（含旧版透明迁移），迁移路径会直接派生并缓存数据密钥
-  if (!snap[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]) {
+  // fresh 要的是「以盘上当前状态为准」，不是「每次重算一遍」：读盘已经发生，内存镜像与盘上的
+  // 包裹密钥配对一致时复用镜像即可，省掉写路径上重复的 AES-GCM 与 storage.session 回填。
+  // 别的上下文提交换钥时盘上的 WRAPPED_DATA_KEY 必然变化，届时这里必然失配并重新解包。
+  if (
+    forceFresh &&
+    sessionDataKey &&
+    snap[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] &&
+    sessionWrappedDataKey === snap[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]
+  ) {
+    return sessionDataKey;
+  }
+
+  // fresh 写路径绝不从旧缓存/旧迁移结果兜底。默认读保留透明迁移。
+  if (!forceFresh && !snap[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]) {
     await restoreSessionFromStorage(epoch);
     // 恢复/迁移期间可能已发生锁定：代际不符则丢弃，绝不把陈旧密钥交回调用方
     if (sessionEpoch !== epoch) return null;
@@ -346,15 +397,19 @@ async function _unwrapDataKeyFromStorage(epoch: number): Promise<string | null> 
   try {
     const enc = await _getEncryption();
     const key = await enc.decryptData(wrapped, wrapKey);
-    // AES-GCM 解密为异步边界：解密期间若发生锁定/清除则放弃回填（B6）
-    if (sessionEpoch !== epoch) return null;
+    // AES-GCM 解密为异步边界：解密期间若发生锁定/清除或到期则放弃回填。
+    if (sessionEpoch !== epoch || (forceFresh && Date.now() >= (expiry as number))) return null;
     sessionWrappedDataKey = wrapped;
     sessionDataKey = key;
     try {
-      await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.DATA_KEY]: key });
+      await chrome.storage.session.set({
+        [SESSION_MEMORY_KEYS.DATA_KEY]: key,
+        [SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]: wrapped,
+      });
     } catch {
       // 回填失败不影响本次返回
     }
+    if (sessionEpoch !== epoch || (forceFresh && Date.now() >= (expiry as number))) return null;
     return key;
   } catch (error) {
     logger.error('解包会话数据密钥失败:', error);
@@ -373,16 +428,35 @@ async function _unwrapDataKeyFromStorage(epoch: number): Promise<string | null> 
  * @param extra 需与密钥对一并写入的其它会话键值（过期时间/有效期）
  * @returns 包裹后的数据密钥密文
  */
-async function persistWrappedDataKey(dataKey: string, extra?: Record<string, unknown>): Promise<string> {
+async function persistWrappedDataKey(
+  dataKey: string,
+  extra?: Record<string, unknown>,
+  epoch?: number,
+): Promise<string> {
   const enc = await _getEncryption();
   const wrapKey = await generateSessionEncryptionKey();
   const wrapped = await enc.encryptData(dataKey, wrapKey);
+  if (epoch !== undefined) assertSessionEpoch(epoch);
   await chrome.storage.local.set({
     [SESSION_STORAGE_KEYS.WRAP_KEY]: wrapKey,
     [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: wrapped,
     ...(extra ?? {}),
   });
+  if (epoch !== undefined) assertSessionEpoch(epoch);
+  // 给已存在的跨上下文明文密钥缓存补上配对标识：缓存先于本函数写入，标识只能在此补写。
+  // 补写失败不影响本次会话，最坏是读侧回源解包，绝不会交回陈旧密钥。
+  try {
+    await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]: wrapped });
+  } catch (error) {
+    logger.warn('写入数据密钥配对标识失败（读侧将回源解包）:', error);
+  }
+  if (epoch !== undefined) assertSessionEpoch(epoch);
   return wrapped;
+}
+
+/** 会话失效不能被在途认证/派生的结果覆盖；不包含任何密钥材料。 */
+function assertSessionEpoch(epoch: number): void {
+  if (sessionEpoch !== epoch) throw new Error('会话已失效');
 }
 
 /**
@@ -401,8 +475,27 @@ async function persistWrappedDataKey(dataKey: string, extra?: Record<string, unk
  * @returns 迁移成功返回 true；无法解出旧版主密码或代际已失效时返回 false
  */
 async function _migrateLegacySession(expiry: number, validityHours: number, epoch: number): Promise<boolean> {
+  // 内容脚本跑在宿主页面的 origin 上，`navigator.locks` 按 origin 分组——它在这里拿到的共享租约
+  // 挡不住扩展侧的独占换钥。而本函数会覆写主密码校验配置并发布会话密钥材料：换钥期间从宿主页
+  // 触发一次，就能把刚提交的新密钥对打回旧钥形态（旧密码「验得过」，整库却已是新钥密文）。
+  // 迁移因此只在扩展自身上下文执行——SW 的会话巡检 / 侧边栏 / 管理页任一次会话检查都会完成它，
+  // 那条路径上的租约与换钥互斥成立。宿主页面此次判定为「会话无效」，不写任何数据。
+  if (isWebPageContext()) {
+    logger.debug('宿主页面上下文跳过旧版会话迁移：交由扩展自身上下文完成，避免与换钥交错');
+    return false;
+  }
+  try {
+    return await withVaultMutation(() => migrateLegacySessionInternal(expiry, validityHours, epoch));
+  } catch {
+    // 读路径触发的迁移遇到换钥/失效时安全降级，绝不无锁发布旧会话。
+    return false;
+  }
+}
+
+async function migrateLegacySessionInternal(expiry: number, validityHours: number, epoch: number): Promise<boolean> {
+  if (sessionEpoch !== epoch || Date.now() >= expiry) return false;
   const masterPassword = await getSessionMasterPasswordDecrypted();
-  if (!masterPassword) return false;
+  if (!masterPassword || !(await verifyMasterPassword(masterPassword))) return false;
 
   const enc = await _getEncryption();
   const dataKey = await enc.deriveEncryptionKey(masterPassword);
@@ -418,7 +511,8 @@ async function _migrateLegacySession(expiry: number, validityHours: number, epoc
   } catch {
     // storage.session 不可用时忽略，下次按需重新解包
   }
-  sessionWrappedDataKey = await persistWrappedDataKey(dataKey);
+  assertSessionEpoch(epoch);
+  sessionWrappedDataKey = await persistWrappedDataKey(dataKey, undefined, epoch);
   await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD);
   // 迁移成功后同步更新锁定状态镜像，与 createSession 路径语义保持一致
   if (sessionEpoch === epoch) {
@@ -451,6 +545,16 @@ async function _migrateLegacySession(expiry: number, validityHours: number, epoc
  */
 async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<void> {
   if (_encryptAtRestDone || _encryptAtRestInFlight) return;
+  try {
+    await withVaultMutation(() => ensurePasswordsEncryptedAtRestInternal(masterPassword));
+  } catch (error) {
+    // 后台安全网是 fire-and-forget；锁忙时不标记完成，保留下一次重试机会。
+    logger.error('确保密码密文落盘失败:', error);
+  }
+}
+
+async function ensurePasswordsEncryptedAtRestInternal(masterPassword?: string): Promise<void> {
+  if (_encryptAtRestDone || _encryptAtRestInFlight) return;
   _encryptAtRestInFlight = true;
   try {
     const isEncrypted = (e: PasswordEntry | EncryptedPasswordEntry): boolean =>
@@ -479,7 +583,8 @@ async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<
     }
 
     const enc = await _getEncryption();
-    const key = masterPassword ? await enc.deriveEncryptionKey(masterPassword) : await getSessionDataKey();
+    if (masterPassword && !(await verifyMasterPassword(masterPassword))) return;
+    const key = masterPassword ? await enc.deriveEncryptionKey(masterPassword) : await getSessionDataKey(true);
     if (!key) {
       // 无法获取密钥（无有效会话），不置完成标志，留待下次触发时重试
       return;
@@ -586,15 +691,34 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
  * 数据密钥另存 storage.session（仅内存，活过 SW 终止）。
  */
 export async function createSession(masterPassword: string, validityHours: number): Promise<void> {
+  return withVaultMutation(() => createSessionInternal(masterPassword, validityHours));
+}
+
+async function createSessionInternal(masterPassword: string, validityHours: number): Promise<void> {
+  const epoch = sessionEpoch;
   try {
     if (!(await waitForBrowserStartupRelockBeforeAuthentication())) {
       throw new Error('浏览器启动安全检查尚未完成，请稍后重试');
+    }
+    // 外部 UI 的验证可能早于另一上下文换钥：必须在本次 lease 内重验当前配置。
+    // 带稳定码抛出：调用方按码分流呈现，不该靠匹配中文串认这个失败（文案一改就静默降级）。
+    //
+    // 这里的 `'WRONG_PASSWORD'` 刻意不换成 `VAULT_ERROR_CODES.WRONG_PASSWORD`：本模块在 popup
+    // 首屏的 eager 依赖图里，而 `recoveryTypes` 的其余引用方全是类型导入。一旦为拿一个常量
+    // 引入值依赖，Rollup 就把 `recoveryTypes` 切成独立 chunk 挂进 popup.html 的 modulepreload，
+    // eager 文件数 44 → 45，被 `tests/architecture/sidepanelClosure.test.ts` 的预算守卫挡下
+    // （与 `HeaderBar` 那个键帽 glyph 同一取舍）。码的登记仍以 `recoveryTypes` 为唯一真源，
+    // `recoveryUi.ts` 的映射表在编译期保证这个码有文案。
+    if (!(await verifyMasterPassword(masterPassword))) {
+      throw Object.assign(new Error('主密码验证失败'), { code: WRONG_PASSWORD });
     }
     invalidateSessionCache();
     const enc = await _getEncryption();
 
     // 派生数据加密密钥（仅此处用到主密码明文，随即丢弃，绝不落盘）
-    sessionDataKey = await enc.deriveEncryptionKey(masterPassword);
+    const dataKey = await enc.deriveEncryptionKey(masterPassword);
+    assertSessionEpoch(epoch);
+    sessionDataKey = dataKey;
 
     sessionValidityHours = validityHours;
     sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
@@ -606,20 +730,27 @@ export async function createSession(masterPassword: string, validityHours: numbe
       logger.warn('写入 storage.session 数据密钥失败（将回退到按需重新解包）:', sessionSetError);
     }
 
+    assertSessionEpoch(epoch);
     // 将「被随机包裹密钥加密的数据密钥」与过期/有效期原子性落盘；主密码不再落盘
-    sessionWrappedDataKey = await persistWrappedDataKey(sessionDataKey, {
-      [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
-      [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
-    });
+    sessionWrappedDataKey = await persistWrappedDataKey(
+      dataKey,
+      {
+        [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
+        [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
+      },
+      epoch,
+    );
 
     // 清理旧版遗留的主密码密文（若存在），确保主密码不再残留于磁盘
     await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD);
 
     // 确保 at-rest 全部为密文（加密新条目 / 迁移旧版本残留明文），明文绝不落盘。
-    // sessionDataKey 已于上方派生并缓存，ensurePasswordsEncryptedAtRest 经
-    // getSessionDataKey() 命中内存缓存复用同一密钥，避免二次 PBKDF2。
+    // ensurePasswordsEncryptedAtRest 在嵌套 shared lease 内解包刚发布的 local DK，
+    // 不信任其它上下文的旧缓存，也不再执行 PBKDF2。
+    assertSessionEpoch(epoch);
     _encryptAtRestDone = false;
     await ensurePasswordsEncryptedAtRest();
+    assertSessionEpoch(epoch);
     // 写入 storage.session 锁定状态镜像（{ locked: false, expiresAt }），
     // 使侧边栏 isSessionQuicklyKnownInvalid() 可通过纯内存 IPC 快速判定会话有效性，
     // 消除 Windows 慢盘场景下 storage.local 磁盘读取延迟（200-500ms）导致的骨架屏延伸白屏
@@ -631,6 +762,7 @@ export async function createSession(masterPassword: string, validityHours: numbe
       // storage.session 不可用时静默忽略（isSessionQuicklyKnownInvalid 会降级到 storage.local）
     }
 
+    assertSessionEpoch(epoch);
     // 仅在新会话完整创建后恢复 failed/缺失的启动重锁屏障；独立 recovery 键不会覆盖 pending。
     if (!(await recoverBrowserStartupRelockAfterAuthentication())) {
       // 不能向调用方报告“登录成功但所有凭据入口仍锁定”。回滚刚写入的会话，
@@ -649,47 +781,75 @@ export async function createSession(masterPassword: string, validityHours: numbe
 }
 
 /**
- * 为修改主密码（rekey）准备新的会话密钥材料
+ * `prepareSessionRekey` 的产物：随新密文原子落盘、随后由 `publishSessionRekey` 采纳的会话材料。
  *
- * 与 createSession 不同：不直接写 storage.local，而是返回需与重加密数据
- * 一并原子写入的会话键值对，消除「新密文已落盘、会话密钥仍是旧值」的
- * 存储态竞态窗口（该窗口会导致各上下文监听器用旧密钥解密新密文全部失败）。
- *
- * 调用完成后，本上下文内存镜像与 storage.session 均已更新为新数据密钥，
- * 其它上下文在 onChanged 回调中回退读取 storage.session 时即可取到新密钥。
- *
- * @param dataKey 新数据加密密钥（hex，由新主密码派生；salt 不变时与 createSession 派生结果一致）
- * @param validityHours 会话有效期（小时）
- * @returns 需由调用方与数据密文原子写入 storage.local 的会话键值对
+ * 用四项具名键写死在类型层，取代此前 `Record<string, unknown>` + 取值时四处 `as` 的交接方式：
+ * 少准备一项不会报错，只会静默把 `undefined` 写成会话过期时间；而这条链的失败形态是
+ * 「用户以为已改密并解锁，下一次解密全部报错」，属最贵的一类静默降级。
  */
-export async function prepareSessionRekey(dataKey: string, validityHours: number): Promise<Record<string, unknown>> {
+export interface PreparedSessionRekey {
+  [SESSION_STORAGE_KEYS.WRAP_KEY]: string;
+  [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: string;
+  [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: number;
+  [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: number;
+}
+
+/** 仅准备材料；对应密文提交成功前不得发布新会话密钥。 */
+export async function prepareSessionRekey(dataKey: string, validityHours: number): Promise<PreparedSessionRekey> {
   const enc = await _getEncryption();
   const wrapKey = await generateSessionEncryptionKey();
   const wrapped = await enc.encryptData(dataKey, wrapKey);
-
-  invalidateSessionCache();
-  sessionDataKey = dataKey;
-  sessionWrappedDataKey = wrapped;
-  sessionValidityHours = validityHours;
-  sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
-
-  // 先更新 storage.session：保证其它上下文失效旧密钥后回退读取时拿到的已是新密钥
-  try {
-    await chrome.storage.session.set({
-      [SESSION_MEMORY_KEYS.DATA_KEY]: dataKey,
-      // rekey 后同步更新锁定状态镜像，sidepanel 下次打开时无需等待 storage.local 读取
-      [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: sessionPasswordExpiry },
-    });
-  } catch (sessionSetError) {
-    logger.warn('写入 storage.session 数据密钥失败（将回退到按需重新解包）:', sessionSetError);
-  }
-
   return {
     [SESSION_STORAGE_KEYS.WRAP_KEY]: wrapKey,
     [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: wrapped,
-    [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
+    [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: Date.now() + validityHours * 60 * 60 * 1000,
     [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
   };
+}
+
+/**
+ * 采纳刚随密文一起提交的新会话材料，返回**是否真的采纳**。
+ *
+ * 三种不采纳一律回执 `false`，调用方必须据此撤销材料并改报「需要重新解锁」：静默 `return`
+ * 会让 UI 回执「改密成功且保持解锁」，而盘上留下的新会话材料会把用户刚按下的立即锁定复活成
+ * 解锁态——与评审报告 P0-1 判为最严重的那一类「让锁说谎」同源。
+ * 其中第三条判据只能靠 `SESSION_LOCK_STATE` 镜像：别的上下文 `clearSession()` 删掉的
+ * `WRAPPED_DATA_KEY` 已被本次提交重新写过，逐字节比对反而通过。
+ */
+export async function publishSessionRekey(dataKey: string, prepared: PreparedSessionRekey): Promise<boolean> {
+  const epoch = sessionEpoch;
+  const wrapped = prepared[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+  const stored = await chrome.storage.local.get(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
+  if (sessionEpoch !== epoch || stored[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== wrapped) {
+    logger.warn('跳过发布换钥会话材料：本上下文会话已变动，或盘上没有对应的提交');
+    return false;
+  }
+  const lockState = (await chrome.storage.session.get(SESSION_MEMORY_KEYS.SESSION_LOCK_STATE))[
+    SESSION_MEMORY_KEYS.SESSION_LOCK_STATE
+  ] as { locked?: boolean } | undefined;
+  if (lockState?.locked === true) {
+    logger.warn('跳过发布换钥会话材料：另一上下文已锁定当前库，不复活会话');
+    return false;
+  }
+  const expiry = prepared[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+  adoptRekeyedSession(wrapped, expiry, prepared[SESSION_STORAGE_KEYS.VALIDITY_HOURS]);
+  const adoptedEpoch = sessionEpoch;
+  sessionDataKey = dataKey;
+  try {
+    await chrome.storage.session.set({
+      [SESSION_MEMORY_KEYS.DATA_KEY]: dataKey,
+      [SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]: wrapped,
+      [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: expiry },
+    });
+    if (adoptedEpoch !== sessionEpoch) {
+      sessionDataKey = null;
+      await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
+      return false;
+    }
+  } catch (error) {
+    logger.warn('会话内存镜像写入失败，将从已提交密钥恢复:', error);
+  }
+  return true;
 }
 
 /**
@@ -792,7 +952,10 @@ async function _doClearSession(): Promise<void> {
     try {
       // 同时更新锁定状态镜像：侧边栏 isSessionQuicklyKnownInvalid() 下次打开时
       // 可通过纯内存 IPC 立即感知锁定，无需等待 storage.local 磁盘读取
-      await chrome.storage.session.remove(SESSION_MEMORY_KEYS.DATA_KEY);
+      // 成对删除：读侧（getSessionDataKey 的缓存路径）拿 `DATA_KEY` 与 `DATA_KEY_WRAPPED`
+      // 配对来判断「这份明文镜像是否还对应当前密文」。只删前者会让锁定后的会话里
+      // 残留一枚孤立的配对指纹，与 `publishSessionRekey` 的成对移除口径不一致。
+      await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
       void chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } }).catch(() => {});
     } catch {
       // storage.session 不可用时忽略

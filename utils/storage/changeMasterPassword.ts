@@ -1,8 +1,10 @@
 import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry, PasswordHistoryRecord } from '@/utils/types';
+import type { IdentityRecord } from '@/utils/identity/types';
 import { logger } from '@/utils/logger';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
+import { SESSION_STORAGE_KEYS, type PreparedSessionRekey } from '@/utils/sessionManager-storage';
+import { lockSession } from '@/utils/sessionLock';
 import { verifyMasterPassword } from './masterPassword';
 import { getAllPasswordsRaw } from './passwordCrud';
 import { getAllTrashRaw } from './trashManager';
@@ -10,216 +12,292 @@ import { getAllHistoryRaw } from './passwordHistory';
 import { getAllIdentityRaw, reencryptAll } from './identityCrud';
 import { getAllIdentityTrashRaw } from './identityTrashManager';
 import { lazyImport } from '@/utils/lazyImport';
-import type { MasterPasswordConfig } from '@/utils/types';
+import { withVaultMutation, withVaultKeyTransition } from './vaultWriteLock';
+import {
+  assertCurrentRecoveryDraft,
+  assertRotatedDataKey,
+  assertSameMaster,
+  buildChangedMasterConfig,
+  normalizeNewMasterPassword,
+  readVaultRecoverySnapshot,
+  recoveryError,
+  verifyRecoveryReplacement,
+} from './recoveryState';
+import type { RecoveryConfirmation, VaultRekeyRequest, VaultRekeyResult } from './recoveryTypes';
+import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
+
+const getEncryption = lazyImport(() => import('@/utils/encryption'));
+const getSessionManager = lazyImport(() => import('@/utils/sessionManager-storage'));
 
 /**
- * 延迟加载加密模块
- */
-const _getEncryption = lazyImport(() => import('@/utils/encryption'));
-
-/**
- * 延迟加载会话管理模块
- */
-const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-storage'));
-
-/**
- * 快照与盘上是否已不一致（只比顺序与身份键，不比密文内容）
+ * 换钥前校验五个数据域的容器形状。
  *
- * 供 rekey 在整数组覆写前复验：五个数据域的所有写路径都保序（追加或 filter），
- * 因此长度或同下标的身份键发生变化，就是「快照在重加密期间被并发写过期」的信号。
+ * `mapWithConcurrency` 按 `length` 迭代：`{0: 记录, length: 0}` 这类畸形容器会被当成空库，
+ * 整数组覆写就把那条记录连根抹掉——「保留字节」变成了静默丢数据。两条链路都必须拒绝，
+ * 否则同一份畸形库会在改密后消失。
  *
- * **这套键只抓得到一部分并发写，别把它当成全部**：它抓得到增删、重排、条目编辑
- * （推高 `updateTime`）与回收站重进站（改 `deletedAt`）；抓不到的是收藏 / 备注这类
- * **刻意传入原 `updateTime`** 的元数据写（见 `passwordCrud.updatePassword` 的注释——
- * 收藏不该把条目顶到列表前部），内容变了而键没变，第 11 步的整数组覆写照样会把它抹掉。
- * 要补全这一半，要么给元数据写另设一个明文可比较的版本号，要么把那五个域的覆写改成
- * 按 id 的增量合并；两条都比本轮的「先止住最坏那种（记录凭空消失 / 已删 PII 复活）」更贵，
- * 因此如实记在这儿，不当作已解决。
- *
- * @param snapshot 步骤 3 读到的快照
- * @param fresh 覆写前重读到的当前值
- * @param keyOf 该域的身份键，须能区分同下标上的增删与内容编辑（回收站两域带 `deletedAt`）
+ * 这里刻意不复用 `RECOVERY_INCOMPLETE`：结构损坏不是「某条记录解不开」，而是容器本身
+ * 无法安全读写；若沿用同一个码，恢复界面会亮出「知情跳过」的勾选框，但勾选后仍会在这里
+ * 再次失败，给用户一扇永远走不通的门。
  */
-function isSnapshotStale<T>(snapshot: T[], fresh: T[], keyOf: (item: T) => string): boolean {
-  if (snapshot.length !== fresh.length) return true;
-  for (let i = 0; i < snapshot.length; i++) {
-    if (keyOf(snapshot[i]) !== keyOf(fresh[i])) return true;
-  }
-  return false;
+function assertDomainsIntact(domains: unknown[]): void {
+  const corrupted = domains.some((raw, index) => {
+    if (!Array.isArray(raw)) return true;
+    // 历史域的身份键是 entryId，其余四域是 id；混用会误拒合法数据。
+    const key = index === 2 ? 'entryId' : 'id';
+    return raw.some(
+      record => !record || typeof record !== 'object' || typeof (record as Record<string, unknown>)[key] !== 'string',
+    );
+  });
+  if (corrupted) throw recoveryError(VAULT_ERROR_CODES.VAULT_DATA_CORRUPTED);
 }
 
 /**
- * 修改主密码（Rekey）
- *
- * 核心编排流程：验证旧密码 → 解密全部数据 → 用新密码重新加密 → 准备新会话密钥 → 原子写入。
- *
- * 安全保证：
- * - 步骤 1-9 任意失败直接抛出，storage 未被写入，数据安全无损
- * - 旧钥解不开的单条历史记录原样保留（仍为旧钥密文），rekey 不删除任何用户数据
- * - 步骤 11 使用单次 `chrome.storage.local.set()` 将数据密文与新会话密钥原子写入，
- *   不存在「新密文 + 旧会话密钥」的中间状态
- * - 步骤 10.5 在整数组覆写前复验五个域的快照：重加密那几秒里另一张管理页标签若写过
- *   回收站/条目，本次立即中止并清会话（`code: 'REKEY_CONCURRENT_WRITE'`），
- *   不用过期快照覆盖那条写入，也不让已彻底删除或已过期的 PII 在新密钥下复活
- * - 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关
- *
- * @param oldPassword 当前主密码（明文）
- * @param newPassword 新主密码（明文）
- * @throws 旧密码验证失败或 rekey 过程中任何错误
+ * @param replacement 恢复启用时由弹窗生成并回填确认的新套件
+ * @param allowUndecryptable 安全开关：仅由弹窗的知情确认传入，默认 false 保持整笔中止
  */
-export async function changeMasterPassword(oldPassword: string, newPassword: string): Promise<void> {
-  // 口令归一化唯一入口：必须与 setMasterPassword / verifyMasterPassword 的 trim 口径一致。
-  // 若此处不 trim，落盘的校验值由「带空格的密码」派生，而解锁时输入会被 trim，
-  // 二者永远比对不上 —— 全库锁死。
+export async function changeMasterPassword(
+  oldPassword: string,
+  newPassword: string,
+  replacement?: RecoveryConfirmation,
+  allowUndecryptable = false,
+): Promise<VaultRekeyResult> {
   const oldPw = String(oldPassword || '').trim();
   const newPw = String(newPassword || '').trim();
-  if (!newPw) {
-    throw Object.assign(new Error('密码不能为空'), { code: 'EMPTY_PASSWORD' });
-  }
+  if (!newPw) throw recoveryError(VAULT_ERROR_CODES.EMPTY_PASSWORD);
+  // 主密码强度就是数据密钥强度，必须在存储层收口，不能只靠弹窗：创建时要求四条规则全通过，
+  // 换钥时若只判 `level !== 'weak'`（通过数 ≥2 即算 medium），等于开了一条
+  // 「把整库降级到比首次设置更弱的密钥」的通道，且会让同一串密码在启用/未启用离线恢复时
+  // 得到两种结果。与恢复链路共用 `normalizeNewMasterPassword` 这一道门槛。
+  // 位置与空密码校验并列：先拒形态再验旧密，避免为注定失败的提交付一次 PBKDF2。
+  normalizeNewMasterPassword(newPw);
+  const authorized = await withVaultMutation(async () => {
+    if (!(await verifyMasterPassword(oldPw))) throw recoveryError(VAULT_ERROR_CODES.WRONG_PASSWORD);
+    return readVaultRecoverySnapshot();
+  });
+  return withVaultKeyTransition(async () => {
+    const snapshot = await readVaultRecoverySnapshot();
+    assertSameMaster(authorized.master, snapshot.master);
+    const hasRecovery = snapshot.recovery !== undefined && snapshot.recovery !== null;
+    const encryption = await getEncryption();
+    const oldKey = await encryption.deriveEncryptionKey(oldPw);
+    const newKey = await encryption.deriveEncryptionKey(newPw);
+    // 换发恢复包的前提是数据密钥真的换了；同密码 = 同一把 DK，旧恢复包依旧能解新数据。
+    if (hasRecovery) assertRotatedDataKey(oldKey, newKey);
+    if (hasRecovery && !replacement) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_REPLACEMENT_REQUIRED);
+    if (!hasRecovery && replacement) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_STALE);
+    const newMasterConfig = await buildChangedMasterConfig(snapshot.master, newPw, true);
+    if (replacement) {
+      assertCurrentRecoveryDraft(replacement.draft, snapshot);
+      await verifyRecoveryReplacement(replacement.draft, replacement.confirmation, newKey, newMasterConfig);
+    }
+    return commitVaultRekey({
+      oldKey,
+      newKey,
+      newMasterConfig,
+      replacementRecovery: replacement?.draft.material.config,
+      mode: 'password-change',
+      allowUndecryptable,
+    });
+  });
+}
 
-  // 1. 验证旧密码
-  const isValid = await verifyMasterPassword(oldPw);
-  if (!isValid) {
-    throw Object.assign(new Error('当前密码验证失败'), { code: 'WRONG_PASSWORD' });
-  }
-
-  const enc = await _getEncryption();
-
-  // 2. 派生旧数据密钥
-  const oldKey = await enc.deriveEncryptionKey(oldPw);
-
-  // 3. 读取三块密文数据（身份库主列表与身份回收站为第 4、5 个加密域，读取置于任何写入之前，
-  //    故读取失败会在任何写入发生前中止整次 rekey）
+/** The caller holds the exclusive key-transition lease; no authentication is bypassed by this internal commit stage. */
+export async function commitVaultRekey(request: VaultRekeyRequest): Promise<VaultRekeyResult> {
+  const { oldKey, newKey, newMasterConfig, replacementRecovery, mode, allowUndecryptable } = request;
+  const encryption = await getEncryption();
   const rawPasswords = await getAllPasswordsRaw();
   const rawTrash = await getAllTrashRaw();
   const rawHistory = await getAllHistoryRaw();
   const identityRaw = await getAllIdentityRaw();
-  // 身份回收站必须同批纳入 rekey：漏掉它会让软删除条目在换钥后永久不可解、
-  // 更不可恢复（PII 唯一「可找回通道」被静默销毁），与主列表漏 rekey 同等致命
   const identityTrashRaw = await getAllIdentityTrashRaw();
+  assertDomainsIntact([rawPasswords, rawTrash, rawHistory, identityRaw, identityTrashRaw]);
 
-  // 4. 用旧密钥解密 passwords
-  // 条目级并行（批内 64）：结果顺序与 rawPasswords 一致；单条解密失败仍按原样向上抛出，
-  // 由步骤 1-9「任意失败直接抛出、storage 未被写入」的安全保证兜底。
-  const decryptedPasswords = await mapWithConcurrency(rawPasswords, async entry =>
-    'encrypted' in entry && entry.encrypted === true
-      ? enc.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey)
-      : (entry as PasswordEntry),
-  );
+  // 不可解条目的处置。默认一律整笔中止，保住「要么全换、要么不动」的原子性。
+  // 恢复与改密流程都可以在用户明确知情后开放 `allowUndecryptable`：把解不开的条目
+  // **原样携带**过这次换钥（不重加密、不删除），换回其余数据可用——它们留在库里，
+  // 但新数据密钥永远读不出它们。这不是新造状态：读路径早已用 `allSettled` 容忍不可解
+  // 条目（`getAllPasswordsDetailed` 的 `undecryptableCount`），改密路径的身份库与历史
+  // 也早已原样携带。相比「一条坏记录就把用户逼回清空或永久卡死改密」，救回其余数据是
+  // 更好的结局，前提是这一下必须由用户点头。
+  const tolerateUndecryptable = allowUndecryptable === true;
+  const blockedByUndecryptable = () =>
+    recoveryError(
+      mode === 'recovery' ? VAULT_ERROR_CODES.RECOVERY_INCOMPLETE : VAULT_ERROR_CODES.UNDECRYPTABLE_RECORDS,
+    );
+  let carriedUndecryptable = 0;
 
-  // 5. 用旧密钥解密 trash
-  const decryptedTrash: (TrashedPasswordEntry & { _plainFields?: PasswordEntry })[] = await mapWithConcurrency(
-    rawTrash,
-    async entry => {
-      if ('encrypted' in entry && entry.encrypted === true) {
-        const plain = await enc.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey);
-        return { ...plain, deletedAt: entry.deletedAt } as TrashedPasswordEntry;
+  type Outcome<T> = { plain: T } | { carry: EncryptedPasswordEntry };
+  let passwordOutcomes: Outcome<PasswordEntry>[];
+  let trashOutcomes: Outcome<TrashedPasswordEntry>[];
+  try {
+    passwordOutcomes = await mapWithConcurrency(rawPasswords, async (entry): Promise<Outcome<PasswordEntry>> => {
+      if (!('encrypted' in entry && entry.encrypted === true)) return { plain: entry as PasswordEntry };
+      try {
+        return { plain: await encryption.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey) };
+      } catch {
+        if (!tolerateUndecryptable) throw blockedByUndecryptable();
+        carriedUndecryptable += 1;
+        return { carry: entry as EncryptedPasswordEntry };
       }
-      return entry;
-    },
-  );
+    });
+    trashOutcomes = await mapWithConcurrency(rawTrash, async (entry): Promise<Outcome<TrashedPasswordEntry>> => {
+      if (!('encrypted' in entry && entry.encrypted === true)) return { plain: entry };
+      try {
+        const plain = await encryption.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey);
+        return { plain: { ...plain, deletedAt: entry.deletedAt } };
+      } catch {
+        if (!tolerateUndecryptable) throw blockedByUndecryptable();
+        carriedUndecryptable += 1;
+        return { carry: entry };
+      }
+    });
+  } catch (error) {
+    // 每条的失败已在上面按链路贴好稳定 code；这里只兜住非条目级异常。
+    if ((error as { code?: unknown })?.code) throw error;
+    if (mode === 'recovery') throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
+    throw error;
+  }
 
-  // 6. 用旧密钥解密 history 中的密码字段
-  // 解不开的记录原样保留（仍为旧钥密文），不参与重加密：rekey 不得顺带删除用户数据，
-  // 与 identityCrud.reencryptAll「失败者原样携带」及 getAllHistory「跳过但不回写」同口径。
-  // 消费侧（详情抽屉 / 编辑弹窗）本就以「解密失败」提示处理这类记录。
-  // 并行后仍按输入下标回填两个数组，顺序与串行版本逐字一致（可解项保持原序，不可解项整体置于末尾）。
   const historyOutcomes = await mapWithConcurrency(rawHistory, async record => {
     try {
-      return { plainPassword: await enc.decryptData(record.password, oldKey) };
+      return { plainPassword: await encryption.decryptData(record.password, oldKey) };
     } catch {
-      logger.warn(`历史记录无法用旧密钥解密，已原样保留（不参与 rekey）: entryId=${record.entryId}`);
+      if (mode === 'recovery' && !tolerateUndecryptable) throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
+      carriedUndecryptable += 1;
+      logger.warn('Unreadable password history retained during key change');
       return null;
     }
   });
   const decryptedHistory: PasswordHistoryRecord[] = [];
   const unrecoverableHistory: PasswordHistoryRecord[] = [];
-  historyOutcomes.forEach((outcome, i) => {
-    if (outcome) decryptedHistory.push({ ...rawHistory[i], password: outcome.plainPassword });
-    else unrecoverableHistory.push(rawHistory[i]);
+  historyOutcomes.forEach((outcome, index) => {
+    if (outcome) decryptedHistory.push({ ...rawHistory[index], password: outcome.plainPassword });
+    else unrecoverableHistory.push(rawHistory[index]);
   });
 
-  // 7. 派生新数据密钥
-  const newKey = await enc.deriveEncryptionKey(newPw);
-
-  // 8. 用新密钥重新加密所有数据（条目级并行，输出顺序与解密结果一致）
-  const reEncryptedPasswords = await mapWithConcurrency(decryptedPasswords, entry =>
-    enc.encryptPasswordEntry(entry, '', newKey),
+  // 携带过来的条目原样写回：它们仍是被旧数据密钥加密的密文，字节一个不动。
+  const reEncryptedPasswords = await mapWithConcurrency(passwordOutcomes, async outcome =>
+    'carry' in outcome ? outcome.carry : encryption.encryptPasswordEntry(outcome.plain, '', newKey),
   );
-
-  const reEncryptedTrash = await mapWithConcurrency(decryptedTrash, async entry => {
-    const { deletedAt, ...plainEntry } = entry as any;
-    const encrypted = await enc.encryptPasswordEntry(plainEntry as PasswordEntry, '', newKey);
-    return { ...encrypted, deletedAt } as TrashedPasswordEntry;
+  const reEncryptedTrash = await mapWithConcurrency(trashOutcomes, async outcome => {
+    if ('carry' in outcome) return outcome.carry as TrashedPasswordEntry;
+    const { deletedAt, ...plainEntry } = outcome.plain;
+    const encrypted = await encryption.encryptPasswordEntry(plainEntry, '', newKey);
+    return { ...encrypted, deletedAt };
   });
-
   const reEncryptedHistory = await mapWithConcurrency(decryptedHistory, async record => ({
     ...record,
-    password: await enc.encryptData(record.password, newKey),
+    password: await encryption.encryptData(record.password, newKey),
   }));
-  // 不可解记录置于末尾原样落盘（数组顺序对消费侧无意义：读取按 changedAt 排序，
-  // 截断亦按 changedAt 计算），保证 rekey 前后记录条数严格不变
   reEncryptedHistory.push(...unrecoverableHistory);
 
-  const reEncryptedIdentity = await reencryptAll(identityRaw, oldKey, newKey);
-  // 回收站同走 reencryptAll（单条失败原样携带）；`reencryptAll` 成功分支会把记录
-  // 归一化为四个标准键，因此换钥后必须按输入顺序回填 `deletedAt`——TTL 与剩余天数
-  // 读数都读这个明文键，漏回填会让到期清理把换钥前的回收站条目当成永不到期的驻留数据。
-  const reEncryptedIdentityTrashRaw = await reencryptAll(identityTrashRaw, oldKey, newKey);
-  const reEncryptedIdentityTrash = reEncryptedIdentityTrashRaw.map((record, i) => ({
-    ...record,
-    deletedAt: identityTrashRaw[i].deletedAt,
-  }));
-
-  // 9. 生成新的校验哈希（保留原 salt！）
-  // 注意：deriveEncryptionKey 内部从 storage 读取 salt 来派生数据密钥，
-  // 若此处替换为新 salt，则后续解密时会派生出不同的密钥，导致数据永久不可解密。
-  // salt 的安全作用是防彩虹表，更换密码本身已提供足够安全性，无需更新 salt。
-  const masterPwResult = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-  const existingConfig = masterPwResult[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
-  const existingSalt = existingConfig.salt;
-  const newVerifierHash = await enc.deriveVerifierHash(newPw, existingSalt);
-
-  // 10. 准备新会话密钥材料（rekey）
-  // salt 未变，步骤 7 派生的 newKey 即新会话数据密钥；prepareSessionRekey 会同步
-  // 更新本上下文内存镜像与 storage.session，并返回需一并原子落盘的会话键值对。
-  const sessionResult = await chrome.storage.local.get(SESSION_STORAGE_KEYS.VALIDITY_HOURS);
-  const validityHours = (sessionResult[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
-  const sessionManager = await _getSessionManager();
-  const sessionKeysToWrite = await sessionManager.prepareSessionRekey(newKey, validityHours);
-
-  // 10.5 覆写前的快照复验。
-  // 步骤 3 的快照与步骤 11 的落盘之间隔着整库重加密（2000 条量级要跑几秒），
-  // 而 Chrome 允许开两个管理页标签：另一页在这几秒里删/恢复/彻底写回收站或改条目时，
-  // 步骤 11 的**整数组覆写**会把那条写入连根抹掉（两侧皆无，不可恢复），
-  // 或让已彻底删除/已过期的 PII 在新密钥下复活——直接打掉回收站的 30 天承诺。
-  // 只比「顺序 + 身份键」不比密文：所有写路径都保序（追加或 filter），顺序或键一变
-  // 即说明快照过期。宁可让用户重跑一次，也不带过期快照落盘。
-  const [freshPasswords, freshTrash, freshHistory, freshIdentity, freshIdentityTrash] = await Promise.all([
-    getAllPasswordsRaw(),
-    getAllTrashRaw(),
-    getAllHistoryRaw(),
-    getAllIdentityRaw(),
-    getAllIdentityTrashRaw(),
-  ]);
-  if (
-    isSnapshotStale(rawPasswords, freshPasswords, entry => `${entry.id}:${entry.updateTime}`) ||
-    isSnapshotStale(rawTrash, freshTrash, entry => `${entry.id}:${entry.deletedAt}`) ||
-    isSnapshotStale(rawHistory, freshHistory, record => `${record.entryId}:${record.changedAt}`) ||
-    isSnapshotStale(identityRaw, freshIdentity, record => `${record.id}:${record.updateTime}`) ||
-    isSnapshotStale(identityTrashRaw, freshIdentityTrash, record => `${record.id}:${record.deletedAt}`)
-  ) {
-    // 与步骤 11 写失败同一处置：步骤 10 已把会话密钥材料换成新值，
-    // 不清会话就会留下「新密钥 + 旧密文」的不一致状态
-    await sessionManager.clearSession().catch(() => {});
-    throw Object.assign(new Error('检测到其他页面的改动刚刚写入，本次修改已安全取消，请重试'), {
-      code: 'REKEY_CONCURRENT_WRITE',
+  async function recoverIdentities<T extends IdentityRecord>(records: T[]): Promise<T[]> {
+    return mapWithConcurrency(records, async record => {
+      let plaintext: string;
+      try {
+        plaintext = await encryption.decryptData(record.encryptedPayload, oldKey);
+        JSON.parse(plaintext);
+      } catch {
+        throw recoveryError(VAULT_ERROR_CODES.RECOVERY_INCOMPLETE);
+      }
+      return { ...record, encryptedPayload: await encryption.encryptData(plaintext, newKey) };
     });
   }
+  // 身份库两域：未开启知情跳过时保持原有的零容忍；开启后交给 `reencryptAll`，
+  // 它本就是改密路径「单条失败原样携带」的实现，语义与上面的密码域携带一致。
+  const countCarriedIdentity = () => {
+    carriedUndecryptable += 1;
+  };
+  const reEncryptedIdentity =
+    mode === 'recovery' && !tolerateUndecryptable
+      ? await recoverIdentities(identityRaw)
+      : await reencryptAll(identityRaw, oldKey, newKey, countCarriedIdentity);
+  const identityTrashResult =
+    mode === 'recovery' && !tolerateUndecryptable
+      ? await recoverIdentities(identityTrashRaw)
+      : await reencryptAll(identityTrashRaw, oldKey, newKey, countCarriedIdentity);
+  const reEncryptedIdentityTrash = identityTrashResult.map((record, index) => ({
+    ...record,
+    deletedAt: identityTrashRaw[index].deletedAt,
+  }));
 
-  // 11. 原子写入：数据密文 + 校验哈希 + 新会话密钥单次 chrome.storage.local.set()，
-  // 全成功或全失败，消除「新密文已落盘、会话密钥仍是旧值」的竞态窗口
-  // （各上下文的 storage 监听器会用旧密钥解密新密文全部失败，导致列表被清空）
+  const sessionManager = await getSessionManager();
+  // 会话键基线：`prepareSessionRekey` 的产物是「即将随密文一起落盘的新会话材料」，
+  // 而从准备到原子写之间隔着整轮加解密（2000 条量级为秒级）。这期间任何一次锁定或
+  // 会话重建都必须让本次提交作废——否则用户点了「立即锁定」，会被这批早已备好的键
+  // 复活成有效会话。`clearSession` 刻意不在租约内（它同时是恢复流程自己的提交步骤），
+  // 所以这段窗口用读数比对兜住。
+  const authGuardKeys = [
+    SESSION_STORAGE_KEYS.WRAP_KEY,
+    SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
+    SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+    SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+    // 校验配置也在比对之列：本次提交会写 `newMasterConfig`，而内容脚本跑在宿主页面的 origin 上，
+    // 它的共享租约挡不住这里的独占换钥（`navigator.locks` 按 origin 分组）。若换钥期间网页侧完成
+    // 一次旧版校验哈希升级，磁盘上的新配置会被旧口令的哈希盖掉——旧密码「验得过」但整库已是新钥
+    // 密文，绑定该配置的恢复密钥同时失效。读盘比对是这条跨上下文写路径唯一可用的守卫。
+    STORAGE_KEYS.MASTER_PASSWORD,
+  ];
+  const sessionBefore = await chrome.storage.local.get(authGuardKeys);
+  // 基线里没有包裹好的数据密钥＝当前是锁定态（`clearSession` 恰好删除这一项）。
+  // 锁定态下不得准备新会话材料：两侧读数同为空时漂移比对毫无变化，那批备好的键会随本次
+  // 提交落盘并把用户刚清掉的会话复活成有效登录态——而漂移守卫只能看见基线**之后**的锁定。
+  const hadLiveSession = sessionBefore[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== undefined;
+  let sessionKeysToWrite: PreparedSessionRekey | null = null;
+  if (mode === 'password-change' && hadLiveSession) {
+    const sessionResult = await chrome.storage.local.get(SESSION_STORAGE_KEYS.VALIDITY_HOURS);
+    const validityHours = (sessionResult[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
+    sessionKeysToWrite = await sessionManager.prepareSessionRekey(newKey, validityHours);
+  }
+
+  const [fresh, sessionAfter] = await Promise.all([
+    Promise.all([
+      getAllPasswordsRaw(),
+      getAllTrashRaw(),
+      getAllHistoryRaw(),
+      getAllIdentityRaw(),
+      getAllIdentityTrashRaw(),
+    ]),
+    chrome.storage.local.get(authGuardKeys),
+  ]);
+  const original = [rawPasswords, rawTrash, rawHistory, identityRaw, identityTrashRaw];
+  /**
+   * 守卫值必须按**值**比，不能按引用比。
+   *
+   * `authGuardKeys` 里除了四个会话标量，还有对象形态的 `master_password_config`；而
+   * `chrome.storage.local.get` 每次读都会反序列化出新实例——按 `!==` 比它，真机上恒为「有漂移」，
+   * 于是每一次正常改密都会被自己判成并发写而中止（e2e `security.spec.ts` 暴露：改密成功提示
+   * 永不出现）。仓库的存储桩返回同一实例，所以全量单测当时照样是绿的。
+   * 对象这一项按 JSON 串比，与下面五域密文的逐字节比对口径一致。
+   */
+  const sameGuardValue = (a: unknown, b: unknown): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);
+  const sessionMoved = authGuardKeys.some(key => !sameGuardValue(sessionBefore[key], sessionAfter[key]));
+  // 比对保持逐字节：换成「条数 + id 集合 + max(updateTime)」指纹能省掉 2000 条下约 40～80ms
+  // 的同步 stringify，但那段开销被四次 PBKDF2（本机每台 ~2.4s）完全淹没，省它等于拿
+  // 「新密文 + 旧会话密钥」这条数据完整性守卫去换一位数百分比的换钥耗时。
+  if (sessionMoved || original.some((records, index) => JSON.stringify(records) !== JSON.stringify(fresh[index]))) {
+    await sessionManager.clearSession().catch(() => {});
+    throw recoveryError(VAULT_ERROR_CODES.REKEY_CONCURRENT_WRITE);
+  }
+
+  if (carriedUndecryptable > 0) {
+    // 只记条数，不记 id 或任何密文片段：留一条可供支持排查的轨迹，同时不把敏感材料写进日志。
+    const flow = mode === 'recovery' ? 'Recovery' : 'Password change';
+    logger.warn(`${flow} completed with ${carriedUndecryptable} undecryptable record(s) carried through as-is`);
+  }
+
+  if (mode === 'recovery') await lockSession();
+  const recoveryToWrite = replacementRecovery
+    ? {
+        [STORAGE_KEYS.RECOVERY_CONFIG]: {
+          version: replacementRecovery.version,
+          id: replacementRecovery.id,
+          createdAt: replacementRecovery.createdAt,
+          wrappedDataKey: replacementRecovery.wrappedDataKey,
+        },
+      }
+    : {};
   try {
     await chrome.storage.local.set({
       [STORAGE_KEYS.PASSWORDS]: reEncryptedPasswords,
@@ -227,22 +305,42 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
       [STORAGE_KEYS.PASSWORD_HISTORY]: reEncryptedHistory,
       [STORAGE_KEYS.IDENTITY]: reEncryptedIdentity,
       [STORAGE_KEYS.IDENTITY_TRASH]: reEncryptedIdentityTrash,
-      [STORAGE_KEYS.MASTER_PASSWORD]: {
-        hashedPassword: newVerifierHash,
-        salt: existingSalt,
-        kdf: 'pbkdf2-sha256' as const,
-      },
-      ...sessionKeysToWrite,
+      [STORAGE_KEYS.MASTER_PASSWORD]: newMasterConfig,
+      ...recoveryToWrite,
+      ...(sessionKeysToWrite ?? {}),
     });
   } catch (error) {
-    // 写入失败时数据仍为旧密文，但会话密钥材料（内存/storage.session）已更新为新值，
-    // 主动清除会话强制重新验证，避免「新密钥 + 旧密文」的不一致状态
     await sessionManager.clearSession().catch(() => {});
     throw error;
   }
-
-  // 12. 清理旧版遗留的主密码密文（若存在），与 createSession 的清理行为保持一致
-  await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD);
-
-  logger.info('主密码修改成功，所有数据已重新加密');
+  if (mode === 'password-change') {
+    // 提交点已越过：数据、校验哈希与新包裹密钥都已落盘。发布会话材料失败不得伪装成
+    // 「未提交」错误——否则用户以为旧密码仍有效，重试必然失败。
+    if (hadLiveSession && sessionKeysToWrite) {
+      try {
+        const adopted = await sessionManager.publishSessionRekey(newKey, sessionKeysToWrite);
+        if (!adopted) {
+          // 没能采纳＝这中间有别的上下文把库锁了（或本上下文的会话已变动）。刚写回盘上的
+          // 会话材料必须撤销，否则用户按下的立即锁定会被这次换钥复活成解锁态；撤销走
+          // `clearSession`，它与锁定路径同一口径，不在这儿另抄一份键名清单。
+          logger.warn('Vault key change committed but session adoption refused; keeping ciphertext locked out');
+          await sessionManager.clearSession().catch(() => {});
+          return { relockRequired: true, carriedUndecryptable };
+        }
+      } catch (error) {
+        logger.error('Post-commit session refresh failed; forcing relock:', error);
+        await sessionManager.clearSession().catch(() => {});
+        return { relockRequired: true, carriedUndecryptable };
+      }
+    }
+    // 只剩旧版遗留 blob 清理：失败不影响一致性，记日志即可，不得反向推翻「已改密」。
+    await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD).catch(error => {
+      logger.warn('Legacy session master-password cleanup failed:', error);
+    });
+    // 基线就是锁定态时新会话材料从未准备，提交后仍是锁定态：必须让弹窗按「重新解锁」改口，
+    // 报「修改成功」会让用户以为原有的解锁态延续。
+    if (!hadLiveSession) return { relockRequired: true, carriedUndecryptable };
+  }
+  logger.info('Vault key change committed');
+  return { relockRequired: false, carriedUndecryptable };
 }

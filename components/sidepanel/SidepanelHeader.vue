@@ -255,7 +255,7 @@ watch(
   width: 30px;
   height: 30px;
   padding: 0;
-  color: #64748b;
+  color: var(--aph-text-muted);
   cursor: pointer;
   background: transparent;
   border: none;
@@ -317,7 +317,7 @@ watch(
   align-items: center;
   overflow: hidden;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
   white-space: nowrap;
 }
 
@@ -399,7 +399,7 @@ watch(
 
 /* 线上/无法识别的环境用警示色：文字已写着 prod，颜色只是加强，不单独承担语义 */
 .env-pill--danger {
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
   background: var(--el-color-danger-light-9);
   border-color: var(--el-color-danger-light-7);
 }
@@ -489,7 +489,7 @@ watch(
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 16px;
-  color: #64748b;
+  color: var(--aph-text-muted);
   cursor: pointer;
   background: #f1f5f9;
   border: none;

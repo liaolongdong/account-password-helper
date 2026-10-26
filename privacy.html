@@ -464,7 +464,27 @@
             <li><strong>加密实现：</strong>浏览器原生 Web Crypto API（无第三方加密库）</li>
             <li><strong>随机数：</strong>使用密码学安全的随机数生成器（crypto.getRandomValues）</li>
           </ul>
-          <p>主密码不以明文保存，磁盘上只留有加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
+          <p>主密码不以原文或可逆密文保存，其校验使用加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
+          <p>
+            <strong>可选离线恢复：</strong>默认不启用、没有自动迁移。在「安全设置 →
+            离线恢复密钥」输入当前主密码可创建、换发或停用；创建和换发须先保存并回填验证套件，成功后才启用。 恢复密钥 R
+            由 32 随机字节生成，经 HKDF-SHA256 域分离派生不可导出的 AES-GCM 包裹钥 KEK，用当前主密码配置作 AAD
+            绑定数据钥 DK。 恢复功能仅在本机持久化包裹 DK 与非敏感元数据，不保存 R 或
+            KEK。此恢复包独立于会话，锁定或过期不会将其停用；它不新增网络请求、权限或遥测，既有匿名版本检查不变。
+          </p>
+          <p>
+            <strong>恢复套件不是备份：</strong
+            ><code>.aphrecovery</code> 仅含恢复密钥、套件标识、版本和时间，不含密码库，请与设备和数据备份分开保管。
+            创建、换发或停用都不是备份；持有旧 R
+            与匹配旧恢复包/密文的人，不会因为您换发或停用而失去已复制数据的访问能力。怀疑泄漏时应修改主密码轮换数据钥，但历史副本无法收回。
+            已启用者正常改主密码也须先保存并验证新套件，成功后旧 R
+            不再适用于当前本机入口；未启用者保留原改密交互。若密码或回收站里有记录解不开，改密默认整笔中止；中止后可在明确知情下携带这些记录继续，但新主密码无法读取它们。
+          </p>
+          <p>
+            <strong>恢复套件是未加密的明文：</strong><code>.aphrecovery</code> 内含恢复密钥；
+            拿到它并取得这台电脑的库数据即可解密，泄露后果等同于第二把万能钥匙。请与设备和数据备份分开保管，
+            不要留在下载目录，也不要经邮件或网盘传递；换发后请删除旧套件。
+          </p>
           <p>
             <strong>请这样理解「保持登录」：</strong
             >会话有效期内，用于恢复登录状态的密钥材料（数据密钥的包装值与包裹密钥）会随密文一起留在本机磁盘上，
@@ -473,9 +493,16 @@
             完全关闭浏览器后密钥材料即被清除，重新打开必须输入主密码。
           </p>
           <p>
-            <strong>一处明文例外：</strong
+            <strong>明文例外之一（到期提醒的账号名）：</strong
             >为某条密码设置到期提醒时，该条的账号名会以明文冗余记录在本地的到期提醒表中（提醒由系统在任意时刻发出桌面通知，
             含已锁定状态，账号名用于让通知指明是哪个账号），它同时会留下「哪个账号将在何时到期」这一信息；删除该条提醒、删除对应条目或清空回收站都会连带清除这条明文记录。
+          </p>
+          <p>
+            <strong>明文例外之二（主密码提示语）：</strong
+            >设置主密码时您可以自愿留一句提示语，它以<strong>明文</strong>保存在本机的
+            <code>master_password_config</code>
+            里，用途是在您忘记主密码、连续输错几次后帮自己回想——用主密码加密它就等于「忘了才需要看、看了却解不开」，因此明文是这项功能的前提而非疏漏。
+            提示语不参与任何密钥派生，也不包含主密码材料；它只是帮您回想，<strong>不构成找回机制</strong>。建议不要写入主密码本身或其变形，共用电脑上请勿设置，或只写只有您能解读的间接线索。
           </p>
           <p>
             个人信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
@@ -635,8 +662,15 @@
               >删除该条提醒、删除对应条目或清空回收站，都会一并清除提醒表里那条明文的账号名记录（见第 3 节）
             </li>
             <li>
-              <strong>「忘记密码？重置所有数据」：</strong
-              >主密码无法找回，重置会清空本机全部密码数据且不可撤销——这是忘记主密码时唯一的路径，操作前有二次确认
+              <strong>「忘记密码？查看找回方法」：</strong
+              >主密码本身不能找回，提示语只是记忆辅助、不是安全提问。若已提前启用离线恢复且保留匹配密钥，可在锁屏输入密钥或导入套件，设置新主密码，再保存并验证新套件，恢复当前本机的密码、密码回收站、密码历史、个人信息与个人信息回收站。
+              默认任一数据无法解密都会阻止原地恢复，数据不做任何改动；只有恢复被中止后，用户明确知情选择携带，才会恢复其余数据，解不开的记录会原样留在库里、新主密码无法读取，也不会出现在列表或备份中。成功后保持锁定，用新主密码解锁。
+              没有可用密钥时，先在向导只读验证 <code>.aph</code> / <code>.aphid</code>，再到另一设备或独立浏览器 Profile
+              导入核对，最后才考虑清除原库，不能先清再试。
+              两种独立备份格式不变，仍需<strong>导出时的主密码</strong>，新恢复密钥不能解开旧备份；若导出时与当前是同一密码且已遗忘，旧备份仍打不开。明文
+              CSV / JSON 导出也是数据来源。
+              没有可用恢复密钥或可解备份时仍无法恢复，最后的「重置所有数据」经二次确认后清空本机库且不可撤销。数据或
+              Profile 丢失时，仅有恢复密钥无用，仍需匹配数据备份；也不能事后给锁死库补恢复
             </li>
             <li>
               <strong>卸载扩展：</strong>扩展被移除时，Chrome 会一并清除它在 <code>chrome.storage.local</code> 中的数据
@@ -645,7 +679,7 @@
           </ul>
           <p>
             您导出的文件（CSV / JSON /
-            <code>.aph</code> / <code>.aphid</code>
+            <code>.aph</code> / <code>.aphid</code> / <code>.aphrecovery</code>
             /站点规则
             JSON）离开扩展后就归您所有，删除只能在您存放它们的位置进行；其中明文形态的文件包含可直接读取的凭据，请按第 7
             节的提示妥善保管。
@@ -849,8 +883,27 @@
             </li>
           </ul>
           <p>
-            The master password is never stored in plaintext — only a salted PBKDF2 (SHA-256, 600,000 iterations)
-            verifier is kept.
+            The master password is never stored as plaintext or reversible ciphertext. Verification uses a salted PBKDF2
+            (SHA-256, 600,000 iterations) verifier.
+          </p>
+          <p>
+            <strong>Optional offline recovery:</strong> off by default, with no automatic migration. Under Security
+            Settings → Offline Recovery Key, enter the current master password to create, replace or disable it.
+            Creation and replacement require saving and re-entering the kit for verification before activation. Recovery
+            key R is generated from 32 random bytes. Domain-separated HKDF-SHA256 derives a non-exportable AES-GCM
+            wrapping key KEK; the current master-password configuration is AAD binding the data key DK. Recovery
+            persists only wrapped DK and non-sensitive metadata locally, never R or KEK. This envelope is separate from
+            the session and is not disabled on lock or expiry. Recovery adds no requests, permissions or telemetry;
+            existing anonymous version checks remain.
+          </p>
+          <p>
+            <strong>A recovery kit is not a backup:</strong> <code>.aphrecovery</code> contains only the recovery key,
+            kit ID, version and time, not the vault. Keep it separate from the device and data backups. Creating,
+            replacing or disabling recovery is not a backup. Anyone with old R and its matching old envelope/ciphertext
+            retains access to those copied data even after replacement or disabling. If exposure is suspected, change
+            the master password to rotate the data key; historical copies cannot be recalled. Ordinary password changes
+            with recovery enabled also require saving and verifying a new kit first; after success old R no longer works
+            at the current local entry point. Users without recovery keep the original password-change interaction.
           </p>
           <p>
             <strong>What "stay signed in" really means:</strong> while a session is valid, the key material that
@@ -864,11 +917,21 @@
             fully closing the browser then clears the key material, and reopening requires the master password.
           </p>
           <p>
-            <strong>One plaintext exception:</strong> when you set an expiry reminder for an entry, that entry's
-            username is redundantly recorded in plaintext in the local reminder table, because reminders fire as desktop
-            notifications at any moment — including while locked — and the username is what makes the notice name an
-            account. It also leaves behind which account is expiring and when. Deleting that reminder, deleting the
-            entry, or emptying the trash clears the record.
+            <strong>Plaintext exception 1 (expiry-reminder account names):</strong> when you set an expiry reminder for
+            an entry, that entry's username is redundantly recorded in plaintext in the local reminder table, because
+            reminders fire as desktop notifications at any moment — including while locked — and the username is what
+            makes the notice name an account. It also leaves behind which account is expiring and when. Deleting that
+            reminder, deleting the entry, or emptying the trash clears the record.
+          </p>
+          <p>
+            <strong>Plaintext exception 2 (the master password hint):</strong> you may optionally leave a hint when
+            setting the master password. It is stored <strong>in plain text</strong> in
+            <code>master_password_config</code> on this machine so that it can still be read after you forget the
+            password — encrypting it with that password would make it useless exactly when it is needed, so plaintext is
+            the feature's premise rather than an oversight. The hint takes no part in key derivation and contains no
+            password material; it only helps you recall, and it is <strong>not a recovery mechanism</strong>. Do not put
+            the master password itself or a variation of it in the hint, and on shared computers either leave it empty
+            or write only an indirect cue only you can decode.
           </p>
           <p>
             Personal information (name, ID number, phone, email, address, bank card details and custom fields) is kept
@@ -1051,9 +1114,22 @@
               trash all clear the plaintext account-name record kept in the reminder table (see Section 3)
             </li>
             <li>
-              <strong>"Forgot password? Reset all data":</strong> the master password cannot be recovered, and resetting
-              wipes all local password data irreversibly — it is the only path when the master password is lost, and it
-              requires a confirmation step
+              <strong>"Forgot password? See recovery options":</strong> the master password itself cannot be retrieved;
+              hints aid memory, not security-question unlocking. If recovery was enabled beforehand and you kept its
+              matching key, enter the key or import the kit on the lock screen, set a new master password, then save and
+              verify a new kit to recover the current local passwords, password trash, password history, personal info
+              and personal info trash. By default, any undecryptable data blocks in-place recovery and nothing is
+              changed. Only after such an abort, and only with explicit informed consent, can the rest be recovered;
+              those records stay in the vault as-is, remain unreadable under the new master password, and are omitted
+              from lists and backups. After success the vault stays locked; unlock with the new master password. Without
+              a usable key, verify <code>.aph</code> / <code>.aphid</code> read-only in the wizard, then import on
+              another device or in a separate browser profile to check the result before considering a wipe — never wipe
+              first and test later. Both independent backup formats are unchanged and still need their
+              <strong>export-time master password</strong>, not a new recovery key. If that was the same password now
+              forgotten, old backups remain unreadable. Plaintext CSV / JSON exports are another data source. With no
+              usable key or decryptable backup, data remains unrecoverable; the last-resort reset irreversibly clears
+              the local vault after confirmation. If data or the profile is lost, a recovery key alone is useless and a
+              matching data backup is still needed. Recovery cannot be added after lockout
             </li>
             <li>
               <strong>Uninstalling the Extension:</strong> Chrome clears the extension's
@@ -1067,7 +1143,7 @@
           </ul>
           <p>
             Files you export (CSV / JSON /
-            <code>.aph</code> / <code>.aphid</code>
+            <code>.aph</code> / <code>.aphid</code> / <code>.aphrecovery</code>
             / site-rule JSON) leave the Extension and become yours to keep; they can only be deleted wherever you store
             them. Plaintext forms contain directly readable credentials, so handle them as Section 7 advises.
           </p>

@@ -167,6 +167,26 @@ describe('备份提醒的接线', () => {
     expect(keysBlock).not.toContain('STORAGE_KEYS.IDENTITY');
   });
 
+  it('SW 侧：换钥匙批次不刷新待备份时间戳（rekey 只是换钥匙，不是内容变更）', () => {
+    const background = readSource(BACKGROUND);
+    const recorderAt = background.indexOf('async function recordBackupRelevantChanges');
+    expect(recorderAt).toBeGreaterThan(-1);
+    const recorderBody = background.slice(recorderAt, recorderAt + 1600);
+
+    // 早退必须排在两条 setLast*ChangeAt 之前，否则 rekey 仍会把戳往前推。
+    // 两个信号都要传：只盯包裹密钥会漏掉离线恢复——它刻意不建立会话，提交前一步就是
+    // lockSession()，那批整库重加密里没有新包裹密钥，于是每次成功恢复都凭空报一条「待备份」。
+    const guardAt = recorderBody.indexOf('isKeyRotationBatch(');
+    expect(guardAt, 'rekey 早退判据不见了：用户每改一次主密码就会凭空欠一次备份').toBeGreaterThan(-1);
+    const guardCall = recorderBody.slice(guardAt, recorderBody.indexOf(')', guardAt));
+    expect(guardCall).toContain('changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]');
+    expect(guardCall, '离线恢复批次会绕过早退判据，报出假「待备份」').toContain(
+      'changes[STORAGE_KEYS.MASTER_PASSWORD]',
+    );
+    expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastPasswordChangeAt(now)'));
+    expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastIdentityChangeAt(now)'));
+  });
+
   it('SW 侧：备份判据只读主列表键，回收站单独变化不点亮提醒（与密码库同口径）', () => {
     const background = readSource(BACKGROUND);
     const recorderAt = background.indexOf('async function recordBackupRelevantChanges');
@@ -193,6 +213,29 @@ describe('备份提醒的接线', () => {
     // 顺序即承诺：先推进时间戳再决定是否出声，闹钟节奏与改造前完全一致
     expect(silenceAt).toBeGreaterThan(advanceAt);
     expect(background).toContain("tl(verdict === 'changed' ? 'bg.backup.messageChanged' : 'bg.backup.message'");
+  });
+
+  /**
+   * 邮箱备份通道递出去的是 `passwords_*.csv` / `.aph`，不含 `.aphid`，
+   * 所以这条定时提醒的作用域必须停在密码库：给只有个人信息库的用户发「请用邮箱备份」，
+   * 是在引导一个备不到他数据的动作。身份库的欠备份由管理页横幅承担（那里能指到导出入口）。
+   * 真要加站外身份库提醒，前提是先有一条带 `.aphid` 的定时通道——那是产品决策，
+   * 不该由一次顺手改码悄悄发生，所以这里把它钉成断言。
+   */
+  it('SW 侧：邮箱备份提醒只判密码库，不把身份库悄悄并进来', () => {
+    const background = readSource(BACKGROUND);
+    const start = background.indexOf('async function performAutoBackup');
+    expect(start, 'performAutoBackup 的声明形状变了：本条守卫需要跟着调整').toBeGreaterThan(-1);
+    const body = background.slice(start, background.indexOf('\n}', background.indexOf('auto-backup-reminder', start)));
+    expect(body.length, '提取到的函数体为空，判据会空跑').toBeGreaterThan(200);
+
+    expect(body).toContain('STORAGE_KEYS.PASSWORDS');
+    expect(body, '提醒里出现了身份库：邮箱通道不带 .aphid，会引导用户做备不到数据的动作').not.toContain(
+      'STORAGE_KEYS.IDENTITY',
+    );
+    expect(body, '判据不再走 decidePasswordBackupReminder：确认改动是否连带改了出声条件').toContain(
+      'decidePasswordBackupReminder(',
+    );
   });
 
   it('变更分支文案中英两套都在，且都带 {count} 占位符', () => {

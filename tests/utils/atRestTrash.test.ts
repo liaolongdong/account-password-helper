@@ -23,6 +23,7 @@ vi.mock('@/utils/browserStartupRelock', () => ({
 
 /** 明文 → 可辨识密文（保留其余字段，含 deletedAt） */
 vi.mock('@/utils/encryption', () => ({
+  deriveVerifierHash: vi.fn(async (password: string) => `verifier:${password}`),
   deriveEncryptionKey: vi.fn(async () => 'data-key'),
   encryptData: vi.fn(async (v: string) => `enc(${v})`),
   decryptData: vi.fn(async () => 'plain'),
@@ -77,6 +78,17 @@ beforeEach(async () => {
   vi.resetModules();
   await chrome.storage.local.clear();
   await chrome.storage.session.clear();
+  const { SESSION_STORAGE_KEYS } = await import('@/utils/sessionManager-storage');
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.MASTER_PASSWORD]: {
+      salt: 'fixture-salt',
+      hashedPassword: 'verifier:master-password',
+      kdf: 'pbkdf2-sha256',
+    },
+    [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: 'wrapped-data-key',
+    [SESSION_STORAGE_KEYS.WRAP_KEY]: 'wrap-key',
+    [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: Date.now() + 60_000,
+  });
   // 模块 mock 的函数实例在本文件内共享，resetModules 不会重置调用记录，
   // 逐个清空后各用例的「加密了几条 / 有没有加密」断言才只反映自身行为
   const enc = await import('@/utils/encryption');

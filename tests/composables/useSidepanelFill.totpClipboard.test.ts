@@ -25,6 +25,9 @@ const generateTOTP = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/totp', () => ({
   generateTOTP: (...args: unknown[]) => generateTOTP(...args),
+  // 剩余时间固定给满：本文件量的是剪贴板与自动清除的时序，不该混进「等下一个时间窗」
+  getTotpPeriod: () => 30,
+  getTotpRemaining: () => 30,
 }));
 
 vi.mock('@/utils/storage/configManager', async importOriginal => ({

@@ -62,7 +62,10 @@ function findKeyLiterals(source: string, keys: readonly string[]): { line: numbe
 
 /** 从会话模块源码里取出 `SESSION_STORAGE_KEYS` 的键名值集合 */
 function sessionKeyValues(): Set<string> {
-  const block = readSource(SESSION_MODULE).match(/(SESSION_STORAGE_KEYS\s*=\s*\{[\s\S]*?\n\};)/);
+  // `as const` 是刻意加的（2026-10-26）：键值收窄成字面量类型后，`PreparedSessionRekey` 才能用
+  // `SESSION_STORAGE_KEYS.X` 作计算键，把换钥会话材料的交接从 `Record<string, unknown>` 升级为
+  // 「少一项就编译不过」。判据仍要求它是一段 `…= { … }` 结尾独立的块，改名或拆散照样取不到。
+  const block = readSource(SESSION_MODULE).match(/(SESSION_STORAGE_KEYS\s*=\s*\{[\s\S]*?\n\}(?:\s+as\s+const)?;)/);
   expect(block, '未取到 SESSION_STORAGE_KEYS 定义块（文件结构变化需同步更新本守卫）').toBeTruthy();
   const values = [...block![1].matchAll(/^\s*[A-Z_]+:\s*'([^']+)'/gm)].map(match => match[1]);
   expect(values.length).toBeGreaterThanOrEqual(6);

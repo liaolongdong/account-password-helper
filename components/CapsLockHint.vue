@@ -29,7 +29,7 @@ const { t } = useI18n();
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.4;
-  color: #e6a23c;
+  color: var(--aph-warning-strong);
 }
 
 .caps-lock-hint__icon {

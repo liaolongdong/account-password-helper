@@ -112,24 +112,24 @@ describe('changeMasterPassword 口令归一化', () => {
   it('新密码带首尾空格时，校验值由 trim 后的密码派生', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', ' new-pw ');
+    await changeMasterPassword('old-pw', ' New-pw#1 ');
 
-    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
   });
 
   it('新密码带首尾空格时，数据密钥与校验值收到同一个字符串', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', ' new-pw ');
+    await changeMasterPassword('old-pw', ' New-pw#1 ');
 
-    expect(deriveEncryptionKey).toHaveBeenCalledWith('new-pw');
-    expect(deriveVerifierHash).toHaveBeenCalledWith('new-pw', 'the-salt');
+    expect(deriveEncryptionKey).toHaveBeenCalledWith('New-pw#1');
+    expect(deriveVerifierHash).toHaveBeenCalledWith('New-pw#1', 'the-salt');
   });
 
   it('旧密码带首尾空格时，仍按 trim 后口径派生旧数据密钥', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword(' old-pw ', 'new-pw');
+    await changeMasterPassword(' old-pw ', 'New-pw#1');
 
     expect(deriveEncryptionKey).toHaveBeenCalledWith('old-pw');
   });
@@ -137,11 +137,11 @@ describe('changeMasterPassword 口令归一化', () => {
   it('落盘条目由 trim 后的新数据密钥重新加密，salt 与 kdf 原样保留', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', ' new-pw ');
+    await changeMasterPassword('old-pw', ' New-pw#1 ');
 
     const entries = storageData[STORAGE_KEYS.PASSWORDS] as { password: string }[];
     // 两层回显叠加：encryptPasswordEntry 的 `cipher:` + deriveEncryptionKey 的 `key:`
-    expect(entries[0]?.password).toBe('cipher:key:new-pw');
+    expect(entries[0]?.password).toBe('cipher:key:New-pw#1');
     expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ salt: 'the-salt', kdf: 'pbkdf2-sha256' });
   });
 
@@ -173,7 +173,7 @@ describe('changeMasterPassword 历史记录容错', () => {
       { entryId: 'p1', password: 'enc:hist-1', changedAt: 1 },
     ];
 
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     const history = storageData[STORAGE_KEYS.PASSWORD_HISTORY] as PasswordHistoryRecord[];
     expect(history).toHaveLength(2);
@@ -189,11 +189,11 @@ describe('changeMasterPassword 历史记录容错', () => {
       { entryId: 'p1', password: 'enc:hist-1', changedAt: 1 },
     ];
 
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     const history = storageData[STORAGE_KEYS.PASSWORD_HISTORY] as PasswordHistoryRecord[];
     // encryptData 回显 `enc:<key>:<plain>`，key 段即步骤 7 派生的新数据密钥
-    expect(history).toContainEqual({ entryId: 'p1', password: 'enc:key:new-pw:hist-1', changedAt: 1 });
+    expect(history).toContainEqual({ entryId: 'p1', password: 'enc:key:New-pw#1:hist-1', changedAt: 1 });
   });
 
   it('条目级并行后每条记录仍与自己的密码配对，且顺序与入参一致', async () => {
@@ -207,12 +207,12 @@ describe('changeMasterPassword 历史记录容错', () => {
       { entryId: 'p3', password: 'enc:h3', changedAt: 1 },
     ];
 
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     expect(storageData[STORAGE_KEYS.PASSWORD_HISTORY]).toEqual([
-      { entryId: 'p1', password: 'enc:key:new-pw:h1', changedAt: 3 },
-      { entryId: 'p2', password: 'enc:key:new-pw:h2', changedAt: 2 },
-      { entryId: 'p3', password: 'enc:key:new-pw:h3', changedAt: 1 },
+      { entryId: 'p1', password: 'enc:key:New-pw#1:h1', changedAt: 3 },
+      { entryId: 'p2', password: 'enc:key:New-pw#1:h2', changedAt: 2 },
+      { entryId: 'p3', password: 'enc:key:New-pw#1:h3', changedAt: 1 },
     ]);
   });
 });

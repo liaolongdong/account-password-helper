@@ -95,8 +95,9 @@ graph TB
 - **一处例外的明文：到期提醒表的账号名**。`password_reminders` 表按 `entryId` 冗余保存该条的 `username`（按码点截断到 `PASSWORD_FIELD_LIMITS.username`，见 [reminderManager.ts](../utils/storage/reminderManager.ts)），因为提醒由 `chrome.alarms` 在任意时刻发出桌面通知（含锁定态），去掉它就等于让通知退化成不含账号的通用文案。它额外泄露的信息是「哪个账号将在何时到期」——按上一条「保持登录 = 磁盘可解」的同一攻击面衡量并不新增防线，但确实是一处需要单独披露的明文；移除该条提醒、删除条目或清空回收站都会连带清除。
 - 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理——认证标签使篡改可检测，无静默回退。
 - **主密码从不落盘**。磁盘上只有校验哈希：`deriveVerifierHash` 同样是 PBKDF2-SHA256 / 600,000 次，但对盐值做了域分离（前缀 `aph-verify|`），使校验值与解密密钥在密码学上互相独立，存储中的校验值无法反推为密钥；比对使用常量时间。旧版单轮 SHA-256 校验值在验证成功时透明升级。
-- **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者必须在同一次 `chrome.storage.local.set()` 中原子落盘，避免多上下文并发写入时「A 的包裹密钥 + B 的密文」错配。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清）。
-- **HKDF 只存在于旧版迁移路径**：`deriveSessionKey(salt)`（HKDF-SHA256，salt `aph-session-salt`、info `session-encryption-v2`）仅用于解包历史遗留的 `session_master_password` blob。它的输入是明文可读的盐值，因此不提供任何抗磁盘访问的机密性，新版会话流程不使用它。
+- **第二处刻意的明文：`master_password_config.hint`**。设置主密码时可留一句提示语，去首尾空白后按 120 码位截断，**明文**存在同一配置对象里。明文是本质约束而非疏漏：提示语的作用恰恰是「忘记主密码之后还能看」，用主密码加密它就形成「忘了才需要看、看了却解不开」的死循环。它不参与任何密钥派生（`deriveVerifierHash` 只吃主密码与盐值），缺失该字段的存量配置读出空串即「未设置」，无需迁移；解锁页只在连续输错达 `MAX_FAIL_BEFORE_HINT` 后才显示，且只在管理页（Options）呈现——侧边栏开在任意站点页面上，把明文提示语放到那里会放大旁观与录屏泄露面。注意它只是帮你回想的提示，**不是安全提问或解锁凭据**：主密码本身仍无法找回，可选离线恢复走独立的高熵密钥路径。它可在「安全设置 → 主密码提示语」随时改或清；旧提示语若指向一条已作废的口令，改完即不再显示。
+- **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者在同一次 `chrome.storage.local.set()` 中配套提交，避免「A 的包裹密钥 + B 的密文」错配，但不将该 API 视为通用 ACID 事务。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清），新钥只在匹配的 local 提交后发布。
+- **区分两条 HKDF 路径**：`deriveSessionKey(salt)`（HKDF-SHA256，salt `aph-session-salt`、info `session-encryption-v2`）只用于解包历史 `session_master_password` blob；其输入盐值公开，不提供抗磁盘访问的机密性，新版会话流程不使用它。可选离线恢复则用独立的 32 随机字节秘密 R 经域分离 HKDF-SHA256 派生不可导出 KEK，不保存 R/KEK；包裹 DK 以当前主密码配置作 AAD 绑定，见「功能实现详解 → 可选离线恢复本机库」。
 - `ensurePasswordsEncryptedAtRest` 在每个 SW 生命周期内幂等地维护「磁盘即密文」不变量，并由 storage 监听器兜底发现明文异常。
 
 ## 项目结构
@@ -168,7 +169,8 @@ graph TB
 │   │   ├── PasswordHealthDialog.vue    # 安全体检仪表盘弹窗
 │   │   ├── PasswordStrengthPopover.vue # 密码强度可视化弹窗
 │   │   ├── PasswordTable.vue           # 密码列表表格
-│   │   ├── PasswordVerifyView.vue      # 主密码验证视图
+│   │   ├── PasswordVerifyView.vue      # 主密码验证视图（含提示语展示与找回向导入口）
+│   │   ├── ForgotPasswordDialog.vue   # 忘记密码找回向导（提示语 / .aph / CSV / 重置）
 │   │   ├── SearchFilterBar.vue         # 搜索过滤栏
 │   │   ├── ShortcutSettingDialog.vue   # 快捷键一览对话框（只读 + 未生效预警 + 跳转管理页）
 │   │   ├── TrashDialog.vue             # 回收站对话框（检索/恢复/彻底删除/清空）
@@ -282,7 +284,7 @@ graph TB
 │   ├── icon.svg                    # 当前生效图标
 │   └── variants/                   # 4 款钥匙主题候选图标
 ├── assets/theme/                   # 主题 CSS Design Tokens
-│   └── tokens.css                  # 主题令牌定义（`--aph-*` 变量，6 套色彩方案）
+│   └── tokens.css                  # 主题令牌定义（`--aph-*` 变量，6 套色彩方案）+ 扩展页共用的 Element Plus 覆写
 ├── public/icon/                    # 构建期 PNG 产物（WXT 自动注入 manifest）
 ├── scripts/generate-icons.mjs      # SVG → 多尺寸 PNG 生成脚本
 ├── types/global.d.ts               # 全局类型补充
@@ -300,6 +302,18 @@ graph TB
 - 会话恢复后自动检测并修复加密状态不一致的数据。
 - 会话检查器 `sessionManager.ts` 的 60 秒轮询**只在 Options 页**启动（`initSessionManager()`），且只在会话从「有效 → 无效」跳变时触发过期事件；SidePanel 与 Popup 不等这个轮询，由 [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `visibilitychange` 监听在页面重新可见时重跑认证检查。详见「会话生命周期」。
 - **大写锁定实时提示**：主密码相关输入框（首次设置、解锁验证视图、验证弹窗、修改主密码、加密备份导入）通过 `KeyboardEvent.getModifierState('CapsLock')` 在 keydown/keyup 实时判定大写锁定状态（见 [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)），开启时在输入框下方展示琥珀色警示行（见 [CapsLockHint.vue](../components/CapsLockHint.vue)），避免大小写误输入被当成「密码错误」；提示行用 `role="status"` 让屏幕阅读器非打断播报，失焦即复位，不留残留提示。
+
+- **密码提示语**：设置主密码时可选填一句提示（`master_password_config.hint`，明文、上限 120 码位，见 [masterPassword.ts](../utils/storage/masterPassword.ts) 的 `MAX_MASTER_PASSWORD_HINT_LENGTH`），解锁页在连续输错达 `MAX_FAIL_BEFORE_HINT`（定义于 [useAuthFlow.ts](../composables/useAuthFlow.ts)，与敏感操作复验弹窗共用同一档位）后把它显示在错误提示下方；点「重置全部数据」的入口不直接清空，而是先打开找回向导。写提示语不再只有「首次设置」那一次：「安全设置 → 主密码提示语」可随时修改或清除（`updateMasterPasswordHint` 只改 `hint`，保留 `salt`/`hashedPassword`/`kdf`，因此不会影响离线恢复套件对校验配置的绑定；清除按「省略字段」落盘，与读端「缺失即未设置」同口径）。
+- **忘记密码向导**（[ForgotPasswordDialog.vue](../components/options/ForgotPasswordDialog.vue)）：提示语只作记忆辅助，不是安全提问；有提前启用且匹配的恢复密钥时，可恢复当前本机库（见下节）。备份路径提供 `.aph` / `.aphid` **只读验证**，不写入或清除当前库；须输入该文件导出时的主密码。该验证在锁定时也可用且不校验当前主密码，因此连续 3 次失败会进入 30 秒冷却——否则拿到备份文件的人可以在这里无限次磨「导出时的主密码」，每次还白付一次 600k 迭代的 PBKDF2。先验证，再推荐另一设备或独立浏览器 Profile 导入核对，最后才考虑二次确认后的重置，不能先清再试。CSV/JSON 明文导出也是可用数据来源；无可用恢复密钥、可解备份或明文导出时，数据仍无法恢复。备份只还原导出快照，密码导入追加不去重、个人信息需独立 `.aphid`，回收站与历史不在这些备份内；若导出时与当前是同一密码且遗忘，旧备份也打不开。
+
+#### 可选离线恢复本机库
+
+- **启用契约**：默认关闭、没有自动迁移。在「安全设置 → 离线恢复密钥」输入当前主密码可创建、换发、停用；创建/换发先生成待确认材料，用户保存并回填验证 `.aphrecovery` 后才启用，不能给已经锁死的库事后补恢复。
+- **密钥与持久化**（[utils/recoveryCrypto.ts](../utils/recoveryCrypto.ts)、[utils/storage/recovery.ts](../utils/storage/recovery.ts)）：恢复密钥 R 来自 `crypto.getRandomValues` 的 32 随机字节，经 HKDF-SHA256 域分离派生不可导出的 AES-GCM 包裹钥 KEK；用当前主密码配置作 AAD 绑定包裹的数据钥 DK。恢复机制只持久化包裹 DK 与非敏感元数据，不保存 R 或 KEK，不保存主密码原文或可逆密文。它与为免密重启保存材料的会话机制不同；锁定/过期不移除已启用的恢复包。
+- **套件边界**：`.aphrecovery` 是未加密的明文，仅含恢复密钥及套件 id/version/时间等格式元数据，不含密码库；持有 R 与匹配恢复包/密文即可恢复，因此须按高敏凭据保管。下载与「我已保存，隐藏原码」两颗按钮在用户显式确认明文风险前都保持禁用——前者只是多一份副本，后者会抹掉屏幕上唯一一份、且不可逆（只能换发新套件），后者后果更重；所以知情同意的对象是「密钥材料」而不是「套件文件」，手抄路径同样受门。创建、替换、停用均不等于备份；数据/Profile 丢失时，只有 R 无用，仍需匹配的数据备份。`.aph` / `.aphid` 本轮不改格式，也不接受 R 代替导出时主密码。
+- **恢复顺序**：锁屏输入 R 或导入套件 → 设置新主密码 → 保存并验证换发的新套件 → 解密检查并重新加密当前本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）→ 提交匹配的新配置、密文与恢复包 → 保持锁定，用户用新主密码解锁。默认任一数据无法解密都会阻止原地恢复，数据不做任何改动；只有恢复被中止后，用户明确知情选择携带，才会恢复其余数据，解不开的记录会原样留在库里、新主密码无法读取，也不会出现在列表或备份中。
+- **换钥与撤销边界**：正常改主密码的已启用分支同样先保存并验证新套件，未启用分支保留原交互。新套件生效后旧 R 不再适用于当前本机入口，但换发/停用无法撤销攻击者已复制的旧 R + 旧恢复包/密文；疑泄漏需改主密码轮换 DK，不能承诺收回历史副本。写隔离及会话发布顺序见第 20 节。
+- **隐私与验收边界**：恢复不新增网络请求、权限或遥测；扩展既有匿名版本检查仍在。以上为本轮实现契约，崩溃/并发与完整交互验收须在最终实现上执行；历史报告或本文不代表本轮测试已通过。
 
 ### 2. 表单识别与填充
 
@@ -353,7 +367,7 @@ graph TB
 - 导出密码列表为数据文件并唤起邮件客户端（见 [utils/emailBackup.ts](../utils/emailBackup.ts)）。
 - 支持选择备份方式：「加密备份」导出 .aph 加密文件（只能通过本插件的「加密备份导入」功能 + 原主密码解密查看）；「不加密备份」导出标准 CSV 数据文件。
 - **默认档是「加密备份」**（单选项把加密档列在首位，初始选中值同为 `encrypted`）。选择「不加密备份」时，选项下方常驻一条 `el-alert` 说明文件含明文密码、会离开本机并留存于邮箱；点「立即备份」还会先走一次 `ElMessageBox.confirm` 风险二次确认（危险色按钮），确认后才进入原有的复验主密码环节——两闸串联：知情确认解决"知道是明文"，复验主密码解决"是本人操作"。该选择只作用于本次动作、不写入 `EmailBackupConfig`，因此改默认值不迁移任何存量配置；`tests/architecture/securityDefaults.test.ts` 钉住这条默认值，避免日后被无声改回弱档。
-- 支持配置自动备份提醒：`chrome.alarms` 到点先判定「自上次成功备份（`.aph` 导出且通过完整性自检）后是否有内容变更」或「是否已超过设定间隔」，只在需要时才发桌面通知（不解密、不自动下载文件）。使用痕迹（`lastUsedAt` / `favoriteUsedAt`）落盘不算变更，判据见 `utils/backup/changeDetection.ts`。
+- 支持配置自动备份提醒：`chrome.alarms` 到点先判定「自上次成功备份（`.aph` 导出且通过完整性自检）后是否有内容变更」或「是否已超过设定间隔」，只在需要时才发桌面通知（不解密、不自动下载文件）。使用痕迹（`lastUsedAt` / `favoriteUsedAt`）落盘不算变更，判据见 `utils/backup/changeDetection.ts`。**修改主密码（rekey）同样不算变更**：那一批写入把五个加密域整库重加密，并与新的包裹数据密钥同批落盘，逐字段比对会判成「内容变了」，可 `.aph` 用的是导出当时的密码与自带 salt，备份内容一个字节没变——`recordBackupRelevantChanges` 在同批看到新的 `session_wrapped_data_key` **或**新的 `master_password_config` 即早退（`isKeyRotationBatch`；包裹密钥被移除属锁定语义、单独不算）。补第二条信号是因为**离线恢复也是一次整库换钥，但它刻意不建立会话**：提交前一步就是 `lockSession()`，那批写入里没有新包裹密钥，只盯它会漏掉恢复路径。否则用户每改一次主密码、每成功恢复一次，就凭空欠一次备份，徽标与桌面通知会一起报假「待备份」。
 - 备份间隔可选：每天 / 每3天 / 每周 / 每两周 / 每月。
 
 ### 6. 加密备份导入导出
@@ -361,6 +375,10 @@ graph TB
 - 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](../utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD_HHmmss.aph`。
 - 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](../components/options/BackupImportDialog.vue)）。
 - 加密方案：PBKDF2（600,000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
+- **头部备份徽标**：管理页头部第一行右侧常驻一枚徽标（[HeaderBar.vue](../components/options/HeaderBar.vue) + [useBackupChip.ts](../composables/useBackupChip.ts)），把密码库与个人信息库两份备份状态合成一个结论——`critical` 从未备份（红）/ `urgent` 有变更待备份（橙）/ `warning` 超期未备份（橙，只动状态灯）/ `ok` 期限内已备份（绿）。档位由纯函数 `decideBackupChipState`（[utils/backup/changeDetection.ts](../utils/backup/changeDetection.ts)）判定，两库取更严重的一档、同档取更久没备份的那一库，UI 只消费结果；兜底下限沿用 `autoBackupIntervalDays`，与桌面通知那条链路共用同一个用户设置，不另起第二套阈值。
+- **徽标的成本边界**：只读 4 个时间戳与 `IDENTITY` 数组长度，**不为它解密任何数据、也不整包读 `PASSWORDS`**（密码条目数由管理页已在手的解密列表回填），且不轮询——`storage.onChanged` 命中那几个键时就地更新，监听器随组件作用域回收。悬停明细分行陈述两个库（`.aph` 与 `.aphid` 互不覆盖，一库绿一库红时不能报平安），两库皆空则整枚隐藏。
+- **出口与轻提醒**：点击徽标**按「欠哪一份备份」分派**——密码库走菜单同一条 `backupExport`（`.aph`），个人信息库打开库内弹窗（`.aphid` 只在那里导出）；两库互不覆盖，送错入口会让用户照做完发现红色纹丝不动。「从未备份」、或本次页面会话内确实改过数据且尚未备份时，管理页再出一条可关闭的轻提醒（[BackupNudgeBanner.vue](../components/options/BackupNudgeBanner.vue)，文案里的文件形态同样按库取 `.aph` / `.aphid`；只作用于本页会话，不新增持久化键、闹钟与通知），并与「安全起步清单」互斥出现。**横幅一次只推一份备份，但另一库此刻同样处于「从未备份 / 备份后又改过」两档之一时，副句会点名下一份**（判据 `isVerdictOwedNow`，与横幅自己的出声口径同档；`stale` / `ok` / 空库不提，避免把没有新数据要丢的库也说成欠着）——两库是两份互不覆盖的文件，用户做完第一份后徽标重算档位、`worstVault` 翻过去，横幅自然接手第二份，不必并列两条。提醒文案**不宣称导出耗时**：`.aph` 要付 3 次 PBKDF2 600k（复验 + 加密 + 自检）、`.aphid` 付 2 次，同一个动作在不同机器上差好几倍，写死的秒数一定会变成假话。状态由文字、状态灯与 `aria-label` 三通道表达，颜色不是唯一通道。
+- 旧口径下线：备份状态此前是「数据管理」菜单顶部一条 disabled 的只读状态条，现上移到头部成为唯一事实来源，菜单里不再重复一份（`options.header.backupStatus*` 文案键一并删除）。
 
 ### 7. 密码可见性切换
 
@@ -469,7 +487,7 @@ graph TB
 
 - 提供 6 款色彩主题：晴空蓝（默认）、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰（见 [utils/theme.ts](../utils/theme.ts)）。
 - 主题配置保存在悬浮按钮偏好中，有三种方式进入设置：①密码管理页「偏好设置」按钮；②悬浮按钮齿轮图标；③侧边栏右上角齿轮图标。
-- 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。
+- 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。该文件同时是**扩展页共用的 Element Plus 覆写层**：EP 的组件样式在打包后排在它之后，同特异性的规则会被 EP 反压，因此这里的覆写一律靠多带一层真实 DOM（如 `.el-alert.is-light .el-alert__content .el-alert__title`）抬特异性取胜，而不是靠样式顺序。浅色告警的标题 / 描述就是这样从 EP 的语义色（实测 2.04~~2.80:1，不达 WCAG AA）收回常规文字层级（11.7~~12.1:1 / 5.5~5.7:1），语义色留给图标与底色。同一处还定义了 `--aph-danger-strong` / `--aph-warning-strong`：语义色当**文字**压浅底时不达 AA（`--el-color-danger` 白底 2.90:1、`--el-color-warning` 2.19:1），而报错与安全披露恰恰最需要读清，因此文字一律走这两档（八种浅底最差 4.53 / 4.61:1），图标、圆点、填充与描边继续用 `--el-color-*` 原色；EP 自带的 `.el-form-item__error` 与 `.el-message-box__errormsg` 也一并接管。**中性文字三档（primary / secondary / muted）的取值以「设计系统里最暗的那面浅底」为准，不是白底**——`#6b7280` 白底 4.83:1 合格，压到 `.session-pill:hover` 的 #e2e8f0 上只剩 3.92:1；该族能达标的最浅值是 #616876（最差底 4.54:1），它就是 AA 地板，muted 与 placeholder 只能共用这一格，四级阶梯在数学上不存在。新增 `--aph-text-*` 会被这条地板直接卡住。守卫见 [themeContrast.test.ts](../tests/architecture/themeContrast.test.ts)，它同时钉住「全仓语义色 `color:` 只剩图形用法」这份白名单。内容脚本不用 Element Plus，但 `--aph-text-*` 会经 `utils/theme.ts` 的 `SHADOW_NEUTRAL_TOKENS` 镜像进影子树，改值必须同步（`shadowTokenCoverage.test.ts` 逐字比对，漏同步即红）。
 - 内容脚本注入式 UI 的换肤程度按实现如实区分：Closed Shadow DOM 一档（悬浮按钮、内联填充面板、活码胶囊、填充失败气泡、保存密码提示）把 `--aph-*` 令牌内联写入宿主，与扩展页面同步生效；light DOM 一档里密码可见性切换按钮把主题令牌内联写到自身元素（跟随换肤），原生通知条配色固定、不随换肤变化。
 - 切换主题即时生效，无需刷新页面。
 
@@ -512,11 +530,11 @@ graph TB
 ### 20. 修改主密码
 
 - 入口：密码管理页「安全设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
-- 流程：验证当前主密码 → 旧密钥解密全部数据（密码列表 + 回收站 + 修改历史）→ 新密钥重新加密 → 单次 `chrome.storage.local.set()` **原子写入**新密文、新校验哈希与新会话密钥材料（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。
-- **盐值与迭代次数刻意原样保留**：数据密钥由 `deriveEncryptionKey` 从「主密码 + storage 中的 salt」派生，换盐会派生出另一把密钥、使存量密文永久无法解密；而改密本身已提供足够强度，salt 的防彩虹表作用无需刷新。因此只有密码明文、派生数据密钥、校验哈希与一次性包裹密钥发生变化，PBKDF2 迭代次数固定为 600,000。
-- 安全保证：重新加密与派生期间任意步骤失败直接中断，磁盘数据保持旧密文无损；不存在「新密文 + 旧会话密钥」的中间态。若最后那次原子写入本身失败，则主动 `clearSession()` 清除已更新的新密钥材料（fail-closed），避免「新密钥 + 旧密文」不一致，用户需重新解锁。
-- 会话自愈：其他已打开的扩展页面（侧边栏/Popup 等）监听到密钥更换后自动采纳新会话密钥，无需重新登录，列表不会被清空（见 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts) 的 `adoptRekeyedSession`）。
-- 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关。
+- 流程：验证当前主密码 → 检查并解密本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）→ 新数据钥重新加密 → 配套提交新密文、主密码配置与会话材料（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。五域容器形状畸形都会中止两条链路；密码与密码回收站任一解不开即中止换钥（用户在中止后明确知情选择携带时，可把坏记录原样保留并恢复其余数据）；解不开的历史与个人信息记录按既有口径原样保留（换钥不删数据）。离线恢复默认走严格档：五域任一解不开都以 `RECOVERY_INCOMPLETE` 中止，不以删记录换取「成功」；同样只有用户明确知情选择携带后才允许部分恢复。改密路径对应 `UNDECRYPTABLE_RECORDS`；容器形状畸形则抛 `VAULT_DATA_CORRUPTED`，避免 UI 亮出永远走不通的跳过门。
+- **离线恢复已启用时**：改密前必须先保存并回填验证换发的新 `.aphrecovery` 套件，再提交换钥与新恢复包；成功后旧恢复密钥不再适用于当前本机入口。未启用者保留原改密交互，不会自动迁移为启用。**「旧套件即将作废」这条披露前置到弹窗第一屏的常驻告警**（文案键 `options.changePwd.alertDescRecovery`，文档不逐字抄产品文案——抄一次就多一处会随文案漂移而没人发现的死引用）（判据与套件那一步是否出现同源，都是 `getRecoveryStatus().enabled`；弹窗由 `v-if` 挂载，开一次读一次），用户不必先填完三个密码、在第二屏才发现这件事；未启用者第一屏文案一字未变。
+- **隔离与发布顺序**：同源 Web Locks 的 shared 普通写 lease 与 exclusive key-transition 相斥，拿不到锁即 busy 失败、不等待；shared lease 不把所有普通 CRUD 串行化。新会话钥仅在匹配的 `storage.local` 提交完成后发布，其他扩展页只采纳与本地配置匹配的材料；提交失败按失败关闭处理，不先发布新钥（见 [utils/storage/vaultWriteLock.ts](../utils/storage/vaultWriteLock.ts) 与 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts)）。
+- 配套值合批写入是避免钥匙与密文错配的实现约束，**不代表 `storage.local.set()` 提供通用 ACID 事务或完整断电保证**。实际崩溃、并发与会话发布路径须由发布前验收覆盖，不能以设计说明代替验证结果。
+- 独立加密备份 `.aph` / `.aphid` 格式不变，仍需各自导出时的主密码；新主密码或新恢复密钥不会自动打开旧备份。若导出时与当前是同一密码且遗忘，旧备份仍不可解。
 
 ### 21. 一键填充快捷键
 
@@ -631,7 +649,8 @@ graph TB
 ### 30. 聚光式新手引导
 
 - **入口与自动播放**：首次进入密码管理页、认证通过且表格加载结束后自动播放一次（[App.vue](../entrypoints/options/App.vue) 里 `watch([isAuthenticated, tableLoading, guideActive])` 配一个一次性闸门，取快照的时机刻意等到 `tableLoading` 落定，否则空库分支尚未渲染、`empty` 锚点还不存在；第三项 `guideActive` 让「文档中页打开时」不抢播，进入中页会 `tour.skip()` 收掉已在播的引导）；头部「帮助 → 新手引导」（[HeaderBar.vue](../components/options/HeaderBar.vue)）随时重播，重播**不改写**已看过的状态。是否还自动播放只看 `STORAGE_KEYS.ONBOARDING_TOUR` 里的 `seen`。**安装即开管理页**：`onInstalled` 只在 `reason === 'install'` 分支 `void openOptionsPage()`（更新与其它 reason 不开页），调用位置排在该钩子所有既有初始化动作**之后**且只 `logger.warn` 吞错——开页失败不得连带废掉会话就绪标记、填充默认值冻结、后台配置初始化与跨平台预热。链路因此闭合：装完自动落到设主密码页 → 设完进表格页 → 引导自动播放。
-- **锚点契约**：剧本 [utils/onboardingTour.ts](../utils/onboardingTour.ts) 的 `TOUR_STEPS` 共 9 步，用 `anchor` 指向页面上的 `data-tour="…"` 元素（`add` / `health` / `data` / `settings` / `personalize` 在 HeaderBar，`search` 在 [SearchFilterBar.vue](../components/options/SearchFilterBar.vue)，`empty` 在 [EmptyGuide.vue](../components/options/EmptyGuide.vue)）。这是界面与引导之间唯一的隐式契约：改名或删除会**静默**让对应步骤消失，所以 `tests/utils/onboardingTour.test.ts` 双向扫源码钉住「剧本要的锚点都存在」与「界面上的锚点都有步骤认领」。无锚点步是**显式白名单**的两只（`welcome` 与 `sidepanel`），守卫断言这个 id 集合恰为这两项、且两者 `prefer` 均为 `center`、欢迎仍排首位——不是「欢迎步是唯一无锚点步」那种一改就废的写法，将来再冒出第三条无锚点步照样会红。
+- **锚点契约**：剧本 [utils/onboardingTour.ts](../utils/onboardingTour.ts) 的 `TOUR_STEPS` 共 10 步，用 `anchor` 指向页面上的 `data-tour="…"` 元素（`add` / `health` / `data` / `settings` / `personalize` 在 HeaderBar，`search` 在 [SearchFilterBar.vue](../components/options/SearchFilterBar.vue)，`empty` 在 [EmptyGuide.vue](../components/options/EmptyGuide.vue)）。这是界面与引导之间唯一的隐式契约：改名或删除会**静默**让对应步骤消失，所以 `tests/utils/onboardingTour.test.ts` 双向扫源码钉住「剧本要的锚点都存在」与「界面上的锚点都有步骤认领」。无锚点步是**显式白名单**的三只（`welcome`、`sidepanel`、`retreat`），守卫断言这个 id 集合恰为这三项、且三者 `prefer` 均为 `center`、欢迎仍排首位——不是「欢迎步是唯一无锚点步」那种一改就废的写法，将来再冒出第四只无锚点步照样会红。
+- **「留退路」步骤**：`retreat` 插在 `data` 之后，按「先回想、再谈硬退路」分层——设过主密码提示语就先回解锁页凭线索想起，想不起来才走加密备份导出（数据管理菜单）或离线恢复密钥（安全设置菜单），并说明后者不需要事先有备份；这个顺序与找回向导 `ForgotPasswordDialog` 的路径排列一致。它刻意**不带锚点**：这一步同时指向两个菜单，聚光灯圈住任一个都会把另一条退路说丢，而它要的是用户读字而不是去找按钮。它与 `welcome`、`sidepanel` 一样走整屏幕布 + 居中卡片，因此上面那条白名单由两只扩到三只。
 - **侧边栏步骤**：`sidepanel` 插在 `add` 之后（`pickSteps` 保持数组次序，位置即呈现次序），形成「存 → 取」闭环，也兑现 `welcome.desc` 那句「日常用侧边栏就够了」。侧边栏不在 Options 的 DOM 里、聚光灯圈不到，所以整屏幕布 + 卡内动作按钮：点「立即打开侧边栏」经既有 `MessageType.SHOW_SIDEPANEL` → [messageRouter.ts](../entrypoints/background/messageRouter.ts) 的**同步** `sidePanel.open()`（必须同步调用以保住用户手势链），`trigger` 新增 `'tour'` 档以便这条路径的性能读数不与悬浮按钮/快捷键混分（该字段只作为字符串标签写进环形缓冲，无穷举分支）。发消息前无任何 `await`，`getTabIdSync` 取 `sender.tab.id`，侧边栏因此挂在管理页所在标签页旁——不试图改成「猜上一个网站标签页」，那要在 `open()` 前 `await tabs.query`，直接违反同步手势约束。此刻侧边栏显示的是**全库而非本站**：项目未申请 `tabs` 权限，扩展自身页面的 `tabs.query` 拿不到 `url`，`useSidepanelData` 不给 `currentDomain` 赋值，`passwordFilter` 的 `if (!ctx.domain) return true` 让「本站」退化为不过滤（对新库用户恰好是想要的效果），但 content script 无法注入 `chrome-extension:` 页，所以该步只讲「浏览 / 搜索 / 收藏」，不讲「在这里试填充」，并补一句「换到任意网站页面，侧边栏只显示该站账号」。降级：`sidePanel.open()` 失败或运行时无该 API 时卡内改显示 `Ctrl+Shift+L` 快捷键文案（取自 `useShortcuts().shortcuts.value.toggle_sidepanel`），不静默吞错。
 - **按状态裁剪剧本**：`pickSteps` 在开场那一刻取一次快照，之后步内序号恒定——逐帧重算会让用户在引导中途添加第一条账号时把 `empty` 步抽掉、当前索引错位。空库引导卡与搜索栏互斥，正是靠锚点存在性天然二选一，不需要额外状态判断。
 - **几何全在纯函数**：`expandToSpot` 把锚点矩形外扩成聚光框（圆角按短边收一半，避免矮按钮框成胶囊），`resolvePlacement` 依 `SIDE_FALLBACK_ORDER` 试位（同轴对侧 → 横轴 → 退回原方位），取第一个完整落进安全区的方位，四向皆放不下时退回原方位并 `clampToViewport`（卡片高于视口时贴上沿，保证标题可见）。单列成 `utils/` 是因为本仓 vitest 固定 `environment: 'node'`，只有不碰 DOM 的部分能被直接断言，否则这些翻转分支只能靠人眼在浏览器里逐个试。

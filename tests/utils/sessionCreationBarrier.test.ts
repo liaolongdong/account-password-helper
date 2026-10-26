@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
+import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
 
 const barrierMocks = vi.hoisted(() => ({
   waitBeforeAuthentication: vi.fn(async () => true),
@@ -7,6 +7,7 @@ const barrierMocks = vi.hoisted(() => ({
 }));
 
 const encryptionMocks = vi.hoisted(() => ({
+  deriveVerifierHash: vi.fn(async (password: string) => `verifier:${password}`),
   deriveEncryptionKey: vi.fn(async () => 'data-key'),
   encryptData: vi.fn(async () => 'wrapped-data-key'),
   clearCryptoKeyCache: vi.fn(),
@@ -26,6 +27,13 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await chrome.storage.local.clear();
   await chrome.storage.session.clear();
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.MASTER_PASSWORD]: {
+      salt: 'fixture-salt',
+      hashedPassword: 'verifier:valid-master-password',
+      kdf: 'pbkdf2-sha256',
+    },
+  });
   barrierMocks.waitBeforeAuthentication.mockResolvedValue(true);
   barrierMocks.recoverAfterAuthentication.mockResolvedValue(false);
 });

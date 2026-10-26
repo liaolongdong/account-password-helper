@@ -815,7 +815,7 @@ onUnmounted(() => {
   padding: 2px 10px;
   font-size: 12px;
   line-height: 18px;
-  color: #64748b;
+  color: var(--aph-text-muted);
   white-space: nowrap;
   cursor: pointer;
   background: #f8fafc;
@@ -913,7 +913,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 .loading-spinner {
@@ -966,7 +966,7 @@ onUnmounted(() => {
 .empty-desc {
   margin: 0 0 20px;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 /* 部分条目无法解密提示（B8）：列表顶部浅色横幅，不替换列表、不阻断操作 */
@@ -1074,7 +1074,9 @@ onUnmounted(() => {
   flex-shrink: 0;
   align-items: center;
   font-size: 15px;
-  color: var(--aph-text-muted);
+
+  /* 图标旁的菜单项文字已经说明排序方式，这里走图标档而非文字档 */
+  color: var(--aph-icon-muted);
   transition: color 0.2s ease;
 }
 

@@ -101,6 +101,47 @@ export function isBackupRelevantIdentityChange(oldValue: unknown, newValue: unkn
   return hasRelevantArrayChange(oldValue, newValue, IDENTITY_IGNORABLE_FIELDS);
 }
 
+/** `chrome.storage.StorageChange` 的最小结构镜像：本模块不引入 chrome 类型依赖 */
+export interface StorageChangeLike {
+  oldValue?: unknown;
+  newValue?: unknown;
+}
+
+/**
+ * 一批 `storage.onChanged` 变更是否由「换钥匙」引起（rekey）
+ *
+ * 修改主密码会把五个加密域整库重加密，并与新的包裹数据密钥**同批**落盘
+ * （见 `changeMasterPassword` 第 11 步那次 `chrome.storage.local.set()`）。逐字段比对的
+ * `isBackupRelevantPasswordChange` 因此会看到「每条密文都变了」并判为变更，把待备份时间戳
+ * 往前推一格——可那只是同一份内容换了一把钥匙加密：`.aph` 用的是导出当时的密码与容器自带
+ * salt，与当前主密码无关，备份内容一个字节都没变。不排掉它，用户每改一次主密码就凭空欠一次备份，
+ * 徽标与桌面通知会一起报出这个假「待备份」。
+ *
+ * 判据取「这批 changes 里带着新的校验配置，或 `session_wrapped_data_key` 带着新值出现」：
+ * - `master_password_config` 带 `newValue`：只有「首次设置主密码 / 改密 / 离线恢复换钥」这条
+ *   链路会写它，用户增删改条目从不触碰；五域整库重加密与它在同一次 `set()` 里落盘，
+ *   因此这一条同时覆盖改密与恢复两种形态。
+ * - 包裹数据密钥带 `newValue` = 换钥后紧接着发布了新会话密钥，同样是 rekey；
+ * - 该键被移除（`newValue === undefined`）是**锁定**语义，绝不能单独算在这里，
+ *   否则一次上锁会吞掉紧随其后的真实变更；
+ * - 普通解锁也写这两个键，但那次 `set()` 不含 `PASSWORDS` / `IDENTITY`，走不到本判据，
+ *   因此不必再区分「首次建会话」与「换钥匙」。
+ *
+ * 为什么不能只看包裹密钥：离线恢复刻意不建立会话，提交前一步就是 `lockSession()`，
+ * 那批整库重加密里根本没有 `session_wrapped_data_key` 的新值——只看它会漏掉恢复路径，
+ * 让每次成功恢复都凭空报出一条「待备份」。
+ *
+ * @param wrappedDataKeyChange 该批 changes 中 `session_wrapped_data_key` 那一项（可缺省）
+ * @param masterConfigChange 该批 changes 中 `master_password_config` 那一项（可缺省）
+ * @returns true 表示这批变更由密钥建立/轮换引起，不应刷新待备份时间戳
+ */
+export function isKeyRotationBatch(
+  wrappedDataKeyChange: StorageChangeLike | undefined,
+  masterConfigChange?: StorageChangeLike,
+): boolean {
+  return wrappedDataKeyChange?.newValue !== undefined || masterConfigChange?.newValue !== undefined;
+}
+
 /** 密码备份提醒的判定输入（全部来自 storage 时间戳，无条目内容） */
 export interface PasswordBackupReminderInput {
   /** 最近一次「与备份相关」的密码变更时间戳；本功能上线前的存量数据为 null */
@@ -178,4 +219,208 @@ export function hasPendingIdentityBackup(input: IdentityBackupPendingInput): boo
   if (touchedAfterBackup) return true;
 
   return input.lastChangeAt !== null && input.lastChangeAt > input.lastBackupAt;
+}
+
+// ==================== 头部备份徽标 ====================
+
+/** 一天的毫秒数（徽标按「天」表达时长，与既有 `backupStatusDays` 文案同一口径） */
+const DAY_MS = 86_400_000;
+
+/**
+ * 徽标档位：严重度只由「有没有备份」与「备份后是否又改过」决定
+ *
+ * 档位刻意只到三档有色 + 一档隐藏，**不做「超过 2×下限再升红」**：红色在本仓已被
+ * 体检与危急会话占用，留给「从未备份」这一唯一真正不可挽回的状态；
+ * 超期只把文案从「N 天前已备份」换成「N 天未备份」，靠文字而非颜色区分，
+ * 满足「不能只用颜色表达状态」。
+ */
+export type BackupChipLevel = 'critical' | 'urgent' | 'warning' | 'ok';
+
+/** 单个库的备份档位（`hidden` 表示该库无条目，不参与徽标） */
+export type BackupVaultVerdict = 'hidden' | 'never' | 'pending' | 'stale' | 'ok';
+
+/** 徽标输入：两库各自的三个事实，全部来自 `chrome.storage.local` 的时间戳与条目存在性 */
+export interface BackupVaultInput {
+  /** 该库是否有条目。空库不参与判定——没有可备份的东西就不该有提醒 */
+  hasData: boolean;
+  /** 最近一次通过完整性自检的备份导出时间戳（密码 `.aph` / 身份 `.aphid` 各自独立） */
+  lastBackupAt: number | null;
+  /** 最近一次「与备份相关」的变更时间戳，由 Service Worker 的 `storage.onChanged` 写入 */
+  lastChangeAt: number | null;
+}
+
+/** 单个库在徽标明细里的呈现要素 */
+export interface BackupVaultChipDetail {
+  /** 该库档位 */
+  verdict: BackupVaultVerdict;
+  /** 距该库上次备份的整天数（从未备份时为 null） */
+  ageDays: number | null;
+}
+
+/** 徽标判定结果 */
+export interface BackupChipState {
+  /** 是否展示（两库皆空即隐藏） */
+  visible: boolean;
+  /** 徽标档位，取两库里最严重的一档 */
+  level: BackupChipLevel;
+  /** 决定档位的那一库，供文案与 `aria-label` 指明范围 */
+  worstVault: 'passwords' | 'identity';
+  /** 两库各自档位与天数，供 tooltip / `aria-label` 分行陈述，不让徽标替两个库撒一个统一的谎 */
+  perVault: { passwords: BackupVaultChipDetail; identity: BackupVaultChipDetail };
+  /** 距最差库上次备份的整天数；从未备份时为 null */
+  ageDays: number | null;
+}
+
+/**
+ * 判定单个库的备份档位
+ *
+ * 只看时间戳，**绝不为徽标解密身份库**：`hasPendingIdentityBackup` 需要解密后的
+ * `records`，那是弹窗打开时才付的成本；这里走 `lastChangeAt` 一条信号即可覆盖增 / 改 / 删
+ * （删除会让记录消失、`records` 反而「看起来都已备份」，而 `LAST_IDENTITY_CHANGE_AT`
+ * 存在的理由正是补这个盲区）。
+ *
+ * @param vault 该库的条目存在性与两个时间戳
+ * @param floorMs 兜底下限，沿用 `autoBackupIntervalDays`（与 `decidePasswordBackupReminder` 同源）
+ * @param now 当前时间（由调用方注入，便于测试）
+ * @returns 该库档位
+ */
+/** 会话内轻提醒（R1）要说什么：状态、天数、点名哪一库，以及另一库是否也要提 */
+export interface BackupNudgePlan {
+  /** `never` = 一次都没导出过已验证备份；`stale` = 改过数据但没备份 */
+  state: 'never' | 'stale';
+  days: number;
+  vault: 'passwords' | 'identity';
+  /** 另一库此刻同样欠着备份时一并点名；不需要提及时为 null */
+  otherVault: 'passwords' | 'identity' | null;
+}
+
+/**
+ * 轻提醒的出声判据（横幅只在调用方允许时才渲染，这里只回答「该不该、说什么」）。
+ *
+ * - `critical`：一次都没通过自检导出过（换机 / 重装 / 误删时零退路），持续提示；
+ * - `urgent` 且本次页面会话内确实发生过变更：即用户「刚添加 / 刚改完数据」这个时间点。
+ *   没有 `mutatedThisSession` 这一条，「待备份」档会在每次打开管理页时都推一次，
+ *   因为档位可能只是上个月那次改动一直没备份——提醒就此变成噪音。
+ *
+ * 另一库只认 `never` / `pending`（与横幅自己够格出现的两档同口径）：
+ * `stale`（备份已久但期间没改过）没有新数据要丢，副句成了噪音；`hidden`（空库）与 `ok` 更不该提。
+ * 备完第一份后档位重算、`worstVault` 翻过去，横幅会自然接手第二份，不必在此并列两条。
+ *
+ * @param chip 徽标已算好的状态（同一份判据的呈现层，不重复计算）
+ * @param mutatedThisSession 本会话内是否真的落盘过与备份相关的变更
+ * @returns 要提示的内容；不需要提示时为 null
+ */
+export function decideBackupNudge({
+  chip,
+  mutatedThisSession,
+}: {
+  chip: BackupChipState;
+  mutatedThisSession: boolean;
+}): BackupNudgePlan | null {
+  if (!chip.visible) return null;
+  const other = chip.worstVault === 'identity' ? 'passwords' : 'identity';
+  const otherVault = isVerdictOwedNow(chip.perVault[other].verdict) ? other : null;
+  if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault, otherVault };
+  if (chip.level === 'urgent' && mutatedThisSession) {
+    return { state: 'stale', days: chip.ageDays ?? 0, vault: chip.worstVault, otherVault };
+  }
+  return null;
+}
+
+export function decideVaultBackupVerdict(vault: BackupVaultInput, floorMs: number, now: number): BackupVaultVerdict {
+  if (!vault.hasData) return 'hidden';
+  if (vault.lastBackupAt === null) return 'never';
+  if (vault.lastChangeAt !== null && vault.lastChangeAt > vault.lastBackupAt) return 'pending';
+  if (now - vault.lastBackupAt > floorMs) return 'stale';
+  return 'ok';
+}
+
+/** 档位严重度序（越大越严重），供两库取最差 */
+const VERDICT_SEVERITY: Record<BackupVaultVerdict, number> = {
+  hidden: -1,
+  ok: 0,
+  stale: 1,
+  pending: 2,
+  never: 3,
+};
+
+/** 档位 → 徽标颜色档 */
+const VERDICT_TO_LEVEL: Record<Exclude<BackupVaultVerdict, 'hidden'>, BackupChipLevel> = {
+  ok: 'ok',
+  stale: 'warning',
+  pending: 'urgent',
+  never: 'critical',
+};
+
+/**
+ * 该档是否「现在就该催用户去备份」
+ *
+ * 与 `VERDICT_TO_LEVEL` 的 `never → critical` / `pending → urgent` 同一意图：只有「从未备份」
+ * 和「备份后又改过」值得出声。`stale`（备份已久但期间没动过）没有新数据要丢，`ok` 与
+ * `hidden`（空库）更不该提。横幅自身的出现门槛写在 `entrypoints/options/App.vue` 的
+ * `backupNudge` 里，判的是档位不是库档——两处若有一处扩档，另一处要一起对过。
+ *
+ * @param verdict 单个库的备份档位
+ * @returns true 表示该库值得在此刻提醒用户备份
+ */
+export function isVerdictOwedNow(verdict: BackupVaultVerdict): boolean {
+  return verdict === 'never' || verdict === 'pending';
+}
+
+/**
+ * 判定头部备份徽标
+ *
+ * 徽标只取两库里更严重的一档：一库「从未备份」一库「今日已备份」时显示绿色就是撒谎。
+ * 时间戳缺失或非有限值一律按「无该库备份记录」保守处理——提醒漏报的代价是用户丢数据，
+ * 误报的代价只是多一条橙色徽标，与本模块既有判据同一取向。
+ *
+ * @param input 两库输入、兜底下限与当前时间
+ * @returns 徽标状态
+ */
+export function decideBackupChipState(input: {
+  passwords: BackupVaultInput;
+  identity: BackupVaultInput;
+  floorMs: number;
+  now: number;
+}): BackupChipState {
+  const passwords = decideVaultBackupVerdict(input.passwords, input.floorMs, input.now);
+  const identity = decideVaultBackupVerdict(input.identity, input.floorMs, input.now);
+  const detail = (verdict: BackupVaultVerdict, lastBackupAt: number | null): BackupVaultChipDetail => ({
+    verdict,
+    ageDays: verdict === 'hidden' || lastBackupAt === null ? null : Math.floor((input.now - lastBackupAt) / DAY_MS),
+  });
+
+  if (passwords === 'hidden' && identity === 'hidden') {
+    return {
+      visible: false,
+      level: 'ok',
+      worstVault: 'passwords',
+      perVault: { passwords: detail(passwords, null), identity: detail(identity, null) },
+      ageDays: null,
+    };
+  }
+
+  const passwordSeverity = VERDICT_SEVERITY[passwords];
+  const identitySeverity = VERDICT_SEVERITY[identity];
+  // 同档时取「更久没备份」的那一库：徽标只有一枚，展示的天数必须是最坏情况，不能粉饰。
+  // 从未备份（null）在同档里不会发生（`never` 恒为最高档），故按 +∞ 排在最新一侧即可。
+  const identityIsWorst =
+    identitySeverity > passwordSeverity ||
+    (identitySeverity === passwordSeverity &&
+      (input.identity.lastBackupAt ?? Number.POSITIVE_INFINITY) <
+        (input.passwords.lastBackupAt ?? Number.POSITIVE_INFINITY));
+  const worstVault: 'passwords' | 'identity' = identityIsWorst ? 'identity' : 'passwords';
+  const worstVerdict = identityIsWorst ? identity : passwords;
+  const worstBackupAt = (identityIsWorst ? input.identity : input.passwords).lastBackupAt;
+
+  return {
+    visible: true,
+    level: VERDICT_TO_LEVEL[worstVerdict as Exclude<BackupVaultVerdict, 'hidden'>],
+    worstVault,
+    perVault: {
+      passwords: detail(passwords, input.passwords.lastBackupAt),
+      identity: detail(identity, input.identity.lastBackupAt),
+    },
+    ageDays: worstBackupAt === null ? null : Math.floor((input.now - worstBackupAt) / DAY_MS),
+  };
 }

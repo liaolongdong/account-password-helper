@@ -771,7 +771,7 @@ defineExpose({
 .no-tag {
   font-size: 12px;
   font-style: italic;
-  color: #c0c4cc;
+  color: var(--aph-text-muted);
 }
 
 /* 操作按钮样式 */
@@ -809,14 +809,14 @@ defineExpose({
   gap: 4px;
   align-items: center;
   max-width: 100%;
-  color: var(--el-color-primary);
+  color: var(--aph-primary);
   text-decoration: none;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .url-link:hover {
-  color: var(--el-color-primary-light-3);
+  color: var(--aph-primary-hover);
   text-decoration: underline;
 }
 

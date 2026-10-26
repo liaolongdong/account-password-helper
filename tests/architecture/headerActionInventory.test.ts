@@ -140,6 +140,12 @@ const headerSource = readSource(HEADER_BAR);
 const appSource = readSource(APP);
 
 describe('管理页头部的入口与接线清单', () => {
+  it('离线恢复入口属于安全设置且命令面板可检索', () => {
+    expect(menuCommands(headerSource, MENUS[1]!)).toContain('recovery');
+    expect(handlerCases(appSource, 'handleSettingsCommand')).toContain('recovery');
+    expect(paletteGroup(appSource, 'security')).toContain('recovery');
+  });
+
   it('取数本身有效：两个下拉各有一批 command，两条 handler 各有一批 case', () => {
     for (const menu of MENUS) {
       const commands = menuCommands(headerSource, menu);

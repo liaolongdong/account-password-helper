@@ -210,10 +210,19 @@ test.describe('表格截断浮层的指针命中', () => {
     // 这一条是「点击真的落到了那颗按钮上」的端到端形态，牙在时序而不是在 Playwright 的
     // 拦截检测上：`mouse.move` 是一次跳变，未修复版那条 `enterable` 浮层会在指针进入它时
     // 取消隐藏，气泡就赖在按钮上不走；改成对指针透明后指针归按钮，`hideAfter: 0` 让它当帧收掉。
-    // 200 毫秒刻意短于操作列提示的 400 毫秒显示延迟——再晚就会撞上另一条气泡，断言变成看运气。
+    //
+    // 断言只咬「截断浮层不在」这一条性质，不咬「屏上没有任何气泡」：操作列提示自带 400 毫秒
+    // `show-after`，200 毫秒本意是抢在它前面采样，但满载机器上 `mouse.move` 与 `evaluate` 各自
+    // 的 CDP 往返能把这段墙钟拉到 400 毫秒开外（实测 145 条全量跑到 34.5 分钟时翻红，空机单跑
+    // 4/4 绿），那颗 `View details` 会合法地展开。写成 `toEqual([])` 就把这种负载抖动读成
+    // 「截断浮层还占着按钮」——假红，且红的文案与真相不符，会把人引去查错的东西。
+    // 让位要快这条时序牙仍在：采样点没挪，截断浮层若还赖着，`toContain` 立刻红；
+    // 点击真的落到按钮上，仍由紧随其后的端到端断言负责。
     await optionsPage.mouse.move(cx, cy);
     await optionsPage.waitForTimeout(200);
-    expect(await visibleTooltipTexts(optionsPage), '指针已离开单元格，截断浮层还占着按钮').toEqual([]);
+    expect(await visibleTooltipTexts(optionsPage), '指针已离开单元格，截断浮层还占着按钮').not.toContain(
+      TRIGGER.remark,
+    );
 
     await detail.click();
     await expect(optionsPage.getByRole('dialog').filter({ hasText: textOf('options.detail.title') })).toBeVisible();

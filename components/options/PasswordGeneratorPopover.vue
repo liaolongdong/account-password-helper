@@ -136,11 +136,12 @@
               v-model="passphraseConfig.separator"
               size="small"
               class="separator-select"
+              :placeholder="t('options.generator.separatorNone')"
             >
               <el-option
                 v-for="opt in separatorOptions"
                 :key="opt.value"
-                :label="opt.label"
+                :label="'labelKey' in opt ? t(opt.labelKey) : opt.label"
                 :value="opt.value"
               />
             </el-select>
@@ -329,7 +330,7 @@ watch(popoverVisible, visible => {
 
 <style scoped>
 .generator-trigger-btn {
-  color: #909399;
+  color: var(--aph-text-muted);
   transition: color 0.2s;
 }
 

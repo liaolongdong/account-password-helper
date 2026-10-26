@@ -477,7 +477,7 @@ const handleClose = () => {
 
 .upload-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 文件信息展示 */
@@ -515,7 +515,7 @@ const handleClose = () => {
 
 .file-info-size {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 预览区域 */
@@ -544,7 +544,7 @@ const handleClose = () => {
 
 .preview-total {
   font-size: 12px;
-  color: #67c23a;
+  color: var(--aph-success-strong);
 }
 
 .preview-footer {

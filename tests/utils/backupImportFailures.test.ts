@@ -256,6 +256,22 @@ describe('失败提示不外泄原始异常', () => {
     vi.spyOn(crypto.subtle, 'decrypt').mockResolvedValueOnce(new TextEncoder().encode(plaintext).buffer as ArrayBuffer);
   };
 
+  it.each(['SECRET42', 'decrypt-secret'])(
+    'malformed data %s is not retained in logs or the error cause',
+    async fragment => {
+      decryptToText(fragment);
+      const error = await importEncryptedBackup(fakeFile(new Uint8Array(40)), MASTER_PASSWORD).catch(value => value);
+      expect((error as Error).message).toBe(t('backup.importError'));
+      expect(String((error as { cause?: Error }).cause)).not.toContain(fragment);
+      expect(
+        vi
+          .mocked(console.error)
+          .mock.calls.flat()
+          .some(value => String(value).includes(fragment)),
+      ).toBe(false);
+    },
+  );
+
   it('明文不是合法 JSON → 落通用文案，英文 SyntaxError 原文不外泄', async () => {
     decryptToText('{ this is not json');
 

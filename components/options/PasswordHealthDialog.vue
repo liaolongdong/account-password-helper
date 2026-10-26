@@ -874,7 +874,7 @@ onScopeDispose(() => {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* ==================== 评分区 hero ==================== */
@@ -948,7 +948,7 @@ onScopeDispose(() => {
 .score-unit {
   margin-left: 2px;
   font-size: 14px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .hero-text {
@@ -971,7 +971,7 @@ onScopeDispose(() => {
 .hero-total {
   margin: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* ==================== 体检趋势 ==================== */
@@ -1138,7 +1138,7 @@ onScopeDispose(() => {
   justify-content: center;
   padding: 20px;
   font-size: 14px;
-  color: #529b2e;
+  color: var(--aph-success-strong);
   background: #f0f9eb;
   border: 1px solid #e1f3d8;
   border-radius: 8px;
@@ -1196,7 +1196,7 @@ onScopeDispose(() => {
   margin: 0 0 10px;
   font-size: 12px;
   line-height: 1.6;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 预算切进单个复用组内部时的读数行：比 hint 更轻，避免抢过「N 个账号共用」标题 */
@@ -1204,7 +1204,7 @@ onScopeDispose(() => {
   padding: 4px 0 0;
   margin: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .reuse-group,
@@ -1216,8 +1216,9 @@ onScopeDispose(() => {
   border-radius: 8px;
 }
 
-/* link 型「去处理」按钮：抵消 options 全局 .el-button--primary 的实心背景/边框，
-   恢复透明底 + 主色文字，避免主色文字压在同色背景上不可见 */
+/* link 型「去处理」按钮：透明底 + 主色文字。全局 `.el-button--primary` 规则已排除
+   `link` / `text` 变体，这条对 primary link 属冗余；保留是因为它按 `.el-button.is-link`
+   通配，仍覆盖其它色型的 link 按钮，不让「同色文字压同色底」在某个变体上复活。 */
 :deep(.el-button.is-link),
 :deep(.el-button.is-link:hover) {
   background-color: transparent;
@@ -1231,7 +1232,7 @@ onScopeDispose(() => {
   margin-bottom: 6px;
   font-size: 13px;
   font-weight: 500;
-  color: #e6a23c;
+  color: var(--aph-warning-strong);
 }
 
 .issue-row {
@@ -1266,7 +1267,7 @@ onScopeDispose(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
   white-space: nowrap;
 }
 
@@ -1284,11 +1285,11 @@ onScopeDispose(() => {
 }
 
 .age-badge.tone-danger {
-  color: #f56c6c;
+  color: var(--aph-danger-strong);
 }
 
 .age-badge.tone-warning {
-  color: #e6a23c;
+  color: var(--aph-warning-strong);
 }
 
 /* 面板容器边框对齐 Element Plus 折叠面板 */

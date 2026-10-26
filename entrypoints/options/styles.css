@@ -16,6 +16,25 @@
   margin: 0 32px 10px;
 }
 
+/* 坏记录提示：与列表信息同一条左右基线，避免贴着头部或表格 */
+.undecryptable-alert {
+  margin: 0 32px 12px;
+}
+
+/*
+ * 主内容区的左右基线：搜索条与密码列表在窄屏会把自己从 32px 降到 16px，
+ * 上面这两条纯文字行原本没有对应断点，视口 <768px 时会比它们各宽出 16px。
+ */
+@media (width <= 768px) {
+  .password-list-info {
+    margin: 0 16px 10px;
+  }
+
+  .undecryptable-alert {
+    margin: 0 16px 12px;
+  }
+}
+
 /* 弹窗样式 */
 .dialog-footer {
   display: flex;
@@ -69,7 +88,11 @@
 }
 
 /* 按钮优化 */
-:deep(.el-button--large.el-button--primary) {
+
+/* 大号实心主按钮：与下面那条 `.el-button--primary` 同理，`link` / `text` 变体必须排除在外，
+   否则同色实底压同色文字直接看不见。今天仓库里还没有 large + primary + link 的组合，
+   但两条规则是同一族，留一条不一致就是给下一次埋雷。 */
+:deep(.el-button--large.el-button--primary:not(.is-link, .is-text)) {
   padding: 12px 24px;
   font-size: 16px;
   font-weight: 500;
@@ -83,20 +106,23 @@
     transform var(--aph-duration-mid) ease;
 }
 
-:deep(.el-button--large.el-button--primary:hover) {
+:deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover) {
   background: var(--aph-primary-hover);
   border-color: var(--aph-primary-hover);
   box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 30%);
   transform: translateY(-1px);
 }
 
-:deep(.el-button--primary) {
+/* 实心主按钮刷成主题色实底。
+   `link` / `text` 变体的文字本身就是主色，被这条规则刷上同色实底会变成「蓝字压蓝底」而彻底看不见
+   （锁屏的「使用离线恢复密钥」就是这样被抹掉的），因此把它们排除在外。 */
+:deep(.el-button--primary:not(.is-link, .is-text)) {
   font-weight: 400;
   background: var(--aph-primary);
   border: 1px solid var(--aph-primary);
 }
 
-:deep(.el-button--primary:hover) {
+:deep(.el-button--primary:not(.is-link, .is-text):hover) {
   background: var(--aph-primary-hover);
   border-color: var(--aph-primary-hover);
 }
@@ -183,6 +209,7 @@
 }
 
 /* 链接按钮优化 */
+
 :deep(.el-button--info.is-link) {
   font-weight: 400;
   color: var(--aph-primary);

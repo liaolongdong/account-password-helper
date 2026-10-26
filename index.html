@@ -245,7 +245,7 @@
             "name": "忘记主密码了怎么办？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。"
+              "text": "主密码本身不能找回，提示语只是记忆辅助、不是安全提问。离线恢复默认关闭、没有自动迁移：须提前在「安全设置 → 离线恢复密钥」输入当前主密码，保存并回填验证 .aphrecovery 套件后才启用；也可换发或停用。已启用且保留匹配密钥时，在锁屏输入密钥或导入套件，设置新主密码并保存、验证新套件，恢复当前本机的密码、密码回收站、密码历史、个人信息与个人信息回收站；默认任一数据无法解密都会阻止原地恢复，数据不做任何改动；只有恢复被中止后，用户明确知情选择携带，才会恢复其余数据，解不开的记录会原样留在库里、新主密码无法读取，也不会出现在列表或备份中。完成后保持锁定，用新主密码解锁。套件只含密钥、套件标识、版本和时间，不含密码库；数据或 Profile 丢失时只有密钥无用，也不能事后给锁死库补恢复。没有可用密钥时，先在忘记向导只读验证 .aph / .aphid，再到另一设备或独立 Profile 导入核对，最后才考虑清除原库，不能先清再试。备份仍需导出时主密码，恢复密钥不解旧备份；导出时与当前若是同一密码且已遗忘，备份仍打不开。明文 CSV / JSON 导出也可作数据来源；没有可用密钥或可解备份时仍无法恢复，重置清空不可撤销。"
             }
           },
           {
@@ -253,7 +253,7 @@
             "name": "如何修改主密码？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。"
+              "text": "在「安全设置 → 修改主密码」验证当前主密码并设置新密码。本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）经解密检查后重新加密：密码与回收站解不开即中止换钥，解不开的历史与个人信息记录原样保留；离线恢复要求五域全部可解。已启用离线恢复者必须先保存并回填验证换发的新套件，成功后旧恢复密钥不再适用于当前本机入口；未启用者保留原改密交互。创建、换发、停用恢复都不是备份，也不能撤销攻击者已复制的旧密钥与旧恢复包/密文；疑泄漏需改主密码轮换数据钥，历史副本无法收回。.aph / .aphid 仍需导出时的主密码，新恢复密钥不能解开旧备份。恢复只持久化包裹的数据钥与非敏感元数据，不保存恢复密钥或其包裹钥；主密码不以原文或可逆密文保存。恢复不新增请求、权限或遥测，既有匿名版本检查不变。"
             }
           },
           {
@@ -4779,7 +4779,7 @@
             <i aria-hidden="true"></i>
           </div>
           <div class="metric">
-            <b>28</b>
+            <b>30</b>
             <span data-i18n="metrics.commands">条命令面板命令</span>
             <i aria-hidden="true"></i>
           </div>
@@ -6796,11 +6796,11 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>忘记主密码了怎么办？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">主密码本身不能找回，提示语只是记忆辅助、不是安全提问。离线恢复默认关闭、没有自动迁移：须提前在「安全设置 → 离线恢复密钥」输入当前主密码，保存并回填验证 .aphrecovery 套件后才启用；也可换发或停用。已启用且保留匹配密钥时，在锁屏输入密钥或导入套件，设置新主密码并保存、验证新套件，恢复当前本机的密码、密码回收站、密码历史、个人信息与个人信息回收站；默认任一数据无法解密都会阻止原地恢复，数据不做任何改动；只有恢复被中止后，用户明确知情选择携带，才会恢复其余数据，解不开的记录会原样留在库里、新主密码无法读取，也不会出现在列表或备份中。完成后保持锁定，用新主密码解锁。套件只含密钥、套件标识、版本和时间，不含密码库；数据或 Profile 丢失时只有密钥无用，也不能事后给锁死库补恢复。没有可用密钥时，先在忘记向导只读验证 .aph / .aphid，再到另一设备或独立 Profile 导入核对，最后才考虑清除原库，不能先清再试。备份仍需导出时主密码，恢复密钥不解旧备份；导出时与当前若是同一密码且已遗忘，备份仍打不开。明文 CSV / JSON 导出也可作数据来源；没有可用密钥或可解备份时仍无法恢复，重置清空不可撤销。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>如何修改主密码？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">在「安全设置 → 修改主密码」验证当前主密码并设置新密码。本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）经解密检查后重新加密：密码与回收站解不开即中止换钥，解不开的历史与个人信息记录原样保留；离线恢复要求五域全部可解。已启用离线恢复者必须先保存并回填验证换发的新套件，成功后旧恢复密钥不再适用于当前本机入口；未启用者保留原改密交互。创建、换发、停用恢复都不是备份，也不能撤销攻击者已复制的旧密钥与旧恢复包/密文；疑泄漏需改主密码轮换数据钥，历史副本无法收回。.aph / .aphid 仍需导出时的主密码，新恢复密钥不能解开旧备份。恢复只持久化包裹的数据钥与非敏感元数据，不保存恢复密钥或其包裹钥；主密码不以原文或可逆密文保存。恢复不新增请求、权限或遥测，既有匿名版本检查不变。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>会话有效期到了会发生什么？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -7994,8 +7994,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'steps.s2.title': { zh: '设置主密码', en: 'Set a Master Password' },
         'steps.s2.desc': {
-          zh: '首次使用设置一个至少 8 位、包含字母数字与特殊字符的主密码，作为唯一钥匙。',
-          en: 'On first use, set a master password of at least 8 characters with letters, numbers, and special characters — your only key.',
+          zh: '首次使用设置一个至少 8 位、包含字母数字与特殊字符的主密码；可在安全设置提前配置离线恢复密钥（默认关闭），保存并验证套件后才启用。',
+          en: 'Set a master password of at least 8 characters with letters, numbers and symbols. Optionally prepare an offline recovery key in Security Settings (off by default); save and verify its kit before activation.',
         },
         'steps.s3.title': { zh: '添加或导入密码', en: 'Add or Import Passwords' },
         'steps.s3.desc': {
@@ -8306,15 +8306,15 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           q: { zh: '忘记主密码了怎么办？', en: 'What if I forget the master password?' },
           a: {
-            zh: '主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。',
-            en: 'The master password cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss.',
+            zh: '主密码本身不能找回，提示语只是记忆辅助、不是安全提问。离线恢复默认关闭、没有自动迁移：须提前在「安全设置 → 离线恢复密钥」输入当前主密码，保存并回填验证 .aphrecovery 套件后才启用；也可换发或停用。已启用且保留匹配密钥时，在锁屏输入密钥或导入套件，设置新主密码并保存、验证新套件，恢复当前本机的密码、密码回收站、密码历史、个人信息与个人信息回收站；默认任一数据无法解密都会阻止原地恢复，数据不做任何改动；只有恢复被中止后，用户明确知情选择携带，才会恢复其余数据，解不开的记录会原样留在库里、新主密码无法读取，也不会出现在列表或备份中。完成后保持锁定，用新主密码解锁。套件只含密钥、套件标识、版本和时间，不含密码库；数据或 Profile 丢失时只有密钥无用，也不能事后给锁死库补恢复。没有可用密钥时，先在忘记向导只读验证 .aph / .aphid，再到另一设备或独立 Profile 导入核对，最后才考虑清除原库，不能先清再试。备份仍需导出时主密码，恢复密钥不解旧备份；导出时与当前若是同一密码且已遗忘，备份仍打不开。明文 CSV / JSON 导出也可作数据来源；没有可用密钥或可解备份时仍无法恢复，重置清空不可撤销。',
+            en: 'The master password itself cannot be retrieved; a hint is a memory aid, not a security question. Offline recovery is off by default with no automatic migration. Set it up beforehand in Security Settings → Offline Recovery Key with the current master password, then save and re-enter the .aphrecovery kit to verify and activate it; replacement and disabling are also available. With recovery enabled and the matching key saved, enter it or import the kit on the lock screen, set a new master password, then save and verify a new kit. This recovers the current local passwords, password trash, password history, personal info and personal info trash. By default, any undecryptable data blocks in-place recovery and nothing is changed. Only after such an abort, and only with explicit informed consent, can the rest be recovered; those records stay in the vault as-is, remain unreadable under the new master password, and are omitted from lists and backups. The vault stays locked afterward; unlock with the new master password. The kit holds only the key, kit ID, version and time, not the vault. A key alone is useless if data or the browser profile is lost, and recovery cannot be added after lockout. Without a usable key, verify .aph / .aphid read-only in the forgot-password wizard, then import on another device or in a separate profile to check it before considering a wipe — never wipe first and test later. Backups still need their export-time master password, not a recovery key; if that was the same password now forgotten, they remain unreadable. A plaintext CSV / JSON export is another data source. With no usable key or decryptable backup, data remains unrecoverable and a reset wipes it irreversibly.',
           },
         },
         {
           q: { zh: '如何修改主密码？', en: 'How do I change the master password?' },
           a: {
-            zh: '在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。',
-            en: 'Click "Change master password" in the "Security Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected.',
+            zh: '在「安全设置 → 修改主密码」验证当前主密码并设置新密码。本机五域（密码、密码回收站、密码历史、个人信息、个人信息回收站）经解密检查后重新加密：密码与回收站解不开即中止换钥，解不开的历史与个人信息记录原样保留；离线恢复要求五域全部可解。已启用离线恢复者必须先保存并回填验证换发的新套件，成功后旧恢复密钥不再适用于当前本机入口；未启用者保留原改密交互。创建、换发、停用恢复都不是备份，也不能撤销攻击者已复制的旧密钥与旧恢复包/密文；疑泄漏需改主密码轮换数据钥，历史副本无法收回。.aph / .aphid 仍需导出时的主密码，新恢复密钥不能解开旧备份。恢复只持久化包裹的数据钥与非敏感元数据，不保存恢复密钥或其包裹钥；主密码不以原文或可逆密文保存。恢复不新增请求、权限或遥测，既有匿名版本检查不变。',
+            en: 'Under Security Settings → Change Master Password, verify the current password and choose a new one. All five local domains (passwords, password trash, password history, personal info and personal info trash) are checked for decryption and re-encrypted: unreadable passwords or password trash abort the change, while unreadable history and personal-info records are carried over untouched; offline recovery requires all five domains to decrypt. If offline recovery is enabled, first save and re-enter the replacement kit to verify it. After success, the old recovery key no longer works at the current local entry point. Users without recovery keep the original interaction. Creating, replacing or disabling recovery is not a backup and cannot revoke copied old keys plus old envelopes/ciphertext. If exposure is suspected, change the master password to rotate the data key; historical copies cannot be recalled. .aph / .aphid still require their export-time master passwords, not the new recovery key. Recovery persists only the wrapped data key and non-sensitive metadata, never the recovery key or its wrapping key; the master password is never stored as plaintext or reversible ciphertext. Recovery adds no requests, permissions or telemetry; existing anonymous version checks remain.',
           },
         },
         {

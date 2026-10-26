@@ -21,8 +21,8 @@
  * **为什么标准只能逐组件写、不能收进 `entrypoints/options/styles.css`**：那份文件是被
  * `entrypoints/options/App.vue` 的 `<style scoped>` 以 `@import` 引入的，产物里它的每条类选择器
  * 都带上了 App 的 scope id（`.dialog-footer[data-v-fd3d1564]`），而 App 模板里并不存在
- * `class="dialog-footer"`，于是它对 15 个使用方全部不生效——只有 `:deep(...)` 那几条能穿透。
- * 这正是 14 个弹窗各自复制一份 `.dialog-footer` 的原因，也是本守卫把口径钉在**各组件自己的
+ * `class="dialog-footer"`，于是它对**所有**使用方都不生效——只有 `:deep(...)` 那几条能穿透。
+ * 这正是各弹窗各自复制一份 `.dialog-footer` 的原因，也是本守卫把口径钉在**各组件自己的
  * scoped 块**上的原因。把它收进全局文件属另一件事，需要单独评估与 14 份本地声明的同特异性竞争。
  *
  * 本守卫钉三件「改了会静默变差」的事：
@@ -37,7 +37,7 @@
  * EP 升级若改了默认边距这里同样不会变红，要靠重跑 E2E 发现。
  */
 import { describe, expect, it } from 'vitest';
-import { readSource } from '../helpers/architectureScan';
+import { listSourceFiles, readSource } from '../helpers/architectureScan';
 
 /** Element Plus 2.14.4 给相邻按钮的默认左外边距（px），接管前净间距 = gap + 这个值 */
 const EP_SIBLING_MARGIN_PX = 12;
@@ -276,5 +276,66 @@ describe('弹窗 / 抽屉 footer 一排文字按钮的间距', () => {
       ).toBe('ok');
     }
     expect(e2eAboutGapCeiling(), 'e2e 几何上限没抽到，联动那条判据是空跑').toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 模板上写了 `class="dialog-footer"`，本地就必须真的有这条声明
+ *
+ * 上一节的注释记着：`entrypoints/options/styles.css` 里那条 `.dialog-footer` 编译后带 App 的
+ * scope id，对 teleport 到 body 的弹窗内容一概不生效。于是类名没有本地声明时不是「样式没写全」，
+ * 而是**一个看起来生效的装饰**——渲染结果只是恰好由 `.el-dialog__footer { text-align: right }`
+ * 兜住了，读代码的人却会以为页脚由这条类管着。2026-10-26 一轮「把页脚并到 `.dialog-footer` 约定」
+ * 的改动就只加了 `<div class="dialog-footer">` 就收工，三个弹窗的页脚其实什么都没变。
+ *
+ * 例外表 `UNDECLARED` 是**已知未修**清单，不是「允许新增」的口子：加一项等于承认又留了一处死类名，
+ * 故第三判据反过来盯它——例外一旦被修好，条目必须删掉，否则红。
+ */
+const UNDECLARED: Record<string, string> = {
+  'components/options/ValiditySettingDialog.vue':
+    '整个文件没有 `<style>` 块，`.form-tip` 同样落空；补声明会把提示文字从默认 14px 变成 12px 柔和色，属可见变化，待用户拍板',
+};
+
+/** 用了 `class="dialog-footer"` 的源文件（仓库相对路径，去重） */
+function dialogFooterUsers(): string[] {
+  return [...new Set([...listSourceFiles('components', ['.vue']), ...listSourceFiles('entrypoints', ['.vue'])])].filter(
+    file => readSource(file).includes('class="dialog-footer"'),
+  );
+}
+
+/**
+ * 该文件是否在自己的 `<style>` 块里**真有一条** `.dialog-footer` 规则
+ *
+ * 只 grep 原文会被注释蒙过——在任意注释里写一句 `.dialog-footer {` 就能让「死类名」判据通过，
+ * 而类名依旧没有生效。故这里剥掉注释、且只认 `<style>` 块内的声明，与上面 `cssOf()` 同一口径；
+ * 区别是本判据不要求 scoped：非 scoped 块里的同名规则同样真实生效（特异性更低，但仍生效）。
+ */
+function declaresDialogFooter(file: string): boolean {
+  const styleBlocks = [...readSource(file).matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]);
+  return styleBlocks.some(css => /^\.dialog-footer\s*\{/m.test(css.replace(/\/\*[\s\S]*?\*\//g, '')));
+}
+
+describe('`.dialog-footer` 类名不得只写在模板上', () => {
+  const users = dialogFooterUsers();
+
+  it('扫描本身有效：使用方一个都没漏（登记表之外新增死类名会在这里露出来）', () => {
+    expect(
+      users.length,
+      '只读到 ' + users.length + ' 处使用方，`class="dialog-footer"` 的写法或目录已变',
+    ).toBeGreaterThanOrEqual(18);
+  });
+
+  it('每处使用方都自带 `.dialog-footer` 声明，例外必须登记', () => {
+    for (const file of users) {
+      if (UNDECLARED[file]) continue;
+      expect(declaresDialogFooter(file), `${file} 用了 class="dialog-footer" 却没有本地声明——类名是死的`).toBe(true);
+    }
+  });
+
+  it('登记表的例外确实还缺声明（修好了就删掉，不让例外变成永久豁免）', () => {
+    for (const [file, reason] of Object.entries(UNDECLARED)) {
+      expect(users, `${file} 已不在使用方里，例外该删（${reason}）`).toContain(file);
+      expect(declaresDialogFooter(file), `${file} 已补上声明，例外条目该删（${reason}）`).toBe(false);
+    }
   });
 });

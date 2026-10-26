@@ -34,6 +34,7 @@ import {
   decidePasswordBackupReminder,
   isBackupRelevantIdentityChange,
   isBackupRelevantPasswordChange,
+  isKeyRotationBatch,
 } from '@/utils/backup/changeDetection';
 import {
   markBrowserStartupRelockCurrentSessionReady,
@@ -347,12 +348,21 @@ async function setupAutoBackupAlarm() {
  * 写入的是另外三个键，不在 `relevantKeys` 内，因此本函数触发的 `onChanged`
  * 不会再回到这里，无自激循环。失败只记 warn：提醒退化回纯时间驱动，不影响任何数据。
  *
+ * 换钥匙（修改主密码）单独排除在外：那一批写入会把五个加密域整库重加密，逐字段比对
+ * 必然判成「内容变了」，但备份文件与当前主密码无关，用户并没有真的欠一次备份。
+ * 判据与理由见 `isKeyRotationBatch` 的注释。
+ *
  * @param changes `storage.onChanged` 的变更集
  */
 async function recordBackupRelevantChanges(changes: Record<string, chrome.storage.StorageChange>): Promise<void> {
   try {
     const StorageUtils = await _getStorageUtils();
     const now = Date.now();
+
+    if (isKeyRotationBatch(changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY], changes[STORAGE_KEYS.MASTER_PASSWORD])) {
+      logger.debug('Background: 该批变更来自换钥匙（rekey），内容未变，不刷新待备份时间戳');
+      return;
+    }
 
     const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
     if (passwordsChange && isBackupRelevantPasswordChange(passwordsChange.oldValue, passwordsChange.newValue)) {
@@ -405,6 +415,16 @@ async function performAutoBackup() {
     const rawPasswords = pwResult[STORAGE_KEYS.PASSWORDS] as unknown[] | undefined;
     const passwordCount = rawPasswords?.length ?? 0;
 
+    /*
+     * 这里**故意只看密码库**，不是漏了个人信息库——别顺手把 IDENTITY 加进来。
+     * 本函数是「邮箱备份提醒」的通道：`utils/emailBackup.ts` 递出去的是
+     * `passwords_*.csv` 或 `.aph`，作用域只覆盖密码库，`.aphid`（个人信息库）根本不在
+     * 这条通道里。给一个只存证件/银行卡的用户发「请用邮箱备份」，是在引导他做一件
+     * 备不到自己数据的动作，比不提醒更糟。
+     * 个人信息库的欠备份状态由管理页横幅承担（两库结论见 `decideBackupChipState`
+     * 的 `perVault`，另一库也欠时点名「下一份」），那是能直接指到 `.aphid` 导出入口的面。
+     * 想给身份库加站外提醒，前提是先有一条带 `.aphid` 的定时通道——属产品决策，不是 bug。
+     */
     if (passwordCount === 0) {
       logger.info('Background: 无密码数据，跳过备份提醒');
       return;
@@ -804,7 +824,7 @@ export function setupBackgroundServices(): void {
       }
 
       // 会话状态变化时同步 SW 保活闹钟（统一常驻，幂等；会话创建/清除均收敛到保活）
-      const sessionKeys = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      const sessionKeys: string[] = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
       const sessionKeyChanges = Object.entries(changes).filter(([key]) => sessionKeys.includes(key));
 
       if (sessionKeyChanges.length > 0) {

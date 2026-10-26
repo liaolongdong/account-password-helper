@@ -502,7 +502,7 @@ watch(
 
 .detail-header__fallback {
   font-size: 20px;
-  color: var(--el-color-primary);
+  color: var(--aph-primary);
 }
 
 .detail-header__main {
@@ -609,14 +609,14 @@ watch(
   gap: 4px;
   align-items: center;
   min-width: 0;
-  color: var(--el-color-primary);
+  color: var(--aph-primary);
   text-decoration: none;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .detail-url:hover {
-  color: var(--el-color-primary-light-3);
+  color: var(--aph-primary-hover);
   text-decoration: underline;
 }
 
@@ -627,7 +627,7 @@ watch(
 .detail-muted {
   font-size: 12px;
   font-style: italic;
-  color: #c0c4cc;
+  color: var(--aph-text-muted);
 }
 
 .detail-tag + .detail-tag {
@@ -683,7 +683,7 @@ watch(
 .detail-history__time {
   flex-shrink: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .detail-history__password {

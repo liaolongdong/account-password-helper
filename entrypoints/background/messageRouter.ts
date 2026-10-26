@@ -781,47 +781,37 @@ export function setupMessageRouter(): void {
           sendResponse({ success: false, error: '未授权的请求来源' });
           break;
         }
-        // 使用 async IIFE 使动态 import + 异步 clearSession 在 switch-case 内正确执行
         void (async () => {
-          const {
-            invalidateSessionCache: invalidateSess,
-            markSessionInvalid: markSessInvalid,
-            clearSession: clearSess,
-          } = await _getSessionModule();
-
-          invalidatePasswordCache();
-          invalidateSess();
-          // 同步标记会话为无效（在 async clearSession 之前执行），
-          // 使并发的 isSessionValid() 调用立即从缓存返回 false，
-          // 消除 clearSession() 异步执行期间（~100-200ms）的竞态窗口
-          markSessInvalid();
-
-          // 在 BG SW 上下文中清除会话（lockSession 已在 popup/options 上下文中调用过 clearSession，
-          // 但 BG SW 有独立的模块级状态和 _sessionValidCache，必须同步清除，
-          // 否则 isSessionValid() 的 5 秒 TTL 缓存会返回过期的 true，
-          // 导致后续 GET_INITIAL_DATA 在用户重新打开侧边栏时返回错误的已认证状态）
-          clearSess().catch(e => {
-            logger.error('Background: INVALIDATE_PASSWORD_CACHE 清除会话失败:', e);
-          });
-
-          // 会话已清除：经 syncSwKeepaliveAlarm 统一决策保活（全平台常驻）
-          syncSwKeepaliveAlarm();
-        })();
-
-        for (const port of getSidePanelPorts()) {
           try {
-            port.postMessage({ type: MessageType.SESSION_EXPIRED });
-          } catch {
-            // port 可能已断开
+            const {
+              invalidateSessionCache: invalidateSess,
+              markSessionInvalid: markSessInvalid,
+              clearSession: clearSess,
+            } = await _getSessionModule();
+            invalidatePasswordCache();
+            invalidateSess();
+            markSessInvalid();
+            // 先把锁定广播出去，再结算清理：广播被排在 `clearSess()` 之后时，其它上下文要多
+            // 等一次 `storage.session` + `storage.local` 的删除（Windows 慢盘可到数百毫秒）
+            // 才切到锁定态，期间明文列表仍摊在屏幕上。回执仍等清理结算完再发，
+            // 保证调用方随后创建的新会话不会被迟到的后台清理抹掉。
+            for (const port of getSidePanelPorts()) {
+              try {
+                port.postMessage({ type: MessageType.SESSION_EXPIRED });
+              } catch {
+                // Port may have disconnected while storage was being cleared.
+              }
+            }
+            chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {});
+            await clearSess();
+            syncSwKeepaliveAlarm();
+            sendResponse({ success: true });
+          } catch (error) {
+            logger.error('Background: INVALIDATE_PASSWORD_CACHE 清除会话失败:', error);
+            sendResponse({ success: false, error: 'SESSION_CLEAR_FAILED' });
           }
-        }
-
-        chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
-          // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
-        });
-
-        sendResponse({ success: true });
-        break;
+        })();
+        return true;
       }
 
       case MessageType.AUTO_SAVE_PASSWORD: {

@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     :title="dialogState.title"
     width="420px"
+    align-center
     :close-on-click-modal="false"
     :close-on-press-escape="!verifying"
     :destroy-on-close="false"
@@ -84,12 +85,9 @@ import {
   _resolveVerifyDialog,
   _rejectVerifyDialog,
 } from '@/utils/masterPasswordVerifyController';
-import { SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
+import { SHAKE_DURATION_MS, MAX_FAIL_BEFORE_HINT } from '@/composables/useAuthFlow';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import CapsLockHint from '@/components/CapsLockHint.vue';
-
-/** 连续错误次数达到此值后显示重置提示 */
-const MAX_FAIL_BEFORE_HINT = 3;
 
 const { t } = useI18n();
 
@@ -254,7 +252,7 @@ const clearError = () => {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.4;
-  color: var(--el-color-error);
+  color: var(--aph-danger-strong);
 }
 
 /* 忘记密码提示 */

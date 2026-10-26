@@ -29,6 +29,7 @@ vi.mock('@/utils/encryption', () => ({
   encryptData,
   decryptData,
   deriveEncryptionKey,
+  deriveVerifierHash: vi.fn(async (password: string) => `verifier:${password}`),
 }));
 
 const { getSessionDataKey } = vi.hoisted(() => ({
@@ -76,7 +77,13 @@ let localSet: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStore = {};
+  localStore = {
+    [STORAGE_KEYS.MASTER_PASSWORD]: {
+      salt: 'fixture-salt',
+      hashedPassword: 'verifier:master-pw',
+      kdf: 'pbkdf2-sha256',
+    },
+  };
 
   encryptData.mockImplementation(async (data, key) => enc(data, key));
   decryptData.mockImplementation(async (data, key) => dec(data, key));
@@ -270,6 +277,18 @@ describe('reencryptAll', () => {
     expect(result).toHaveLength(2);
     expect(result.find(r => r.id === 'broken')?.encryptedPayload).toBe('corrupted');
     expect(JSON.parse(dec(result.find(r => r.id === 'ok')!.encryptedPayload, 'NEW'))).toEqual({});
+  });
+
+  it('把失败条目回调给换钥编排层，便于只按条数记日志', async () => {
+    const broken: IdentityRecord = { id: 'broken', encryptedPayload: 'corrupted', createTime: 1, updateTime: 1 };
+    const ok: IdentityRecord = { id: 'ok', encryptedPayload: enc('{}', 'OLD'), createTime: 1, updateTime: 1 };
+    const onFailure = vi.fn();
+
+    const result = await reencryptAll([broken, ok], 'OLD', 'NEW', onFailure);
+
+    expect(result).toHaveLength(2);
+    expect(onFailure).toHaveBeenCalledTimes(1);
+    expect(onFailure).toHaveBeenCalledWith(broken);
   });
 });
 

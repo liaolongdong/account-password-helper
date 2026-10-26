@@ -31,7 +31,7 @@
     <title>Bitwarden vs 1Password vs Chrome: Free Local Alternative</title>
     <meta
       name="description"
-      content="2026 Bitwarden vs 1Password vs Chrome built-in: compared on ten dimensions — price, storage, sign-up, one-click login, multi-environment isolation and cross-subdomain tiers, site rules, TOTP, offline audit, personal info vault and license — with an honest take on who each suits."
+      content="Bitwarden vs 1Password vs Chrome built-in, compared on ten dimensions — price, one-click login, TOTP, offline audit and license — and who each actually suits."
     />
     <link
       rel="icon"
@@ -71,7 +71,7 @@
     />
     <meta
       property="og:description"
-      content="Ten-dimension comparison of the free, open-source local password manager vs Bitwarden, 1Password and Chrome built-in — price, storage, sign-up, one-click login, multi-environment isolation and cross-subdomain tiers, site rules, TOTP, offline audit, personal info vault and license — and an honest take on who each suits."
+      content="Free, open-source, local-first password manager vs Bitwarden, 1Password and Chrome built-in across ten dimensions — and an honest take on who each suits."
     />
     <meta
       property="og:url"
@@ -219,7 +219,7 @@
             "name": "Is a local password manager safe?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Account Password Helper uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations) and sensitive fields are authenticated-encrypted with AES-256-GCM, while credentials are never uploaded to any server; the only outbound request is an anonymous version check every 6 hours, which carries no vault content and no personal identifier. A forgotten master password cannot be recovered, so export regular encrypted backups. As with any extension, avoid storing banking or payment credentials."
+              "text": "Account Password Helper uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations) and sensitive fields are authenticated-encrypted with AES-256-GCM, while credentials are never uploaded to any server; the only outbound request is an anonymous version check every 6 hours, which carries no vault content and no personal identifier. A forgotten master password cannot be recovered by default — an offline recovery key enrolled in advance is the exception — so export regular encrypted backups. As with any extension, avoid storing banking or payment credentials."
             }
           },
           {
@@ -723,7 +723,7 @@
               </li>
               <li>
                 <b>Command palette</b>: press Ctrl+K / Cmd+K on the manager page (not on web pages, not in the side
-                panel) and filter 28 commands by Chinese, pinyin or initials, Enter to open. It requires an unlocked
+                panel) and filter 30 commands by Chinese, pinyin or initials, Enter to open. It requires an unlocked
                 session, destructive commands keep their confirmations, and because it is not a manifest command it does
                 not appear in chrome://extensions/shortcuts.
               </li>
@@ -827,7 +827,7 @@
                 <li>One-keystroke login (tick consent + click login, not just fill)</li>
                 <li>Exact-domain multi-environment isolation, widenable to wildcard / same-main-domain tiers</li>
                 <li>Site rules: custom field selectors per domain for pages detection gets wrong</li>
-                <li>Command palette: Ctrl+K / Cmd+K to filter and run 28 commands on the manager page</li>
+                <li>Command palette: Ctrl+K / Cmd+K to filter and run 30 commands on the manager page</li>
                 <li>Built-in TOTP generation and offline security audit</li>
                 <li>Encrypted backup (.aph), trash bin and password history</li>
                 <li>Personal info vault: ID numbers and bank cards encrypted separately, manager page only</li>

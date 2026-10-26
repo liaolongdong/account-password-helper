@@ -93,6 +93,32 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   // 状态
   const passwords = ref<PasswordEntry[]>([]);
+  /**
+   * 原始存储条数与成功解密条数的差。
+   *
+   * 管理页此前只拿 entries，坏记录会让列表静默变短、备份静默漏条。用原始条数做差
+   * 不需要再解密一遍，也不会把坏记录误当成「空库」。
+   */
+  const undecryptableCount = ref(0);
+
+  /** 备份前确认「坏记录不会进入备份」；没有坏记录时零交互放行。 */
+  const confirmIncompleteBackup = async (): Promise<boolean> => {
+    if (undecryptableCount.value <= 0) return true;
+    try {
+      await ElMessageBox.confirm(
+        t('options.backup.undecryptableWarning', { count: undecryptableCount.value }),
+        t('options.backup.undecryptableTitle'),
+        {
+          type: 'warning',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+        },
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
   /** 当前排序状态（由 el-table @sort-change 驱动更新） */
   const currentSort = ref<SortState>({ ...DEFAULT_SORT });
   const showImportDialog = ref(false);
@@ -437,12 +463,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (generation !== loadGeneration) return;
       if (!sessionValid) {
         passwords.value = [];
+        undecryptableCount.value = 0;
         return;
       }
 
-      const entries = await StorageUtils.getAllPasswords();
+      const loaded = await StorageUtils.getAllPasswordsDetailed();
       if (generation !== loadGeneration) return;
-      passwords.value = entries;
+      passwords.value = loaded.entries;
+      undecryptableCount.value = loaded.undecryptableCount;
 
       // 初始化每条记录的密码显隐状态
       passwords.value.forEach(p => {
@@ -1178,9 +1206,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const backupToEmail = async (email: string, encrypted: boolean) => {
     try {
       if (passwords.value.length === 0) {
-        ElMessage.warning(t('message.noDataToBackup'));
+        ElMessage.warning(
+          undecryptableCount.value > 0
+            ? t('options.backup.noReadableData', { count: undecryptableCount.value })
+            : t('message.noDataToBackup'),
+        );
         return;
       }
+      if (!(await confirmIncompleteBackup())) return;
 
       const masterPassword = await promptAndVerifyMasterPassword(
         t('session.verifyTitle'),
@@ -1277,6 +1310,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   return {
     // 状态
     passwords,
+    undecryptableCount,
+    confirmIncompleteBackup,
     showImportDialog,
     showPasswordDialog,
     showEmailBackupDialog,

@@ -13,10 +13,33 @@
  */
 
 :root {
-  /* 品牌主色及其状态 */
+  /* 品牌主色及其状态。
+     主色只有这一支浅蓝，六套主题各自配值，**不再另配「强」档**：2026-10-26 用户明确要求
+     按钮与文字都用这支与品牌图标一致的浅蓝，曾为对比度引入的两支深档主色令牌已连同六套主题
+     取值一并删除，由 tests/architecture/themeContrast.test.ts 的配色锁守住（那里留着令牌名）——
+     想换深档，先改判据并拿到确认。
+     代价记在案、不当它不存在：浅蓝压白底实测 2.78:1，14px 文字不达 WCAG AA 4.5:1。 */
   --aph-primary: #409eff;
   --aph-primary-hover: #66b3ff;
   --aph-primary-rgb: 64 158 255;
+
+  /* 语义色「强」档：保色相与饱和度、只压暗度得到的深色（与主色不同，语义色不参与换肤），
+     用途也同一类——语义色当**文字**压浅色底时不达 WCAG AA：
+     `--el-color-danger` #f56c6c 白底只有 2.90:1、`--el-color-warning` #e6a23c 只有 2.19:1、
+     `--el-color-success` #67c23a 只有 2.24:1，
+     而它们压的正是校验报错与安全披露这类必须读清的字。
+     取值按「设计系统里全部 12 种浅底中最差的一面」定，不是只对白底达标
+     （同 `--aph-text-*` 那条地板，见上面的中性色注释；#e2e8f0 这类较深的底会吃掉 0.4~0.5
+     的对比度，只按白底调会静默不达标）：
+     danger 最差 4.58:1、warning 4.55:1、success 4.57:1。
+     刻意不复用 `--el-color-danger-dark-2`：那是 +20% 黑，白底只有 4.11:1，浅底更差。
+     语义色不参与换肤（本文件头部已声明「成功/警告/错误保持全主题一致」），
+     所以这里各一个值、六套主题块无需配；内容脚本不用 Element Plus，
+     `utils/theme.ts` 的 THEME_SHADOW_TOKENS 也无需镜像。
+     只用于文字：图标、圆点、填充与描边继续用 `--el-color-*` 原色，语义色相不丢。 */
+  --aph-danger-strong: #cf0e0e;
+  --aph-warning-strong: #8f5d12;
+  --aph-success-strong: #3e7423;
 
   /* 品牌浅色填充 / 边框 */
   --aph-primary-bg: #ecf5ff;
@@ -29,18 +52,29 @@
   --aph-surface-line: #e3f2fd;
   --aph-surface-hover: #f0f9ff;
 
-  /* 中性色：文字 */
+  /* 中性色：文字
+     三档全部按「设计系统里 12 种浅色底中最暗的一面」定，而不是只对白底达标——
+     `--aph-text-secondary` 旧值 #6b7280 白底 4.83:1 看着合格，压到 `.session-pill:hover`
+     的 #e2e8f0 上只剩 3.92:1，整档跌破 WCAG AA 4.5:1。
+     该族（R/G/B 差 7 与 21 的冷灰）能达标的**最浅值**是 #616876（白 5.60 / 最差 4.54），
+     它就是 AA 留下的地板：muted 与 placeholder 只能共用这一格，四级阶梯在数学上不存在。
+     地板以下仍留两档可分：primary 11.91 > secondary 5.29 > muted / placeholder 4.54
+     （均为最暗浅底上的对比度）。纯装饰的文字（如分隔点）走下面的 `--aph-icon-muted`。 */
   --aph-text-primary: #1f2937;
-  --aph-text-secondary: #6b7280;
-  --aph-text-muted: #9ca3af;
+  --aph-text-secondary: #565d6b;
+  --aph-text-muted: #616876;
 
-  /* 占位符独立成令牌：它此前直接复用 `--aph-text-secondary`，于是「输入提示」与
-     「次要正文」同色，且比输入框下方的 `.form-tip`（#909399）还深，层级是倒的。
-     这里只往下挪一档——白底 4.64:1，是仍过 WCAG 1.4.3（4.5:1）的最浅值，
-     再浅一格（#717884，4.45:1）就破线，故变浅幅度刻意有限。 */
-  --aph-text-placeholder: #6e7582;
+  /* 占位符独立成令牌：语义与「次要正文」不同（它必须与已输入的值区分开），
+     但取值已被 AA 地板压到与 `--aph-text-muted` 同一格——输入正文是 EP 的 #606266
+     （最差底 5.16:1，更深），所以「提示比输入值浅」这条层级仍然成立。 */
+  --aph-text-placeholder: #616876;
 
-  /* 中性色：图标 */
+  /* 中性色：图标。
+     别把这两档理解成「图标都是装饰所以不用管」——侧边栏两颗复制图标是 `role="button"`
+     且没有任何可见文字，收藏星标也只靠形状+颜色表达「已收藏」，按 WCAG 1.4.11 这类
+     承载控件与状态的图形要 ≥3:1，而下面两档都不到（#9ca3af 最差 2.06、#b0b7c3 最差 1.64）。
+     这是**已知空白**，色值属用户的调色板：2026-10-26 有人为对比度把它们压深过一次、
+     被要求全部回退。要补这一格先问用户，不要照本注释自行改色。 */
   --aph-icon-muted: #9ca3af;
   --aph-icon-action: #b0b7c3;
 
@@ -223,4 +257,38 @@
  * 选择器用后代组合抬到 (0,2,0)，避免与 EP 同权重而依赖样式顺序。 */
 .el-drawer .el-drawer__header {
   margin-bottom: 4px;
+}
+
+/* ===== Element Plus 覆写：浅色告警的文字对比度 =====
+ * EP 把整块浅色告警刷成语义色（`.el-alert--x.is-light { color: var(--el-color-x) }`，
+ * 描述再显式来一遍同色）。实测压在各自的 light-9 底色上：warning 2.04:1、error 2.61:1，
+ * 而告警里放的是「改密会作废旧套件」这类必须读懂的说明文字，14px 远低于 WCAG AA 的 4.5:1。
+ * 只收回标题与描述两级文字颜色，语义仍由图标与底色承担——图标从告警根节点继承颜色，
+ * 不在被改写的两个节点里，所以色相不丢，也不违反「不能只用颜色表达状态」。
+ * `is-dark` 是白字压实底，本来就该跟语义色走，故选择器锁死 `.is-light`。
+ * 两条各带一层 `.el-alert__content` 抬到 (0,4,0)，稳过 EP 的
+ * `.el-alert--x.is-light .el-alert__description` (0,3,0)：本文件打包后排在前面的
+ * EP css chunk 之前，同权重会被 EP 反压（同上一条抽屉覆写的理由）。
+ * 内容脚本不用 Element Plus，因此不需要在 utils/theme.ts 的 SHADOW_* 里配镜像。 */
+.el-alert.is-light .el-alert__content .el-alert__title {
+  color: var(--el-text-color-primary);
+}
+
+.el-alert.is-light .el-alert__content .el-alert__description {
+  color: var(--el-text-color-regular);
+}
+
+/* ===== Element Plus 覆写：表单与弹窗的报错文字 =====
+ * 与上一条同一个理由，但覆盖面更大：EP 把 `.el-form-item__error` 直接写成
+ * `color: var(--el-color-danger)`（12px，白底 2.90:1），而本仓有 153 处 el-form-item，
+ * 「主密码强度不够」「两次输入不一致」这类校验反馈是全扩展出现频率最高的必读文字；
+ * `el-message-box` 的内联错误同理。两者都换到 `--aph-danger-strong`。
+ * 各多带一层父选择器抬到 (0,2,0)，压过 EP 的 (0,1,0)——本文件排在 EP 各 chunk 之前，
+ * 同权重会输。报错图标（`.el-input__validateIcon`）继续用原色，它不是文字。 */
+.el-form-item .el-form-item__error {
+  color: var(--aph-danger-strong);
+}
+
+.el-message-box .el-message-box__errormsg {
+  color: var(--aph-danger-strong);
 }

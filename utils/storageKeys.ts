@@ -7,6 +7,7 @@
 export const STORAGE_KEYS = {
   PASSWORDS: 'account_passwords',
   MASTER_PASSWORD: 'master_password_config',
+  RECOVERY_CONFIG: 'offline_recovery_config',
   SETTINGS: 'app_settings',
   MASTER_PASSWORD_VALIDITY: 'master_password_validity',
   SORT_CONFIG: 'password_sort_config',
@@ -125,6 +126,8 @@ export const STORAGE_KEYS = {
 export const SESSION_MEMORY_KEYS = {
   /** 会话期派生的 AES-256-GCM 数据密钥（hex） */
   DATA_KEY: 'session_data_key',
+  /** 将内存态密钥绑定到已提交的包裹密钥，拒绝换钥前的迟到缓存。 */
+  DATA_KEY_WRAPPED: 'session_data_key_wrapped',
   /** 侧边栏打开请求记录（{ at: epoch 毫秒, trigger: 触发源 }），用于量化「用户点击 → 渲染进程 timeOrigin」耗时与打开路径归因 */
   SIDEPANEL_OPEN_REQUESTED_AT: 'sidepanel_open_requested_at',
   /** 侧边栏资源预热上次执行时间戳（epoch 毫秒），跨 SW 生命周期保持节流窗口有效 */

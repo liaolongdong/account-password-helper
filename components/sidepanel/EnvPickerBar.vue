@@ -156,7 +156,7 @@ const { t } = useI18n();
 }
 
 .env-bar__opt--danger {
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
   border-color: var(--el-color-danger-light-7);
 }
 
@@ -181,7 +181,7 @@ const { t } = useI18n();
   width: 100%;
   padding: 4px 8px;
   font-size: 12px;
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
   background: var(--el-color-danger-light-9);
   border: 1px solid var(--el-color-danger-light-7);
   border-radius: 8px;
@@ -197,7 +197,7 @@ const { t } = useI18n();
   font-family: inherit;
   font-size: 12px;
   line-height: 18px;
-  color: var(--el-color-danger);
+  color: var(--aph-danger-strong);
   cursor: pointer;
   background: var(--aph-surface);
   border: 1px solid var(--el-color-danger-light-5);
