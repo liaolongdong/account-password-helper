@@ -144,7 +144,7 @@
       >
     </div>
     <template #footer>
-      <!-- 仓库既有的页脚约定：15 处弹窗用 .dialog-footer 收口相邻 12px 边距，不再各写各的 -->
+      <!-- 仓库既有的页脚约定：弹窗用 .dialog-footer 收口相邻边距，不再各写各的 -->
       <div class="dialog-footer">
         <el-button
           v-if="draft"

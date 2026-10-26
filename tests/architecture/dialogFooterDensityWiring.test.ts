@@ -21,8 +21,8 @@
  * **为什么标准只能逐组件写、不能收进 `entrypoints/options/styles.css`**：那份文件是被
  * `entrypoints/options/App.vue` 的 `<style scoped>` 以 `@import` 引入的，产物里它的每条类选择器
  * 都带上了 App 的 scope id（`.dialog-footer[data-v-fd3d1564]`），而 App 模板里并不存在
- * `class="dialog-footer"`，于是它对 15 个使用方全部不生效——只有 `:deep(...)` 那几条能穿透。
- * 这正是 14 个弹窗各自复制一份 `.dialog-footer` 的原因，也是本守卫把口径钉在**各组件自己的
+ * `class="dialog-footer"`，于是它对**所有**使用方都不生效——只有 `:deep(...)` 那几条能穿透。
+ * 这正是各弹窗各自复制一份 `.dialog-footer` 的原因，也是本守卫把口径钉在**各组件自己的
  * scoped 块**上的原因。把它收进全局文件属另一件事，需要单独评估与 14 份本地声明的同特异性竞争。
  *
  * 本守卫钉三件「改了会静默变差」的事：
@@ -303,9 +303,16 @@ function dialogFooterUsers(): string[] {
   );
 }
 
-/** 该文件是否在自己的 `<style>` 里逐字声明了 `.dialog-footer`（与 18 处既有用法同形态） */
+/**
+ * 该文件是否在自己的 `<style>` 块里**真有一条** `.dialog-footer` 规则
+ *
+ * 只 grep 原文会被注释蒙过——在任意注释里写一句 `.dialog-footer {` 就能让「死类名」判据通过，
+ * 而类名依旧没有生效。故这里剥掉注释、且只认 `<style>` 块内的声明，与上面 `cssOf()` 同一口径；
+ * 区别是本判据不要求 scoped：非 scoped 块里的同名规则同样真实生效（特异性更低，但仍生效）。
+ */
 function declaresDialogFooter(file: string): boolean {
-  return /^\.dialog-footer\s*\{/m.test(readSource(file));
+  const styleBlocks = [...readSource(file).matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]);
+  return styleBlocks.some(css => /^\.dialog-footer\s*\{/m.test(css.replace(/\/\*[\s\S]*?\*\//g, '')));
 }
 
 describe('`.dialog-footer` 类名不得只写在模板上', () => {
