@@ -472,7 +472,7 @@ import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
-import { isVerdictOwedNow } from '@/utils/backup/changeDetection';
+import { decideBackupNudge } from '@/utils/backup/changeDetection';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
@@ -1288,15 +1288,9 @@ const showActivationChecklist = computed(
  * 与「安全起步清单」互斥：清单在场时它已经把备份列为待办之一。
  */
 const backupNudgeDismissed = ref(false);
-const backupNudge = computed<{ state: 'never' | 'stale'; days: number; vault: 'passwords' | 'identity' } | null>(() => {
+const backupNudge = computed(() => {
   if (backupNudgeDismissed.value || showActivationChecklist.value || !isAuthenticated.value) return null;
-  const chip = backupChip.value;
-  if (!chip.visible) return null;
-  if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault };
-  if (chip.level === 'urgent' && mutatedThisSession.value) {
-    return { state: 'stale', days: chip.ageDays ?? 0, vault: chip.worstVault };
-  }
-  return null;
+  return decideBackupNudge({ chip: backupChip.value, mutatedThisSession: mutatedThisSession.value });
 });
 
 /**
@@ -1309,12 +1303,7 @@ const backupNudge = computed<{ state: 'never' | 'stale'; days: number; vault: 'p
  * 是 `hidden`（空库）或 `ok` 时更不该提。
  * 备完第一份后徽标档位重算、`worstVault` 翻过去，横幅会自然接手第二份，不必在此并列两条。
  */
-const backupNudgeOtherVault = computed<'passwords' | 'identity' | null>(() => {
-  const nudge = backupNudge.value;
-  if (!nudge) return null;
-  const other = nudge.vault === 'identity' ? 'passwords' : 'identity';
-  return isVerdictOwedNow(backupChip.value.perVault[other].verdict) ? other : null;
-});
+const backupNudgeOtherVault = computed(() => backupNudge.value?.otherVault ?? null);
 
 /** 轻提醒的出口与徽标同一套分派：欠哪一份备份，就把用户送到哪一份的导出入口 */
 const handleBackupNudgeAction = (): void => {

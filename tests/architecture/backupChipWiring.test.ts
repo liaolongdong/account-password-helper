@@ -21,6 +21,7 @@ const HEADER_BAR = 'components/options/HeaderBar.vue';
 const APP = 'entrypoints/options/App.vue';
 const CHIP_COMPOSABLE = 'composables/useBackupChip.ts';
 const NUDGE_BANNER = 'components/options/BackupNudgeBanner.vue';
+const DETECTION = 'utils/backup/changeDetection.ts';
 const ZH_OPTIONS = 'utils/i18n/locales/zh-CN/options.json';
 const EN_OPTIONS = 'utils/i18n/locales/en/options.json';
 
@@ -106,9 +107,13 @@ describe('徽标与轻提醒的出口', () => {
   });
 
   it('横幅点名「下一份」时按同一条出声判据筛库，不把 ok / 空库也说成欠着', () => {
+    // 判据已下沉到同域模块（`decideBackupNudge`），入口组件只留装配；两处都要还在：
+    // 组件不再自己筛库，改由判据侧用同一条 `isVerdictOwedNow` 决定「下一份」点不点名。
     const app = readSource(APP);
-    expect(app).toContain('isVerdictOwedNow(backupChip.value.perVault[other].verdict)');
+    const detection = readSource(DETECTION);
+    expect(app).toContain('decideBackupNudge({ chip: backupChip.value');
     expect(app).toContain(':other-vault="backupNudgeOtherVault"');
+    expect(detection).toContain('isVerdictOwedNow(chip.perVault[other].verdict)');
   });
 
   it('实心主按钮保持品牌浅蓝：主题色由用户拍板，不许为了对比度自行换成深档', () => {
@@ -132,9 +137,14 @@ describe('徽标与轻提醒的出口', () => {
 
   it('轻提醒保持收紧：清单在场不出，待备份档还要求本页会话内真的改过数据', () => {
     const app = readSource(APP);
+    const detection = readSource(DETECTION);
     expect(app).toContain('backupNudgeDismissed.value || showActivationChecklist.value');
-    expect(app).toContain("if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault };");
-    expect(app).toContain("chip.level === 'urgent' && mutatedThisSession.value");
+    expect(detection).toContain(
+      "if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault, otherVault };",
+    );
+    expect(detection, '「待备份」档若不再要求本会话真的改过数据，每次打开管理页都会推一条噪音').toContain(
+      "chip.level === 'urgent' && mutatedThisSession",
+    );
   });
 
   it('状态不只靠颜色：徽标同时挂 title 与 aria-label，文案按档位分列', () => {

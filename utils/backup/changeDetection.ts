@@ -284,6 +284,49 @@ export interface BackupChipState {
  * @param now 当前时间（由调用方注入，便于测试）
  * @returns 该库档位
  */
+/** 会话内轻提醒（R1）要说什么：状态、天数、点名哪一库，以及另一库是否也要提 */
+export interface BackupNudgePlan {
+  /** `never` = 一次都没导出过已验证备份；`stale` = 改过数据但没备份 */
+  state: 'never' | 'stale';
+  days: number;
+  vault: 'passwords' | 'identity';
+  /** 另一库此刻同样欠着备份时一并点名；不需要提及时为 null */
+  otherVault: 'passwords' | 'identity' | null;
+}
+
+/**
+ * 轻提醒的出声判据（横幅只在调用方允许时才渲染，这里只回答「该不该、说什么」）。
+ *
+ * - `critical`：一次都没通过自检导出过（换机 / 重装 / 误删时零退路），持续提示；
+ * - `urgent` 且本次页面会话内确实发生过变更：即用户「刚添加 / 刚改完数据」这个时间点。
+ *   没有 `mutatedThisSession` 这一条，「待备份」档会在每次打开管理页时都推一次，
+ *   因为档位可能只是上个月那次改动一直没备份——提醒就此变成噪音。
+ *
+ * 另一库只认 `never` / `pending`（与横幅自己够格出现的两档同口径）：
+ * `stale`（备份已久但期间没改过）没有新数据要丢，副句成了噪音；`hidden`（空库）与 `ok` 更不该提。
+ * 备完第一份后档位重算、`worstVault` 翻过去，横幅会自然接手第二份，不必在此并列两条。
+ *
+ * @param chip 徽标已算好的状态（同一份判据的呈现层，不重复计算）
+ * @param mutatedThisSession 本会话内是否真的落盘过与备份相关的变更
+ * @returns 要提示的内容；不需要提示时为 null
+ */
+export function decideBackupNudge({
+  chip,
+  mutatedThisSession,
+}: {
+  chip: BackupChipState;
+  mutatedThisSession: boolean;
+}): BackupNudgePlan | null {
+  if (!chip.visible) return null;
+  const other = chip.worstVault === 'identity' ? 'passwords' : 'identity';
+  const otherVault = isVerdictOwedNow(chip.perVault[other].verdict) ? other : null;
+  if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault, otherVault };
+  if (chip.level === 'urgent' && mutatedThisSession) {
+    return { state: 'stale', days: chip.ageDays ?? 0, vault: chip.worstVault, otherVault };
+  }
+  return null;
+}
+
 export function decideVaultBackupVerdict(vault: BackupVaultInput, floorMs: number, now: number): BackupVaultVerdict {
   if (!vault.hasData) return 'hidden';
   if (vault.lastBackupAt === null) return 'never';

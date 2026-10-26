@@ -17,8 +17,10 @@ import {
   hasPendingIdentityBackup,
   isBackupRelevantIdentityChange,
   isBackupRelevantPasswordChange,
+  decideBackupNudge,
   isKeyRotationBatch,
 } from '@/utils/backup/changeDetection';
+import type { BackupChipState } from '@/utils/backup/changeDetection';
 import { isMetadataOnlyChange } from '@/utils/storage/passwordCrud';
 
 /** 基准时刻（判据只做差值比较，取一个真实量级的毫秒时间戳即可） */
@@ -301,5 +303,73 @@ describe('hasPendingIdentityBackup（身份库是否还有未备份的变更）'
         lastBackupAt: backupAt,
       }),
     ).toBe(false);
+  });
+});
+
+/** 徽标状态的测试夹具：只填判据真正读到的字段 */
+const chipState = (overrides: Partial<BackupChipState> = {}): BackupChipState =>
+  ({
+    visible: true,
+    level: 'ok',
+    worstVault: 'passwords',
+    perVault: {
+      passwords: { verdict: 'ok', ageDays: 1 },
+      identity: { verdict: 'hidden', ageDays: null },
+    },
+    ageDays: 1,
+    ...overrides,
+  }) as BackupChipState;
+
+describe('decideBackupNudge（会话内轻提醒的出声判据）', () => {
+  it('critical 档直接喊「从未备份」，天数固定 0', () => {
+    const plan = decideBackupNudge({
+      chip: chipState({ level: 'critical', worstVault: 'identity' }),
+      mutatedThisSession: false,
+    });
+    expect(plan).toMatchObject({ state: 'never', days: 0, vault: 'identity' });
+  });
+
+  it('urgent 只在本次会话真的改过数据时出声，并带上真实天数', () => {
+    const chip = chipState({ level: 'urgent', ageDays: 9 });
+    expect(
+      decideBackupNudge({ chip, mutatedThisSession: false }),
+      '没改过数据就不该在每次打开管理页时推一次',
+    ).toBeNull();
+    expect(decideBackupNudge({ chip, mutatedThisSession: true })).toMatchObject({
+      state: 'stale',
+      days: 9,
+      vault: 'passwords',
+    });
+  });
+
+  it('另一库只在其档位为 never / pending 时一并点名', () => {
+    const owed = decideBackupNudge({
+      chip: chipState({
+        level: 'critical',
+        perVault: {
+          passwords: { verdict: 'never', ageDays: null },
+          identity: { verdict: 'pending', ageDays: 3 },
+        },
+        worstVault: 'passwords',
+      }),
+      mutatedThisSession: false,
+    });
+    expect(owed?.otherVault, 'worst 是密码库时，欠着备份的个人信息库也要提').toBe('identity');
+
+    const quiet = decideBackupNudge({
+      chip: chipState({
+        level: 'critical',
+        perVault: {
+          passwords: { verdict: 'never', ageDays: null },
+          identity: { verdict: 'stale', ageDays: 40 },
+        },
+      }),
+      mutatedThisSession: false,
+    });
+    expect(quiet?.otherVault, '另一库只是「备份已久但没改过」，副句是噪音').toBeNull();
+  });
+
+  it('徽标不可见（两库皆空）时不提', () => {
+    expect(decideBackupNudge({ chip: chipState({ visible: false }), mutatedThisSession: true })).toBeNull();
   });
 });
