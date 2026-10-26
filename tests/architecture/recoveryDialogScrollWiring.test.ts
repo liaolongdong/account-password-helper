@@ -41,17 +41,24 @@ describe('恢复相关弹窗沿用统一的滚动约定', () => {
    * 改密弹窗的定位在 2026-10-26 由用户改口：它此前是唯一不带 `align-center` 的表单弹窗，
    * 内容高过视口时会出现页面级滚动条、弹窗既不水平也不垂直居中。用户要求「与插件整体风格一致」，
    * 因此现在必须跟其余弹窗一样走 `align-center`。
-   * 但内滚仍然只允许出现在「换发套件」这一步——外层再裹一层 `.dialog-body-scroll` 会变成
-   * 70vh 套 70vh 的双滚动容器，短窗口下出现两条滚动带、内容被压扁。
+   *
+   * 同日第二轮，用户再次要求「也使用通用统一的长内容弹窗风格样式」，于是从「只给换发套件那一步
+   * 包内滚」改成与恢复设置 / 恢复重置 / 忘记密码同一个形状：**整段正文**裹一层
+   * `.dialog-body-scroll`，宽度对齐到恢复两兄弟的 `min(520px, calc(100vw - 24px))`。
+   * 上一版担心的「70vh 套 70vh 双滚动条」只在**嵌套**时成立；这次是把内层容器**换成**外层，
+   * 全程只有一个滚动容器，弹窗高度被 70vh 收住，footer 永远落在折叠线以上。
+   * 动因是启用离线恢复时：警示条多一段 + 套件步骤 70vh，总高照样长出视口，而弹窗自己不滚，
+   * 用户看不到底部的「返回编辑 / 取消」。
    */
-  it('改密弹窗：定位跟全站统一，内滚仍只加在换发套件那一步', () => {
+  it('改密弹窗：与其余长内容弹窗同一形状（整段内滚 + 520px，且只有一个滚动容器）', () => {
     const text = source('components/options/ChangeMasterPasswordDialog.vue');
-    expect(text, '改密弹窗宽度是存量呈现，不动').toContain('width="440px"');
+    expect(text, '改密弹窗宽度应与恢复两兄弟一致').toContain('width="min(520px, calc(100vw - 24px))"');
     expect(text, '改密弹窗缺少 align-center').toMatch(/^\s*align-center$/m);
-    expect(text, '改密弹窗不得整体裹上内滚容器（会与套件步骤那层嵌套成双滚动条）').toMatch(
-      /<div\s*\n\s*v-if="modelValue"\s*\n\s*ref="sensitiveRoot"\s*\n\s*>/,
+    expect(text, '正文未整体走 .dialog-body-scroll').toMatch(
+      /<div\s*\n\s*v-if="modelValue"\s*\n\s*ref="sensitiveRoot"\s*\n\s*class="dialog-body-scroll"\s*\n\s*>/,
     );
-    expect(text, '「换发套件」这一步仍走全局 .dialog-body-scroll 约定').toContain('<div class="dialog-body-scroll">');
+    // 只能有一份：内层再留一份就是 70vh 套 70vh，短窗口下两条滚动带、内容被压扁
+    expect(text.match(/class="dialog-body-scroll"/g), '滚动容器不止一个').toHaveLength(1);
     expect(text, '不得自造内滚高度').not.toMatch(/max-height:\s*65vh/);
   });
 
@@ -108,15 +115,22 @@ describe('恢复相关弹窗沿用统一的滚动约定', () => {
  * 手里留下一份永远无效的文件，而且界面上没有任何一句话解释发生了什么
  * （`utils/storage/recovery.ts` 只在 activate 时落盘）。因此草稿存续期间关掉这两个
  * 隐式出口，退出只走弹窗内那条会显式清草稿并说明后果的 `recovery.backToEdit`。
+ *
+ * 改密弹窗同样会产出这份草稿（`prepareChangedPasswordRecovery`），此前只锁了 `!loading`、
+ * Esc 与 X 都能把刚发出来的新密钥静默作废——2026-10-26 一并收进本守卫。
  */
 describe('恢复弹窗的草稿不被隐式关闭丢掉', () => {
-  it.each(['components/options/RecoverySettingsDialog.vue', 'components/options/RecoveryResetDialog.vue'])(
-    '%s 在有草稿时禁掉 Esc 与 X，出口留在弹窗内',
-    file => {
-      const text = source(file);
-      expect(text, `${file} 的 Esc 仍可能在草稿存续时静默丢掉它`).toMatch(/:close-on-press-escape="!busy && !draft"/);
-      expect(text, `${file} 的 X 仍可能在草稿存续时静默丢掉它`).toMatch(/:show-close="!busy && !draft"/);
-      expect(text, `${file} 缺了显式退回出口的文案键`).toContain('recovery.backToEdit');
-    },
-  );
+  it.each([
+    'components/options/RecoverySettingsDialog.vue',
+    'components/options/RecoveryResetDialog.vue',
+    'components/options/ChangeMasterPasswordDialog.vue',
+  ])('%s 在有草稿时禁掉 Esc 与 X，出口留在弹窗内', file => {
+    const text = source(file);
+    // 两个恢复弹窗的忙位叫 busy，改密弹窗沿用既有的 loading；两个都收，避免为命名复制一份守卫
+    expect(text, `${file} 的 Esc 仍可能在草稿存续时静默丢掉它`).toMatch(
+      /:close-on-press-escape="!(?:busy|loading) && !draft"/,
+    );
+    expect(text, `${file} 的 X 仍可能在草稿存续时静默丢掉它`).toMatch(/:show-close="!(?:busy|loading) && !draft"/);
+    expect(text, `${file} 缺了显式退回出口的文案键`).toContain('recovery.backToEdit');
+  });
 });

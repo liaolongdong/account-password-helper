@@ -1,6 +1,15 @@
 import type { Locator, Page } from '@playwright/test';
 import { STORAGE_KEYS } from '../utils/storageKeys';
-import { MASTER_PASSWORD, createEntry, expect, expectSuccessToast, rowOf, storedArrayCount, test } from './harness';
+import {
+  MASTER_PASSWORD,
+  createEntry,
+  expect,
+  expectSuccessToast,
+  footerPrimary,
+  rowOf,
+  storedArrayCount,
+  test,
+} from './harness';
 import { textOf } from './i18n';
 
 /**
@@ -18,6 +27,8 @@ import { textOf } from './i18n';
 
 /** 恢复流程里的合成口令：只存在于本用例的临时 profile */
 const RECOVERED_PASSWORD = 'E2eRecovered!Passw0rd';
+/** 改密用例里「准备改到」的新主密码；用例最后会取消，它不应真的生效 */
+const NEXT_PASSWORD = 'E2eNextMaster!Pass1';
 const ENTRY = { username: 'e2e-recovery@qa.test', password: 'Synthetic!Recover1' };
 
 /** 打开「安全设置 → 离线恢复密钥」 */
@@ -250,5 +261,74 @@ test.describe('离线恢复密钥', () => {
     await page.getByRole('button', { name: textOf('auth.verifySubmit') }).click();
     await expect(page.locator('.header-title h1')).toBeVisible({ timeout: 60_000 });
     await expect(rowOf(page, ENTRY.username)).toBeVisible({ timeout: 60_000 });
+  });
+
+  test('改密换发套件那一步：正文在弹窗内滚、footer 始终可见，草稿不被 Esc 静默丢掉，取消后主密码不变', async ({
+    optionsPage,
+  }) => {
+    test.setTimeout(300_000);
+    const page = optionsPage;
+
+    // 只有本机登记过离线恢复，改密才会走到「换发套件」这一步
+    const settings = await openRecoverySettings(page);
+    const kitKey = await prepareKitIn(settings, page, MASTER_PASSWORD);
+    await confirmSavedKey(page, kitKey);
+    await expectSuccessToast(page, 'recovery.activated');
+    await expect(settings).toBeHidden({ timeout: 30_000 });
+
+    await page.getByRole('button', { name: textOf('options.header.securitySettings') }).click();
+    await page.getByRole('menuitem', { name: textOf('options.header.changeMasterPassword') }).click();
+    const dialog = page.getByRole('dialog').filter({ hasText: textOf('options.header.changeMasterPassword') });
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByPlaceholder(textOf('options.changePwd.oldPasswordPlaceholder')).fill(MASTER_PASSWORD);
+    await dialog.getByPlaceholder(textOf('options.changePwd.newPasswordPlaceholder')).fill(NEXT_PASSWORD);
+    await dialog.getByPlaceholder(textOf('options.changePwd.confirmPasswordPlaceholder')).fill(NEXT_PASSWORD);
+    await footerPrimary(dialog).click();
+
+    // 停在套件步骤——此刻**还没有**任何写入
+    await expect(saveStep(page), '改密没有停在「保存新的恢复套件」这一步').toBeVisible({ timeout: 120_000 });
+
+    // 短视口：footer 必须留在折叠线以上，正文自己滚。改版前整段能长出视口，
+    // 「返回编辑 / 取消」被推到屏外，而弹窗本身不滚。
+    await page.setViewportSize({ width: 1280, height: 628 });
+    await page.waitForTimeout(400);
+    const geometry = await page.evaluate(() => {
+      const dialogEl = document.querySelector<HTMLElement>('.el-dialog');
+      const scroller = dialogEl?.querySelector<HTMLElement>('.dialog-body-scroll');
+      const footer = dialogEl?.querySelector<HTMLElement>('.el-dialog__footer');
+      if (!dialogEl || !scroller || !footer) return null;
+      const bottoms = [...footer.querySelectorAll<HTMLElement>('button')].map(el =>
+        Math.round(el.getBoundingClientRect().bottom),
+      );
+      return {
+        viewportHeight: innerHeight,
+        dialogTop: Math.round(dialogEl.getBoundingClientRect().top),
+        scrollable: scroller.scrollHeight - scroller.clientHeight,
+        scrollerCount: document.querySelectorAll('.el-dialog .dialog-body-scroll').length,
+        footerBottom: bottoms.length ? Math.max(...bottoms) : null,
+      };
+    });
+    expect(geometry, '量不到改密弹窗 / 内滚容器 / footer').not.toBeNull();
+    const g = geometry as NonNullable<typeof geometry>;
+    expect(g.scrollerCount, '弹窗里出现了不止一个内滚容器（70vh 套 70vh 会出两条滚动带）').toBe(1);
+    expect(g.dialogTop, '改密弹窗被推出屏幕上方').toBeGreaterThanOrEqual(0);
+    expect(g.footerBottom, '改密弹窗的 footer 落在折叠线以下').toBeLessThanOrEqual(g.viewportHeight);
+    expect(g.scrollable, '套件步骤没有在弹窗内滚，内容整段把弹窗撑出去了').toBeGreaterThan(0);
+
+    // 草稿存续期间 Esc 不得静默作废刚发出来的套件
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await expect(dialog, 'Esc 关掉了草稿态弹窗，用户刚存下的新密钥会静默作废').toBeVisible();
+
+    // 取消退出：库里不应有任何改动，旧主密码照样解得开
+    await dialog.getByRole('button', { name: textOf('common.cancel') }).click();
+    await expect(dialog).toBeHidden({ timeout: 30_000 });
+    await lockSession(page);
+    await page.getByPlaceholder(textOf('auth.verifyPasswordPlaceholder')).first().fill(MASTER_PASSWORD);
+    await page.getByRole('button', { name: textOf('auth.verifySubmit') }).click();
+    await expect(page.locator('.header-title h1'), '取消改密后旧主密码失效了 —— 说明没等套件认证就提交了').toBeVisible({
+      timeout: 60_000,
+    });
   });
 });

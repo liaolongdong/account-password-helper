@@ -2,15 +2,28 @@
   <el-dialog
     :model-value="modelValue"
     :title="t('options.header.changeMasterPassword')"
-    width="440px"
+    width="min(520px, calc(100vw - 24px))"
     align-center
     :close-on-click-modal="false"
-    :close-on-press-escape="!loading"
+    :close-on-press-escape="!loading && !draft"
+    :show-close="!loading && !draft"
     @update:model-value="requestClose"
   >
+    <!--
+      整段内容统一走 `.dialog-body-scroll`（App.vue 的全局约定：max-height:70vh + 内滚），
+      与恢复设置 / 恢复重置 / 忘记密码这几个长内容弹窗同一个形状。
+      此前只把「换发套件」那一步包进滚动容器，警示条与表单留在外面：
+      启用离线恢复时（警示条多一段 + 套件步骤 70vh）总高照样能长出视口，
+      而弹窗本身不滚，用户看不到底部的「返回编辑 / 取消」。
+
+      草稿存续期间同时关掉 Esc 与 X（与两个恢复弹窗同口径）：用户这时可能已经下载了套件
+      或抄下了新密钥，隐式关闭会让那份材料当场作废、界面上却没有半句解释。
+      出口只留在弹窗内——「返回编辑（丢弃新套件）」和「取消」，两条都是显式点击。
+    -->
     <div
       v-if="modelValue"
       ref="sensitiveRoot"
+      class="dialog-body-scroll"
     >
       <el-alert
         type="warning"
@@ -31,16 +44,12 @@
       </el-alert>
 
       <template v-if="draft">
-        <!-- 内滚走 App.vue 的 .dialog-body-scroll 全局约定，且只加在「换发套件」这一步
-             （恢复启用后才会出现的新状态）；改密表单本身的呈现与改造前逐字一致。 -->
-        <div class="dialog-body-scroll">
-          <p>{{ t('recovery.rekeyWarning') }}</p>
-          <RecoveryKitSaveStep
-            :material="draft.material"
-            :busy="loading"
-            @confirm="confirmReplacement"
-          />
-        </div>
+        <p>{{ t('recovery.rekeyWarning') }}</p>
+        <RecoveryKitSaveStep
+          :material="draft.material"
+          :busy="loading"
+          @confirm="confirmReplacement"
+        />
       </template>
       <el-form
         v-else
