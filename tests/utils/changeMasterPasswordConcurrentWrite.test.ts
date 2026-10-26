@@ -185,7 +185,7 @@ describe('rekey 覆写前的快照复验', () => {
     concurrentWriter = false;
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBeUndefined();
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toMatchObject({ relockRequired: false });
 
     expect(localSet).toHaveBeenCalledTimes(1);
     expect((storageData[STORAGE_KEYS.TRASH] as TrashedPasswordEntry[]).map(e => e.id)).toEqual(['t1']);

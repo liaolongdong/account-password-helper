@@ -29,6 +29,20 @@ export interface VaultRekeyRequest {
   allowUndecryptable?: boolean;
 }
 
+/**
+ * 一次换钥（改密或离线恢复）的提交结果。
+ *
+ * 两个字段都是「界面必须说实话」的依据：
+ * - `relockRequired`：数据与新校验值已落盘，但会话材料没能发布（或本次本就处于锁定态），
+ *   继续报「成功且仍在解锁态」会误导用户；
+ * - `carriedUndecryptable`：原样携带过这次换钥的不可解条目数。这些记录留在库里，
+ *   但新主密码永远读不出它们——只记日志等于对用户隐瞒，必须由调用方点名条数。
+ */
+export interface VaultRekeyResult {
+  relockRequired: boolean;
+  carriedUndecryptable: number;
+}
+
 export interface RecoveryDraft {
   material: RecoveryMaterial;
   sourceMasterFingerprint: string;

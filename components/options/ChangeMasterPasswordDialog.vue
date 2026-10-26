@@ -184,7 +184,7 @@ import { useRecoveryOperation } from '@/composables/useRecoveryOperation';
 import { clearRecoveryInputs, recoveryErrorCode, recoveryErrorMessage } from '@/utils/recoveryUi';
 import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 import { logger } from '@/utils/logger';
-import type { RecoveryDraft } from '@/utils/storage/recoveryTypes';
+import type { RecoveryDraft, VaultRekeyResult } from '@/utils/storage/recoveryTypes';
 import { changeMasterPassword } from '@/utils/storage/changeMasterPassword';
 import { useI18n } from '@/utils/i18n';
 
@@ -360,15 +360,19 @@ const requestClose = (value: boolean): void => {
   emit('update:modelValue', false);
 };
 /**
- * 收尾：`relock-required` 表示数据与新校验值已经提交，只是会话材料没能发布。
- * 此时仍报「修改成功」会误导用户以为解锁态延续，必须改口为「请用新主密码重新解锁」。
+ * 收尾必须说实话，两件事各有一条文案：
+ * - `relockRequired`：数据与新校验值已提交，只是会话材料没能发布（或本次本就处于锁定态）。
+ *   照旧报「修改成功」会让用户以为解锁态延续，必须改口为「请用新主密码重新解锁」。
+ * - `carriedUndecryptable`：原样携带过这次换钥的记录条数。它们留在库里但新主密码永远读不出，
+ *   此前只在成功路径之外记一条日志，用户勾没勾「知情跳过」都看不到数字——为「旧密码疑似泄露」
+ *   而改密的人尤其需要知道自己没拿到完整的密钥轮换，因此不再以勾选为前提，按条数点名。
  */
-const finish = (outcome?: 'relock-required', partial = false): void => {
+const finish = (result: VaultRekeyResult): void => {
   invalidate();
-  if (outcome === 'relock-required') {
+  if (result.relockRequired) {
     ElMessage.warning(t('recovery.relockRequired'));
-  } else if (partial) {
-    ElMessage.warning(t('recovery.partialChangeNote'));
+  } else if (result.carriedUndecryptable > 0) {
+    ElMessage.warning(t('recovery.partialChangeNote', { count: result.carriedUndecryptable }));
   } else {
     ElMessage.success(t('options.changePwd.success'));
   }
@@ -399,10 +403,10 @@ const handleSubmit = () =>
       return;
     }
     try {
-      const outcome = allowSkip.value
+      const result = allowSkip.value
         ? await changeMasterPassword(form.oldPassword, form.newPassword, undefined, true)
         : await changeMasterPassword(form.oldPassword, form.newPassword);
-      if (isCurrent()) finish(outcome, allowSkip.value);
+      if (isCurrent()) finish(result);
     } catch (cause: unknown) {
       maybeOfferSkip(cause);
       throw cause;
@@ -425,10 +429,10 @@ const confirmReplacement = (confirmation: string) =>
     if (!currentDraft) return;
     try {
       const replacement = { draft: currentDraft, confirmation };
-      const outcome = allowSkip.value
+      const result = allowSkip.value
         ? await changeMasterPassword(form.oldPassword, form.newPassword, replacement, true)
         : await changeMasterPassword(form.oldPassword, form.newPassword, replacement);
-      if (isCurrent()) finish(outcome, allowSkip.value);
+      if (isCurrent()) finish(result);
     } catch (cause: unknown) {
       maybeOfferSkip(cause);
       throw cause;

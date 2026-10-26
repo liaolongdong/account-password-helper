@@ -250,6 +250,31 @@ describe('写盘失败：回滚与会话清理', () => {
   });
 });
 
+describe('被携带的不可解条数必须外传（评审报告 P2-2）', () => {
+  /**
+   * 单条解不开时，默认整笔中止；用户知情后可放行，那条记录**原样留在库里**——
+   * 仍是旧数据密钥的密文，新主密码永远读不出。此前这个计数只进日志，弹窗一律报
+   * 「修改成功」，为「旧密码疑似泄露」而改密的人拿不到完整的密钥轮换却毫不知情。
+   */
+  it('知情放行一条坏记录：结果里带上条数，供界面点名', async () => {
+    const enc = await import('@/utils/encryption');
+    vi.mocked(enc.decryptPasswordEntry).mockImplementation(async entry => {
+      if ((entry as unknown as { id: string }).id === 'p1') throw new Error('bad key');
+      return entry as never;
+    });
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1', undefined, true)).resolves.toMatchObject({
+      relockRequired: false,
+      carriedUndecryptable: 1,
+    });
+
+    expect(localSet).toHaveBeenCalledTimes(1);
+    const entries = storageData[STORAGE_KEYS.PASSWORDS] as { id: string; password: string }[];
+    expect(entries[0]?.password, '被携带的记录保持旧钥密文（不重加密、不删除）').toBe('cipher');
+  });
+});
+
 describe('写盘之前的失败：不写、不清会话', () => {
   it('旧钥解不开某条密码：按稳定错误码中止，storage 未被触碰', async () => {
     const enc = await import('@/utils/encryption');
@@ -292,7 +317,7 @@ describe('提交成功之后的失败：不得伪装成未提交', () => {
     publishSessionRekey.mockRejectedValueOnce(new Error('session readback failed'));
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBe('relock-required');
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toMatchObject({ relockRequired: true });
 
     expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
     expect(clearSession, '发布失败必须清会话，避免留下新钥/旧库不一致的解锁态').toHaveBeenCalledTimes(1);
@@ -302,7 +327,10 @@ describe('提交成功之后的失败：不得伪装成未提交', () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
     localRemove.mockRejectedValueOnce(new Error('remove unavailable'));
 
-    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBeUndefined();
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toMatchObject({
+      relockRequired: false,
+      carriedUndecryptable: 0,
+    });
 
     expect(clearSession).not.toHaveBeenCalled();
     expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
@@ -351,7 +379,7 @@ describe('并发锁定与提交守卫', () => {
     delete storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toBe('relock-required');
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toMatchObject({ relockRequired: true });
 
     expect(prepareSessionRekey, '已锁状态不该为它准备会话材料').not.toHaveBeenCalled();
     expect(publishSessionRekey).not.toHaveBeenCalled();

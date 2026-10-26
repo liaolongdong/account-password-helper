@@ -4,6 +4,7 @@ import { isRecoveryConfig, unwrapRecoveryDataKey } from '@/utils/recoveryCrypto'
 import { verifyMasterPassword } from './masterPassword';
 import { withVaultMutation, withVaultKeyTransition } from './vaultWriteLock';
 import { commitVaultRekey } from './changeMasterPassword';
+import type { VaultRekeyResult } from './recoveryTypes';
 import {
   assertCurrentRecoveryDraft,
   assertRotatedDataKey,
@@ -98,9 +99,9 @@ export async function recoverMasterPassword(
   draft: RecoveryDraft,
   confirmation: string,
   allowUndecryptable = false,
-): Promise<void> {
+): Promise<VaultRekeyResult> {
   const password = normalizeNewMasterPassword(newPassword);
-  await withVaultKeyTransition(async () => {
+  return withVaultKeyTransition(async () => {
     const snapshot = await readVaultRecoverySnapshot();
     if (snapshot.recovery === undefined || snapshot.recovery === null)
       throw recoveryError(VAULT_ERROR_CODES.RECOVERY_DISABLED);
@@ -111,7 +112,7 @@ export async function recoverMasterPassword(
     assertRotatedDataKey(oldKey, newKey);
     const nextMaster = await buildChangedMasterConfig(snapshot.master, password, true);
     await verifyRecoveryReplacement(draft, confirmation, newKey, nextMaster);
-    await commitVaultRekey({
+    return commitVaultRekey({
       oldKey,
       newKey,
       newMasterConfig: nextMaster,

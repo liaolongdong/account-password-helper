@@ -24,7 +24,7 @@ import {
   verifyRecoveryReplacement,
   RECOVERY_ERROR_MESSAGE,
 } from './recoveryState';
-import type { RecoveryConfirmation, VaultRekeyRequest } from './recoveryTypes';
+import type { RecoveryConfirmation, VaultRekeyRequest, VaultRekeyResult } from './recoveryTypes';
 import { VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
 
 const getEncryption = lazyImport(() => import('@/utils/encryption'));
@@ -62,7 +62,7 @@ export async function changeMasterPassword(
   newPassword: string,
   replacement?: RecoveryConfirmation,
   allowUndecryptable = false,
-): Promise<'relock-required' | void> {
+): Promise<VaultRekeyResult> {
   const oldPw = String(oldPassword || '').trim();
   const newPw = String(newPassword || '').trim();
   if (!newPw) throw recoveryError(VAULT_ERROR_CODES.EMPTY_PASSWORD, RECOVERY_ERROR_MESSAGE.EMPTY_PASSWORD);
@@ -105,7 +105,7 @@ export async function changeMasterPassword(
 }
 
 /** The caller holds the exclusive key-transition lease; no authentication is bypassed by this internal commit stage. */
-export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'relock-required' | void> {
+export async function commitVaultRekey(request: VaultRekeyRequest): Promise<VaultRekeyResult> {
   const { oldKey, newKey, newMasterConfig, replacementRecovery, mode, allowUndecryptable } = request;
   const encryption = await getEncryption();
   const rawPasswords = await getAllPasswordsRaw();
@@ -314,7 +314,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
       } catch (error) {
         logger.error('Post-commit session refresh failed; forcing relock:', error);
         await sessionManager.clearSession().catch(() => {});
-        return 'relock-required';
+        return { relockRequired: true, carriedUndecryptable };
       }
     }
     // 只剩旧版遗留 blob 清理：失败不影响一致性，记日志即可，不得反向推翻「已改密」。
@@ -323,7 +323,8 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<'rel
     });
     // 基线就是锁定态时新会话材料从未准备，提交后仍是锁定态：必须让弹窗按「重新解锁」改口，
     // 报「修改成功」会让用户以为原有的解锁态延续。
-    if (!hadLiveSession) return 'relock-required';
+    if (!hadLiveSession) return { relockRequired: true, carriedUndecryptable };
   }
   logger.info('Vault key change committed');
+  return { relockRequired: false, carriedUndecryptable };
 }

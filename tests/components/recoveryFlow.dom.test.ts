@@ -173,6 +173,11 @@ beforeEach(() => {
   api.prepareRecoveryEnrollment.mockResolvedValue(draft);
   api.preparePasswordRecovery.mockResolvedValue(draft);
   api.prepareChangedPasswordRecovery.mockResolvedValue(null);
+  // 换钥提交的契约是 VaultRekeyResult：`relockRequired` 与 `carriedUndecryptable` 共同决定
+  // 收尾文案（成功 / 需重新解锁 / 点名被携带的条数）。桩回缺省值会让组件读不到字段而走异常分支，
+  // 因此默认按「已提交、无携带」回报。
+  api.changeMasterPassword.mockResolvedValue({ relockRequired: false, carriedUndecryptable: 0 });
+  api.recoverMasterPassword.mockResolvedValue({ relockRequired: false, carriedUndecryptable: 0 });
   confirmed.mockReset();
   recovered.mockReset();
   opened.value = true;
@@ -595,6 +600,7 @@ describe('ChangeMasterPasswordDialog recovery replacement', () => {
     api.changeMasterPassword.mockRejectedValueOnce(
       Object.assign(new Error('UNDECRYPTABLE_RECORDS'), { code: 'UNDECRYPTABLE_RECORDS' }),
     );
+    api.changeMasterPassword.mockResolvedValueOnce({ relockRequired: false, carriedUndecryptable: 1 });
     await mount(ChangeMasterPasswordDialog);
     await fillChange();
     await until(() => expect(api.changeMasterPassword).toHaveBeenCalledTimes(1));
@@ -607,7 +613,7 @@ describe('ChangeMasterPasswordDialog recovery replacement', () => {
       expect(api.changeMasterPassword).toHaveBeenNthCalledWith(2, 'Current!pass82', 'Fresh!pass82', undefined, true),
     );
     await until(() => expect(opened.value).toBe(false));
-    expect(toastText()).toContain(t('recovery.partialChangeNote'));
+    expect(toastText()).toContain(t('recovery.partialChangeNote', { count: 1 }));
   });
 
   it('offers the same informed carry after a password change is blocked by undecryptable records', async () => {
@@ -615,6 +621,7 @@ describe('ChangeMasterPasswordDialog recovery replacement', () => {
     api.changeMasterPassword.mockRejectedValueOnce(
       Object.assign(new Error('UNDECRYPTABLE_RECORDS'), { code: 'UNDECRYPTABLE_RECORDS' }),
     );
+    api.changeMasterPassword.mockResolvedValueOnce({ relockRequired: false, carriedUndecryptable: 1 });
     await mount(ChangeMasterPasswordDialog);
     await fillChange();
     await confirmKit();
@@ -639,6 +646,6 @@ describe('ChangeMasterPasswordDialog recovery replacement', () => {
       ),
     );
     await until(() => expect(opened.value).toBe(false));
-    expect(toastText()).toContain(t('recovery.partialChangeNote'));
+    expect(toastText()).toContain(t('recovery.partialChangeNote', { count: 1 }));
   });
 });

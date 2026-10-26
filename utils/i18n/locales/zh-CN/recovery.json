@@ -47,7 +47,7 @@
   "recovery.skipChangeConfirm": "我知道这些记录将永久读不出来，仍要修改主密码。",
   "recovery.skipChangeNote": "本机有记录用当前密钥解不开，改密已按原子性中止。继续的话，这些记录会原样留在库里、新主密码也永远读不出它们，其余记录可正常换钥。想先试试旧主密码或加密备份，现在就可以退出。",
   "recovery.resetPartialNote": "本次恢复跳过了若干条解不开的记录：它们仍在库里，但已经无法读取。",
-  "recovery.partialChangeNote": "主密码已修改，但有若干条解不开的记录被原样保留；新主密码无法读取它们。",
+  "recovery.partialChangeNote": "主密码已修改，但有 {count} 条解不开的记录被原样保留；新主密码无法读取它们，需要逐条核对后自行处理。",
   "recovery.relockRequired": "主密码已修改成功，但本次会话材料未能刷新。请关闭此窗口，用新主密码重新解锁。",
   "recovery.notEnabled": "离线恢复必须在忘记主密码之前创建。本机没有已启用的恢复入口，密钥无法绕过此要求，也不能找回丢失的数据。",
   "recovery.corrupted": "恢复配置不完整或已损坏。请凭当前主密码换发或停用；现有数据未被清空。",

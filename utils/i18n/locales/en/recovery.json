@@ -47,7 +47,7 @@
   "recovery.skipChangeConfirm": "I understand those records will stay permanently unreadable, and I still want to change the master password.",
   "recovery.skipChangeNote": "Some records on this device cannot be decrypted with the current key, so the password change was aborted to keep it atomic. If you continue, those records stay in the vault exactly as they are and remain permanently unreadable under the new master password, while everything else is re-encrypted. You can also step out and try the old master password or an encrypted backup first.",
   "recovery.resetPartialNote": "This recovery skipped some records that could not be decrypted: they are still in the vault, but no longer readable.",
-  "recovery.partialChangeNote": "The master password was changed, but some records that could not be decrypted were carried over as-is; the new master password cannot read them.",
+  "recovery.partialChangeNote": "The master password was changed, but {count} record(s) could not be decrypted and were carried over as-is; the new master password cannot read them. Review and handle each one yourself.",
   "recovery.relockRequired": "The master password was changed, but this session could not be refreshed. Close this window and unlock again with the new master password.",
   "recovery.notEnabled": "Offline recovery must be set up before you forget your master password. This device has no enabled recovery entry. A key cannot bypass this requirement or restore missing data.",
   "recovery.corrupted": "The recovery configuration is incomplete or damaged. Replace it using your current master password, or disable it. Existing data has not been cleared.",
