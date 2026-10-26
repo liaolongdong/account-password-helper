@@ -824,7 +824,7 @@ export function setupBackgroundServices(): void {
       }
 
       // 会话状态变化时同步 SW 保活闹钟（统一常驻，幂等；会话创建/清除均收敛到保活）
-      const sessionKeys = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      const sessionKeys: string[] = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
       const sessionKeyChanges = Object.entries(changes).filter(([key]) => sessionKeys.includes(key));
 
       if (sessionKeyChanges.length > 0) {

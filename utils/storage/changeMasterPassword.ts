@@ -3,7 +3,7 @@ import type { IdentityRecord } from '@/utils/identity/types';
 import { logger } from '@/utils/logger';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
+import { SESSION_STORAGE_KEYS, type PreparedSessionRekey } from '@/utils/sessionManager-storage';
 import { lockSession } from '@/utils/sessionLock';
 import { verifyMasterPassword } from './masterPassword';
 import { getAllPasswordsRaw } from './passwordCrud';
@@ -244,7 +244,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<Vaul
   // 锁定态下不得准备新会话材料：两侧读数同为空时漂移比对毫无变化，那批备好的键会随本次
   // 提交落盘并把用户刚清掉的会话复活成有效登录态——而漂移守卫只能看见基线**之后**的锁定。
   const hadLiveSession = sessionBefore[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== undefined;
-  let sessionKeysToWrite: Record<string, unknown> = {};
+  let sessionKeysToWrite: PreparedSessionRekey | null = null;
   if (mode === 'password-change' && hadLiveSession) {
     const sessionResult = await chrome.storage.local.get(SESSION_STORAGE_KEYS.VALIDITY_HOURS);
     const validityHours = (sessionResult[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
@@ -297,7 +297,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<Vaul
       [STORAGE_KEYS.IDENTITY_TRASH]: reEncryptedIdentityTrash,
       [STORAGE_KEYS.MASTER_PASSWORD]: newMasterConfig,
       ...recoveryToWrite,
-      ...sessionKeysToWrite,
+      ...(sessionKeysToWrite ?? {}),
     });
   } catch (error) {
     await sessionManager.clearSession().catch(() => {});
@@ -306,7 +306,7 @@ export async function commitVaultRekey(request: VaultRekeyRequest): Promise<Vaul
   if (mode === 'password-change') {
     // 提交点已越过：数据、校验哈希与新包裹密钥都已落盘。发布会话材料失败不得伪装成
     // 「未提交」错误——否则用户以为旧密码仍有效，重试必然失败。
-    if (hadLiveSession) {
+    if (hadLiveSession && sessionKeysToWrite) {
       try {
         await sessionManager.publishSessionRekey(newKey, sessionKeysToWrite);
       } catch (error) {

@@ -46,7 +46,7 @@ export const SESSION_STORAGE_KEYS = {
   VALIDITY_HOURS: 'session_validity_hours',
   /** 旧版遗留键（曾用于标记明文解密状态）；现已废弃，仅在 clearSession 时一并清理 */
   PASSWORDS_DECRYPTED: 'session_passwords_decrypted',
-};
+} as const;
 
 // 会话状态管理变量
 /** 会话期数据密钥的密文镜像（storage.local 中 WRAPPED_DATA_KEY 的内存副本；主密码绝不落盘） */
@@ -780,8 +780,22 @@ async function createSessionInternal(masterPassword: string, validityHours: numb
   }
 }
 
+/**
+ * `prepareSessionRekey` 的产物：随新密文原子落盘、随后由 `publishSessionRekey` 采纳的会话材料。
+ *
+ * 用四项具名键写死在类型层，取代此前 `Record<string, unknown>` + 取值时四处 `as` 的交接方式：
+ * 少准备一项不会报错，只会静默把 `undefined` 写成会话过期时间；而这条链的失败形态是
+ * 「用户以为已改密并解锁，下一次解密全部报错」，属最贵的一类静默降级。
+ */
+export interface PreparedSessionRekey {
+  [SESSION_STORAGE_KEYS.WRAP_KEY]: string;
+  [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: string;
+  [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: number;
+  [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: number;
+}
+
 /** 仅准备材料；对应密文提交成功前不得发布新会话密钥。 */
-export async function prepareSessionRekey(dataKey: string, validityHours: number): Promise<Record<string, unknown>> {
+export async function prepareSessionRekey(dataKey: string, validityHours: number): Promise<PreparedSessionRekey> {
   const enc = await _getEncryption();
   const wrapKey = await generateSessionEncryptionKey();
   const wrapped = await enc.encryptData(dataKey, wrapKey);
@@ -793,13 +807,13 @@ export async function prepareSessionRekey(dataKey: string, validityHours: number
   };
 }
 
-export async function publishSessionRekey(dataKey: string, prepared: Record<string, unknown>): Promise<void> {
+export async function publishSessionRekey(dataKey: string, prepared: PreparedSessionRekey): Promise<void> {
   const epoch = sessionEpoch;
-  const wrapped = prepared[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] as string;
+  const wrapped = prepared[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
   const stored = await chrome.storage.local.get(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
   if (sessionEpoch !== epoch || stored[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== wrapped) return;
-  const expiry = prepared[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number;
-  adoptRekeyedSession(wrapped, expiry, prepared[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number);
+  const expiry = prepared[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+  adoptRekeyedSession(wrapped, expiry, prepared[SESSION_STORAGE_KEYS.VALIDITY_HOURS]);
   const adoptedEpoch = sessionEpoch;
   sessionDataKey = dataKey;
   try {
