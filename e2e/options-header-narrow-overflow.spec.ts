@@ -114,7 +114,12 @@ for (const width of [480, 640]) {
         expect(chip.textClipped, `${chip.cls} 的文字被裁切`).toBe(false);
         expect(chip.textOverflowsBox, `${chip.cls} 的文字溢出自己的盒子`).toBe(false);
       }
-      // ⑤ 三枚控件都在（少一枚说明窄屏下被 v-if 或 CSS 悄悄摘掉）
+      /**
+       * ⑤ 徽标与锁定按钮都在（少一枚说明窄屏下被 v-if 或 CSS 悄悄摘掉）
+       *
+       * 只钉这两枚是有意的：会话徽标受 `remainingText` 条件控制（有效期读数缺失时本就不该出现），
+       * 把它写死会让守卫在合法的排版下变红。
+       */
       const classes = g.chips.map(c => c.cls).join(' ');
       expect(classes, `状态区控件缺失：${JSON.stringify(g.chips.map(c => c.cls))}`).toContain('lock-btn');
       expect(classes, `备份徽标没出现，量不到最宽档：${JSON.stringify(g.chips.map(c => c.cls))}`).toContain(
@@ -130,6 +135,20 @@ for (const width of [480, 640]) {
       for (const chip of g.chips) {
         expect(chip.width, `${chip.cls} 宽度为 0，该语言下没渲染出来`).toBeGreaterThan(0);
       }
+      /**
+       * ⑦ 键盘必须能走到这枚徽标
+       *
+       * 它是 `<button>`，也是直达加密备份导出的入口；窄屏下只要它掉出 tab 序列或被前面的控件
+       * 抢先，上面六条几何断言照样全绿，而用户看到的是「看得见按不到」。
+       */
+      let reached = false;
+      for (let i = 0; i < 24 && !reached; i++) {
+        await page.keyboard.press('Tab');
+        reached = await page.evaluate(() =>
+          (document.activeElement?.getAttribute('class') ?? '').includes('backup-chip'),
+        );
+      }
+      expect(reached, `${width}px / ${locale} 态下键盘走不到备份徽标`).toBe(true);
     });
   }
 }
