@@ -255,6 +255,8 @@ HKDF-SHA256 域分离 + 每套件随机 16B id 作 salt + 一次一 12B IV + AES
 
 **e2e 归因与一条 P0 的来路（2026-10-26 · 本机 Chrome for Testing 158）**：全量 e2e 在主树跑完是 144 passed / 1 skipped / 4 failed，但主树的 `.output` 与源码会被并行会话实时改写，这个数字不可归因。于是把两份产物各自建在隔离 worktree 里对比：`9d70fab`（与 `main` 的 merge-base）与 `9174703`。结果 `security.spec.ts:72` 在 base **通过**、在 HEAD **失败**，`dialog-scroll-isolation.spec.ts:410` 两边都失败（与本分支无关：`main` 的 e2e 门禁最近一次 2026-10-23 为 success，故判为本机负载敏感，不在本机修），`utils.spec.ts:111` 在隔离环境通过（负载假红）。对 `security:72` 在 84 个提交上做手动二分（不动 `git bisect`，它的状态在共享 `$GIT_DIR` 里，会踩到并行会话）定位到 `a6e9f70`：漂移守卫用 `!==` 比对象形态的校验配置，真机每次读都是新实例 → 恒判「并发写」→ 本分支的主密码修改在真机上是坏的，`fb25c6b` 修复后 `security.spec.ts` 与 `offline-recovery.spec.ts` 共 8 条在同一个隔离 worktree 全绿。**为什么 4597 条单测全绿却漏过**：仓库的 `chrome.storage.local.get` 桩返回的是 `storageData[key]` 这同一个对象引用，恰好抹掉了「每次读都反序列化」这一真实语义。教训入册：**凡按值比较存储读数的判据，桩必须按真机语义给新实例**（`structuredClone`），否则这类守卫测的是桩的引用相等，不是产品的值相等。
 
+**隔离环境全量复跑（`f87ec80` 的产物，本机 CfT 158，18.7 分钟）**：**147 passed / 1 skipped / 1 failed**。唯一那条就是 `dialog-scroll-isolation.spec.ts:410`——它在 merge-base 上同样红、而 `main` 的 CI e2e 门禁为绿，判为本机负载敏感，非本分支缺陷。也就是说：**去掉那台机器上的噪声之后，本分支的 e2e 面是全绿的**，此前 4 红里的三条（`security:72`、`offline-recovery:123`、`utils:111`）两条由 `fb25c6b` 修好、一条是负载假红。原始配对基准 JSON 留在 `benchmarks/results/paired-20261026/`（该目录按仓库约定不入库）。两个临时 worktree 已 `git worktree remove` 清理。
+
 **对外镜像一致性复核（2026-10-26 · SEO 侧）**：`e1619cd` 往 README 中英与 CWS 商店长描述中英补了冷却口径，随后核了三件事——
 ① `llms-full.txt` / `llms.txt` 由 `scripts/build-blog-pages.mjs:1146` 从「`llms.txt` 摘要 + 中英博客正文」生成，**不含 README 正文**
 （`grep -c "只读验证" llms-full.txt` = 0），所以这次文案改动不会让它们过期，无需重跑 `pnpm gen:blog`；
