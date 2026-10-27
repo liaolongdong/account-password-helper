@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.20.0](https://github.com/liaolongdong/account-password-helper/compare/v3.19.0...v3.20.0) (2026-10-27)
+
+
+### Features
+
+* **identity:** 右键召唤个人信息库与引导登记恢复密钥，文档、商店文案与归因同步 ([ff7395c](https://github.com/liaolongdong/account-password-helper/commit/ff7395c83330ecb2ccafd5968c41f44f13dc3e06))
+* **identity:** 网页输入框右键可召唤个人信息库，取完值一键回到原网页 ([8ef2ab9](https://github.com/liaolongdong/account-password-helper/commit/8ef2ab907dfd71db1ab909f6d6fdb9acdeb33db2))
+
+
+### Bug Fixes
+
+* **options:** 备份轻提醒的关闭活过刷新，三路输入读全前不出声 ([fcfefea](https://github.com/liaolongdong/account-password-helper/commit/fcfefead95910d66c49b67a484e0b97c1cfc27e3))
+
 ## [3.19.0](https://github.com/liaolongdong/account-password-helper/compare/v3.18.0...v3.19.0) (2026-10-26)
 
 
