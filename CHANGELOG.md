@@ -1,5 +1,82 @@
 # Changelog
 
+## [3.19.0](https://github.com/liaolongdong/account-password-helper/compare/v3.18.0...v3.19.0) (2026-10-26)
+
+
+### Features
+
+* **auth:** 主密码提示语与忘记密码找回向导 ([dd6a634](https://github.com/liaolongdong/account-password-helper/commit/dd6a634c3ca878263a0daf5c2934937ade441732))
+* **backup:** 备份状态从数据管理菜单上移到头部徽标，并补会话内轻提醒 ([b4bb0e4](https://github.com/liaolongdong/account-password-helper/commit/b4bb0e4b1f40c86ab7fd6be524125cb73715d9e9))
+* **options:** 个人信息表单的 11 个内置字段补上格式型 placeholder ([93e12ed](https://github.com/liaolongdong/account-password-helper/commit/93e12ed98d88ed12f527b7f1c4843d92635ebb45))
+* **options:** 主密码提示语可随时修改或清除，不再只有首次那一次 ([400da87](https://github.com/liaolongdong/account-password-helper/commit/400da87c6b7a363d14344181f92491cdc7b6188f))
+* **recovery:** 不可解记录不再把用户逼回清空，并在下载时刻点明明文风险 ([009ce77](https://github.com/liaolongdong/account-password-helper/commit/009ce778eefb034852250c9d0d790cd4ad212906))
+* **recovery:** 离线恢复密钥补上「忘记主密码仍能取回本机库」的出口 ([1262b0d](https://github.com/liaolongdong/account-password-helper/commit/1262b0d84f8d53d1cc84b8f5c4a405c65956ecfb))
+* **seo:** 给已发布页面的 JSON-LD 补一层结构守卫，并订正 pricing 两处自相矛盾的实体描述 ([27d9ed2](https://github.com/liaolongdong/account-password-helper/commit/27d9ed27d4440884e3d0e7884423afb9ed2dd851))
+
+
+### Bug Fixes
+
+* **a11y:** 54 处硬编码灰阶文字并回令牌，灰阶不再能绕过 AA 地板 ([eb9975d](https://github.com/liaolongdong/account-password-helper/commit/eb9975d5785b6b6cc87d9446f8bf07fa17bcb312))
+* **a11y:** 中性文字三档改为按「最暗浅底」定值，muted 从 2.06:1 提到 4.54:1 ([bd708b7](https://github.com/liaolongdong/account-password-helper/commit/bd708b7649f4ee9edd5abff870134437983de8ff))
+* **a11y:** 主色文字压白底提到 WCAG AA，六套主题各配一支「强」档 ([8d31d31](https://github.com/liaolongdong/account-password-helper/commit/8d31d31089e2d21a24f2f18960fd3c781c32e0e7))
+* **a11y:** 图标不再一律算「装饰」，承载控件与状态的图形补到 1.4.11 的 3:1 ([1f7483a](https://github.com/liaolongdong/account-password-helper/commit/1f7483a5865149ecf65c357a8a5179e1c2bb42c1))
+* **a11y:** 强档语义令牌改按 12 面浅底定值并补 success 档，13 处彩色文字并回令牌 ([6565650](https://github.com/liaolongdong/account-password-helper/commit/6565650e2a0b442a4259718dd01c677419b49934))
+* **a11y:** 扩展页主色文字统一走强档，并补浅主色底文字令牌 ([649f2b4](https://github.com/liaolongdong/account-password-helper/commit/649f2b41ba8d8adc0d4ed7922095ea34506b399a))
+* **a11y:** 报错与安全披露文字从语义色收回强档，含 EP 自带的表单校验报错 ([63e62fd](https://github.com/liaolongdong/account-password-helper/commit/63e62fd2238daf15a33aa2dd0a2bf34a8e02f1cb))
+* **a11y:** 浅底告警的文字从 EP 语义色收回常规层级，三档统一达到 AA ([18f6d72](https://github.com/liaolongdong/account-password-helper/commit/18f6d72e5b8ea20765196eff3d92123acde8a6df))
+* **a11y:** 灰阶守卫阈值 16 → 24，逮出溜过去的 TOTP 复制按钮 2.06:1 ([e7922b2](https://github.com/liaolongdong/account-password-helper/commit/e7922b24112f161fc0c633139154b72c0b7d64db))
+* **auth:** about:srcdoc 框架不再被当成扩展自身上下文，内容脚本的迁移闸门补全 ([3957d4f](https://github.com/liaolongdong/account-password-helper/commit/3957d4faf7989fbabc80d36c7558fb3ee4fee55b))
+* **auth:** 解锁只付一次慢哈希，换钥进行中不再冒充「密码错误」 ([01896ef](https://github.com/liaolongdong/account-password-helper/commit/01896ef56d0cafc2127b715258c5749549d412a1))
+* **auth:** 重置确认文案限定到本插件数据并补上「无法撤销」 ([12139d0](https://github.com/liaolongdong/account-password-helper/commit/12139d0143f7f3d8c6bb3b4429a18fefc8a31c61))
+* **backup:** 换钥匙批次不再刷新待备份时间戳，收掉 rekey 的备份误报 ([17b673c](https://github.com/liaolongdong/account-password-helper/commit/17b673c34aa3a5e0ba5c320c51696d403e4826ce))
+* **backup:** 离线恢复不再凭空欠一次备份；锁定广播开始看回执 ([b25c2fa](https://github.com/liaolongdong/account-password-helper/commit/b25c2fa9557b8e639390fdb2bd095c0b5663661a))
+* **backup:** 锁定页的只读验证开始数失败次数，连续三次进 30 秒冷却 ([e8de51a](https://github.com/liaolongdong/account-password-helper/commit/e8de51ad81c97a27062ae14a37987c49298b7c9c))
+* **copy:** 备份提醒不再称「唯一退路」，找回向导把删除范围限定到本插件数据 ([38c4e24](https://github.com/liaolongdong/account-password-helper/commit/38c4e24372dbcf9c2475516620edf0e1bedd476e))
+* **options:** 口令生成器选「无分隔符」不再退化成空框，分隔符选项文案进 i18n ([de99529](https://github.com/liaolongdong/account-password-helper/commit/de995290383ee92cd8beb3601003d2d8d7856a19))
+* **options:** 备份口令输入也提示大写锁定，并清掉只写不读的判据字段 ([d3cc635](https://github.com/liaolongdong/account-password-helper/commit/d3cc6357bc00395e1a55c778e59e76eb21124f7a))
+* **options:** 备份徽标与轻提醒按「欠哪份备份」分派出口，收掉身份库送错入口 ([b3801fb](https://github.com/liaolongdong/account-password-helper/commit/b3801fbaa16c23fbc11b7ee203e895ec6d395444))
+* **options:** 备份轻提醒不再谎报耗时，并点名「下一份」欠的备份 ([7bdd8e2](https://github.com/liaolongdong/account-password-helper/commit/7bdd8e2db96831c7a3de34dd82afda62775a8093))
+* **options:** 弹窗统一垂直+水平居中，改密弹窗不再顶出页面级滚动条 ([545b6fe](https://github.com/liaolongdong/account-password-helper/commit/545b6fe0766738b833232aab2b8b94ad801a3750))
+* **options:** 恢复一键锁定的玻璃态底色，并给 :deep 选择器加耦合守卫 ([a233995](https://github.com/liaolongdong/account-password-helper/commit/a2339957c7708b6553a96c891f754248eba2839b))
+* **options:** 恢复与备份验证的三个密码框补 placeholder ([f29a6d2](https://github.com/liaolongdong/account-password-helper/commit/f29a6d2e76157b501d52082d4ef2d84786effb9a))
+* **options:** 悬停不再冲掉徽标状态色，并补上恢复弹窗的密码显隐 ([6a805a5](https://github.com/liaolongdong/account-password-helper/commit/6a805a55918facebeb36b004acd2f58f6a7c0aa8))
+* **options:** 改密弹窗并入长内容弹窗约定，草稿存续期间关掉 Esc 与 X ([413aa39](https://github.com/liaolongdong/account-password-helper/commit/413aa396398429a465f0b366094a1cca5d4a078e))
+* **options:** 改密弹窗第一屏就点名旧恢复套件作废，并修浅底告警 2.04:1 ([dd5cc01](https://github.com/liaolongdong/account-password-helper/commit/dd5cc01e2811114fb7ef28f69f87c84c728f130d))
+* **options:** 添加密码按钮不再被全局级联吃掉，恢复域补文件选择反馈与格式说明 ([be75882](https://github.com/liaolongdong/account-password-helper/commit/be75882665b4e6c147658df7437811db7b43c2d8))
+* **options:** 窄屏找回「立即锁定」，焦点环换成两侧都达标的深色环 ([d4784d1](https://github.com/liaolongdong/account-password-helper/commit/d4784d128f921bbabfda021814b1f72d93615435))
+* **options:** 第三批评审收口，图标、显隐、选择器一致性与存量注释 ([734c057](https://github.com/liaolongdong/account-password-helper/commit/734c05747f38f40988f48f5673139123ef80c987))
+* **options:** 认证屏不再裁切、去掉幽灵滚动条，重排逃生出口并补上恢复套件的知情同意门 ([589b278](https://github.com/liaolongdong/account-password-helper/commit/589b2786c7ed876f3fe8e0aec78f96a2c62dec83))
+* **options:** 页脚 .dialog-footer 补齐各组件自己的声明，状态点改走同值的 EP success 令牌 ([806013f](https://github.com/liaolongdong/account-password-helper/commit/806013f85a71757758d2ae490c202fff55a67fb8))
+* **options:** 骨架屏补上备份徽标占位，并把这条耦合钉成断言 ([2f7ab73](https://github.com/liaolongdong/account-password-helper/commit/2f7ab739aacf21152506c9ea09d96a73ad95f6d2))
+* **options:** 骨架徽标占位与真实徽标同高，并把尺寸一致性钉成判据 ([bdab2e2](https://github.com/liaolongdong/account-password-helper/commit/bdab2e2b0c382a78b846b326aa62ba3fd0508d77))
+* **perf:** 锁定首屏为一个布尔位不再拉回整条换钥依赖图 ([dc36ae9](https://github.com/liaolongdong/account-password-helper/commit/dc36ae920903650dd8a1980fe5f9cc0fe6ff8a29))
+* **perf:** 错误码登记表不再以值依赖进 popup 首屏 ([036c45a](https://github.com/liaolongdong/account-password-helper/commit/036c45a4ae75210ef0395367760550e49291f2f0))
+* **recovery:** 套件草稿存续期间关掉 Esc 与 X，退出只走会说明后果的那条路 ([3e33f1d](https://github.com/liaolongdong/account-password-helper/commit/3e33f1d598aa9cc4d2adf3c0459a1ef8598bcf07))
+* **recovery:** 找回向导补上离线恢复密钥这条退路，对外口径不再说「只能清空」 ([478dce6](https://github.com/liaolongdong/account-password-helper/commit/478dce669bb3e2d516cfdb1188298c1da1ea179f))
+* **recovery:** 把坏记录从死路补成知情门，并补 hover 对比度与套件明文确认 ([0779112](https://github.com/liaolongdong/account-password-helper/commit/07791121f18dd08c3952f852f523cc9747976329))
+* **recovery:** 换钥结果带上被携带的条数，改密收尾不再只报「成功」 ([b5eb667](https://github.com/liaolongdong/account-password-helper/commit/b5eb66741b66dd58688bc8f985bf0ac1382bba6c))
+* **recovery:** 收掉深度评审在换钥并发窗口上逮到的六处问题 ([6ac54bb](https://github.com/liaolongdong/account-password-helper/commit/6ac54bba0e2d9b2a7a0aecdeb9107e171d012904))
+* **recovery:** 收掉独立评审在离线恢复上逮到的四处真问题 ([a1146f1](https://github.com/liaolongdong/account-password-helper/commit/a1146f1df1570ccbc0c1c229d73f3c165f148eba))
+* **recovery:** 锁定广播不再等慢盘清理，fresh 读不再重复解包，提示语门槛按次计 ([3440740](https://github.com/liaolongdong/account-password-helper/commit/3440740d99782355b8ca2059182e9b9914e9a468))
+* **security:** 主密码强度门槛收到存储层，错误码改判别联合 ([61639b5](https://github.com/liaolongdong/account-password-helper/commit/61639b5d3cf7bcca19e4a9e9e5734d4cc1e6b94f))
+* **seo:** 英文页三段超预算的 meta 文案压回 170 字符，并补根目录页面守卫 ([a036723](https://github.com/liaolongdong/account-password-helper/commit/a036723dd7e9e0e27352361e18ce1c4982ea5b4d))
+* **session:** 换钥提交与发布之间被别的窗口锁定时不再复活会话，未采纳要回执而不是静默返回 ([fe4c158](https://github.com/liaolongdong/account-password-helper/commit/fe4c1584bc6309adf453d88aba82f97f3f68d5ed))
+* **session:** 换钥漂移守卫按值比对校验配置，正常改密不再被自己判成并发写 ([fb25c6b](https://github.com/liaolongdong/account-password-helper/commit/fb25c6b727a39bfc9e7c583359966f3298ca29bc))
+* **session:** 锁定不再被换钥复活，网页上下文的旧版迁移交回扩展侧 ([a6e9f70](https://github.com/liaolongdong/account-password-helper/commit/a6e9f70c1469a8a19cfefd3a945d66bf9ec7e8d7))
+* **sidepanel:** 元数据被换钥挡下时不再向调用方谎报已保存 ([0e3070b](https://github.com/liaolongdong/account-password-helper/commit/0e3070bc30f858fb9cb56f3c28f0f9bce1f3726b))
+* **sidepanel:** 动态码在时间窗末尾不再取到就过期，填充与复制共用一次「等下一窗」 ([9f9be85](https://github.com/liaolongdong/account-password-helper/commit/9f9be85ce2649f38b0f1f8d108869083ac856ebf))
+* **sidepanel:** 验证码改到跨入口往返之后才算，等来的寿命留给投递 ([fed0203](https://github.com/liaolongdong/account-password-helper/commit/fed0203b33558ab25b5987d11c2935f44fc1e750))
+* **storage:** 元数据快重试预算耗尽后排一次有界长退避，队列不再只等用户再操作一次 ([ee4b9c2](https://github.com/liaolongdong/account-password-helper/commit/ee4b9c274d14e22578c1736b910824e75311c317))
+* **storage:** 密码库写者之间不再互相抹行：落盘前合并 + 同上下文写队列 ([634d279](https://github.com/liaolongdong/account-password-helper/commit/634d2798bc0e10393066236b2f927de60a6e6af7))
+* **tooling:** 忽略并行会话的本地 worktree，恢复主树可用的 pnpm lint 门禁 ([c569a7b](https://github.com/liaolongdong/account-password-helper/commit/c569a7bc6a5448b38451adef59b1b9d8b0383b45))
+* 认证屏与窄屏头部版式收口、恢复套件知情同意扩门，附两轮评审回灌 ([e75f25d](https://github.com/liaolongdong/account-password-helper/commit/e75f25d827c0b2392025d5f5e08ca0663c8d3708))
+
+
+### Reverts
+
+* **options:** 主按钮回到品牌浅蓝，并把「不许自行改主题色」写成判据 ([32c1f64](https://github.com/liaolongdong/account-password-helper/commit/32c1f642a312db240a2125ee3f65de6643595494))
+* **theme:** 全站主色回到唯一那支品牌浅蓝，并回退图标配色提交 ([34f572b](https://github.com/liaolongdong/account-password-helper/commit/34f572b990c5493c7c79a44bdca174bffa5b1b8a))
+
 ## [3.18.0](https://github.com/liaolongdong/account-password-helper/compare/v3.17.0...v3.18.0) (2026-10-23)
 
 
