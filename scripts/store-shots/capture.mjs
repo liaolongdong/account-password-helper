@@ -1,9 +1,9 @@
 /**
  * 截取并合成商店截图（中英各一套）。
  *
- *   node capture.mjs <extDir> seeded  [zh|en]   # 一键登录 / TOTP / 多环境 / 安全体检 / 收藏 / 详情 / 页内面板 / 悬浮按钮 / 自动保存 / 数据管理 / 生成器 / 回收站
+ *   node capture.mjs <extDir> seeded  [zh|en]   # 一键登录 / TOTP / 多环境 / 安全体检 / 收藏 / 详情 / 页内面板 / 悬浮按钮 / 自动保存 / 数据管理 / 生成器 / 回收站 / 个人信息库
  *   node capture.mjs <extDir> prefs   [zh|en]   # 偏好设置（主题 / 双语切换）
- *   node capture.mjs <extDir> firstrun [zh|en]  # 本地加密（首启设置主密码页）
+ *   node capture.mjs <extDir> firstrun [zh|en]  # 本地加密（首启设置主密码页）+ 新手引导「留退路」
  *   node capture.mjs <extDir> autosave [zh|en]  # 只重截自动保存弹窗（弹窗版式微调后无需重跑整批）
  *
  * 前置：Chrome 带 --remote-debugging-port=9333 启动、扩展已加载、demo-server.mjs
@@ -11,7 +11,11 @@
  * 全新 profile 重新 seed）。详见同目录 README.md。输出写入 <repo>/assets/cws-store/，
  * 英文版文件名带 -en 后缀。
  *
- * Dashboard 上中文页与 English (United States) 页的截图槽位互相独立，两套都要上传。
+ * 两个环境变量专治「同机并行跑批」与「试跑覆写母版」：
+ * `SHOT_CDP_PORT` 给这一路单独一个 CDP 端口（默认 9333），`SHOT_OUT_DIR` 把输出指到
+ * 临时目录（默认 `assets/cws-store/`，即 32 张已提交母版所在处）。
+ *
+ * Dashboard 上中文页与 English (United States) 页的截图槽位互相独立，两套都要传。
  * 标题带文案与商店四个字段同口径：零竞品品牌名、零绝对化表述。
  */
 import { resolve, dirname } from 'node:path';
@@ -38,7 +42,14 @@ import { COPY, UI } from './copy.mjs';
 import { DEMO_HOSTS, HOST_ADMIN, HOST_CONSOLE, pageUrl } from './demo-hosts.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = resolve(HERE, '../../assets/cws-store');
+/**
+ * 输出目录，默认仓库里的 `assets/cws-store/`。
+ *
+ * 可由 `SHOT_OUT_DIR` 覆盖。给新场景试拍留一条不落进母版目录的出路：默认路径下
+ * 任何一次试跑都会覆写中英共 32 张**已提交**母版，「试一下」当场变成整批二进制变更，
+ * 只能靠 `git checkout --` 复原。试跑请指到临时目录，确认后再接默认路径跑整批。
+ */
+const OUT_DIR = process.env.SHOT_OUT_DIR ? resolve(process.env.SHOT_OUT_DIR) : resolve(HERE, '../../assets/cws-store');
 
 // 演示页地址与域名清单见 `demo-hosts.mjs`：必须用**域名**访问而不是 127.0.0.1
 // （扩展条目按精确域名匹配），且必须是 `https://<host>` 这种不带端口的形态，
@@ -81,6 +92,33 @@ const confirmMasterPassword = `(() => {
   if (!dialog) return 'no visible dialog';
   const el = [...dialog.querySelectorAll('input[type=password]')].find(isVisible);
   if (!el) return 'password input not found';
+  const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
+  d.set.call(el, ${JSON.stringify(DEMO_MASTER_PASSWORD)});
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  const btn = [...dialog.querySelectorAll('button')]
+    .filter(isVisible)
+    .find((b) => b.classList.contains('el-button--primary'));
+  if (!btn) return 'confirm button not found';
+  btn.click();
+  return 'master password submitted';
+})()`;
+
+/**
+ * 在「当前可见、且真的带主密码输入框」的那个弹窗里填密码并提交。
+ *
+ * 与 `confirmMasterPassword` 的差别只在挑弹窗：打开个人信息库时库弹窗先挂载、
+ * 复验框后挂载，此时 `.pop()` 恰好选到复验框；但 Element Plus 会把已关闭的弹窗留在
+ * DOM 里，多开合几轮之后「最后一个」就不再等于「正在要密码的那个」。这里按
+ * 「谁有可见的 password 输入框」挑，与挂载顺序无关。
+ */
+const confirmMasterPasswordWhereVisible = `(() => {
+  const isVisible = (n) => !!(n.offsetWidth || n.offsetHeight || n.getClientRects().length);
+  const dialog = [...document.querySelectorAll('.el-dialog')]
+    .filter(isVisible)
+    .find((d) => [...d.querySelectorAll('input[type=password]')].some(isVisible));
+  if (!dialog) return 'no visible password dialog';
+  const el = [...dialog.querySelectorAll('input[type=password]')].find(isVisible);
   const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
   d.set.call(el, ${JSON.stringify(DEMO_MASTER_PASSWORD)});
   el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -187,6 +225,67 @@ async function clickByLabel(s, label) {
       return 'clicked button';
     })()`,
   );
+}
+
+/**
+ * 按 `title` 属性点按钮。
+ *
+ * 「个人信息库」那颗头部按钮的可见文案与备份徽标里的「个人信息库」标签完全同字，
+ * 按文案走 `clickByLabel` 会撞车；它的 `title`（`identity.vaultEntryTitle`）整页唯一。
+ */
+async function clickByTitle(s, title) {
+  return evalIn(
+    s,
+    `(() => {
+      const isVisible = (n) =>
+        !!(n.offsetWidth || n.offsetHeight || n.getClientRects().length);
+      const btn = [...document.querySelectorAll('button[title]')]
+        .filter(isVisible)
+        .find((b) => b.getAttribute('title') === ${JSON.stringify(title)});
+      if (!btn) return 'title not found: ' + ${JSON.stringify(title)};
+      btn.click();
+      return 'clicked ' + btn.tagName;
+    })()`,
+  );
+}
+
+/**
+ * 在引导的进度点里挑出「留退路」那一步并跳过去，然后**核对卡面确实停在这一步**。
+ *
+ * 两处都不是「点一下就行」：
+ *
+ * 1. 引导卡是异步挂载的——`tour.start()` 排在 `isAuthenticated && !tableLoading` 之后，
+ *    冷启动 profile 上这两件事的先后不稳。实测中文批 5s 时点已就位、英文批同一处还没渲染出
+ *    进度点，那一屏就悄悄截成了第 1 步。所以轮询到点出现为止。
+ * 2. 截错步骤的图**看起来完全正常**：一张排版良好的引导卡，只是讲的是另一件事。因此跳完
+ *    必须把 `.tour__title` 读回来比对，不符就抛错，而不是把这张图留在仓库里等人发现。
+ *
+ * 按 aria-label 里的步骤标题认格，而不是按第几个点：剧本会按锚点在不在场被 `pickSteps`
+ * 过滤（首启态下实测是 9 步而非 10 步），写死下标就是给自己埋雷。
+ */
+async function jumpToTourStep(s, stepTitle) {
+  const deadline = Date.now() + 20_000;
+  for (;;) {
+    const shown = await evalIn(s, `document.querySelector('.tour__title')?.textContent?.trim() || '<no tour card>'`);
+    if (shown === stepTitle) return shown;
+    await evalIn(
+      s,
+      `(() => {
+        const wanted = ${JSON.stringify(stepTitle)};
+        const isVisible = (n) =>
+          !!(n.offsetWidth || n.offsetHeight || n.getClientRects().length);
+        const dot = [...document.querySelectorAll('.tour__dot')]
+          .filter(isVisible)
+          .find((d) => (d.getAttribute('aria-label') || '').includes(wanted));
+        if (dot) dot.click();
+        return dot ? 'clicked' : 'dot not rendered yet';
+      })()`,
+    );
+    if (Date.now() > deadline) {
+      throw new Error(`引导在 20s 内没有停在「${stepTitle}」，当前卡面是「${shown}」——这一屏不能截`);
+    }
+    await wait(700);
+  }
 }
 
 /**
@@ -557,6 +656,24 @@ if (MODE === 'seeded') {
     console.log('trash verify:', await evalIn(s, confirmMasterPassword));
     await wait(2500);
   });
+
+  // ---- 个人信息库：头部一级入口 → 复验主密码 → 默认掩码的四类卡 ----
+  //
+  // 这一屏要拍的是「第二份数据域」本身：证件号 / 卡号 / 安全码在列表里默认就是掩码，
+  // 所以**不点眼睛**，也不展开收起——画面里带掩码的那几行就是这个功能的卖点。
+  await captureOptions({ title: C.identity.title, sub: C.identity.sub }, 'screen-15-identity-vault.png', async s => {
+    console.log('identity vault:', await clickByTitle(s, UI[LANG].identityVault));
+    await wait(1800);
+    console.log('identity verify:', await evalIn(s, confirmMasterPasswordWhereVisible));
+    await wait(3000);
+    // 复验框没被点掉 / 密码不对时，屏上留下的是一层弹窗或空列表，构图照样「像张正常截图」。
+    // 所以这里必须量一次「库真的开着、且里面有条目」，否则这一屏不能算拍完。
+    const cards = await evalIn(s, `document.querySelectorAll('.identity-card__title').length`);
+    if (!cards) {
+      throw new Error('个人信息库没有真的开着（或库里没有条目），这一屏不能截：' + `cards=${cards}`);
+    }
+    console.log('identity cards on screen:', cards);
+  });
 } else if (MODE === 'prefs') {
   // ---- 偏好设置：主题换肤 + 双语切换（需先 seed，管理页处于已解锁状态）----
   const t = await newTab(extUrl('options.html'));
@@ -606,6 +723,25 @@ if (MODE === 'seeded') {
     [{ buf: await grab(s), width: 1280 }],
     out('screen-6-local-encryption.png'),
   );
+
+  // ---- 新手引导「留退路」一步：同一个首启 profile，提交主密码后引导自动播放 ----
+  //
+  // 必须排在图 6 之后：两者共用「还没设过主密码」这一状态，而设完密码就回不去了。
+  // 引导只在 `onboarding_tour_state.seen` 为假时自动开始，所以这一批**不能**用 seed
+  // 过的 profile（seed 会把引导标成已跳过，好让管理页那几张不被聚光遮罩压暗）。
+  //
+  // 焦点停在「留退路」这句话本身，刻意不点卡里的「现在登记离线恢复密钥」——那会再叠
+  // 一层弹窗，把这一步要讲的取舍盖掉。
+  console.log('tour setup:', await clickByLabel(s, UI[LANG].setup));
+  await wait(5000);
+  console.log('tour jump:', await jumpToTourStep(s, UI[LANG].tourRetreat));
+  await wait(1500);
+  await compose(
+    { title: C.tour.title, sub: C.tour.sub },
+    [{ buf: await grab(s), width: 1280 }],
+    out('screen-16-onboarding-recovery.png'),
+  );
+
   s.close();
   await closeTab(t.id);
 }

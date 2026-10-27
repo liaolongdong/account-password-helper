@@ -1,6 +1,6 @@
 # 商店截图流水线（store-shots）
 
-用脚本生成 Chrome 应用商店的产品截图，**中英各一套、每套 14 张**，输出到
+用脚本生成 Chrome 应用商店的产品截图，**中英各一套、每套 16 张**，输出到
 `assets/cws-store/screen-*.png`（2560×1600 = 1280×800 @2x）；母版再经
 `export-upload.mjs` 派生出商店截图槽实际接受的 1280×800 无 alpha 版本，输出到
 `assets/cws-store/upload/`（见下文「上传尺寸」）。
@@ -55,7 +55,20 @@ PROFILE="$(mktemp -d)"
 ```
 
 然后按**语言**跑三批。每批的 `seeded` / `prefs` 用同一个 profile，`firstrun` 必须换
-**全新 profile**（图 6 需要「还没设主密码」的首启状态）：
+**全新 profile**（图 6 需要「还没设主密码」的首启状态，图 16 同一条链路：它要的正是
+「设完主密码后引导自动播放」那一屏，seed 过的 profile 已被标成引导看过）：
+
+> 🔌 **同机并行跑批必须换端口**：`cdp.mjs` / `shot.mjs` 默认连 9333，而本机另一个
+> checkout 的验证脚本也用 `--remote-debugging-port=9333` 起 Chrome，并按 9333 找
+> 「它的」浏览器——两边会互相抢 target（实测整批挂死在 `Runtime.evaluate` 超时上）。
+> 给这一路单独一个端口：启动参数与 `SHOT_CDP_PORT` 填同一个值。
+>
+> 🧪 **试跑别对着母版目录**：`SHOT_OUT_DIR` 把输出指到临时目录，默认值是
+> `assets/cws-store/`，一次试跑就覆写中英共 32 张**已提交**图片。
+>
+> ```bash
+> export SHOT_CDP_PORT=9411 SHOT_OUT_DIR="$PWD/.tmp/shot-out"   # 确认后 unset 再跑正式整批
+> ```
 
 ```bash
 # —— 中文页 ——
@@ -97,7 +110,7 @@ node scripts/store-shots/capture.mjs "$PWD/.output/chrome-mv3" firstrun  en
 node scripts/store-shots/capture.mjs "$PWD/.output/chrome-mv3" autosave en
 ```
 
-## 十四张图的卖点与标题带文案
+## 十六张图的卖点与标题带文案
 
 标题带文案的合规约束与商店四个字段完全一致：**零竞品品牌名、零绝对化表述**
 （不得写「零联网 / 100% offline / 数据不出浏览器」——扩展每 6 小时有一次
@@ -105,29 +118,31 @@ node scripts/store-shots/capture.mjs "$PWD/.output/chrome-mv3" autosave en
 `copy.mjs`（中英各一份，`capture.mjs` 与 `record.mjs` 共用），两个动图分别取其中
 `login` 与 `handoff` 一条，改了要一并重跑 `record.mjs`。
 
-| 文件（英文加 `-en`）            | 卖点           | 标题带（中文）                                           |
-| ------------------------------- | -------------- | -------------------------------------------------------- |
-| `screen-1-one-click-login.png`  | 一键登录       | 一键登录：填充 → 勾选「记住我」→ 自动点击登录            |
-| `screen-2-totp.png`             | TOTP 两步验证  | TOTP 两步验证：验证码和密码住在一起，不用摸手机          |
-| `screen-3-multi-env.png`        | 多环境账号     | 多环境账号管理：同一站点，开发 / 测试 / 生产分得清清楚楚 |
-| `screen-4-security-audit.png`   | 离线安全体检   | 离线安全体检：0-100 分给密码健康打分，全程本机计算       |
-| `screen-5-preferences.png`      | 主题与双语     | 6 款主题 + 中英文双语界面，即时切换无需刷新              |
-| `screen-6-local-encryption.png` | 本地加密       | 本地加密：密码只存在你的浏览器里，加密后落盘             |
-| `screen-7-favorites.png`        | 收藏置顶       | 收藏常用账号：星标置顶，再一键只看收藏                   |
-| `screen-8-detail-drawer.png`    | 条目详情       | 条目详情：备注、两步验证活码、修改历史一屏看全           |
-| `screen-9-inline-fill.png`      | 页内填充面板   | 页内填充面板：在输入框旁边直接挑账号                     |
-| `screen-10-floating-button.png` | 页面悬浮按钮   | 页面悬浮按钮：登录页随手唤起填充面板                     |
-| `screen-11-auto-save.png`       | 自动保存凭证   | 自动保存登录凭证：提交时弹窗确认，自动去重               |
-| `screen-12-import-backup.png`   | 导入导出与备份 | 导入导出与加密备份：数据随时能带走                       |
-| `screen-13-generator.png`       | 密码生成器     | 密码生成器双模式：随机字符或助记词组                     |
-| `screen-14-trash.png`           | 回收站         | 回收站与修改历史：误删可恢复，改错能回滚                 |
+| 文件（英文加 `-en`）                | 卖点           | 标题带（中文）                                           |
+| ----------------------------------- | -------------- | -------------------------------------------------------- |
+| `screen-1-one-click-login.png`      | 一键登录       | 一键登录：填充 → 勾选「记住我」→ 自动点击登录            |
+| `screen-2-totp.png`                 | TOTP 两步验证  | TOTP 两步验证：验证码和密码住在一起，不用摸手机          |
+| `screen-3-multi-env.png`            | 多环境账号     | 多环境账号管理：同一站点，开发 / 测试 / 生产分得清清楚楚 |
+| `screen-4-security-audit.png`       | 离线安全体检   | 离线安全体检：0-100 分给密码健康打分，全程本机计算       |
+| `screen-5-preferences.png`          | 主题与双语     | 6 款主题 + 中英文双语界面，即时切换无需刷新              |
+| `screen-6-local-encryption.png`     | 本地加密       | 本地加密：密码只存在你的浏览器里，加密后落盘             |
+| `screen-7-favorites.png`            | 收藏置顶       | 收藏常用账号：星标置顶，再一键只看收藏                   |
+| `screen-8-detail-drawer.png`        | 条目详情       | 条目详情：备注、两步验证活码、修改历史一屏看全           |
+| `screen-9-inline-fill.png`          | 页内填充面板   | 页内填充面板：在输入框旁边直接挑账号                     |
+| `screen-10-floating-button.png`     | 页面悬浮按钮   | 页面悬浮按钮：登录页随手唤起填充面板                     |
+| `screen-11-auto-save.png`           | 自动保存凭证   | 自动保存登录凭证：提交时弹窗确认，自动去重               |
+| `screen-12-import-backup.png`       | 导入导出与备份 | 导入导出与加密备份：数据随时能带走                       |
+| `screen-13-generator.png`           | 密码生成器     | 密码生成器双模式：随机字符或助记词组                     |
+| `screen-14-trash.png`               | 回收站         | 回收站与修改历史：误删可恢复，改错能回滚                 |
+| `screen-15-identity-vault.png`      | 个人信息库     | 个人信息库：证件和银行卡单独成库，机密字段默认掩码       |
+| `screen-16-onboarding-recovery.png` | 新手引导       | 首次设置完就有新手引导，连「忘记主密码怎么办」也提前讲   |
 
 > **`screen-12` 刻意只拍「数据管理」下拉，不拍导入弹窗**：导入弹窗的格式单选里有
 > 「Chrome 密码」这一项，属商店图片文字禁用的竞品品牌名；下拉里的九个入口
 > （导入 / 下载模板 / 导出 / 导出 JSON / 加密备份导出 / 加密备份导入 / 备份到邮箱 /
 > 一键去重 / 回收站）不含品牌名，且一屏就能覆盖导出与备份两个能力。
 
-> 商店每个语言页的截图上限是 **5 张**，这里是 14 张候选，**最终选哪 5 张由上传时定**。
+> 商店每个语言页的截图上限是 **5 张**，这里是 16 张候选，**最终选哪 5 张由上传时定**。
 > 脚本这边的建议是 `screen-1 / 2 / 3 / 4 / 9`：前四张各占一个独立卖点（一键登录、
 > 两步验证、多环境、安全体检），`screen-9` 与 `screen-10` 是仅有的两张展示**页内**
 > 体验的，和其余「侧边栏 / 管理页」构图互补，辨识度最高。
@@ -212,19 +227,19 @@ environment`）。不带参数时卡片高度不变，`screen-1`、`screen-2` �
 
 ## 文件
 
-| 文件                | 作用                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------ |
-| `cdp.mjs`           | 极简 Chrome DevTools Protocol 客户端（原生 WebSocket）                               |
-| `shot.mjs`          | 加载扩展、设备指标、等待动画收敛、截图、合成标题带、favicon 预热                     |
-| `demo-hosts.mjs`    | 演示域名清单与页面地址构造（seed 条目网址 / 预热 / 截图共用一份）                    |
-| `demo-server.mjs`   | 本地 HTTPS 演示站：托管演示页并按 Host 合成站点图标（证书落在临时目录）              |
-| `seed.mjs`          | 切语言 + 设主密码 + 导入 10 条占位账号 + 收藏 + 改密码造历史（可传自备 CSV）         |
-| `capture.mjs`       | 截图入口，`seeded` / `prefs` / `firstrun` 三种模式 × `zh` / `en`                     |
-| `export-upload.mjs` | 把 `screen-*.png` 母版派生成商店收的 1280×800 无 alpha 图，输出到 `upload/`          |
-| `record.mjs`        | 演示动图入口，`login`（4 帧）/ `totp`（6 帧）两场景 → `docs/media/demo-*.{webp,gif}` |
-| `copy.mjs`          | 标题带文案表（中英各一份），`capture.mjs` 与 `record.mjs` 共用                       |
-| `demo-login.html`   | 演示登录页（「一键登录」的已填充 + 已勾选状态；状态条由 `?demo=status` 开启）        |
-| `demo-2fa.html`     | 演示两步验证页（`screen-2` 的活码展示；`totp` 动图的接力目标页）                     |
+| 文件                | 作用                                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------------- |
+| `cdp.mjs`           | 极简 Chrome DevTools Protocol 客户端（原生 WebSocket）                                               |
+| `shot.mjs`          | 加载扩展、设备指标、等待动画收敛、截图、合成标题带、favicon 预热                                     |
+| `demo-hosts.mjs`    | 演示域名清单与页面地址构造（seed 条目网址 / 预热 / 截图共用一份）                                    |
+| `demo-server.mjs`   | 本地 HTTPS 演示站：托管演示页并按 Host 合成站点图标（证书落在临时目录）                              |
+| `seed.mjs`          | 切语言 + 设主密码 + 导入 10 条占位账号 + 收藏 + 改密码造历史 + 导入 4 条占位个人信息（可传自备 CSV） |
+| `capture.mjs`       | 截图入口，`seeded` / `prefs` / `firstrun` 三种模式 × `zh` / `en`                                     |
+| `export-upload.mjs` | 把 `screen-*.png` 母版派生成商店收的 1280×800 无 alpha 图，输出到 `upload/`                          |
+| `record.mjs`        | 演示动图入口，`login`（4 帧）/ `totp`（6 帧）两场景 → `docs/media/demo-*.{webp,gif}`                 |
+| `copy.mjs`          | 标题带文案表（中英各一份），`capture.mjs` 与 `record.mjs` 共用                                       |
+| `demo-login.html`   | 演示登录页（「一键登录」的已填充 + 已勾选状态；状态条由 `?demo=status` 开启）                        |
+| `demo-2fa.html`     | 演示两步验证页（`screen-2` 的活码展示；`totp` 动图的接力目标页）                                     |
 
 演示账号内联在 `seed.mjs` 的 `DEMO_CSV_ZH` / `DEMO_CSV_EN`，各 **10 条**、行序严格一致
 （两个商店页演示的是同一批账号）：覆盖开发 / 预发 / 生产 / 测试 / 运维 / 设计 / 文档 /

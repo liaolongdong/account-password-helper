@@ -94,9 +94,19 @@ describe('跨子域层级区间的单点定义', () => {
    */
   const RUNTIME_DIRS = ['utils', 'entrypoints', 'composables', 'components', 'benchmarks'];
 
+  /**
+   * 走目录时要跳过的子树：`benchmarks/results/` 是 gitignore 掉的跑批产物，
+   * 里面会有**整棵源码树的快照副本**（评审脚本为了留证据把 `source/` 抄了一份进去）。
+   * 那些副本是历史证据，不是会被执行的代码，让它们进扫描面只会造出本地假红：
+   * CI 上根本没有这个目录，谁在本地留过一次评审快照，这条守卫就从此恒红。
+   */
+  const SKIP_DIRS = new Set(['benchmarks/results']);
+
   const collectSourceFiles = (dir: string): string[] =>
     readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap(entry => {
       const relative = path.join(dir, entry.name);
+      // 分隔符归一后再比，免得同一份清单在 Windows 上悄悄失效
+      if (SKIP_DIRS.has(relative.split(path.sep).join('/'))) return [];
       if (entry.isDirectory()) return collectSourceFiles(relative);
       return /\.(ts|vue)$/.test(entry.name) ? [relative] : [];
     });
