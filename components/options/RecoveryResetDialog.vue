@@ -194,11 +194,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, shallowRef, useTemplateRef, watch } from 'vue';
+import { computed, shallowRef, useTemplateRef, watch, nextTick } from 'vue';
 import { View, Hide } from '@element-plus/icons-vue';
 import type { RecoveryDraft, RecoveryStatus } from '@/utils/storage/recoveryTypes';
 import { RECOVERY_FORMAT, VAULT_ERROR_CODES } from '@/utils/recoveryTypes';
-import { clearRecoveryInputs, recoveryErrorCode } from '@/utils/recoveryUi';
+import {
+  clearRecoveryInputs,
+  confirmDiscardRecoveryDraft,
+  focusRecoveryKitStep,
+  recoveryErrorCode,
+} from '@/utils/recoveryUi';
 import { loadRecoveryStatus, useRecoveryOperation } from '@/composables/useRecoveryOperation';
 import { evaluatePasswordStrengthAsync, usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
@@ -252,8 +257,9 @@ const clear = (): void => {
   clearRecoveryInputs(root.value);
 };
 const { busy, error, run, invalidate } = useRecoveryOperation(() => props.modelValue, clear);
-const requestClose = (value: boolean): void => {
+const requestClose = async (value: boolean): Promise<void> => {
   if (busy.value || value) return;
+  if (draft.value && !(await confirmDiscardRecoveryDraft())) return;
   invalidate();
   emit('update:modelValue', false);
 };
@@ -284,6 +290,8 @@ const prepare = () =>
       confirmPassword.value = '';
       passwordFocused.value = false;
       draft.value = prepared;
+      await nextTick();
+      if (isCurrent()) focusRecoveryKitStep(root.value);
     }
   });
 const recover = (confirmation: string) =>

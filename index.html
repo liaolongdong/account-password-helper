@@ -148,7 +148,7 @@
         "browserRequirements": "需要 Chrome 114 或更高版本以使用 Side Panel API（未声明 minimum_chrome_version，旧版本仅侧边栏功能不可用）；兼容 Edge、Brave 等 Chromium 内核浏览器",
         "softwareVersion": "3.16.0",
         "datePublished": "2026-05-23",
-        "dateModified": "2026-10-18",
+        "dateModified": "2026-10-27",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -170,7 +170,7 @@
           "加密备份（.aph）与邮箱备份",
           "侧边栏全场景秒开（缓存快路径 20-50ms 拿到数据）",
           "6 款色彩主题 + 中英文双语界面",
-          "个人信息库：证件、银行卡等个人信息独立加密存放"
+          "个人信息库：证件、银行卡等个人信息独立加密存放，网页输入框右键即可召唤进入"
         ],
         "description": "开源免费的本地密码管理器：一键登录（填充+勾选+点击），PBKDF2 600K 迭代 + 敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。",
         "url": "https://liaolongdong.github.io/account-password-helper/",
@@ -4589,7 +4589,7 @@
           <div class="hero-cta">
             <a
               class="btn btn-primary"
-              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -4759,7 +4759,7 @@
       <div class="container">
         <div class="metrics-inner reveal">
           <div class="metric">
-            <b>3912</b>
+            <b>4603</b>
             <span data-i18n="metrics.cases">项自动化测试用例</span>
             <i aria-hidden="true"></i>
           </div>
@@ -5735,10 +5735,11 @@
             <h3 data-i18n="features.f12.title">个人信息库</h3>
             <p data-i18n="features.f12.desc">
               独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 /
-              CVV）与自定义字段；整块 AES-256-GCM
+              CVV）与自定义字段；库在管理页打开，也可在网页输入框上右键「从个人信息库选择」直接召唤，取完值点提示条的「回到原网页」就回到原来那一格（该右键项只跳转，不读字段内容、不回填页面）；整块
+              AES-256-GCM
               加密、机密字段默认掩码，打开需主密码复验（默认同一管理页会话内只问一次）；支持逐字段或整卡一键复制
               （复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、逐张折叠或一键折叠全部卡片、按最近修改 / 创建时间 /
-              类别 / 标题排序（档位记在本机）、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30
+              类别 / 标题排序（档位记在本机）、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 100
               条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 /
               回导；库内自带回收站，删除条目保留 30
               天可恢复或彻底删除，逾期自动清理；不参与自动备份，建议定期手动导出加密备份。
@@ -6041,7 +6042,7 @@
             <p data-i18n-html="steps.s1.desc">
               从
               <a
-                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite"
                 target="_blank"
                 rel="noopener noreferrer"
                 style="color: var(--primary-ink); font-weight: 500; text-decoration: underline"
@@ -6068,7 +6069,7 @@
             <h3 data-i18n="steps.s3.title">添加或导入密码</h3>
             <p data-i18n="steps.s3.desc">
               手动新增账号，或通过 CSV 模板、JSON
-              文件批量导入历史账号，标签分类一目了然。首次进入管理页还会自动播放聚光式新手引导，光圈逐处圈住真实按钮，带你认路添加、导入、备份与体检。
+              文件批量导入历史账号，标签分类一目了然。首次进入管理页还会自动播放聚光式新手引导，光圈逐处圈住真实按钮，带你认路添加、导入、备份与体检；走到「留退路」这一步还能当场打开离线恢复密钥设置登记一份退路（没登记也能稍后补）。
             </p>
           </article>
           <article class="step-card reveal reveal-delay-4">
@@ -6551,7 +6552,7 @@
             <p data-i18n-html="install.c1.p1">
               较新版本的桌面版 Google Chrome / Edge（Manifest V3）。推荐从
               <a
-                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite"
                 target="_blank"
                 rel="noopener noreferrer"
                 >Chrome Web Store</a
@@ -6573,7 +6574,7 @@
             <p style="margin-top: 18px">
               <a
                 class="btn btn-primary"
-                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite"
                 target="_blank"
                 rel="noopener noreferrer"
                 data-i18n="install.c1.store"
@@ -7312,7 +7313,7 @@ pnpm lint:style  # Stylelint</code></pre>
       <a
         class="sticky-cta__link"
         id="stickyCtaLink"
-        href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+        href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="添加到 Chrome"
@@ -7950,8 +7951,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'features.f12.title': { zh: '个人信息库', en: 'Personal Info Vault' },
         'features.f12.desc': {
-          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验（默认同一管理页会话内只问一次）；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、逐张折叠或一键折叠全部卡片、按最近修改 / 创建时间 / 类别 / 标题排序，或选「手动」后拖拽卡片左侧手柄（或按住 Alt + ↑/↓）排自定义固定顺序（档位记在本机）、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 100 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；不参与自动备份，建议定期手动导出加密备份。',
-          en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open (by default it asks once per manager-page session). Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets, collapse cards one at a time or all at once, sort by updated / created / category / title, or choose Manual and drag the handle on the left of a card (or hold Alt with Up / Down) to set a custom fixed order (remembered on this device), search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 100-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; the vault carries its own trash — deleted records stay restorable or permanently deletable for 30 days before they are cleaned automatically; it is not covered by automatic backups, so export an encrypted backup regularly.',
+          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；库在管理页打开，也可在网页输入框上右键「从个人信息库选择」直接召唤，取完值点提示条的「回到原网页」就回到原来那一格（该右键项只跳转，不读字段内容、不回填页面）；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验（默认同一管理页会话内只问一次）；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、逐张折叠或一键折叠全部卡片、按最近修改 / 创建时间 / 类别 / 标题排序，或选「手动」后拖拽卡片左侧手柄（或按住 Alt + ↑/↓）排自定义固定顺序（档位记在本机）、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 100 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；不参与自动备份，建议定期手动导出加密备份。',
+          en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields. It opens on the manager page, and you no longer have to walk there first: right-click any editable field on a web page, pick "Pick from Personal Info Vault", then use the "Back to the page" strip to land back on the field you were filling (that menu item only navigates — it reads no field content and never writes back into the page). Encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open (by default it asks once per manager-page session). Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets, collapse cards one at a time or all at once, sort by updated / created / category / title, or choose Manual and drag the handle on the left of a card (or hold Alt with Up / Down) to set a custom fixed order (remembered on this device), search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 100-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; the vault carries its own trash — deleted records stay restorable or permanently deletable for 30 days before they are cleaned automatically; it is not covered by automatic backups, so export an encrypted backup regularly.',
         },
         'features.f13.title': { zh: '站点规则兜底', en: 'Site Rules Fallback' },
         'features.f13.desc': {
@@ -7989,8 +7990,8 @@ pnpm lint:style  # Stylelint</code></pre>
         'steps.sub': { zh: '无需注册，无需登录，下载即用', en: 'No sign-up, no login — download and go' },
         'steps.s1.title': { zh: '安装扩展', en: 'Install the Extension' },
         'steps.s1.desc': {
-          zh: '从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome 应用商店</a> 一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> 下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。',
-          en: 'Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can\'t access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.',
+          zh: '从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome 应用商店</a> 一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> 下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。',
+          en: 'Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can\'t access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.',
         },
         'steps.s2.title': { zh: '设置主密码', en: 'Set a Master Password' },
         'steps.s2.desc': {
@@ -7999,8 +8000,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'steps.s3.title': { zh: '添加或导入密码', en: 'Add or Import Passwords' },
         'steps.s3.desc': {
-          zh: '手动新增账号，或通过 CSV 模板、JSON 文件批量导入历史账号，标签分类一目了然。首次进入管理页还会自动播放聚光式新手引导，光圈逐处圈住真实按钮，带你认路添加、导入、备份与体检。',
-          en: 'Add accounts manually, or bulk import via the CSV template or a JSON file; tags keep everything organized. On your first visit to the manager page a spotlight tour plays on its own, ringing the real buttons as it walks you through adding, importing, backups and the health check.',
+          zh: '手动新增账号，或通过 CSV 模板、JSON 文件批量导入历史账号，标签分类一目了然。首次进入管理页还会自动播放聚光式新手引导，光圈逐处圈住真实按钮，带你认路添加、导入、备份与体检；走到「留退路」这一步还能当场打开离线恢复密钥设置登记一份退路（没登记也能稍后补）。',
+          en: 'Add accounts manually, or bulk import via the CSV template or a JSON file; tags keep everything organized. On your first visit to the manager page a spotlight tour plays on its own, ringing the real buttons as it walks you through adding, importing, backups and the health check — and when it reaches the "leave a way out" step, a button there opens the offline recovery key settings so you can enrol a kit on the spot (you can also do it later).',
         },
         'steps.s4.title': { zh: '享受自动填充', en: 'Enjoy Auto-Fill' },
         'steps.s4.desc': {
@@ -8059,8 +8060,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'install.c1.title': { zh: '运行环境', en: 'Runtime' },
         'install.c1.p1': {
-          zh: '较新版本的桌面版 Google Chrome / Edge（Manifest V3）。推荐从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> 安装，后续自动更新；无法访问 Google 时，从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 下载 zip 手动加载。',
-          en: 'A recent desktop Google Chrome / Edge (Manifest V3). Installing from <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> is recommended, since updates arrive automatically; when Google is unreachable, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> and load it manually.',
+          zh: '较新版本的桌面版 Google Chrome / Edge（Manifest V3）。推荐从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> 安装，后续自动更新；无法访问 Google 时，从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 下载 zip 手动加载。',
+          en: 'A recent desktop Google Chrome / Edge (Manifest V3). Installing from <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphsite" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> is recommended, since updates arrive automatically; when Google is unreachable, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> and load it manually.',
         },
         'install.c1.p2': {
           zh: '仓库同时提供 <code>pnpm build:firefox</code>（产物为 MV2），但发布与验证以 Chrome 为准。与其他扩展一样，<code>chrome://</code> 页面、应用商店页与其他扩展页面无法注入。',

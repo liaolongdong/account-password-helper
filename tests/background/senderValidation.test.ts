@@ -755,6 +755,7 @@ describe('OPEN_OPTIONS_AND_IDENTITY 搜索词收口（分发级）', () => {
 
     expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
       keyword: '张三',
+      sourceTabId: 1,
     });
   });
 
@@ -781,19 +782,19 @@ describe('OPEN_OPTIONS_AND_IDENTITY 搜索词收口（分发级）', () => {
         contentSender('https://a.com/'),
         vi.fn(),
       );
-      expect(forwardedData()).toEqual({ keyword: '张三' });
+      expect(forwardedData()).toStrictEqual({ keyword: '张三', sourceTabId: 1 });
     }
 
-    // 只有角色、没有词：降级成「打开但不预填」，而不是把角色透过去预选档位
+    // 只有角色、没有词：降级成「打开但不预填」，`keyword` 键整个缺席（不写空串占位）
     listener(
       { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name' } },
       contentSender('https://a.com/'),
       vi.fn(),
     );
-    expect(forwardedData()).toBeUndefined();
+    expect(forwardedData()).toStrictEqual({ sourceTabId: 1 });
   });
 
-  it('搜索词非字符串 / 纯空白 / 缺失时整包载荷缺席，不写出空串键', () => {
+  it('搜索词非字符串 / 纯空白 / 缺失时不写出空串键', () => {
     const listener = setupAndCaptureListener();
 
     for (const bad of ['', '   ', 12345, { keyword: 'zs' }, ['zs'], null, undefined]) {
@@ -802,7 +803,7 @@ describe('OPEN_OPTIONS_AND_IDENTITY 搜索词收口（分发级）', () => {
         contentSender('https://a.com/'),
         vi.fn(),
       );
-      expect(forwardedData()).toBeUndefined();
+      expect(forwardedData()).toStrictEqual({ sourceTabId: 1 });
     }
   });
 
@@ -812,7 +813,60 @@ describe('OPEN_OPTIONS_AND_IDENTITY 搜索词收口（分发级）', () => {
     const result = listener({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY }, contentSender('https://a.com/'), vi.fn());
 
     expect(result).toBe(true);
-    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, undefined);
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, { sourceTabId: 1 });
+  });
+
+  /**
+   * 来源标签页只认浏览器盖章的那一个
+   *
+   * 这个数决定管理页那枚「回到原网页」把用户送去哪个站点，所以它的唯一合法来源是
+   * `sender.tab`（判据同 DELEGATE_PAGE_NOTICE：tabId 只从 sender 推导）。
+   * 页面在 `data` 里自报的 `sourceTabId` 必须整键丢掉——否则任意网页都能指定跳转目标。
+   */
+  it('页面自报的 sourceTabId 不穿透：转发的永远是 sender.tab.id', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const spoofed of [999, 0, -1, '12', null]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '张三', sourceTabId: spoofed } },
+        contentSender('https://a.com/', 1),
+        vi.fn(),
+      );
+      expect(forwardedData()).toStrictEqual({ keyword: '张三', sourceTabId: 1 });
+    }
+  });
+
+  it('来源页协议不在白名单时丢掉回程键：非 http(s)/file 的页面本来也跑不了内容脚本', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const url of ['chrome://settings/passwords', 'chrome-extension://abc/options.html', 'about:blank']) {
+      listener({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '张三' } }, contentSender(url), vi.fn());
+      expect(forwardedData()).toStrictEqual({ keyword: '张三' });
+    }
+  });
+
+  it('发送方没有关联标签页（popup / sidepanel）时不写回程键，深链照常打开', () => {
+    const listener = setupAndCaptureListener();
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '张三' } },
+      { id: chrome.runtime.id } as chrome.runtime.MessageSender,
+      vi.fn(),
+    );
+
+    expect(forwardedData()).toStrictEqual({ keyword: '张三' });
+  });
+
+  it('file:// 页面仍可回程（本地表单是真场景）', () => {
+    const listener = setupAndCaptureListener();
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY },
+      { id: chrome.runtime.id, tab: { id: 5, url: 'file:///Users/me/form.html' } } as chrome.runtime.MessageSender,
+      vi.fn(),
+    );
+
+    expect(forwardedData()).toStrictEqual({ sourceTabId: 5 });
   });
 });
 

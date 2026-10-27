@@ -77,7 +77,7 @@ function servedDom(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/g, '')
     .replace(/<style[\s\S]*?<\/style>/g, '')
-    .replace(/<!--[\s\S]*?-->/g, '');
+    .replace(/<!-{2}[\s\S]*?-->/g, '');
 }
 
 /**

@@ -85,6 +85,31 @@
             {{ stepTip }}
           </p>
 
+          <!-- 「留退路」这一步的卡内动作：把登记恢复密钥从菜单深处搬到首次设置后的引导里。
+               点击后由 Options 根组件先结束引导，再打开既有的恢复设置弹窗；不点则继续/跳过，
+               仍可在「安全设置 → 离线恢复密钥」补登记。 -->
+          <div
+            v-if="isRecoveryStep"
+            class="tour__action"
+          >
+            <button
+              type="button"
+              class="tour__btn tour__btn--primary tour__action-btn"
+              @click="emit('recovery')"
+            >
+              <span
+                class="tour__btn-sweep"
+                aria-hidden="true"
+              ></span>
+              <span class="tour__btn-text">{{
+                recoveryEnrolled ? t('onboarding.retreat.manage') : t('onboarding.retreat.action')
+              }}</span>
+            </button>
+            <p class="tour__action-note">
+              {{ recoveryEnrolled ? t('onboarding.retreat.manageHint') : t('onboarding.retreat.actionHint') }}
+            </p>
+          </div>
+
           <!-- 「打开侧边栏」这一步独有的卡内动作：侧边栏不在本页 DOM 里，聚光灯圈不到，
                这一步只能由按钮自己把东西开出来；失败后原位换成快捷键提示 -->
           <div
@@ -213,9 +238,19 @@ import { SIDEPANEL_STEP_ID, tourKey } from '@/utils/onboardingTour';
  * `useOnboardingTour`），它自己既不查 DOM 也不写存储，好处是卸载即干净。
  */
 
-const props = defineProps<{
-  /** 引导状态机（由调用方持有，保证状态所有权单一） */
-  tour: OnboardingTourApi;
+const props = withDefaults(
+  defineProps<{
+    /** 引导状态机（由调用方持有，保证状态所有权单一） */
+    tour: OnboardingTourApi;
+    /** 本机是否已登记离线恢复密钥；只影响 retreat 步的按钮文案，不改变引导剧本 */
+    recoveryEnrolled?: boolean;
+  }>(),
+  { recoveryEnrolled: false },
+);
+
+const emit = defineEmits<{
+  /** retreat 步卡内的「登记 / 管理恢复密钥」；由入口组件关闭引导并打开既有恢复弹窗 */
+  recovery: [];
 }>();
 
 const { t } = useI18n();
@@ -266,6 +301,9 @@ const stepTip = computed(() => (currentStep.value?.hasTip ? t(tourKey(currentSte
 
 /** 当前是否走到「打开侧边栏」那一步（无锚点，动作只能长在卡里） */
 const isSidepanelStep = computed(() => currentStep.value?.id === SIDEPANEL_STEP_ID);
+
+/** 当前是否走到「留退路」那一步（卡内提供恢复密钥登记入口） */
+const isRecoveryStep = computed(() => currentStep.value?.action === 'recovery');
 
 /**
  * 打开失败后的快捷键兜底文案
@@ -581,6 +619,14 @@ function dotLabel(index: number): string {
 .tour__action-btn {
   box-sizing: border-box;
   width: 100%;
+}
+
+/* retreat 步的附注：说明「继续/跳过也可稍后补登记」，让跳过成为有后果说明的显式选择 */
+.tour__action-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--tour-ink-faint);
 }
 
 /* 兜底态：打开失败后原位换成快捷键提示。`.tour__action` 的入场动画此时早已跑完，

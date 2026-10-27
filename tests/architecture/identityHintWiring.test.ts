@@ -14,6 +14,8 @@
  * 3. 由提示打开时，预填搜索词必须排在复验之后（写在之前会让「取消复验」留下一副检索框还带着
  *    别人名字的抽屉），且**深链不得写类别档位**——2026-10-17 改判：一条身份条目同时携带证件号、
  *    手机号等多个值，按角色预选类别会把该命中的条目筛出视野，档位恒为「全部」。
+ *    同一条「排在复验之后」的判据也管来源标签页的记录，那条连同回程边界一起在
+ *    `identityReturnWiring.test.ts` 里守。
  * 4. 页面侧的取值只有一个分派点（`pickSearchKeyword`），它按角色选中两条通道之一
  *    （`piiClassifier.selfNameValueNear` 取本人姓名 / `piiClassifier.hintFieldKeyword` 取字段名），
  *    每条通道全模块只出现一次、且只在点击那一刻调用；不得就地读 `.value`、不得发页面 URL——
@@ -104,7 +106,8 @@ describe('身份提示的跨上下文接线', () => {
     const fromPage = optionsApp.slice(optionsApp.indexOf('const openIdentityVaultFromPage'));
     const thenWindow = fromPage.slice(0, fromPage.indexOf('};'));
     // 词必须作为参数交给门槛函数预填，不得在门槛外直接写检索框
-    expect(thenWindow).toContain(`void ${GATE_FN}(keyword)`);
+    // （2026-10-27 起本函数改为 async：门槛返回值还要决定「记不记来源」，判据不变，只换调用形式）
+    expect(thenWindow).toContain(`await ${GATE_FN}(keyword)`);
     expect(thenWindow).not.toContain('identityVault.keyword.value');
     expect(thenWindow).not.toContain(DIALOG_VISIBLE);
     // 反向牙齿（2026-10-17 改判）：深链一律落在「全部」档。按角色预选类别会把一条条目

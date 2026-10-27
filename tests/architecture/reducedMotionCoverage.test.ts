@@ -87,11 +87,15 @@ const MOTION_EXCEPTIONS: Record<string, MotionExceptionReasons> = {};
 /**
  * 交互态位移轴的例外
  *
- * 这三处的共同点：位移量都在 1px / 5% 以内，属于本守卫开头写的「不属于该缓解的运动量」；
+ * 这两处的共同点：位移量都在 1px / 5% 以内，属于本守卫开头写的「不属于该缓解的运动量」；
  * 而更实际的一条是——`.add-site-plus:active`、`.session-pill:active` 除了这个缩放**没有别的
  * 按压反馈**，把 `transform` 关掉等于让减弱档用户按下去什么都看不见，那是用一个用不到的
  * 无障碍开关换来的体验倒退。真出现大位移（入场、滑出、上浮超过一个字符高度）时，
  * 该做的仍然是补减弱档，而不是往这张表里加一行。
+ *
+ * `entrypoints/options/styles.css` 曾登记在本表（全局按钮 hover 上浮 1px）。备份轻提醒给这个
+ * 文件补上减弱档时顺带把那两条上浮也关了：文件既然开始声明「尊重系统设置」，就不该再留
+ * 不受它管的位移；而按钮在减弱档下仍有提亮与投影两条反馈，不落在上面那条豁免理由里。
  */
 const INTERACTION_EXCEPTIONS: Record<string, MotionExceptionReasons> = {
   'entrypoints/popup/App.vue': {
@@ -99,9 +103,6 @@ const INTERACTION_EXCEPTIONS: Record<string, MotionExceptionReasons> = {
   },
   'components/sidepanel/SidepanelHeader.vue': {
     interaction: '圆钮按压 ≤5% 缩放；其中 .add-site-plus / .session-pill 的缩放是唯一按压反馈',
-  },
-  'entrypoints/options/styles.css': {
-    interaction: '全局按钮 hover 上浮 1px，低于本守卫认定的运动量阈值，关掉的代价是按钮失去位移反馈',
   },
 };
 

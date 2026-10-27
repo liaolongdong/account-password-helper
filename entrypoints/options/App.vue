@@ -103,16 +103,25 @@
       />
 
       <!-- 会话内备份轻提醒：从未备份，或本次会话刚改过数据且尚未备份时出一次，
-           关闭只作用于本页；清单在场时不叠第二条横幅（判据见上方 backupNudge 计算属性） -->
-      <BackupNudgeBanner
-        v-if="backupNudge"
-        :state="backupNudge.state"
-        :days="backupNudge.days"
-        :vault="backupNudge.vault"
-        :other-vault="backupNudgeOtherVault"
-        @backup="handleBackupNudgeAction"
-        @dismiss="backupNudgeDismissed = true"
-      />
+           关掉之后本次浏览器会话内不再出现（刷新也算）；清单在场时不叠第二条横幅
+           （判据见上方 backupNudge 计算属性）。
+           进出场套一层 0fr↔1fr 的 grid 壳：卡片高度由内容决定，`auto` 不可插值，没有这层壳，
+           淡出结束后下方内容会整块往上跳一次——那比「没有动画」更扎眼。 -->
+      <Transition name="backup-nudge">
+        <div
+          v-if="backupNudge"
+          class="backup-nudge-shell"
+        >
+          <BackupNudgeBanner
+            :state="backupNudge.state"
+            :days="backupNudge.days"
+            :vault="backupNudge.vault"
+            :other-vault="backupNudgeOtherVault"
+            @backup="handleBackupNudgeAction"
+            @dismiss="handleBackupNudgeDismiss"
+          />
+        </div>
+      </Transition>
 
       <!-- 一次性评价引导：密码多于 1 条、成功填充过且首次填充满 7 天后出现，可延后或永久关闭 -->
       <ReviewPrompt
@@ -301,8 +310,11 @@
     <IdentityVaultDialog
       v-model="showIdentityVaultDialog"
       :vault="identityVault"
+      :return-available="vaultReturnAvailable"
+      :return-site="vaultReturnSiteLabel"
       @add="openIdentityForm(null)"
       @edit="openIdentityForm"
+      @return-to-source="handleVaultReturnToSource"
     />
 
     <!-- 身份信息新增/编辑表单弹窗 -->
@@ -375,6 +387,8 @@
     <OnboardingTour
       v-if="tourActive"
       :tour="tour"
+      :recovery-enrolled="recoveryEnrolledForTour"
+      @recovery="handleTourRecovery"
     />
 
     <!-- 「关于」抽屉：版本、数据存放口径与对外链接的集中落点（纯展示，不读存储也不发请求） -->
@@ -465,6 +479,7 @@ import { useBackupChip } from '@/composables/useBackupChip';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
+import { useVaultReturn } from '@/composables/useVaultReturn';
 import { useCommandPalette } from '@/composables/useCommandPalette';
 import { useOnboardingTour } from '@/composables/useOnboardingTour';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
@@ -473,6 +488,7 @@ import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { decideBackupNudge } from '@/utils/backup/changeDetection';
+import { readBackupNudgeDismissed, writeBackupNudgeDismissed } from '@/utils/backup/nudgeDismissal';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
@@ -724,6 +740,7 @@ const {
   backupChip,
   lastVerifiedBackupAt,
   refresh: refreshBackupChip,
+  ready: backupChipReady,
   setPasswordCount,
   mutatedThisSession,
 } = useBackupChip();
@@ -813,6 +830,34 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
 };
 
 /**
+ * 身份库取完值后的「回到原网页」出口
+ *
+ * 意图的生命周期只有这一副弹窗：`useVaultReturn` 管自己的两处清理，这里补上关窗那一条，
+ * 让「用户已经把值拿走了」与「这条意图还活着」始终是同一件事。
+ */
+const vaultReturn = useVaultReturn();
+
+/** 模板绑定用的两个只读态（解构出来才会被模板自动解包 ref） */
+const { available: vaultReturnAvailable, siteLabel: vaultReturnSiteLabel } = vaultReturn;
+
+watch(showIdentityVaultDialog, visible => {
+  if (!visible) vaultReturn.forget();
+});
+
+/**
+ * 回到召唤来源那一格
+ *
+ * 刻意**不关**库弹窗：跨卡取值时用户会来回跑几趟，每次回程都关一次窗等于逼他重开。明文仍然
+ * 只活在这一份文档里，收它的既有路径一条没少——关窗（`teardown()`）、会话失效、手动锁定；
+ * 提示条也留在原处，回程按钮可以反复按，每次都是同一个幂等动作。
+ */
+const handleVaultReturnToSource = async (): Promise<void> => {
+  if (!(await vaultReturn.returnToSource())) {
+    ElMessage.warning(t('identity.return.tabGone'));
+  }
+};
+
+/**
  * 从页面侧身份提示打开身份库
  *
  * 进来的是一个标签（后台已按既有检索口径各收口一次，非法值即 `undefined`）：搜索词预填
@@ -826,9 +871,12 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
  * 因此恒停在「全部」档，交给检索词收敛。
  *
  * @param keyword 已收口的搜索词，缺失时不预填
+ * @param sourceTabId 已收口的来源标签页 ID，缺失时本轮不提供「回到原网页」
  */
-const openIdentityVaultFromPage = (keyword?: string): void => {
-  void openIdentityVaultWithVerify(keyword);
+const openIdentityVaultFromPage = async (keyword?: string, sourceTabId?: number): Promise<void> => {
+  // 先过门槛、后记来源：复验被取消时弹窗没开，留下一条「能把你切走」的意图只会变成脏状态。
+  const opened = await openIdentityVaultWithVerify(keyword);
+  if (opened) void vaultReturn.remember(sourceTabId);
 };
 
 /**
@@ -1284,14 +1332,37 @@ const showActivationChecklist = computed(
  * - `critical`：一次都没通过自检导出过（换机 / 重装 / 误删时零退路），清单不在场时持续提示；
  * - `urgent` + 本次页面会话内确实发生过变更：即用户「刚添加 / 刚改完密码」这个时间点。
  *
- * 关闭只作用于本页会话（不新增持久化键、不加闹钟与桌面通知），
+ * **三路输入读全之前不出声**（`backupNudgeInputsReady`）：条目数在列表到手那一刻就有，而备份
+ * 时间戳、清单状态与上一次的关闭标记都还要各读一次。任何一路没到位，档位都是临时的——
+ * 时间戳没读到时算成「从未备份」，清单状态没读到时互斥判断形同不存在，关闭标记没读到时
+ * 刚关掉的那条会再画一次。用户看到的就是「每次刷新都闪一下再消失」。
+ *
+ * 关闭记在本次浏览器会话的内存里（`chrome.storage.session`，关浏览器即清、不落盘、
+ * 不加闹钟与桌面通知），所以刷新与重开管理页都不会把同一条提醒再推一遍；
  * 与「安全起步清单」互斥：清单在场时它已经把备份列为待办之一。
  */
 const backupNudgeDismissed = ref(false);
+const backupNudgeDismissalRead = ref(false);
+const backupNudgeInputsReady = computed(
+  () => backupChipReady.value && activationStateReady.value && backupNudgeDismissalRead.value,
+);
 const backupNudge = computed(() => {
-  if (backupNudgeDismissed.value || showActivationChecklist.value || !isAuthenticated.value) return null;
+  if (
+    !backupNudgeInputsReady.value ||
+    backupNudgeDismissed.value ||
+    showActivationChecklist.value ||
+    !isAuthenticated.value
+  ) {
+    return null;
+  }
   return decideBackupNudge({ chip: backupChip.value, mutatedThisSession: mutatedThisSession.value });
 });
+
+/** 关掉本次提醒：内存标记当场翻转（横幅立刻走退场动画），落内存存储只为跨刷新存活 */
+const handleBackupNudgeDismiss = (): void => {
+  backupNudgeDismissed.value = true;
+  void writeBackupNudgeDismissed();
+};
 
 /**
  * 另一库是否也该被点名
@@ -1574,7 +1645,7 @@ watch(isAuthenticated, authenticated => {
  * 以收集依赖，若此时 setupForm / passwordForm 尚未初始化（TDZ）会抛
  * ReferenceError 导致整页白屏。
  */
-const setupPasswordRef = computed(() => setupForm.value.password);
+const setupPasswordRef = computed(() => setupForm.value.password.trim());
 const { rules: passwordRules, strength: passwordStrength } = usePasswordStrength(setupPasswordRef);
 
 const formPasswordRef = computed(() => passwordForm.value.password);
@@ -2028,6 +2099,32 @@ watch(guideActive, (active, previous) => {
  */
 const tour = useOnboardingTour();
 
+/** 引导「留退路」步的按钮文案：已登记时改为「管理」，不是再登记一次 */
+const recoveryEnrolledForTour = ref(false);
+
+/** 读一次恢复登记态；失败按未登记呈现，真正的门禁仍在恢复设置弹窗与存储层 */
+const refreshRecoveryEnrolledForTour = async (): Promise<void> => {
+  try {
+    const { isRecoveryEnrolled } = await import('@/utils/storage/recoveryState');
+    recoveryEnrolledForTour.value = await isRecoveryEnrolled();
+  } catch (error) {
+    recoveryEnrolledForTour.value = false;
+    logger.warn('读取引导用恢复登记状态失败，按未登记呈现:', error);
+  }
+};
+
+/**
+ * 引导里的「登记 / 管理恢复密钥」
+ *
+ * 引导 z-index 3200 高于 EP 弹层（2000+），不能把恢复弹窗叠在幕布下开；先结束引导
+ * （落 seen，避免下次自动重播），再打开既有恢复设置弹窗。用户取消也未完成登记时，
+ * 引导不会自动回来，但可从头部「新手引导」重播。
+ */
+const handleTourRecovery = async (): Promise<void> => {
+  await tour.skip();
+  showRecoverySettingsDialog.value = true;
+};
+
 /** 顶层解构才能在模板里自动解包 ref：`tour.isActive` 作为对象属性是 Ref 本体，恒为真值 */
 const tourActive = tour.isActive;
 
@@ -2036,6 +2133,7 @@ let tourAutoChecked = false;
 
 /** 手动重温：HeaderBar「新手引导」按钮的入口，走完或退出后仍可反复唤起 */
 const replayTour = async () => {
+  await refreshRecoveryEnrolledForTour();
   await tour.start();
 };
 
@@ -2057,6 +2155,8 @@ watch(
     tourAutoChecked = true;
     const state = await StorageUtils.getOnboardingTourState();
     if (state.seen) return;
+    // 引导里的「留退路」步要按真实登记态决定按钮文案；读失败按未登记，弹窗内仍有门禁。
+    await refreshRecoveryEnrolledForTour();
     await nextTick();
     await tour.start();
   },
@@ -2077,6 +2177,12 @@ onMounted(async () => {
   await checkAuth();
   // 备份徽标与清单共用的时间戳：非敏感、单键读取，不挡首帧（徽标在数据到位后自己亮）
   void refreshBackupChip();
+  // 本次浏览器会话内是否已关掉备份轻提醒：读回来之前横幅一律不出声，否则刚关掉的那条
+  // 会在每次刷新时先画一遍再消失（判据见 `backupNudgeInputsReady`）
+  void readBackupNudgeDismissed().then(dismissed => {
+    backupNudgeDismissed.value = dismissed;
+    backupNudgeDismissalRead.value = true;
+  });
   // 安全起步清单的暂不提醒状态与体检趋势；两项都只读非敏感摘要，失败时降级为未完成
   void loadActivationState();
   // 更新提示与一次性评价引导；版本/关闭标记都只读非敏感数据

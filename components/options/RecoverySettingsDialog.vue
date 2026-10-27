@@ -163,11 +163,11 @@
 </template>
 
 <script setup lang="ts">
-import { shallowRef, useTemplateRef, watch } from 'vue';
+import { shallowRef, useTemplateRef, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import type { RecoveryDraft, RecoveryStatus } from '@/utils/storage/recoveryTypes';
-import { clearRecoveryInputs } from '@/utils/recoveryUi';
+import { clearRecoveryInputs, confirmDiscardRecoveryDraft, focusRecoveryKitStep } from '@/utils/recoveryUi';
 import { loadRecoveryStatus, useRecoveryOperation } from '@/composables/useRecoveryOperation';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
@@ -208,8 +208,9 @@ const clear = (): void => {
   clearRecoveryInputs(root.value);
 };
 const { busy, error, run, invalidate } = useRecoveryOperation(() => props.modelValue, clear);
-const requestClose = (value: boolean): void => {
+const requestClose = async (value: boolean): Promise<void> => {
   if (busy.value || value) return;
+  if (draft.value && !(await confirmDiscardRecoveryDraft())) return;
   invalidate();
   emit('update:modelValue', false);
 };
@@ -224,6 +225,8 @@ const prepare = () =>
     if (isCurrent()) {
       clearRecoveryInputs(root.value);
       draft.value = result;
+      await nextTick();
+      if (isCurrent()) focusRecoveryKitStep(root.value);
     }
   });
 const activate = (confirmation: string) =>

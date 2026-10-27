@@ -313,13 +313,14 @@ const CHROME_KEYS = [
 /**
  * 步骤卡内「title / desc / tip 三件套」之外的附加文案（步骤 id → 键名后缀）
  *
- * 目前只有 `sidepanel` 有：卡内那颗动作按钮（`action`）与打开失败后的快捷键提示
- * （`shortcutHint`）。它们刻意不进 `tourKey()` 的 part 联合类型——组件里写成
- * `t('onboarding.sidepanel.action')` 这样的字面量，`i18nBundles.test.ts` 的静态扫描
- * 才提得到；动态拼出来的三件套扫描提不到，才由本文件逐条兜底。两种取词方式各守一头。
+ * `sidepanel`：卡内那颗打开侧边栏的动作按钮（`action`）与打开失败后的快捷键提示
+ * （`shortcutHint`）；`retreat`：恢复密钥登记/管理按钮与两种说明。
+ * 它们刻意不进 `tourKey()` 的 part 联合类型——组件里写成字面量 key，
+ * `i18nBundles.test.ts` 的静态扫描才提得到；动态拼出来的三件套扫描提不到，才由本文件兜底。
  */
 const STEP_EXTRA_PARTS: Record<string, readonly string[]> = {
   sidepanel: ['action', 'shortcutHint'],
+  retreat: ['action', 'manage', 'actionHint', 'manageHint'],
 };
 
 /** 某步骤的附加文案键名（`onboarding.<id>.<part>`） */
@@ -346,6 +347,9 @@ describe('TOUR_STEPS 与 onboarding 语言包双向对齐', () => {
       Object.keys(STEP_EXTRA_PARTS).every(id => ids.has(id)),
       '登记了剧本里没有的步骤',
     ).toBe(true);
+    expect(TOUR_STEPS.find(step => step.id === 'retreat')?.action, 'retreat 应把「登记恢复密钥」做成卡内动作').toBe(
+      'recovery',
+    );
 
     for (const locale of LOCALES) {
       const messages = readOnboarding(locale);
@@ -426,18 +430,38 @@ describe('卡内动作按钮：接线固定在「打开侧边栏」这一步', (
 
   it('动作区按步骤 id 收口，其他步骤不渲染', () => {
     const gate = /v-if="isSidepanelStep"\s+class="tour__action"/;
-    expect(gate.test(cardSource), '动作区不再按步骤 id 收口，会在每一步里常驻').toBe(true);
+    expect(gate.test(cardSource), '侧边栏动作区不再按步骤 id 收口，会在每一步里常驻').toBe(true);
     expect(cardSource.replace('v-if="isSidepanelStep"', 'v-if="false"')).not.toMatch(gate);
 
     // 判定口径必须是步骤 id 常量，不能写死字符串——改 id 时类型层要跟着红
     expect(cardSource).toMatch(
       /const isSidepanelStep = computed\(\(\) => currentStep\.value\?\.id === SIDEPANEL_STEP_ID\);/,
     );
+
+    const recoveryGate = /v-if="isRecoveryStep"\s+class="tour__action"/;
+    expect(recoveryGate.test(cardSource), '恢复密钥动作区不再按步骤动作收口，会在每一步里常驻').toBe(true);
+    expect(cardSource.replace('v-if="isRecoveryStep"', 'v-if="false"')).not.toMatch(recoveryGate);
+    expect(cardSource).toMatch(
+      /const isRecoveryStep = computed\(\(\) => currentStep\.value\?\.action === 'recovery'\);/,
+    );
+
+    const app = readFileSync(path.join(ROOT, 'entrypoints/options/App.vue'), 'utf-8');
+    expect(app).toContain(':recovery-enrolled="recoveryEnrolledForTour"');
+    expect(app).toContain('@recovery="handleTourRecovery"');
+    expect(app).toMatch(
+      /const handleTourRecovery = async \(\): Promise<void> => \{\s*await tour\.skip\(\);\s*showRecoverySettingsDialog\.value = true;/,
+    );
   });
 
-  it('按钮点下去调 openSidePanel，文案取卡内动作 key', () => {
+  it('按钮点下去调对应 handler，文案取卡内动作 key', () => {
     expect(cardSource).toMatch(/@click="openSidePanel\(\)"/);
     expect(cardSource).toMatch(/\{\{ t\('onboarding\.sidepanel\.action'\) \}\}/);
+
+    expect(cardSource).toMatch(/@click="emit\('recovery'\)"/);
+    expect(cardSource).toMatch(/t\('onboarding\.retreat\.action'\)/);
+    expect(cardSource).toMatch(/t\('onboarding\.retreat\.manage'\)/);
+    expect(cardSource).toMatch(/t\('onboarding\.retreat\.actionHint'\)/);
+    expect(cardSource).toMatch(/t\('onboarding\.retreat\.manageHint'\)/);
   });
 
   it('打开失败后原位换成快捷键提示，按键真实读自 shortcuts 表', () => {

@@ -81,6 +81,16 @@ export function useBackupChip() {
     }),
   );
 
+  /**
+   * 第一轮输入是否已经读完
+   *
+   * 条目数由调用方在列表到手那一刻写入，而备份时间戳要等 `refresh()` 的异步读回来。
+   * 这两段之间 `lastBackupAt` 还是 `null`，档位会短暂算成「从未备份」：头部徽标闪一下红、
+   * 会话内轻提醒更是直接弹一条再收掉（用户看到的就是「每次刷新都会闪一下」）。
+   * 消费方（轻提醒）需要这一位把「状态没读全就别出声」变成一条判据，而不是靠猜时序。
+   */
+  const ready = ref(false);
+
   /** 初始化 / 主动重读全部输入（导出、导入等动作后可显式调用，事件路径已覆盖大部分场景） */
   const refresh = async (): Promise<void> => {
     try {
@@ -99,6 +109,10 @@ export function useBackupChip() {
       floorMs.value = (typeof days === 'number' && days > 0 ? days : DEFAULT_FLOOR_DAYS) * 86_400_000;
     } catch (error) {
       logger.error('读取备份徽标状态失败（降级为无备份记录）:', error);
+    } finally {
+      // 读失败也算「读过了」：失败时拿到的就是那套降级值，与徽标自己显示的完全一致，
+      // 没有哪一路输入还在路上等着把档位改小。
+      ready.value = true;
     }
   };
 
@@ -154,6 +168,8 @@ export function useBackupChip() {
     /** 徽标顺带持有的「最近一次通过自检的 `.aph` 导出时间」，供安全起步清单等既有消费方复用，避免同一键读两遍 */
     lastVerifiedBackupAt,
     refresh,
+    /** 第一轮时间戳 / 条目数是否已读回（未读回前不得据档位出声，见其定义处） */
+    ready,
     setPasswordCount,
     mutatedThisSession,
   };

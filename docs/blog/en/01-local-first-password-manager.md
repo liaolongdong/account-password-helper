@@ -3,7 +3,7 @@ title: Why I Built a Local-First Password Manager
 description: A local-first, open-source Chrome password manager for developers juggling dev, test, staging and prod accounts. No account, no sync server, no cloud trust.
 tags: password manager,browser extension,open source,chrome extension,local-first
 date: 2026-08-28
-modified: 2026-10-18
+modified: 2026-10-27
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
@@ -14,7 +14,7 @@ I keep four accounts for the same admin system: dev, test, staging, and prod. Ch
 
 Small friction, repeated dozens of times a day, across every developer and QA engineer's workflow. That's why I built [Account Password Helper](https://github.com/liaolongdong/account-password-helper): **a zero-cloud, open-source, local-first password manager designed around multi-environment login workflows**.
 
-It's live on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, with the source released under GPL-3.0. This post covers what problems it solves, how, and — just as importantly — what it deliberately refuses to do.
+It's live on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, with the source released under GPL-3.0. This post covers what problems it solves, how, and — just as importantly — what it deliberately refuses to do.
 
 ## Three Gaps in Existing Password Managers
 
@@ -64,7 +64,7 @@ A password manager earns trust through verifiable design, not slogans. The hard 
 2. **Field-level encryption.** Username, password, URL, notes, and TOTP secret are each encrypted individually. The storage layer sees only ciphertext.
 3. **Standard algorithms, no invention.** PBKDF2-SHA256 (600,000 iterations) for key derivation, AES-256-GCM authenticated encryption, all via the browser-native Web Crypto API. A follow-up post covers the implementation in depth.
 4. **Sessions have lifecycles.** 24 hours by default (1 hour to 7 days configurable). Idle auto-lock tied to system screen lock, and relock on browser restart, are both opt-in and off by default; one-click manual lock is always available. On any lock path, in-memory key handles and decrypted snapshots are wiped.
-5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 3912 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
+5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 4603 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
 
 An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And a forgotten master password cannot be recovered by default — unless you enrolled an offline recovery key beforehand, with encrypted backups as the other way back. Stating boundaries plainly is what security products should do.
 
@@ -83,7 +83,7 @@ The project has grown from v1.0 in May 2026 to v3.9 now, every version pulled ou
 
 If you're tired of mixed-up test accounts and phone-authenticator juggling, give it a try:
 
-- [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (auto-updates)
+- [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) (auto-updates)
 - [GitHub repository](https://github.com/liaolongdong/account-password-helper) — source, Releases downloads, issues; a Star is the best support an open-source project can get
 - [Online demo with bilingual FAQ](https://liaolongdong.github.io/account-password-helper/)
 

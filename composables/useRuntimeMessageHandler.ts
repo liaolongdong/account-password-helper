@@ -3,6 +3,7 @@ import { MessageType, type PasswordEntry, type RuntimeMessage } from '@/utils/ty
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
+import { normalizeSourceTabId } from '@/utils/sourceTab';
 
 /**
  * Runtime 消息监听 Composable
@@ -30,12 +31,15 @@ export function useRuntimeMessageHandler(options: {
   /** 应用全库检索关键词（来自内联下拉空态的「到全库找」，实现侧需一并清掉叠加筛选） */
   applySearchKeyword?: (keyword: string) => void;
   /**
-   * 打开身份库，可选携带搜索词预填检索框
+   * 打开身份库，可选携带搜索词预填检索框与来源标签页
    *
-   * 参数来自页面侧自报（词是用户自己刚打在页面上的本人姓名），已在本函数内收口过；
-   * `keyword` 为空时按「不预填」传 `undefined`。类别档位不由这条指令决定，恒为「全部」。
+   * 两个参数都来自页面侧，已在本函数内收口过；`keyword` 为空时按「不预填」传 `undefined`。
+   * 类别档位不由这条指令决定，恒为「全部」。
+   *
+   * @param sourceTabId 这一次召唤发生在哪个标签页，供库内取完值后「回到原网页」使用；
+   *                    由后台从 `sender.tab` 推导（非页面自报），非法时为 `undefined`
    */
-  openIdentityVault?: (keyword?: string) => void;
+  openIdentityVault?: (keyword?: string, sourceTabId?: number) => void;
 }) {
   const {
     passwords,
@@ -120,8 +124,11 @@ export function useRuntimeMessageHandler(options: {
       // 与站点规则同一时序口径：身份库要过复验门槛，等会话状态落地后再交给调用方决策。
       // 后台已收口过一次，这里按「外部输入一律不可校验上游」再收一次，且沿用同一个
       // `normalizeSearchKeyword`——两处的 64 字上限只有一份真源，不会各自漂移。
-      // 载荷只剩这一个标签：页面角色不跨入口，深链恒落在「全部」类别档。
+      // 页面字段角色仍然不跨入口（它只服务气泡上那句话），深链恒落在「全部」类别档。
       const keyword = normalizeSearchKeyword(message.data?.keyword);
+      // 来源标签页同样再收一次形状：它驱动一枚会切换标签页的按钮，非法值当成「没有来源」，
+      // 出口就不显示，而不是拿去切到一个来路不明的标签页。
+      const sourceTabId = normalizeSourceTabId(message.data?.sourceTabId);
       // 词的内容可能是用户姓名，属 PII：只记指令本身，不回显取值
       logger.debug('RuntimeMsg: 收到打开身份库指令');
       // 没带词也照样开库：这条指令的本意是「带我去身份库」，预填词只是省一次手打，
@@ -130,7 +137,7 @@ export function useRuntimeMessageHandler(options: {
       // 气泡侧已按会话有效性隐藏，这里兜住残留气泡与会话恰好在点击瞬间过期的竞态。
       waitForPasswords().then(() => {
         if (!isAuthenticated.value) return;
-        openIdentityVault?.(keyword || undefined);
+        openIdentityVault?.(keyword || undefined, sourceTabId);
       });
     }
   };

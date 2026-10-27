@@ -28,7 +28,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { isTrashEntryExpired } from './trashRetention';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
-import { withVaultMutation } from './vaultWriteLock';
+import { withVaultCommit, withVaultMutation } from './vaultWriteLock';
 
 /**
  * 延迟加载加密模块（整库解密批只在弹窗展示路径使用）
@@ -49,7 +49,7 @@ let identityTrashMutationQueue: Promise<unknown> = Promise.resolve();
 
 function enqueueIdentityTrashMutation<T>(task: () => Promise<T>): Promise<T> {
   // lease 覆盖出队后的实际操作，而不是在持锁状态下等待队列。
-  const run = () => withVaultMutation(task);
+  const run = () => withVaultMutation(() => withVaultCommit(task));
   const next = identityTrashMutationQueue.then(run, run);
   identityTrashMutationQueue = next.then(
     () => undefined,

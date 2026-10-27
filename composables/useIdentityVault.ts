@@ -581,20 +581,23 @@ export function useIdentityVault() {
    *
    * 机密走 `copySecretToClipboard`（限时自动清除），非机密走 `copyTextToClipboard`
    * （取消待清除定时器）。空值静默跳过；成功提示文案由 `successKey` 决定。
+   *
+   * @returns 是否确实写进了剪贴板（调用方据此决定要不要跟进动作，视图层不猜）
    */
-  async function copyViaClipboard(value: string, secret: boolean, successKey: string): Promise<void> {
-    if (!value) return;
+  async function copyViaClipboard(value: string, secret: boolean, successKey: string): Promise<boolean> {
+    if (!value) return false;
     const ok = secret ? await copySecretToClipboard(value, notifyClipboardCleared) : await copyTextToClipboard(value);
     if (ok) {
       ElMessage.success(t(successKey));
     } else {
       ElMessage.error(t('message.copyFailed'));
     }
+    return ok;
   }
 
   /** 复制单字段到剪贴板（机密字段走限时自动清除通道） */
-  async function copyField(value: string, secret: boolean): Promise<void> {
-    await copyViaClipboard(value, secret, 'options.detail.copied');
+  async function copyField(value: string, secret: boolean): Promise<boolean> {
+    return copyViaClipboard(value, secret, 'options.detail.copied');
   }
 
   /**
@@ -604,8 +607,8 @@ export function useIdentityVault() {
    * 不再按「是否含机密字段」分支：既消除「传错布尔就把 PII 常留剪贴板」的隐患，也避免纯地址卡
    * 经普通复制通道取消上一条机密待清除定时器、间接延长明文存活时间。
    */
-  async function copyCard(text: string): Promise<void> {
-    await copyViaClipboard(text, true, 'identity.copyCard.success');
+  async function copyCard(text: string): Promise<boolean> {
+    return copyViaClipboard(text, true, 'identity.copyCard.success');
   }
 
   return {

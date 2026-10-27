@@ -203,4 +203,13 @@ export const SESSION_MEMORY_KEYS = {
    * 与 ENV_BINDINGS 同生命周期：确认只对这一次开机有效，下次再选 prod 仍需确认。
    */
   ENV_PROD_ACKS: 'env_prod_acks',
+  /**
+   * 本次浏览器会话内是否已关掉「会话内备份轻提醒」（单个布尔）
+   *
+   * 关的是这一次开机，不是永久：横幅说的是「你还没有退路」，而落盘一个永久关闭标记
+   * 等于替用户决定以后都不必再被提醒。选 `storage.session` 也顺带解决了刷新——
+   * 页面文档级标记一刷新就没了，用户每次重载都要重新关掉同一条提醒。
+   * 只有一个布尔，不含站点、条目数或任何库内数据，不构成隐私面。
+   */
+  BACKUP_NUDGE_DISMISSED: 'backup_nudge_dismissed',
 };

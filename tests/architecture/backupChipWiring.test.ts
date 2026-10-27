@@ -138,13 +138,38 @@ describe('徽标与轻提醒的出口', () => {
   it('轻提醒保持收紧：清单在场不出，待备份档还要求本页会话内真的改过数据', () => {
     const app = readSource(APP);
     const detection = readSource(DETECTION);
-    expect(app).toContain('backupNudgeDismissed.value || showActivationChecklist.value');
+    expect(app).toMatch(/backupNudgeDismissed\.value\s*\|\|\s*showActivationChecklist\.value/);
     expect(detection).toContain(
       "if (chip.level === 'critical') return { state: 'never', days: 0, vault: chip.worstVault, otherVault };",
     );
     expect(detection, '「待备份」档若不再要求本会话真的改过数据，每次打开管理页都会推一条噪音').toContain(
       "chip.level === 'urgent' && mutatedThisSession",
     );
+  });
+
+  /**
+   * 「三路读全才出声」与「关闭跨刷新存活」
+   *
+   * 两条都是被用户实际抱怨过的：条目数在列表到手那一刻就有、备份时间戳还要再读一次，
+   * 中间那段档位算成「从未备份」——每次刷新先闪一条再消失；而关闭标记原先只是一个
+   * `ref`，「本次不再提示」实际只等于「本次文档不再提示」，刷新就要重新关一次。
+   * 判据钉的是形状：读全门必须排在出声之前，标记必须走内存存储而不是落盘或退回 `ref`。
+   */
+  it('轻提醒读全三路才出声，关闭态活过刷新但不落盘', () => {
+    const app = readSource(APP);
+    const dismissal = readSource('utils/backup/nudgeDismissal.ts');
+    const chip = readSource(CHIP_COMPOSABLE);
+    const keys = readSource('utils/storageKeys.ts');
+
+    expect(app, '横幅又回到「先画一条再收掉」：读全门被摘掉了').toContain('!backupNudgeInputsReady.value');
+    expect(app).toContain('backupChipReady.value && activationStateReady.value && backupNudgeDismissalRead.value');
+    expect(chip, '徽标不再暴露「第一轮读完了没」，消费方只能继续猜时序').toContain('ready.value = true');
+
+    expect(keys, '关闭标记没登记进 storage.session 键表').toContain("BACKUP_NUDGE_DISMISSED: 'backup_nudge_dismissed'");
+    expect(dismissal, '关闭态改走落盘：一次「本次不再提示」不该变成永久静默').toContain('chrome.storage.session');
+    expect(dismissal, '同一个模块顺手开始读落盘存储，边界就不清楚了').not.toContain('chrome.storage.local');
+    expect(app).toContain('handleBackupNudgeDismiss');
+    expect(app, '模板又直接改 ref：关闭只活到本次刷新').toContain('@dismiss="handleBackupNudgeDismiss"');
   });
 
   it('状态不只靠颜色：徽标同时挂 title 与 aria-label，文案按档位分列', () => {
@@ -161,5 +186,25 @@ describe('徽标与轻提醒的出口', () => {
     expect(banner).toContain(`<CircleCloseFilled v-if="state === 'never'" />`);
     expect(banner).toMatch(/<el-icon[\s\S]{0,60}aria-hidden="true"/);
     expect(banner).toMatch(/import \{ CircleCloseFilled, WarningFilled \} from '@element-plus\/icons-vue'/);
+  });
+
+  it('横幅退场收的是高度、不只是淡出，且减动效档整段摘掉', () => {
+    // 卡片高度由内容决定，CSS 无法在 `auto` 与 0 之间插值：只挂 opacity 的话，动画结束时
+    // 下方内容会整块往上跳一次，比没有动画更扎眼。判据钉三件事——壳在、壳按 grid 收、
+    // 减动效档不播（真机侧由 e2e/backup-nudge-lifecycle.spec.ts 量中间高度）。
+    const app = readSource(APP);
+    const css = readSource('entrypoints/options/styles.css');
+    expect(app, '横幅又变回裸 v-if：关闭时那一下跳动回来了').toContain('<Transition name="backup-nudge">');
+    expect(app).toContain('class="backup-nudge-shell"');
+    expect(css, '壳不是 grid 收放：`auto → 0` 在 CSS 里根本不插值').toMatch(
+      /\.backup-nudge-shell \{[^}]*display: grid;[^}]*grid-template-rows: 1fr;/,
+    );
+    expect(css, 'grid 项没让出自动最小尺寸，0fr 收不动').toMatch(/\.backup-nudge-shell > \* \{[^}]*min-height: 0;/);
+    expect(css, '退场只淡不收').toMatch(
+      /\.backup-nudge-enter-from,\s*\.backup-nudge-leave-to \{[^}]*grid-template-rows: 0fr;[^}]*opacity: 0;/,
+    );
+    expect(css, '减动效档没有摘掉横幅过渡：动画成了关不掉的项').toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.backup-nudge-enter-active,[\s\S]*?transition: none;/,
+    );
   });
 });

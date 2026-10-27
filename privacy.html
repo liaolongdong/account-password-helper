@@ -395,8 +395,8 @@
           <span class="lang-en">Account Password Helper Browser Extension</span>
         </p>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年10月13日 · 生效日期：2026年10月13日</span>
-          <span class="lang-en">Last updated: October 13, 2026 · Effective: October 13, 2026</span>
+          <span class="lang-zh">最后更新：2026年10月27日 · 生效日期：2026年10月27日</span>
+          <span class="lang-en">Last updated: October 27, 2026 · Effective: October 27, 2026</span>
         </span>
       </div>
 
@@ -507,6 +507,7 @@
           <p>
             个人信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
             认证加密后写入本地存储，默认掩码显示；打开该库是否要求验证主密码由「个人信息库复验设置」决定（默认同一管理页会话内只问一次，锁定、会话过期或刷新、重开管理页后会重新问），库内的查看与复制不再额外索要主密码。
+            从网页输入框右键「从个人信息库选择」进入该库时，该菜单项<strong>不读取右键目标与字段内容</strong>、不预填检索词、不把库内的值回填页面，跨上下文只传递一个由浏览器盖章的<strong>来源标签页编号</strong>（一个整数，不含页面地址、不含字段内容、不含任何库内数据），用途是在库内给出「回到原网页」出口；这个编号不落盘，切回前还会复核来源页是否仍在原站点，不符即作废该出口。页面字段提示气泡上的同名按钮会额外带一个<strong>可选检索词</strong>：只在您点下按钮的那一刻读一次，取同一表单里判定为本人姓名那个框的值，或该格的标签文字，读完即用——不落盘、不进日志、不参与解密。两条入口都仍要过原有的主密码复验门槛，库内的值只由你逐字段或整卡经剪贴板限时清除通道复制。
           </p>
         </div>
 
@@ -587,7 +588,9 @@
               </tr>
               <tr>
                 <td>contextMenus</td>
-                <td>在网页右键菜单中提供填充入口（填充用户名/密码/两步验证码、生成强密码、打开侧边栏或管理页）</td>
+                <td>
+                  在网页右键菜单中提供填充入口（填充用户名/密码/两步验证码、生成强密码、打开侧边栏或管理页），以及「从个人信息库选择」——该项只做跳转：不读取右键目标与字段内容、不预填检索词、不把库内的值回填页面，个人信息始终留在管理页内由你逐字段复制
+                </td>
               </tr>
               <tr>
                 <td>favicon</td>
@@ -938,6 +941,18 @@
             in a separate vault, stored locally only as one AES-256-GCM authenticated-encrypted blob; it is masked by
             default, and whether opening that vault asks for the master password follows a configurable policy (once per
             manager-page session by default) — viewing or copying inside an already opened vault asks nothing further.
+            Opening that vault from a web page through the right-click item "Pick from Personal Info Vault" does
+            <strong>not</strong> read the field under the cursor or any page content, prefills nothing and never writes
+            a vault value back into the page; the only thing that crosses contexts is a
+            <strong>source tab number</strong> stamped by the browser itself (an integer — no page address, no field
+            content, no vault data) used to offer a "Back to the page" exit inside the dialog. That number is never
+            persisted, and the origin is re-checked against the page you came from immediately before switching — if it
+            no longer matches, the exit is voided. The identically named button on the in-page field hint carries one
+            extra <strong>optional search term</strong>, read once at the moment you click it — the value of the field
+            judged to be your own name in that same form, or the label of that field — and used and discarded there:
+            never stored, never logged, never involved in decryption. Either route still passes the existing
+            master-password verification gate, and values leave the vault only through your own per-field or whole-card
+            copy under the timed clipboard wipe.
           </p>
         </div>
 
@@ -1027,7 +1042,10 @@
                 <td>contextMenus</td>
                 <td>
                   Provide fill entries in the page right-click menu (fill username/password/2FA code, generate a strong
-                  password, open the side panel or manager page)
+                  password, open the side panel or manager page), plus "Pick from Personal Info Vault" — that item only
+                  navigates: it reads no field content and no page content, prefills nothing and never writes a vault
+                  value back into the page; personal info stays on the manager page and is copied out by you, field by
+                  field
                 </td>
               </tr>
               <tr>

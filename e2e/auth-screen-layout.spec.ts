@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import { MASTER_PASSWORD, createEntry, expect, test } from './harness';
-import { textOf } from './i18n';
+import { anchoredTextOf, textOf } from './i18n';
 
 /**
  * 认证屏（首次设置 / 解锁）与主内容区的版式回归
@@ -160,6 +160,25 @@ test.describe('认证屏与主内容区版式', () => {
       expect(tailBottom, `${vp.label} 滚到底后安全声明仍不可达`).toBeLessThanOrEqual(viewportHeight + 1);
     }
 
+    // 密码强度气泡在窄屏必须留在视口内：旧实现固定 placement="right"，320px 时把
+    // 文档撑到 511px，横向滚动条恰好出现在第一次设置主密码的页面。
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.waitForTimeout(300);
+    await page.getByPlaceholder(textOf('auth.setupPasswordPlaceholder')).focus();
+    await page.waitForTimeout(300);
+    const horizontal = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(
+      horizontal.scrollWidth,
+      `窄屏聚焦密码框后出现横向滚动（${horizontal.scrollWidth} > ${horizontal.clientWidth}）`,
+    ).toBeLessThanOrEqual(horizontal.clientWidth + 1);
+    await page.locator('.setup-header').click();
+    await page.waitForTimeout(200);
+
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForTimeout(300);
     const align = await measureAlignment(page, '.setup-header', '.form-card');
     expect(align, '量不到设置页标题').not.toBeNull();
     const a = align as NonNullable<typeof align>;
@@ -259,6 +278,31 @@ test.describe('认证屏与主内容区版式', () => {
     const edge = rightEdge as NonNullable<typeof rightEdge>;
     expect(edge.textRight - edge.rowRight, '末枚按钮文字右缘没贴到行右缘').toBeLessThanOrEqual(1);
 
+    // 找回向导在窄屏必须完整落在视口内；它曾固定 620px，320px 下右侧按钮与 X 被推到横向滚动区。
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.waitForTimeout(300);
+    await page.getByRole('button', { name: textOf('auth.forgotPassword') }).click();
+    const forgot = page.getByRole('dialog').filter({ hasText: textOf('options.forgot.title') });
+    await expect(forgot).toBeVisible();
+    const forgotDialog = page.locator('.el-dialog').filter({ hasText: textOf('options.forgot.title') });
+    await expect(forgotDialog).toBeVisible();
+    const forgotBox = await forgotDialog.evaluate(el => {
+      const box = el.getBoundingClientRect();
+      return {
+        left: Math.round(box.left),
+        right: Math.round(box.right),
+        innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(forgotBox, '量不到找回向导').not.toBeNull();
+    const box = forgotBox as NonNullable<typeof forgotBox>;
+    expect(box.left, '找回向导左侧越出视口').toBeGreaterThanOrEqual(0);
+    expect(box.right, '找回向导右侧越出视口').toBeLessThanOrEqual(box.innerWidth + 1);
+    expect(box.scrollWidth, '找回向导把文档撑出了横向滚动').toBeLessThanOrEqual(box.innerWidth + 1);
+    await forgot.getByRole('button', { name: textOf('common.cancel') }).click();
+    await expect(forgot).toBeHidden();
+
     // 整屏不裁切这条对解锁页同样成立
     for (const vp of SMALL_VIEWPORTS.slice(0, 2)) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -268,6 +312,51 @@ test.describe('认证屏与主内容区版式', () => {
       expect(headTop, `${vp.label} 解锁页标题被推出屏幕上方`).toBeGreaterThanOrEqual(0);
       expect(tailBottom, `${vp.label} 滚到底后安全声明仍不可达`).toBeLessThanOrEqual(viewportHeight + 1);
     }
+  });
+
+  test('首次设置后的引导可直接登记恢复密钥', async ({ extContext, extensionId }) => {
+    test.setTimeout(180_000);
+    const page = await extContext.newPage();
+    const url = `chrome-extension://${extensionId}/options.html`;
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(
+      async ({ key }: { key: string }) => {
+        await chrome.storage.local.clear();
+        localStorage.setItem(key, 'zh-CN');
+        await chrome.storage.local.set({ [key]: 'zh-CN' });
+      },
+      { key: STORAGE_KEYS.LOCALE },
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.setup-page')).toBeVisible({ timeout: 30_000 });
+    await setupMasterPassword(page);
+
+    const tour = page.locator('.tour');
+    await expect(tour).toBeVisible({ timeout: 30_000 });
+    const retreatTitle = anchoredTextOf('onboarding.retreat.title');
+    for (let step = 0; step < 12; step++) {
+      const title = await page.evaluate(() => document.querySelector('.tour__title')?.textContent?.trim() ?? '');
+      if (retreatTitle.test(title)) break;
+      // 卡片是 Teleport 到 body 的 dynamic 节点；这里用 DOM click 避开 actionability 等待。
+      await page.evaluate(() => document.querySelector<HTMLButtonElement>('.tour__foot .tour__btn--primary')?.click());
+      await page.waitForTimeout(350);
+    }
+    expect(
+      retreatTitle.test(await page.evaluate(() => document.querySelector('.tour__title')?.textContent?.trim() ?? '')),
+      '没走到「留退路」这一步',
+    ).toBe(true);
+
+    const actionLabel = await page.evaluate(
+      () => document.querySelector('.tour__action-btn')?.textContent?.trim() ?? '',
+    );
+    expect(actionLabel, '「留退路」步骤没有登记恢复密钥的入口').toMatch(textOf('onboarding.retreat.action'));
+    await page.evaluate(() => document.querySelector<HTMLButtonElement>('.tour__action-btn')?.click());
+
+    const recovery = page.getByRole('dialog').filter({ hasText: textOf('recovery.settingsTitle') });
+    await expect(recovery, '点击登记后没有打开既有恢复设置弹窗').toBeVisible({ timeout: 30_000 });
+    await expect(tour, '恢复弹窗打开时引导幕布仍盖在上面').toBeHidden();
+    await recovery.getByRole('button', { name: textOf('common.cancel') }).click();
+    await expect(recovery).toBeHidden();
   });
 
   test('备份提醒卡片与搜索条、密码列表共用一条左右基线', async ({ optionsPage }) => {

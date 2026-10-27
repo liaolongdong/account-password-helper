@@ -71,7 +71,7 @@ Session expires → all plaintext wiped → re-encrypted to ciphertext
 
 ## Links
 
-- 🔗 [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+- 🔗 [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=reddit)
 - 🐙 [GitHub (open source, GPL-3.0)](https://github.com/liaolongdong/account-password-helper)
 - 📖 [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
 

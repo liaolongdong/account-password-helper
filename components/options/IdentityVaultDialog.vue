@@ -62,6 +62,32 @@
         </el-button>
       </div>
 
+      <!--
+        回程提示条：页面侧召唤进来时才出现，取完值一键回到刚才那一格。
+        值本身仍走既有的逐字段/整卡复制通道，这里只是把「自己找回那个标签页、再点回输入框」
+        那两次盲操作换掉——它不读库内数据，因此不构成新的身份库入口。
+        文案点名来源站点：这枚按钮会切换标签页，说清它把人送去哪儿才算可预期。
+        发现性不靠加重量：这一屏工具栏已经有一颗主色实心的「添加」，再放一颗就是两个焦点在抢，
+        所以出口做成主题色文字按钮 + 返回图标；复制成功那一刻让图标向左轻推一下、按钮底短暂点亮
+        （0.2s 一次，不放大、不闪烁、不画阴影）。reduced-motion 下这两下都不播，
+        静态那一条腿（文字色 + 图标 + 点名站点）不依赖动效。
+      -->
+      <div
+        v-if="returnAvailable"
+        :class="['identity-return', { 'is-pulse': returnPulse }]"
+      >
+        <span class="identity-return__hint">{{ returnHint }}</span>
+        <el-button
+          class="identity-return__action"
+          link
+          size="small"
+          :icon="Back"
+          @click="$emit('returnToSource')"
+        >
+          {{ t('identity.return.action') }}
+        </el-button>
+      </div>
+
       <!-- 备份提醒条：有条目且自上次完整加密导出后有过变更时才显示（判据在 useIdentityVault） -->
       <el-alert
         v-if="identityBackupPending"
@@ -149,7 +175,15 @@
         v-if="!loading && rows.length === 0"
         class="identity-empty"
       >
-        <el-empty :description="t('identity.empty')" />
+        <el-empty :description="t('identity.empty')">
+          <p class="identity-empty__hint">{{ t('identity.emptyHint') }}</p>
+          <el-button
+            type="primary"
+            @click="$emit('add')"
+          >
+            {{ t('identity.add') }}
+          </el-button>
+        </el-empty>
       </div>
 
       <!-- 无匹配（有数据但被过滤） -->
@@ -352,7 +386,7 @@
                   :icon="CopyDocument"
                   :aria-label="t('common.copy')"
                   link
-                  @click="copyField(field.value, field.secret)"
+                  @click="onCopyField(field.value, field.secret)"
                 />
               </div>
             </el-descriptions-item>
@@ -419,6 +453,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import {
   ArrowDown,
   ArrowUp,
+  Back,
   CopyDocument,
   Delete,
   DocumentCopy,
@@ -443,7 +478,7 @@ import { formatFileSize } from '@/utils/formatFileSize';
 import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
 import { shouldToggleCollapseFromTitleClick } from '@/utils/identity/titleToggle';
 import { findSearchRevealTarget } from '@/utils/identity/searchReveal';
-import { scrollBehavior } from '@/utils/a11y';
+import { prefersReducedMotion, scrollBehavior } from '@/utils/a11y';
 import {
   exportIdentityBackup,
   exportIdentityPlaintext,
@@ -481,12 +516,18 @@ import type { IdentityVault } from '@/composables/useIdentityVault';
  * 状态由 App.vue 的 useIdentityVault 单一实例注入
  * （props.vault），本组件不自行实例化，保证会话失效时 App.vue 侧 teardown() 与弹窗
  * 共享同一份内存明文并同步清空（R2）。
+ * 从页面侧召唤进来时，工具栏下方多一条「回到原网页」提示条（props.returnAvailable）——
+ * 它只切标签页，不读任何库内数据。
  */
 const props = defineProps<{
   /** 弹窗显隐 */
   modelValue: boolean;
   /** 身份库共享实例（App.vue 创建） */
   vault: IdentityVault;
+  /** 本轮是否带有可回程的来源标签页（只有页面侧召唤进来时才有） */
+  returnAvailable?: boolean;
+  /** 来源站点主机名，用于把「这个按钮会把我送去哪」说清楚；拿不到时为空串 */
+  returnSite?: string;
 }>();
 
 // 事件仅经模板 $emit 触发，无需脚本侧引用 emit 实例
@@ -496,9 +537,22 @@ defineEmits<{
   add: [];
   /** 编辑：请求打开表单弹窗并带入条目 */
   edit: [entry: IdentityEntry];
+  /** 回到召唤来源的那个标签页（切回与收窗由 App.vue 处理） */
+  returnToSource: [];
 }>();
 
 const { t } = useI18n();
+
+/**
+ * 回程提示文案
+ *
+ * `file://` 这类页面解析不出主机名，此时换成不点名站点的说法——留一个空的 `{site}`
+ * 占位会读成「回到  粘贴」，而编一个「回到来源页面」的泛称又比真实信息更含糊。
+ */
+const returnHint = computed(() => {
+  const site = props.returnSite?.trim();
+  return site ? t('identity.return.hint', { site }) : t('identity.return.hintNoSite');
+});
 
 // 解构共享实例的 ref（模板中自动解包，脚本中经 .value 访问）
 const {
@@ -689,13 +743,60 @@ const handleKeyMove = (entry: IdentityEntry, side: IdentityMoveSide): void => {
 };
 
 /**
+ * 强调的时长（毫秒）
+ *
+ * 与 CSS 那两支同源：点亮与箭头轻推都走 `var(--aph-duration-mid)` = 0.2s，一次播完。
+ * 改一头不改另一头，标记就会早摘（动效被掐断）或晚摘（下一次复制接不上）。
+ * 收场用计时器而不是 `animationend`：入场动画与强调动画挂在同一棵子树上，按事件名收会误把
+ * 「入场先结束」当成强调结束。
+ */
+const RETURN_PULSE_MS = 200;
+
+/** 复制成功后的一次点亮标记 */
+const returnPulse = ref(false);
+let returnPulseTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 摘掉点亮与它的计时器（弹窗关闭即调用，幂等；不留跨会话的挂起计时器） */
+const clearReturnPulse = (): void => {
+  if (returnPulseTimer) {
+    clearTimeout(returnPulseTimer);
+    returnPulseTimer = null;
+  }
+  returnPulse.value = false;
+};
+
+/**
+ * 复制成功后点亮那枚出口按钮
+ *
+ * 时机才是发现性：用户刚点完复制，注意力正落在「值到手了」这件事上，此刻箭头向左轻推一下、
+ * 按钮底闪一层浅底，比任何静态说明都更能把「回去粘贴」这一步接上。0.2s 一次，不循环、不放大。
+ * `prefers-reduced-motion` 下整段跳过——CSS 那一档已经把两支动画清空，标记留着也没有可读效果，
+ * 还白挂一个永远不会被看见的计时器。
+ */
+const pulseReturnBar = (): void => {
+  if (!props.returnAvailable || prefersReducedMotion()) return;
+  if (returnPulseTimer) clearTimeout(returnPulseTimer);
+  returnPulse.value = true;
+  returnPulseTimer = setTimeout(() => {
+    returnPulse.value = false;
+    returnPulseTimer = null;
+  }, RETURN_PULSE_MS);
+};
+
+/** 逐字段复制到剪贴板：成功后强调提示条（复制行为与提示口径一字未动） */
+const onCopyField = async (value: string, secret: boolean): Promise<void> => {
+  if (await copyField(value, secret)) pulseReturnBar();
+};
+
+/**
  * 复制整条身份信息：拼成「标签: 值」多行文本一次性写入剪贴板
  *
  * 与逐字段复制一致——复制的是明文值本身，掩码仅为展示态，故未显隐的机密字段照样复制。
  * 整卡恒含 PII，一律走限时自动清除通道（见 copyCard）。
  */
-const handleCopyCard = (entry: IdentityEntry): Promise<void> =>
-  copyCard(formatIdentityCardText(buildIdentityFieldRows(entry, t)));
+const handleCopyCard = async (entry: IdentityEntry): Promise<void> => {
+  if (await copyCard(formatIdentityCardText(buildIdentityFieldRows(entry, t)))) pulseReturnBar();
+};
 
 /** 当前导出作用域：未勾选→全部；已勾选→所选子集 */
 const exportTargets = computed(() => resolveExportEntries(rows.value, selectedIds.value));
@@ -772,6 +873,7 @@ const handleClosed = (): void => {
   // 否则 trashVisible 会保留到下次打开，带着上一轮的解密标题直接重新出现。
   trashVisible.value = false;
   resetDragState();
+  clearReturnPulse();
 };
 
 // ==================== 回收站 ====================
@@ -1038,6 +1140,77 @@ const handleFileChange = async (event: Event): Promise<void> => {
 .identity-toolbar__sort {
   flex: none;
   width: 104px;
+}
+
+/*
+ * 回程提示条：紧贴工具栏下方（它挨着的是列表），文案与按钮同行、按钮右推。
+ * 与 `.identity-relaxed` 同档字号与次要色，不抢备份提醒那条 el-alert 的注意力；
+ * `flex-wrap` 同样是英文态的兜底，理由与 `.identity-selectbar` 一致。
+ * 出现时滑入淡入一次：一条只在召唤态存在的横幅，静态画出来会被当成说明文字掠过去，
+ * 一点位移把它归进「刚发生的事」那一类，眼角捕得到——位移之外不加持续抖动。
+ */
+.identity-return {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  animation: identity-return-in var(--aph-duration-slow) ease-out;
+}
+
+.identity-return__hint {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--aph-text-secondary);
+}
+
+@keyframes identity-return-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * 复制成功后点亮那枚出口按钮：一层浅底闪一下 + 箭头向左轻推 2px，都只播一次 0.2s。
+ * 两支时长都取 `--aph-duration-mid`，与脚本侧 `RETURN_PULSE_MS` 同源，改一头必须改另一头。
+ * 选底色而不是 `box-shadow` 光环：环画在盒外，在浅底弹窗上会糊成一团蓝雾；底色吃按钮自己的
+ * 圆角与内边距，不碰布局、不碰邻居，也不会跟工具栏那颗实心主按钮抢焦点。
+ */
+.identity-return.is-pulse .identity-return__action {
+  animation: identity-return-flash var(--aph-duration-mid) ease-out;
+}
+
+.identity-return.is-pulse .identity-return__action :deep(.el-icon) {
+  animation: identity-return-nudge var(--aph-duration-mid) ease-out;
+}
+
+@keyframes identity-return-flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+
+  35% {
+    background-color: color-mix(in srgb, var(--aph-primary) 14%, transparent);
+  }
+}
+
+@keyframes identity-return-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  40% {
+    transform: translateX(-2px);
+  }
 }
 
 .identity-reminder {
@@ -1314,6 +1487,14 @@ const handleFileChange = async (event: Event): Promise<void> => {
 @media (prefers-reduced-motion: reduce) {
   .identity-card {
     transition: none;
+  }
+
+  /* 回程条的三支动画一起摘掉（入场、底色点亮、箭头轻推）：发现性由「主题色文字 + 图标 + 点名站点」
+     这三条静态线索承担，它们不依赖任何动效 */
+  .identity-return,
+  .identity-return.is-pulse .identity-return__action,
+  .identity-return.is-pulse .identity-return__action :deep(.el-icon) {
+    animation: none;
   }
 }
 </style>

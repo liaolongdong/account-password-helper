@@ -321,8 +321,11 @@ test.describe('离线恢复密钥', () => {
     await page.waitForTimeout(300);
     await expect(dialog, 'Esc 关掉了草稿态弹窗，用户刚存下的新密钥会静默作废').toBeVisible();
 
-    // 取消退出：库里不应有任何改动，旧主密码照样解得开
+    // 取消退出：先确认放弃刚生成的套件；库里不应有任何改动，旧主密码照样解得开
     await dialog.getByRole('button', { name: textOf('common.cancel') }).click();
+    const discard = page.locator('.el-message-box');
+    await expect(discard, '草稿态点取消没有询问后果').toBeVisible();
+    await discard.getByRole('button', { name: textOf('recovery.discardDraftConfirm') }).click();
     await expect(dialog).toBeHidden({ timeout: 30_000 });
     await lockSession(page);
     await page.getByPlaceholder(textOf('auth.verifyPasswordPlaceholder')).first().fill(MASTER_PASSWORD);
