@@ -116,7 +116,7 @@ First decide which of the two you actually want on `mail.qq.com`: only a few acc
 
 Account and password data still live encrypted in local storage exactly as before, and this feature added no permissions and no network requests; the extension's only recurring request remains its anonymous version check every 6 hours.
 
-Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, open source under GPL-3.0.
+Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, open source under GPL-3.0.
 
 ---
 

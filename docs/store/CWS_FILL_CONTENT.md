@@ -135,11 +135,29 @@
 
 > 🏕 **十九修订（2026-10-23，本地环境绑定回灌中文说明）**：【功能全览】新增一行「🏕 本地页一键选环境」，陈述本轮上线的能力（在 `localhost` / `127.0.0.1` / `[::1]` 页面用侧边栏头部芯片声明「这一页其实是某环境的前端」，该环境已存的账号随即在本站可填；并集而非替换、不比端口、按 host + 端口分键、只存 `chrome.storage.session`、公网页面一律不接受绑定、线上或认不出环境标签的主机由后台要求确认一次）——依据 [utils/envFamily.ts](../../utils/envFamily.ts) 与 [docs/ARCHITECTURE.md](../ARCHITECTURE.md) 的「本地环境绑定（第三条轴）」。**只陈述已实现的事实，不新增营销口号，也不改既有行**；名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算，新能力一律不进）。本轮中文说明 +109 码点；⚠️ **英文本轮刻意不回填**，理由与十八修订相同：英文说明的预算必须先按「第五步 → 快速校验命令」的 `len(blocks[i].strip())` 口径实测确认，才能决定是否追加以及追加多少。
 
+> 🪪 **二十修订（2026-10-27，个人信息库右键入口回灌中文说明 + contextMenus 权限说明补这一项）**：两处改动，都挂在已有小节的已有行上，不新增小节、不新增分组、不加营销口号。① 【功能全览】的「🪪 个人信息库」一行补上新的**入口口径**——库在管理页打开，也可在网页输入框上右键「从个人信息库选择」直接召唤进来，取完值点提示条的「回到原网页」回到原来那一格，并当场写明该右键项的边界（只跳转、不读字段内容、不回填页面）；依据 `8ef2ab9`、[contextMenuManager.ts](../../entrypoints/background/contextMenuManager.ts) 的 `MENU_IDS.identityPick` 与 [useVaultReturn.ts](../../composables/useVaultReturn.ts)。② 第五步 **contextMenus** 权限合理性说明同口径补这一项：审核方看的是「权限用途」与实际行为是否一致，右键菜单多了一项却不写，等于让说明落后于包内行为；措辞停在可核对的事实（只跳转 / 不读字段 / 不回填 / 由用户自行逐字段复制）。**名称与摘要未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算，新能力一律不进）。③ 引导「留退路」卡内可直接登记离线恢复密钥这一条**不在本轮重复**：`d88fcc4` 已把它写进【常见问题】「忘记主密码怎么办？」那一行（中英各一处，本轮实测 zh +30 / en +62 码点即来自那一笔，该笔未留修订批注，此处一并入账）——按十四修订的「每个卖点只有一个归属小节」，【功能全览】的新手引导行本轮刻意不再抄一遍。说明长度 中文 **6503 → 6580**（+77 码点） / 英文 **16678（本轮未动）**。自检（本轮实跑「第五步 → 快速校验命令」那段 python）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。
+>
+> 🚨 **英文说明曾顶破 16,000 上限（同一把尺子 `len(blocks[i].strip())` 的实测，非估算）**：本轮开工时英文粘贴块为 **16,678** 码点，超出 **678**；沿仓库历史回溯，`3ccbf58` 已 16,460、`e1619cd` 16,616，而十八修订批注记的是 13,510——**该批注之后有数笔只改了粘贴块、没留修订记录**，差额约 3,168 码点无人入账。后果：这段英文正文按当时状态上传会被商店拒收（说明字段硬上限 16,000）。因此二十修订**不向英文追加任何新功能句**，避免把缺口继续放大。**同一日的收口见下方二十一修订**；这条记录留下的教训是：批注里的「说明长度」只是那一轮的轮末快照，凡动过粘贴块就必须重跑「第五步 → 快速校验命令」再写数，别把历史数当预算。
+>
+> ✂️ **二十一修订（2026-10-27，英文说明按用户拍板收口：删常见问题、保留产品说明页链接）**：用户决定「删常见问题，保留产品说明页链接」，本轮全部改动都落在英文【❓ QUESTIONS】与【📋 功能全览】的个人信息库那一行，其余小节一字未动。
+>
+> 1. **删两条与【功能全览】重复的问答**：`📥 Can I import from another password manager?`（120 码点，功能全览的 `📥 CSV and JSON … the columns of common password-manager exports are detected automatically` 已承载同一事实）与 `💻 Moving to a new computer?`（137 码点，同一小节的备份导出/导入行已承载）。这两条是十四修订「每个卖点只有一个归属小节」意义上的**真重复**，删掉不丢事实。
+> 2. **其余 11 条只收措辞、不减事实**：免费/上传/个人信息/备份徽标与只读校验/容量/更新是否改设置/是否发信/性能/浏览器版本/填充没落地/遥测，逐条改写为同等信息量的紧凑句。合计省出约 730 码点。
+> 3. **恢复那两段唯一删除的一句是「Replacement and disabling are also available」**——【🔒 SECURITY ARCHITECTURE】的 `Creating, replacing or disabling recovery is not a backup and cannot revoke copied old keys…` 已经陈述同一事实，按上一轮的重复判据留在安全小节。其余事实（默认关闭且无自动迁移、须事先用当前主密码登记、套件保存并回填验证、套件只含密钥/标识/版本/时间、锁屏输入密钥或导入套件后设新主密码、解不开的数据默认阻止恢复且仅在明确知情后才携带、`.aph`/`.aphid` 仍需导出时主密码、明文 CSV/JSON 是另一数据来源、密钥不能替代丢失数据也不能事后补、无密钥无可解备份时不可恢复、重置不可撤销、清除前先只读验证或在别的设备/Profile 试导入）逐条仍在。
+> 4. **回填二十修订刻意欠下的英文镜像**：【📋 功能全览】的 `🪪 Personal info vault` 一行补上召唤入口与回程（`right-click any editable field, pick "Pick from Personal Info Vault", then "Back to the page" returns you to the tab you came from — that item only navigates, reads no field content and never writes vault values into the page`，+308 码点），中英该行口径重新对齐；【❓ QUESTIONS】的「忘记主密码」仍按 d88fcc4 保留引导「留退路」那一步可开同一设置的说法。
+> 5. **保留项**：`💡 A friendly note`、`✉️ Feedback`、`🌐 Docs & demo: https://liaolongdong.github.io/account-password-helper/`、`🐙 Source code` 四行一律不动——用户明确要求留住产品说明页链接。
+>
+> 说明长度 中文 **6581（本轮未动；= 二十修订的 6580 + 并发会话给「🧭 备份状态一眼可读」那一行改的 1 个码点，不是本轮改动）** / 英文 **16678 → 15938**（−740 码点，**距 16,000 上限余 62**）。名称与摘要**未动**。自检（本轮实跑「第五步 → 快速校验命令」那段 python）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。⚠️ **给下一轮的硬约束**：英文只剩 62 码点，任何英文新增都必须先在【❓ QUESTIONS】里等量删减；中文尚有约 9,400 码点空间，新事实优先落中文。
+>
+> 🧭 **二十二修订（2026-10-27，轻提醒口径改为「本次会话不再重复」+ 修一处英文残句）**：两处都是**改已有行、不新增行**。① 【❓ 常见问题】的「🧭 备份状态一眼可读」那一行里那句「只在本页出现一次的轻提醒」按实现订正为「本次会话内不再重复」——原口径出自标记只是一个页面级 `ref` 的年代，现在它记在 `chrome.storage.session`（关浏览器即清、刷新与重开管理页都不再推同一条），依据 [utils/backup/nudgeDismissal.ts](../../utils/backup/nudgeDismissal.ts) 与 `SESSION_MEMORY_KEYS.BACKUP_NUDGE_DISMISSED`；**中文码点数只 +1（旧句「只在本页出现一次的」9 字 → 新句「本次会话内不再重复的」10 字），且这一码点已被上方二十一修订以「并发会话给这一行改的 1 个码点」入账，故中文仍是 6581**，英文【❓ QUESTIONS】那行的 `a one-time nudge` 也仍然成立（一次会话内确实只推一次），本轮**刻意不扩写英文**——按二十一修订留下的 62 码点约束，把它写足要再加约四十码点且得等量删别处，换来的只是精度而不是新事实。② 修英文【📋 功能全览】`🪪 Personal info vault` 那行末尾的残句 `. and a risk confirmation.`（回填英文镜像时把原句尾巴留在了新句之后，是一处纯抄写缺陷，不参与任何事实）：−25 码点，**英文 15938 → 15913（距上限余 87）**。自检（本轮实跑同一段 python）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零。名称与摘要**未动**。
+
+> 🧲 **二十二修订（2026-10-27，中文说明首段重写：把折叠线内唯一可控的文字换成差异化）**：详情页正文在商店里默认只露出开头几行，**首段是整篇里唯一确定落在折叠线内的内容**，而它原先写的「本地优先…不用注册…没有云端同步」每家都写。本轮只重写这一句（104 → 267 码点），把四条真正分层的差异顶到首段：逐字段 AES-256-GCM + 只写本地存储且不设服务器、导出加密备份可带走 / 从其他工具导入搬家、多环境按精确域名各留各的（同时跑 dev/test/staging/prod 的人最需要）、侧边栏点开即有匹配条目并带**「会话有效时约 20–50ms」的缓存快路径限定词**与整库 2000 条上限。口径全部可在代码与既有小节核对（逐字段加密与参数仍归【🔒 安全架构】展开，首段只做概述，与英文首段既有的写法同构）；竞品名、绝对化表述零出现，`duplicate lines` 扫描仍为零。**名称、摘要、英文说明一律未动**——英文只剩约 60 码点预算，本轮不做任何加长。说明长度 中文 **6581 → 6744**（+163 码点） / 英文 **15913**（本轮未动；与二十一修订记录的 15,938 相差 25 码点，来自同轮并发会话对该块的改动，非本轮——按本节既有约定，发布前一律以实时输出为准）。自检（本轮实跑）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。
+
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
 
-账号密码管理助手是一款本地优先的密码管理器：账号、密码和两步验证码加密保存在你自己的浏览器里，不用注册账号，也没有云端同步。打开登录页时，它能自动填充账号和密码、勾选「记住我」，并按你的设置替你点击登录按钮。
+账号密码管理助手是一款本地优先的开源密码管理器（Manifest V3，GPL-3.0）：账号、密码、网址、备注与两步验证码逐字段 AES-256-GCM 加密，只写入你浏览器的本地存储——不用注册账号，没有云端同步，扩展自身也不设服务器；数据随时导出加密备份带走，也能从其他工具导入搬家。打开登录页时，它自动填充账号与密码、勾选「记住我」，并按你的设置替你点击登录按钮；同一站点在开发、测试、预发、生产的账号默认按精确域名各留各的，不会串号；侧边栏点开即有匹配条目（会话有效时约 20–50ms 拿到数据），整库上限 2000 条。
 
 【🌟 为什么选它】
 ⚡ 替你走完登录，而不只是填表格：侧边栏选中条目点「填充并登录」，填充、勾选、提交一步到底
@@ -173,7 +191,7 @@
 📱 内置 TOTP：扫描网页二维码或上传图片即可添加密钥，动态码按 RFC 6238 在你设备上生成，不联网、不上传
 🧩 参数可自定义：otpauth:// 里的算法认 SHA1 / SHA256 / SHA512、位数认 6 / 7 / 8、周期认自定义秒数，没写的按 6 位 / SHA1 / 30 秒处理；只支持时间型动态码（计数器型 HOTP 不在范围内）
 🔗 登录第二步接力：列表与侧边栏同屏显示活码和倒计时环，登录走到第二步时活码就近出现，可一键填入
-🪪 个人信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
+🪪 个人信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；库在管理页打开，也可在网页输入框上右键「从个人信息库选择」直接召唤进来，取完值点「回到原网页」回到原来那一格（该右键项只跳转，不读字段内容、不回填页面）；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
 
 🛡 安全与体检
 🩺 离线安全体检：0 到 100 分综合评分，四类问题按受影响条目占比扣分——复用 35、弱密码 25、命中内置近千条常见泄露密码 20、长期未更新 20（再分 90 / 180 / 365 天三档）；未开启两步验证的条目单独列出但不计分；本机保留最近 24 次分数趋势（只存分数与四类计数），能看到与上次相比的变化
@@ -229,7 +247,7 @@
 🔑 忘记主密码怎么办？主密码本身不能找回，提示语只是记忆辅助、不是安全提问，可在「安全设置 → 主密码提示语」随时修改或清除。离线恢复默认关闭、没有自动迁移：须提前在「安全设置 → 离线恢复密钥」输入当前主密码（首次设置后的新手引导「留退路」步骤里也可直接打开同一入口），保存并回填验证 .aphrecovery 套件后才启用，也可换发或停用。套件是未加密的明文，只含恢复密钥、套件标识、版本和时间，不含密码库；匹配密钥可在锁屏输入或导入套件，设置新主密码并保存、验证新套件后恢复本机五域；默认任一数据解不开都会阻止恢复，中止后可在明确知情下携带坏记录恢复其余数据。完成后仍锁定，用新主密码解锁
 没有可用恢复密钥时，先在忘记向导只读验证 .aph / .aphid，再到另一设备或独立 Profile 导入核对，最后才考虑清除原库，不能先清再试。两种备份仍需导出时的主密码，新恢复密钥不能解开旧备份；导出时与当前若是同一密码且已遗忘，旧备份仍打不开。明文 CSV / JSON 导出也是数据来源；没有可用密钥或可解备份时仍无法恢复，重置清空不可撤销。数据/Profile 丢失只有恢复密钥无用，仍需匹配的数据备份；不能事后给锁死库补恢复
 
-🧭 备份状态一眼可读：管理页头部徽标把两份库的备份欠账合成一枚结论（绿「N 天前已备份」/橙「待备份」「N 天未备份」/红「从未备份」），悬停分别列出 .aph 与 .aphid 各自的状态、点一下直达加密备份导出；刚改过数据而尚未备份时，另出一条只在本页出现一次的轻提醒。数据管理里还能只读验证 .aph / .aphid 能否解密——不写入、不清空、不显示备份明文；同一窗口内连续 3 次失败会等 30 秒才可再试，判定只在本机进行，不上传任何信息。
+🧭 备份状态一眼可读：管理页头部徽标把两份库的备份欠账合成一枚结论（绿「N 天前已备份」/橙「待备份」「N 天未备份」/红「从未备份」），悬停分别列出 .aph 与 .aphid 各自的状态、点一下直达加密备份导出；刚改过数据而尚未备份时，另出一条本次会话内不再重复的轻提醒。数据管理里还能只读验证 .aph / .aphid 能否解密——不写入、不清空、不显示备份明文；同一窗口内连续 3 次失败会等 30 秒才可再试，判定只在本机进行，不上传任何信息。
 📥 能从其他密码管理器导入吗？可以：在原来用的应用里导出 CSV 或 JSON，再到扩展的导入页上传即可
 📊 密码库能存多少条？上限 2000 条，回收站里的条目不占额度。达到上限后新增、创建副本、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据；导入量超出剩余额度时，预览页会先写明还能导入多少条、将被忽略多少条
 🔄 更新会改掉我调好的设置吗？不会。新版本调整过的默认值只作用在新安装上，已经在用的安装保持它当前的填充方式
@@ -282,7 +300,6 @@ Free open-source password manager: an AES-256-GCM local vault with autofill sign
 **Description（说明）— 最多 16,000 字符**
 
 ```
-
 Account Password Helper is a local-first password manager: usernames, passwords and two-factor codes are encrypted and kept in your own browser, with no account to register and no cloud sync. On a login page it fills your username and password, ticks the remember-me box and, if you allow it, clicks the sign-in button.
 
 🌟 WHY YOU'LL LIKE IT
@@ -314,7 +331,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 🔐 Two-factor and personal info
 📱 Built-in TOTP: add a key by scanning the page's QR code or uploading an image; codes follow RFC 6238 and are generated on your device, with no network request. Algorithm SHA1 / SHA256 / SHA512, 6, 7 or 8 digits and a custom period are read from the otpauth:// link, defaulting to 6 / SHA1 / 30s. Counter-based HOTP is out of scope.
 🔗 Second-step handoff: the live code and its countdown ring sit in the list and the side panel, and when a login reaches step two the code appears beside the field, ready to fill.
-🪪 Personal info vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check). Its own trash keeps deleted records restorable or permanently deletable for 30 days before they are cleaned automatically, and encrypted .aphid export/import supports a ticked subset, plus an optional plaintext .json round-trip behind a re-check and a risk confirmation.
+🪪 Personal info vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check). Its own trash keeps deleted records restorable or permanently deletable for 30 days before they are cleaned automatically, and encrypted .aphid export/import supports a ticked subset, plus an optional plaintext .json round-trip behind a re-check and a risk confirmation. It opens on the manager page, and you can summon it from a web page: right-click any editable field, pick "Pick from Personal Info Vault", then "Back to the page" returns you to the tab you came from — that item only navigates, reads no field content and never writes vault values into the page.
 
 🛡 Safety and check-up
 🩺 On-device check-up scored 0-100: reused passwords 35, weak 25, a hit in the built-in list of nearly a thousand commonly leaked ones 20, long-unchanged 20 (in 90, 180 and 365 day bands), each weighted by how many entries it touches. Missing two-factor is listed but unscored. Up to 24 local snapshots (score and the four counts only) show how the score changed since last time.
@@ -365,21 +382,19 @@ Creating, replacing or disabling recovery is not a backup and cannot revoke copi
 
 ❓ QUESTIONS
 🆓 Is it really free? Yes — no premium tier, no in-app purchase, no upgrade prompt.
-☁️ Are my passwords uploaded? No, and the extension runs no server of its own. Its only outbound call is an update check every 6 hours: it probes whether the store is reachable (cached for 24 hours) and only on failure reads the public releases endpoint for the newest version and up to 200 characters of notes. Neither request carries an account, an identifier or vault data.
-🪪 Are personal details uploaded or synced? No — they stay encrypted on this machine, are never synced to your browser account, and never leave the device.
-🔑 Forgot the master password? The password itself cannot be retrieved; hints aid memory and can be edited or cleared any time under Security settings → Master password hint. Offline recovery is off by default, with no automatic migration. Set it up beforehand in Security Settings → Offline Recovery Key with the current master password (the first-run tour's “way out” step can open the same setup); save and re-enter the .aphrecovery kit to verify and activate it. Replacement and disabling are also available. Kits are unencrypted plaintext and hold only the recovery key, kit ID, version and time, not the vault. Enter the matching key or import the kit on the lock screen, set a new master password, then save and verify a replacement kit to recover the five local domains. By default, undecryptable data blocks recovery; only after such an abort can you explicitly consent to carry those records through. Recovery leaves the vault locked; unlock with the new password.
-Without a usable key, verify .aph / .aphid read-only in the forgot-password wizard, then import on another device or in a separate profile to check it before considering a wipe — never wipe first and test later. Both backups still need the export-time master password, not a new recovery key; if it was the same password now forgotten, they remain unreadable. Plaintext CSV / JSON exports are another data source. With no usable key or decryptable backup, data cannot be recovered; reset wipes it irreversibly. A key alone cannot replace lost data/profile contents: a matching data backup is needed. Recovery cannot be added after lockout.
+☁️ Are my passwords uploaded? No — the extension runs no server of its own. Its only outbound call is a 6-hourly update check: a store-reachability probe (cached 24 hours) that on failure reads the public releases endpoint for the newest version and up to 200 characters of notes. Neither carries an account, an identifier or vault data.
+🪪 Are personal details uploaded or synced? No — they stay encrypted on this machine, never synced to your browser account, never leaving the device.
+🔑 Forgot the master password? It cannot be retrieved — hints only aid memory (editable under Security settings). Offline recovery is off by default with no automatic migration: set it up beforehand under Security Settings → Offline Recovery Key with the current master password (the first-run tour’s “way out” step opens the same setup), then save and re-enter the .aphrecovery kit to activate it. A kit is unencrypted plaintext holding only the key, kit ID, version and time — never the vault.
+On the lock screen, enter the matching key or import the kit and set a new master password to recover the five local domains; undecryptable data blocks that unless you explicitly consent to carry it through. .aph / .aphid backups still need their export-time password — a new key does not open them — and plaintext CSV / JSON exports are another source. A key alone cannot replace lost data or profile contents and cannot be added after lockout, so with no usable key and no decryptable backup nothing is recoverable: verify a backup read-only, or import it on another device, before considering a reset, which wipes irreversibly.
 
-🧭 Backup status at a glance: the manager's header chip condenses both vaults into one verdict (green "Backed up N days ago", orange "Backup pending" / "No backup for N days", red "Never backed up"); hovering lists the .aph and .aphid backups separately and clicking goes straight to the encrypted export, with a one-time nudge after you change data without backing up. A read-only check also tells you whether an .aph / .aphid file still decrypts - it writes nothing, clears nothing and never shows plaintext; three failures in a row inside that panel make it wait 30 seconds before another attempt, and the check runs entirely on your device with nothing uploaded.
-📥 Can I import from another password manager? Yes — export a CSV or JSON from that app and upload it on the import page.
-📊 How many entries fit? 2000, counted by list entries; the trash takes no quota. When it is full, adding, duplicating, importing, auto-saving and restoring each say so plainly instead of overwriting or deleting anything, and an over-large import preview tells you how many still fit and how many would be skipped.
+🧭 Backup status at a glance: the manager's header chip folds both vaults into one verdict (green "Backed up N days ago", orange "Backup pending", red "Never backed up"); hovering lists .aph and .aphid separately, clicking goes to the encrypted export, and changing data without a backup gives a one-time nudge. A read-only check says whether an .aph / .aphid file still decrypts — it writes nothing, shows no plaintext, runs on-device, and three failures in a row wait 30 seconds.
+📊 How many entries fit? 2000, counted by list entries; the trash takes no quota. When full, adding, duplicating, importing, auto-saving and restoring each say so plainly instead of overwriting or deleting, and an over-large import preview shows how many still fit.
 🔄 Will an update change my settings? No — defaults a new version brings in apply to fresh installs only.
-📧 Does it mail anything? No. The file downloads to your own machine and the extension cannot send mail; a due reminder is just a desktop notification.
-💻 Moving to a new computer? The vault does not travel on its own: export an .aph backup on the old machine and restore it on the new one.
-⏱ Will it slow pages? Sub-second side-panel opening is an explicit tuning target across cold start, expired sessions and quick restarts, and about 20–50ms on the cached path. Injected overlays use an isolated Shadow DOM that leaves host styles alone.
-🌍 Which browser? The side panel needs Chromium 114 or newer for the Side Panel API. No minimum version is declared, so older browsers keep the management page, popup, right-click fill and generator without the side panel.
-🛠 A fill didn't land? After an update or reload an already-open tab needs one refresh before it receives the fill script; you get an in-page message and a notification rather than silence. Credentials go only to frames on the page's own main domain.
-📢 Ads, analytics, telemetry? None, and it never reads your browsing history. Host access to all sites is declared so it can appear on whichever login page you open; every other permission maps to one job — finding and filling forms, writing and clearing the clipboard, reading cached site icons, and running scheduled session checks, trash cleanup and backup reminders.
+📧 Does it mail anything? No — files download to your own machine and the extension cannot send mail; a due reminder is only a desktop notification.
+⏱ Will it slow pages? Sub-second side-panel opening is an explicit tuning target across cold start, expired sessions and quick restarts, about 20–50ms on the cached path. Injected overlays live in an isolated Shadow DOM that leaves host styles alone.
+🌍 Which browser? The side panel needs Chromium 114 or newer for the Side Panel API. No minimum version is declared, so older browsers keep the manager page, popup, right-click fill and generator without the side panel.
+🛠 A fill didn't land? After an update or reload an open tab needs one refresh before it receives the fill script — you get an in-page message and a notification rather than silence. Credentials go only to frames on the page's own main domain.
+📢 Ads, analytics, telemetry? None, and it never reads your browsing history. Host access to all sites is declared so it can appear on whichever login page you open; every other permission maps to one job — filling forms, writing and clearing the clipboard, reading cached site icons, and running scheduled session, trash-cleanup and backup alarms.
 
 💡 A friendly note: built for developers, testers and everyday sign-ins. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.
 
@@ -668,7 +683,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **contextMenus**
 
 ```
-在网页右键菜单中提供填充入口：在输入框上右键可填充当前站点匹配的用户名/密码/两步验证码或生成并填充强密码，在页面空白处右键可打开侧边栏或密码管理页。菜单仅在用户主动右键时展示，不读取页面内容。
+在网页右键菜单中提供填充入口：在输入框上右键可填充当前站点匹配的用户名/密码/两步验证码或生成并填充强密码，同层还可点「从个人信息库选择」打开密码管理页的个人信息库（该项只做跳转，不读取右键目标与字段内容、不预填检索词、不把库内数据回填页面，取完值由用户自己在管理页逐字段复制并可一键回到来源标签页），在页面空白处右键可打开侧边栏或密码管理页。菜单仅在用户主动右键时展示，不读取页面内容。
 ```
 
 **favicon**

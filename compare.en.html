@@ -585,7 +585,7 @@
         <div class="cta">
           <a
             class="btn"
-            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphcmp"
             >Install free (Chrome Web Store)</a
           >
           <a
@@ -728,12 +728,15 @@
                 not appear in chrome://extensions/shortcuts.
               </li>
               <li>
-                <b>Personal info vault</b>: an independently encrypted store available on the manager page only
-                (whole-blob AES-256-GCM) for name, ID number, phone, email, address, bank card details and custom
-                fields. Secret fields are masked by default, opening it re-checks the master password, per-field or
-                whole-card copy runs under the timed clipboard wipe, search understands pinyin, and the cap is 30
-                records. Encrypted .aphid backup export / import is provided, plus an optional plaintext .json export
-                and re-import gated by a master-password re-check and a risk confirmation, merged by id; it is
+                <b>Personal info vault</b>: an independently encrypted store (whole-blob AES-256-GCM) for name, ID
+                number, phone, email, address, bank card details and custom fields. The vault itself opens on the
+                manager page, but you no longer have to find that page yourself — right-click any editable field on a
+                web page and pick "Pick from Personal Info Vault", then use the "Back to the page" strip to land back on
+                the field you were filling (that menu item only navigates: it reads no field content and never writes
+                back into the page). Secret fields are masked by default, opening it re-checks the master password,
+                per-field or whole-card copy runs under the timed clipboard wipe, search understands pinyin, and the cap
+                is 100 records. Encrypted .aphid backup export / import is provided, plus an optional plaintext .json
+                export and re-import gated by a master-password re-check and a risk confirmation, merged by id; it is
                 <b>not covered by automatic backups</b>, so export encrypted backups regularly.
               </li>
             </ul>
@@ -830,7 +833,10 @@
                 <li>Command palette: Ctrl+K / Cmd+K to filter and run 30 commands on the manager page</li>
                 <li>Built-in TOTP generation and offline security audit</li>
                 <li>Encrypted backup (.aph), trash bin and password history</li>
-                <li>Personal info vault: ID numbers and bank cards encrypted separately, manager page only</li>
+                <li>
+                  Personal info vault: ID numbers and bank cards encrypted separately, opened from the manager page or
+                  summoned from a field's right-click menu
+                </li>
                 <li>6 themes + bilingual (中文 / English) UI</li>
               </ul>
             </div>
@@ -926,7 +932,7 @@
           <div class="cta reveal">
             <a
               class="btn"
-              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphcmp"
               >Install from Chrome Web Store</a
             >
             <a

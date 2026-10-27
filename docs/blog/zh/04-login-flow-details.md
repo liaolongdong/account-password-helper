@@ -52,7 +52,7 @@ image: imgs/blog-cover-04-login-flow-details.png
 
 密码管理器的功能增量本来就不该是"多几个按钮"。它更像是把同一条登录链路磨得再顺一点：少一次切 App、少一次点错输入框、少一次为了看一眼备注而误改数据。
 
-源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，GPL-3.0 开源。
+源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)，完全免费，GPL-3.0 开源。
 
 ---
 

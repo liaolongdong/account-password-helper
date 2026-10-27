@@ -508,7 +508,7 @@
 <h2>如果你也碰到同样的问题</h2>
 <p>先在 <code>mail.qq.com</code> 上想想自己真正要的哪一种：只是想让某几条账号跨子域（<code>wildcard</code> 档 + 手写 <code>*.qq.com</code>），还是整个子域家族都要放开（<code>sameMainDomain</code> 档，注意它会把 <code>fat</code> / <code>uat</code> 一起带出来）。开关在密码管理页头部的「跨子域名匹配」里，改完立即生效，不需要重新解锁。</p>
 <p>账号与密码数据仍按既有方式在本地加密存储，这次功能没有新增任何权限，也没有新增网络请求；扩展自身唯一的周期性请求，是每 6 小时一次的匿名版本检查。</p>
-<p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。已上架 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a>，完全免费，GPL-3.0 开源。</p>
+<p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。已上架 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome 应用商店</a>，完全免费，GPL-3.0 开源。</p>
 <hr>
 <p><em>本文涉及的关键文件：<code>utils/domain.ts</code>（<code>resolveMatchTier</code> / <code>isCrossSubdomainTier</code> / <code>getMainDomain</code> / <code>restoreWildcardMarker</code>）、<code>components/options/DomainMatchSettingDialog.vue</code>（档位弹窗）、<code>utils/passwordFilter.ts</code> 与 <code>utils/passwordSort.ts</code>（侧边栏可见集与排序）、<code>entrypoints/background/passwordCache.ts</code>（内联下拉与一键填充的取数）、<code>entrypoints/content/inlineDropdown/InlineFillDropdown.ts</code>（来源 chip）、<code>tests/architecture/crossSubdomainTierWiring.test.ts</code>（接线守卫）、<code>e2e/cross-subdomain.spec.ts</code>（真机回归）、<code>benchmarks/sidepanel-p0.bench.ts</code>（跨档基准）。</em></p>
 

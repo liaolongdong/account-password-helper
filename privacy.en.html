@@ -396,8 +396,8 @@
           <span class="lang-en">Account Password Helper Browser Extension</span>
         </p>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年10月13日 · 生效日期：2026年10月13日</span>
-          <span class="lang-en">Last updated: October 13, 2026 · Effective: October 13, 2026</span>
+          <span class="lang-zh">最后更新：2026年10月27日 · 生效日期：2026年10月27日</span>
+          <span class="lang-en">Last updated: October 27, 2026 · Effective: October 27, 2026</span>
         </span>
       </div>
 
@@ -478,7 +478,13 @@
             ><code>.aphrecovery</code> 仅含恢复密钥、套件标识、版本和时间，不含密码库，请与设备和数据备份分开保管。
             创建、换发或停用都不是备份；持有旧 R
             与匹配旧恢复包/密文的人，不会因为您换发或停用而失去已复制数据的访问能力。怀疑泄漏时应修改主密码轮换数据钥，但历史副本无法收回。
-            已启用者正常改主密码也须先保存并验证新套件，成功后旧 R 不再适用于当前本机入口；未启用者保留原改密交互。
+            已启用者正常改主密码也须先保存并验证新套件，成功后旧 R
+            不再适用于当前本机入口；未启用者保留原改密交互。若密码或回收站里有记录解不开，改密默认整笔中止；中止后可在明确知情下携带这些记录继续，但新主密码无法读取它们。
+          </p>
+          <p>
+            <strong>恢复套件是未加密的明文：</strong><code>.aphrecovery</code> 内含恢复密钥；
+            拿到它并取得这台电脑的库数据即可解密，泄露后果等同于第二把万能钥匙。请与设备和数据备份分开保管，
+            不要留在下载目录，也不要经邮件或网盘传递；换发后请删除旧套件。
           </p>
           <p>
             <strong>请这样理解「保持登录」：</strong
@@ -502,6 +508,7 @@
           <p>
             个人信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
             认证加密后写入本地存储，默认掩码显示；打开该库是否要求验证主密码由「个人信息库复验设置」决定（默认同一管理页会话内只问一次，锁定、会话过期或刷新、重开管理页后会重新问），库内的查看与复制不再额外索要主密码。
+            从网页输入框右键「从个人信息库选择」进入该库时，该菜单项<strong>不读取右键目标与字段内容</strong>、不预填检索词、不把库内的值回填页面，跨上下文只传递一个由浏览器盖章的<strong>来源标签页编号</strong>（一个整数，不含页面地址、不含字段内容、不含任何库内数据），用途是在库内给出「回到原网页」出口；这个编号不落盘，切回前还会复核来源页是否仍在原站点，不符即作废该出口。页面字段提示气泡上的同名按钮会额外带一个<strong>可选检索词</strong>：只在您点下按钮的那一刻读一次，取同一表单里判定为本人姓名那个框的值，或该格的标签文字，读完即用——不落盘、不进日志、不参与解密。两条入口都仍要过原有的主密码复验门槛，库内的值只由你逐字段或整卡经剪贴板限时清除通道复制。
           </p>
         </div>
 
@@ -582,7 +589,9 @@
               </tr>
               <tr>
                 <td>contextMenus</td>
-                <td>在网页右键菜单中提供填充入口（填充用户名/密码/两步验证码、生成强密码、打开侧边栏或管理页）</td>
+                <td>
+                  在网页右键菜单中提供填充入口（填充用户名/密码/两步验证码、生成强密码、打开侧边栏或管理页），以及「从个人信息库选择」——该项只做跳转：不读取右键目标与字段内容、不预填检索词、不把库内的值回填页面，个人信息始终留在管理页内由你逐字段复制
+                </td>
               </tr>
               <tr>
                 <td>favicon</td>
@@ -898,13 +907,7 @@
             retains access to those copied data even after replacement or disabling. If exposure is suspected, change
             the master password to rotate the data key; historical copies cannot be recalled. Ordinary password changes
             with recovery enabled also require saving and verifying a new kit first; after success old R no longer works
-            at the current local entry point. Users without recovery keep the original password-change interaction. If a password or trash record cannot be decrypted, the change aborts by default; after the abort, an explicit informed opt-in can carry those records through, but the new master password cannot read them.
-          </p>
-          <p>
-            <strong>The recovery kit is unencrypted plaintext:</strong> <code>.aphrecovery</code> contains the recovery key.
-            Anyone who has it and this device's vault data can decrypt the vault; exposure is equivalent to a second master key.
-            Keep it separate from the device and data backups, do not leave it in Downloads or send it by email or cloud drive,
-            and delete the old kit after replacing it.
+            at the current local entry point. Users without recovery keep the original password-change interaction.
           </p>
           <p>
             <strong>What "stay signed in" really means:</strong> while a session is valid, the key material that
@@ -939,6 +942,18 @@
             in a separate vault, stored locally only as one AES-256-GCM authenticated-encrypted blob; it is masked by
             default, and whether opening that vault asks for the master password follows a configurable policy (once per
             manager-page session by default) — viewing or copying inside an already opened vault asks nothing further.
+            Opening that vault from a web page through the right-click item "Pick from Personal Info Vault" does
+            <strong>not</strong> read the field under the cursor or any page content, prefills nothing and never writes
+            a vault value back into the page; the only thing that crosses contexts is a
+            <strong>source tab number</strong> stamped by the browser itself (an integer — no page address, no field
+            content, no vault data) used to offer a "Back to the page" exit inside the dialog. That number is never
+            persisted, and the origin is re-checked against the page you came from immediately before switching — if it
+            no longer matches, the exit is voided. The identically named button on the in-page field hint carries one
+            extra <strong>optional search term</strong>, read once at the moment you click it — the value of the field
+            judged to be your own name in that same form, or the label of that field — and used and discarded there:
+            never stored, never logged, never involved in decryption. Either route still passes the existing
+            master-password verification gate, and values leave the vault only through your own per-field or whole-card
+            copy under the timed clipboard wipe.
           </p>
         </div>
 
@@ -1028,7 +1043,10 @@
                 <td>contextMenus</td>
                 <td>
                   Provide fill entries in the page right-click menu (fill username/password/2FA code, generate a strong
-                  password, open the side panel or manager page)
+                  password, open the side panel or manager page), plus "Pick from Personal Info Vault" — that item only
+                  navigates: it reads no field content and no page content, prefills nothing and never writes a vault
+                  value back into the page; personal info stays on the manager page and is copied out by you, field by
+                  field
                 </td>
               </tr>
               <tr>
@@ -1119,10 +1137,13 @@
               hints aid memory, not security-question unlocking. If recovery was enabled beforehand and you kept its
               matching key, enter the key or import the kit on the lock screen, set a new master password, then save and
               verify a new kit to recover the current local passwords, password trash, password history, personal info
-              and personal info trash. By default, any undecryptable data blocks in-place recovery and nothing is changed. Only after such an abort, and only with explicit informed consent, can the rest be recovered; those records stay in the vault as-is, remain unreadable under the new master password, and are omitted from lists and backups. After success the vault stays locked; unlock with the new master
-              password. Without a usable key, verify <code>.aph</code> / <code>.aphid</code> read-only in the wizard,
-              then import on another device or in a separate browser profile to check the result before considering a
-              wipe — never wipe first and test later. Both independent backup formats are unchanged and still need their
+              and personal info trash. By default, any undecryptable data blocks in-place recovery and nothing is
+              changed. Only after such an abort, and only with explicit informed consent, can the rest be recovered;
+              those records stay in the vault as-is, remain unreadable under the new master password, and are omitted
+              from lists and backups. After success the vault stays locked; unlock with the new master password. Without
+              a usable key, verify <code>.aph</code> / <code>.aphid</code> read-only in the wizard, then import on
+              another device or in a separate browser profile to check the result before considering a wipe — never wipe
+              first and test later. Both independent backup formats are unchanged and still need their
               <strong>export-time master password</strong>, not a new recovery key. If that was the same password now
               forgotten, old backups remain unreadable. Plaintext CSV / JSON exports are another data source. With no
               usable key or decryptable backup, data remains unrecoverable; the last-resort reset irreversibly clears

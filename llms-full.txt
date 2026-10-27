@@ -22,7 +22,7 @@
 - **Multi-environment isolation**: two orthogonal axes, both set in the header of the management page and honoured by every fill entry point. Host axis — three cross-subdomain matching tiers: "Exact match only" (the default) surfaces an entry only when its normalized hostname equals the current page; "exact + wildcard entries" additionally admits entries saved as `*.qq.com`, which then work on every subdomain of that site; "same main domain" additionally falls back to the apex (`qq.com`) and sibling subdomains (`music.qq.com`) when the current host has no entry of its own, badging each widened row as cross-subdomain. Port axis — by default only loopback hosts (`localhost`, `127.0.0.1`, `[::1]`, which count as one machine) are separated by port, so two local projects on `:3000` and `:5173` stay apart regardless of tier; switching on "isolate by port" applies one rule to every host, public or private: an entry that declares a port appears only on that port, and an entry without one is treated as the domain's default endpoint and appears only on the scheme's default port (80 for http, 443 for https), with the side panel offering a per-tab, unsaved override that reveals other ports' entries as non-fillable. Widening the host axis never changes which entry a save overwrites; the port axis does, precisely so a password captured on one port cannot overwrite the same username on another
 - **Built-in TOTP 2FA authenticator**: RFC 6238 codes generated locally, GitHub-style two-step login auto-anchors a live code capsule — no phone authenticator app needed
 - **Per-field AES-256-GCM encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; username, password, URL, remark and TOTP secret are encrypted field by field before touching disk, and password data is never uploaded
-- **Personal info vault**: a separate, independently encrypted store for personal info data (ID numbers, bank cards, passports, custom fields) with two-level format validation (checksum errors block, everything else warns), whole-card copy, save-time duplicate detection, encrypted `.aphid` backup and optional re-importable plaintext `.json` export — reachable only from the Options page and never surfaced in the side panel
+- **Personal info vault**: a separate, independently encrypted store for personal info data (ID numbers, bank cards, passports, custom fields) with two-level format validation (checksum errors block, everything else warns), whole-card copy, save-time duplicate detection, encrypted `.aphid` backup and optional re-importable plaintext `.json` export — opened from the header button on the Options page, or summoned straight from a web page: right-click any editable field and pick "Pick from Personal Info Vault". That menu entry only navigates — it reads neither the field under the cursor nor any page content, prefills nothing and never writes back into the page; the vault dialog then offers a "Back to the page" strip that returns you to the tab you came from (the tab number is the one Chrome stamped on the sender and is re-checked against the original origin before switching, and it is never persisted), after which you copy each field out through the same timed clipboard path. Values are never surfaced in the side panel
 - **Offline security audit**: one-click 0–100 score weighted across four dimensions (reused 35 / weak 25 / commonly leaked 20 / stale 20), with missing-2FA reported separately but unscored — all computed on-device
 - **Live password strength check**: length / letters / numbers / symbols rated weak-medium-strong, shown as a real-time bar with a rule-by-rule checklist in the add, edit and master-password forms; the checklist carries a fifth item that forces weak when the value matches a built-in list of nearly a thousand commonly leaked passwords. The same weak-password verdict appears as a non-blocking heads-up in the save-on-login prompt.
 - **Password generator**: random mode (configurable length/charset/ambiguous-character exclusion) + passphrase mode drawing from a bundled 3,080-word list, Web Crypto CSPRNG
@@ -32,7 +32,8 @@
 - **Backup reminders**: a desktop notification on a 1 / 3 / 7 / 14 / 30-day schedule nudges you to export a backup; the encrypted `.aph` tier is preselected and switching to plaintext asks for a risk confirmation first. The extension has no mailing capability of its own — the file downloads to your machine and, if you choose the email tier, a prefilled draft is handed to your own mail client.
 - **Site rules for stubborn login pages**: pin custom CSS selectors for the username and password fields of a given domain, and optionally reach fields nested inside shadow DOM — for self-built login pages and component-library forms that heuristic detection gets wrong. Rules export to a plain-text JSON file (domains and selectors only, never credentials) and merge-import by domain with an added / updated / skipped report, capped at 500 rules and 2 MiB per file
 - **Command palette**: `Ctrl/Cmd + K` on the management page filters its 30 commands — add entry, health check, import / export, encrypted backup, trash, site rules, cross-subdomain matching, change master password, preferences — by Chinese, pinyin or initials; it opens only once you are unlocked, and destructive commands keep their confirmations
-- **Spotlight guided tour**: the first time you open the manager page a spotlight tour plays on its own, ringing the real buttons as it walks through adding an entry, importing, backing up, security settings and the health check. Steps are trimmed to what the current screen actually offers, so an empty vault and a populated one get their own script; arrow keys change steps, `Esc` leaves at any time, and the "Tour" button in the header replays it later. Finishing or skipping records one local flag, after which it never auto-plays again
+- **Spotlight guided tour**: the first time you open the manager page a spotlight tour plays on its own, ringing the real buttons as it walks through adding an entry, importing, backing up, security settings and the health check. The "leave a way out" step carries a button that opens the offline recovery key settings right there, so a kit can be enrolled during setup instead of postponed (the copy reads "Manage" once one is already registered, and you can still enrol later); clicking it ends the tour first so the dialog is not hidden behind the spotlight curtain. Steps are trimmed to what the current screen actually offers, so an empty vault and a populated one get their own script; arrow keys change steps, `Esc` leaves at any time, and the "Tour" button in the header replays it later. Finishing or skipping records one local flag, after which it never auto-plays again
+- **Personal info field hints on web pages**: when you click into an editable field the classifier recognises as personal info (17 roles — name, ID number, phone, email, address, region, postcode, birth date, gender, employer, card number, card holder, issuing bank, and so on), a small bubble appears beside the field saying what it wants and offering "Pick from Personal Info Vault", which takes you to the vault dialog under the same master-password reverify gate. Detection falls back in order through `autocomplete` tokens, field name / id, adjacent label, sibling label blocks, then the placeholder's own words, and only checks the shape of an already-typed value as a last resort; read-only fields never participate. Exactly one thing crosses from the page to the dialog: one optional search term, read once at the moment you click (your own name from the same form, or the field's own label for certificate-number roles that have no slot in the vault) — the value you typed is not read, nothing is logged or stored, no network request is made, and no vault value is ever written back into the page. Top frame only, login fields and card expiry / CVV never participate, and an organisation's own registration number is never offered as your personal ID. Turn it off in the floating button's gear → Preferences
 - **Share card**: one click on a side panel row or in the read-only details drawer composes "username / password / URL" into a single plain-text clipboard payload, subject to the same timed clipboard wipe as every other copy
 - **6 color themes + bilingual UI** (中文 / English), instant switching without refresh
 - **Password visibility toggle**: injects show/hide button into page password fields, verify filled content with one click
@@ -119,13 +120,13 @@ Add a site rule for that domain: your own CSS selectors for the username and pas
 
 ## Installation
 
-- **Chrome Web Store**: https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+- **Chrome Web Store**: https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=llms
 - **GitHub Releases** (offline install): https://github.com/liaolongdong/account-password-helper/releases/latest
 - **From source**: `pnpm install && pnpm build` → load `.output/chrome-mv3/` as unpacked extension
 
 ## Links
 
-- [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+- [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=llms)
 - [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
 - [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
 - [English Version](https://liaolongdong.github.io/account-password-helper/en.html)
@@ -549,7 +550,7 @@ storedHost 以 `*.` 开头 → base = 剥掉 `*.`
 
 账号与密码数据仍按既有方式在本地加密存储，这次功能没有新增任何权限，也没有新增网络请求；扩展自身唯一的周期性请求，是每 6 小时一次的匿名版本检查。
 
-源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，GPL-3.0 开源。
+源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)，完全免费，GPL-3.0 开源。
 
 ---
 
@@ -605,7 +606,7 @@ _本文涉及的关键文件：`utils/domain.ts`（`resolveMatchTier` / `isCross
 
 密码管理器的功能增量本来就不该是"多几个按钮"。它更像是把同一条登录链路磨得再顺一点：少一次切 App、少一次点错输入框、少一次为了看一眼备注而误改数据。
 
-源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，GPL-3.0 开源。
+源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)，完全免费，GPL-3.0 开源。
 
 ---
 
@@ -625,7 +626,7 @@ _本文涉及的关键文件：`entrypoints/background/contextMenuManager.ts`（
 
 这些不大不小的摩擦，日复一日地发生在每个开发者、测试工程师的工作流里。这就是我做 [Account Password Helper（账号密码管理助手）](https://github.com/liaolongdong/account-password-helper) 的起点：**一款零云端、开源、专为多环境登录场景设计的本地密码管理器**。
 
-目前它已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，代码以 GPL-3.0 协议开源。这篇文章讲讲它解决什么问题、怎么解决的，以及它刻意不做什么。
+目前它已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)，完全免费，代码以 GPL-3.0 协议开源。这篇文章讲讲它解决什么问题、怎么解决的，以及它刻意不做什么。
 
 ### 现有密码管理器的三个缺口
 
@@ -696,7 +697,7 @@ TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计�
 
 如果你也受够了混在一起的测试账号和切来切去的手机验证码，欢迎试试：
 
-- [Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)（自动更新）
+- [Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)（自动更新）
 - [GitHub 仓库](https://github.com/liaolongdong/account-password-helper)（源码 / Releases 下载 / Issue 反馈），顺手点个 Star 是对开源最大的支持
 - [在线演示与双语 FAQ](https://liaolongdong.github.io/account-password-helper/)
 
@@ -1260,7 +1261,7 @@ First decide which of the two you actually want on `mail.qq.com`: only a few acc
 
 Account and password data still live encrypted in local storage exactly as before, and this feature added no permissions and no network requests; the extension's only recurring request remains its anonymous version check every 6 hours.
 
-Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, open source under GPL-3.0.
+Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, open source under GPL-3.0.
 
 ---
 
@@ -1316,7 +1317,7 @@ Looking back, all four chains obey the same constraints: **no new toggles, no ne
 
 Feature increments in a password manager shouldn't be "a few more buttons". They should polish the same login chain until it's a little smoother: one less app switch, one less wrong input box, one less accidental edit made just to read a note.
 
-Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, open source under GPL-3.0.
+Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, open source under GPL-3.0.
 
 ---
 
@@ -1334,7 +1335,7 @@ I keep four accounts for the same admin system: dev, test, staging, and prod. Ch
 
 Small friction, repeated dozens of times a day, across every developer and QA engineer's workflow. That's why I built [Account Password Helper](https://github.com/liaolongdong/account-password-helper): **a zero-cloud, open-source, local-first password manager designed around multi-environment login workflows**.
 
-It's live on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, with the source released under GPL-3.0. This post covers what problems it solves, how, and — just as importantly — what it deliberately refuses to do.
+It's live on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, with the source released under GPL-3.0. This post covers what problems it solves, how, and — just as importantly — what it deliberately refuses to do.
 
 ### Three Gaps in Existing Password Managers
 
@@ -1403,7 +1404,7 @@ The project has grown from v1.0 in May 2026 to v3.9 now, every version pulled ou
 
 If you're tired of mixed-up test accounts and phone-authenticator juggling, give it a try:
 
-- [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (auto-updates)
+- [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) (auto-updates)
 - [GitHub repository](https://github.com/liaolongdong/account-password-helper) — source, Releases downloads, issues; a Star is the best support an open-source project can get
 - [Online demo with bilingual FAQ](https://liaolongdong.github.io/account-password-helper/)
 

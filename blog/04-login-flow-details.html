@@ -419,7 +419,7 @@
 <h2>这批功能的共同点</h2>
 <p>回头看，四条链路都遵守同一套约束：<strong>不加开关、除 <code>contextMenus</code> 外不加权限、不改存储结构与加密格式、不动既有条目的语义</strong>；新增的用户可见文案全部中英双语成对提交；每个功能都带回归测试，全仓库 4603 项自动化测试（分布在 316 个测试文件）与 <code>pnpm build</code>（Chromium）+ <code>pnpm build:firefox</code>（Firefox）双端构建作为验收线。</p>
 <p>密码管理器的功能增量本来就不该是&quot;多几个按钮&quot;。它更像是把同一条登录链路磨得再顺一点：少一次切 App、少一次点错输入框、少一次为了看一眼备注而误改数据。</p>
-<p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。已上架 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a>，完全免费，GPL-3.0 开源。</p>
+<p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。已上架 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome 应用商店</a>，完全免费，GPL-3.0 开源。</p>
 <hr>
 <p><em>本文涉及的关键文件：<code>entrypoints/background/contextMenuManager.ts</code>（菜单注册与动作分发）、<code>entrypoints/content/contextMenuTarget.ts</code>（右键目标记忆）、<code>entrypoints/content/inlineDropdown/InlineFillDropdown.ts</code>（面板定位）、<code>utils/passwordFilter.ts</code>（范围与过滤判据）、<code>utils/clipboard.ts</code>（复制与自动清除）、<code>components/options/PasswordDetailDrawer.vue</code>（只读详情抽屉）。</em></p>
 

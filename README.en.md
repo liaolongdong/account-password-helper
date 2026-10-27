@@ -6,9 +6,9 @@
 
 [![Star this repo](https://img.shields.io/github/stars/liaolongdong/account-password-helper?style=for-the-badge&logo=github&label=%E2%AD%90%20Star%20this%20repo&color=yellow)](https://github.com/liaolongdong/account-password-helper/stargazers)
 
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)
+[![Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)
+[![Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)
 [![Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?style=for-the-badge&label=Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge)](#-license)
@@ -234,7 +234,7 @@ One fill takes four steps, all on your own machine:
 
 | Method                  | Steps                                                                                                                                                                                                                                                                                                                                                                                       |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🛍 **Chrome Web Store**  | Visit the [store page](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) and click "Add to Chrome" — updates are pushed automatically. **Recommended**                                                                                                                                                                                     |
+| 🛍 **Chrome Web Store**  | Visit the [store page](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme) and click "Add to Chrome" — updates are pushed automatically. **Recommended**                                                                                                                                                                        |
 | 📦 **GitHub Releases**  | Download the latest zip from [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest), extract it to a **fixed directory**, then enable "Developer mode" at `chrome://extensions/` and "Load unpacked" that directory. For users who cannot reach Google; no auto-update, but the extension checks GitHub Releases every 6 hours and shows a notice in the popup |
 | 🛠 **Build from source** | `pnpm install && pnpm build`, then load `.output/chrome-mv3/` the same way. Full commands and requirements are in the [Contributing Guide — Common Commands](./docs/CONTRIBUTING.md#common-commands)                                                                                                                                                                                        |
 
@@ -405,9 +405,9 @@ Two polish patches: the re-verification dialog cuts its scroll chain and action-
 
 ## 🚀 Try It Now
 
-🔗 [Install from Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (one-click install, auto-updates) · [Download from GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) (if Google is unreachable) · [Live Demo](https://liaolongdong.github.io/account-password-helper/en.html)
+🔗 [Install from Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme) (one-click install, auto-updates) · [Download from GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) (if Google is unreachable) · [Live Demo](https://liaolongdong.github.io/account-password-helper/en.html)
 
-If this project helps you, please give it a ⭐️ and leave a review on the Chrome Web Store — it means the world to an open-source contributor! Issues and pull requests are welcome; the full changelog is in [CHANGELOG.md](./CHANGELOG.md).
+If this project helps you, please give it a ⭐️ and leave a [review on the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli/reviews?ref=ghreadme) — it means the world to an open-source contributor! Issues and pull requests are welcome; the full changelog is in [CHANGELOG.md](./CHANGELOG.md).
 
 ## 🧩 More by the author
 

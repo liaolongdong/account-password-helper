@@ -116,7 +116,7 @@ storedHost 以 `*.` 开头 → base = 剥掉 `*.`
 
 账号与密码数据仍按既有方式在本地加密存储，这次功能没有新增任何权限，也没有新增网络请求；扩展自身唯一的周期性请求，是每 6 小时一次的匿名版本检查。
 
-源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，GPL-3.0 开源。
+源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)，完全免费，GPL-3.0 开源。
 
 ---
 

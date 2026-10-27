@@ -6,9 +6,9 @@
 
 [![Star this repo](https://img.shields.io/github/stars/liaolongdong/account-password-helper?style=for-the-badge&logo=github&label=%E2%AD%90%20Star%20this%20repo&color=yellow)](https://github.com/liaolongdong/account-password-helper/stargazers)
 
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)
+[![Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)
+[![Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)
 [![Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?style=for-the-badge&label=Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge)](#-许可证)
@@ -234,7 +234,7 @@
 
 | 方式                   | 步骤                                                                                                                                                                                                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🛍 **Chrome 应用商店**  | 访问[商店页面](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，点击「添加至 Chrome」，后续版本更新由商店自动推送。**推荐**                                                                                                                    |
+| 🛍 **Chrome 应用商店**  | 访问[商店页面](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)，点击「添加至 Chrome」，后续版本更新由商店自动推送。**推荐**                                                                                                       |
 | 📦 **GitHub Releases** | 从 [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) 下载最新 zip，解压到**固定目录** → 在 `chrome://extensions/` 开启「开发者模式」→「加载已解压的扩展程序」选择该目录。适合无法访问 Google 的用户；手动加载不自动更新，扩展每 6 小时检测新版本并在 Popup 提示 |
 | 🛠 **源码构建**         | `pnpm install && pnpm build`，产物在 `.output/chrome-mv3/`，同样以「加载已解压的扩展程序」方式加载。完整命令与环境要求见[贡献指南 — 常用命令](./docs/CONTRIBUTING.md#常用命令)                                                                                                                    |
 
@@ -405,9 +405,9 @@
 
 ## 🚀 立即体验
 
-🔗 [Chrome 应用商店安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)（一键安装，自动更新） · [GitHub Releases 下载](https://github.com/liaolongdong/account-password-helper/releases/latest)（无法访问 Google 的用户） · [在线演示](https://liaolongdong.github.io/account-password-helper/)
+🔗 [Chrome 应用商店安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=ghreadme)（一键安装，自动更新） · [GitHub Releases 下载](https://github.com/liaolongdong/account-password-helper/releases/latest)（无法访问 Google 的用户） · [在线演示](https://liaolongdong.github.io/account-password-helper/)
 
-如果本项目对您有帮助，请帮忙点个 ⭐️、写个商店评价——这是对开源贡献者最大的支持！欢迎提交 Issue 和 Pull Request，完整变更记录见 [CHANGELOG.md](./CHANGELOG.md)。
+如果本项目对您有帮助，请帮忙点个 ⭐️、在 [Chrome 应用商店写条评价](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli/reviews?ref=ghreadme)——这是对开源贡献者最大的支持！欢迎提交 Issue 和 Pull Request，完整变更记录见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 🧩 作者的其他插件
 

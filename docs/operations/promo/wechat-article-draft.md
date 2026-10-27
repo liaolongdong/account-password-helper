@@ -73,7 +73,7 @@ dev / test / staging / prod 的账号按域名精确匹配，同一站点不同�
 
 ### 去哪拿
 
-- Chrome 应用商店（推荐，自动更新）：搜「账号密码管理助手」，或直接安装 👉 https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+- Chrome 应用商店（推荐，自动更新）：搜「账号密码管理助手」，或直接安装 👉 https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=wechat
 - 官网演示 + 完整 FAQ：https://liaolongdong.github.io/account-password-helper/
 - 开源地址：https://github.com/liaolongdong/account-password-helper
 - 无法访问 Google 的用户：可从 GitHub Releases 下载 zip 手动安装

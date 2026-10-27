@@ -14,7 +14,7 @@ I keep four accounts for the same admin system: dev, test, staging, and prod. Ch
 
 Small friction, repeated dozens of times a day, across every developer and QA engineer's workflow. That's why I built [Account Password Helper](https://github.com/liaolongdong/account-password-helper): **a zero-cloud, open-source, local-first password manager designed around multi-environment login workflows**.
 
-It's live on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, with the source released under GPL-3.0. This post covers what problems it solves, how, and — just as importantly — what it deliberately refuses to do.
+It's live on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, with the source released under GPL-3.0. This post covers what problems it solves, how, and — just as importantly — what it deliberately refuses to do.
 
 ## Three Gaps in Existing Password Managers
 
@@ -83,7 +83,7 @@ The project has grown from v1.0 in May 2026 to v3.9 now, every version pulled ou
 
 If you're tired of mixed-up test accounts and phone-authenticator juggling, give it a try:
 
-- [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (auto-updates)
+- [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) (auto-updates)
 - [GitHub repository](https://github.com/liaolongdong/account-password-helper) — source, Releases downloads, issues; a Star is the best support an open-source project can get
 - [Online demo with bilingual FAQ](https://liaolongdong.github.io/account-password-helper/)
 

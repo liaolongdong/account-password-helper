@@ -16,7 +16,7 @@ image: imgs/blog-cover-01-local-first.png
 
 这些不大不小的摩擦，日复一日地发生在每个开发者、测试工程师的工作流里。这就是我做 [Account Password Helper（账号密码管理助手）](https://github.com/liaolongdong/account-password-helper) 的起点：**一款零云端、开源、专为多环境登录场景设计的本地密码管理器**。
 
-目前它已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，代码以 GPL-3.0 协议开源。这篇文章讲讲它解决什么问题、怎么解决的，以及它刻意不做什么。
+目前它已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)，完全免费，代码以 GPL-3.0 协议开源。这篇文章讲讲它解决什么问题、怎么解决的，以及它刻意不做什么。
 
 ## 现有密码管理器的三个缺口
 
@@ -87,7 +87,7 @@ TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计�
 
 如果你也受够了混在一起的测试账号和切来切去的手机验证码，欢迎试试：
 
-- [Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)（自动更新）
+- [Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)（自动更新）
 - [GitHub 仓库](https://github.com/liaolongdong/account-password-helper)（源码 / Releases 下载 / Issue 反馈），顺手点个 Star 是对开源最大的支持
 - [在线演示与双语 FAQ](https://liaolongdong.github.io/account-password-helper/)
 
