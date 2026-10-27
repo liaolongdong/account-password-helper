@@ -35,6 +35,54 @@
   }
 }
 
+/*
+ * 备份轻提醒的进出场：卡片高度由内容决定，CSS 无法在 `auto` 与 0 之间插值，
+ * 所以外层套一层 `grid-template-rows: 1fr → 0fr` 的壳来收放高度（子项必须
+ * `min-height: 0`，否则 grid 项的自动最小尺寸会顶住不收）。只淡出不收高度的话，
+ * 动画结束时下方内容会整块往上跳一次，比没有动画更扎眼。
+ * 时长取 `--aph-duration-mid`，与仓库其余一次性横幅同一档。
+ */
+.backup-nudge-shell {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.backup-nudge-shell > * {
+  min-height: 0;
+}
+
+.backup-nudge-enter-active,
+.backup-nudge-leave-active {
+  overflow: hidden;
+  transition:
+    grid-template-rows var(--aph-duration-mid) ease-in-out,
+    opacity var(--aph-duration-mid) ease-in-out;
+}
+
+.backup-nudge-enter-from,
+.backup-nudge-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backup-nudge-enter-active,
+  .backup-nudge-leave-active {
+    transition: none;
+  }
+
+  /*
+   * 同一档里也撤掉全局按钮那 1px 悬浮上浮。它原先靠 `reducedMotionCoverage` 的
+   * 「整文件豁免」留在减弱档之外；这个文件一旦有了减弱档，就不该再一边声明尊重系统设置、
+   * 一边留两条不受它管的位移——那条豁免因此必须随之删掉。撤掉上浮后按钮仍有提亮与投影
+   * 两条反馈在动，不是「按下去什么都看不见」那一形（那才是登记表该留的情形）。
+   */
+  :deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover),
+  :deep(.el-button:hover) {
+    transform: none;
+  }
+}
+
 /* 弹窗样式 */
 .dialog-footer {
   display: flex;

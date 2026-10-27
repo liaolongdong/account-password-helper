@@ -103,16 +103,25 @@
       />
 
       <!-- 会话内备份轻提醒：从未备份，或本次会话刚改过数据且尚未备份时出一次，
-           关闭只作用于本页；清单在场时不叠第二条横幅（判据见上方 backupNudge 计算属性） -->
-      <BackupNudgeBanner
-        v-if="backupNudge"
-        :state="backupNudge.state"
-        :days="backupNudge.days"
-        :vault="backupNudge.vault"
-        :other-vault="backupNudgeOtherVault"
-        @backup="handleBackupNudgeAction"
-        @dismiss="backupNudgeDismissed = true"
-      />
+           关掉之后本次浏览器会话内不再出现（刷新也算）；清单在场时不叠第二条横幅
+           （判据见上方 backupNudge 计算属性）。
+           进出场套一层 0fr↔1fr 的 grid 壳：卡片高度由内容决定，`auto` 不可插值，没有这层壳，
+           淡出结束后下方内容会整块往上跳一次——那比「没有动画」更扎眼。 -->
+      <Transition name="backup-nudge">
+        <div
+          v-if="backupNudge"
+          class="backup-nudge-shell"
+        >
+          <BackupNudgeBanner
+            :state="backupNudge.state"
+            :days="backupNudge.days"
+            :vault="backupNudge.vault"
+            :other-vault="backupNudgeOtherVault"
+            @backup="handleBackupNudgeAction"
+            @dismiss="handleBackupNudgeDismiss"
+          />
+        </div>
+      </Transition>
 
       <!-- 一次性评价引导：密码多于 1 条、成功填充过且首次填充满 7 天后出现，可延后或永久关闭 -->
       <ReviewPrompt
@@ -479,6 +488,7 @@ import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { decideBackupNudge } from '@/utils/backup/changeDetection';
+import { readBackupNudgeDismissed, writeBackupNudgeDismissed } from '@/utils/backup/nudgeDismissal';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
@@ -730,6 +740,7 @@ const {
   backupChip,
   lastVerifiedBackupAt,
   refresh: refreshBackupChip,
+  ready: backupChipReady,
   setPasswordCount,
   mutatedThisSession,
 } = useBackupChip();
@@ -1321,14 +1332,37 @@ const showActivationChecklist = computed(
  * - `critical`：一次都没通过自检导出过（换机 / 重装 / 误删时零退路），清单不在场时持续提示；
  * - `urgent` + 本次页面会话内确实发生过变更：即用户「刚添加 / 刚改完密码」这个时间点。
  *
- * 关闭只作用于本页会话（不新增持久化键、不加闹钟与桌面通知），
+ * **三路输入读全之前不出声**（`backupNudgeInputsReady`）：条目数在列表到手那一刻就有，而备份
+ * 时间戳、清单状态与上一次的关闭标记都还要各读一次。任何一路没到位，档位都是临时的——
+ * 时间戳没读到时算成「从未备份」，清单状态没读到时互斥判断形同不存在，关闭标记没读到时
+ * 刚关掉的那条会再画一次。用户看到的就是「每次刷新都闪一下再消失」。
+ *
+ * 关闭记在本次浏览器会话的内存里（`chrome.storage.session`，关浏览器即清、不落盘、
+ * 不加闹钟与桌面通知），所以刷新与重开管理页都不会把同一条提醒再推一遍；
  * 与「安全起步清单」互斥：清单在场时它已经把备份列为待办之一。
  */
 const backupNudgeDismissed = ref(false);
+const backupNudgeDismissalRead = ref(false);
+const backupNudgeInputsReady = computed(
+  () => backupChipReady.value && activationStateReady.value && backupNudgeDismissalRead.value,
+);
 const backupNudge = computed(() => {
-  if (backupNudgeDismissed.value || showActivationChecklist.value || !isAuthenticated.value) return null;
+  if (
+    !backupNudgeInputsReady.value ||
+    backupNudgeDismissed.value ||
+    showActivationChecklist.value ||
+    !isAuthenticated.value
+  ) {
+    return null;
+  }
   return decideBackupNudge({ chip: backupChip.value, mutatedThisSession: mutatedThisSession.value });
 });
+
+/** 关掉本次提醒：内存标记当场翻转（横幅立刻走退场动画），落内存存储只为跨刷新存活 */
+const handleBackupNudgeDismiss = (): void => {
+  backupNudgeDismissed.value = true;
+  void writeBackupNudgeDismissed();
+};
 
 /**
  * 另一库是否也该被点名
@@ -2143,6 +2177,12 @@ onMounted(async () => {
   await checkAuth();
   // 备份徽标与清单共用的时间戳：非敏感、单键读取，不挡首帧（徽标在数据到位后自己亮）
   void refreshBackupChip();
+  // 本次浏览器会话内是否已关掉备份轻提醒：读回来之前横幅一律不出声，否则刚关掉的那条
+  // 会在每次刷新时先画一遍再消失（判据见 `backupNudgeInputsReady`）
+  void readBackupNudgeDismissed().then(dismissed => {
+    backupNudgeDismissed.value = dismissed;
+    backupNudgeDismissalRead.value = true;
+  });
   // 安全起步清单的暂不提醒状态与体检趋势；两项都只读非敏感摘要，失败时降级为未完成
   void loadActivationState();
   // 更新提示与一次性评价引导；版本/关闭标记都只读非敏感数据
