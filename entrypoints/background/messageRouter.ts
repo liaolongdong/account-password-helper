@@ -42,6 +42,7 @@ import { isFrameFillable } from '@/utils/frameFill';
 import { isSameMainDomain, normalizeToHostname, parsePagePortContext, type PagePortContext } from '@/utils/domain';
 import { getEnvBinding, setEnvBinding } from './environmentBinding';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
+import { resolveSourceTabId } from '@/utils/sourceTab';
 import { tl } from '@/utils/i18n-lite';
 
 /**
@@ -713,9 +714,15 @@ export function setupMessageRouter(): void {
         // 空白值不写出 `keyword` 键，否则选项页会把「筛成空」和「不筛」读成同一件事。
         // 词的内容可能是用户姓名，属 PII，故本分支不记任何取值。
         const keyword = normalizeSearchKeyword((message.data as { keyword?: unknown } | undefined)?.keyword);
-        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_IDENTITY, keyword ? { keyword } : undefined).then(
-          sendResponse,
-        );
+        // 来源标签页只从 sender.tab 推导（浏览器盖章），页面自报的 sourceTabId 一律丢弃：
+        // 这个数决定管理页那枚「回到原网页」把用户送去哪个站点，交给网页就等于把跳转权交出。
+        // 判据与 DELEGATE_PAGE_NOTICE 同源（见 utils/sourceTab 的头注）。
+        const sourceTabId = resolveSourceTabId(sender.tab?.id, sender.tab?.url);
+        const identityData: { keyword?: string; sourceTabId?: number } | undefined =
+          keyword || sourceTabId !== undefined
+            ? { ...(keyword ? { keyword } : {}), ...(sourceTabId !== undefined ? { sourceTabId } : {}) }
+            : undefined;
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_IDENTITY, identityData).then(sendResponse);
         return true;
       }
 

@@ -34,6 +34,7 @@ vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({
 
 vi.mock('@/entrypoints/background/optionsPageManager', () => ({
   openOptionsPage: vi.fn(async () => {}),
+  openOptionsAndSendMessage: vi.fn(async () => ({ success: true })),
 }));
 
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
@@ -68,7 +69,7 @@ vi.mock('@/utils/storage/passwordCrud', () => ({
 
 import { notifyFailure, showBadgeFeedback, showPageNotice } from '@/entrypoints/background/quickFillHandler';
 import { tryOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
-import { openOptionsPage } from '@/entrypoints/background/optionsPageManager';
+import { openOptionsAndSendMessage, openOptionsPage } from '@/entrypoints/background/optionsPageManager';
 import { openSidePanelAndRespond } from '@/entrypoints/background/sidePanelManager';
 import {
   ensureCredentialAccessAfterStartupRelock,
@@ -96,6 +97,7 @@ const mockedPending = vi.mocked(recordPendingTotpIfEligible);
 const mockedFrameFillable = vi.mocked(isFrameFillable);
 const mockedUpdate = vi.mocked(updatePasswordInSession);
 const mockedOpenSidePanel = vi.mocked(openSidePanelAndRespond);
+const mockedOpenOptionsAndSendMessage = vi.mocked(openOptionsAndSendMessage);
 
 const entryA = {
   id: 'entry-a',
@@ -165,6 +167,7 @@ const armHappyPath = (entries: PasswordEntry[]) => {
   mockedSessionActive.mockReturnValue(true);
   mockedSessionValid.mockResolvedValue(true);
   mockedOpenInline.mockResolvedValue('opened');
+  mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: true });
   sendMessageSpy.mockResolvedValue({ success: true } as never);
 };
 
@@ -182,9 +185,9 @@ afterEach(() => {
 });
 
 describe('菜单注册（结构契约）', () => {
-  it('两个显式父项 + 4 个输入框填充项 + 2 个页面入口项，子项挂在父项下', async () => {
+  it('两个显式父项 + 4 个输入框填充项 + 1 个身份库入口 + 2 个页面入口项，子项挂在父项下', async () => {
     ensureClickListener();
-    await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
+    await vi.waitFor(() => expect(createdMenuItems.length).toBe(10));
     const editable = createdMenuItems.filter(item => item.contexts?.includes('editable'));
     const page = createdMenuItems.filter(item => item.contexts?.includes('page'));
     expect(editable.map(item => item.id)).toEqual([
@@ -193,15 +196,18 @@ describe('菜单注册（结构契约）', () => {
       'aph-cm-fill-password',
       'aph-cm-fill-totp',
       'aph-cm-generate-password',
+      'aph-cm-separator-identity',
+      'aph-cm-identity',
     ]);
     expect(page.map(item => item.id)).toEqual(['aph-cm-parent-page', 'aph-cm-open-sidepanel', 'aph-cm-open-options']);
-    expect(createdMenuItems.every(item => typeof item.title === 'string' && item.title.length > 0)).toBe(true);
+    const titled = createdMenuItems.filter(item => item.type !== 'separator');
+    expect(titled.every(item => typeof item.title === 'string' && item.title.length > 0)).toBe(true);
   });
 
   it('每个上下文只有一个顶级项（避开 Chrome 按扩展全名折叠），且父项先于子项创建', async () => {
     // 直接重建而非复用 ensureClickListener（监听器已存在时它会短路，断言的将是上一个用例的残留菜单）
     setupContextMenu();
-    await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
+    await vi.waitFor(() => expect(createdMenuItems.length).toBe(10));
     const topLevel = createdMenuItems.filter(item => item.parentId === undefined);
     expect(topLevel.map(item => item.id)).toEqual(['aph-cm-parent-fill', 'aph-cm-parent-page']);
     for (const item of createdMenuItems) {
@@ -465,15 +471,81 @@ describe('页面类菜单点击分发', () => {
     Object.defineProperty(chrome, 'sidePanel', { value: undefined, configurable: true });
     try {
       setupContextMenu();
-      await vi.waitFor(() => expect(createdMenuItems.length).toBe(7));
+      await vi.waitFor(() => expect(createdMenuItems.length).toBe(9));
       expect(createdMenuItems.some(item => item.id === 'aph-cm-open-sidepanel')).toBe(false);
       expect(createdMenuItems.some(item => item.id === 'aph-cm-open-options')).toBe(true);
       expect(createdMenuItems.some(item => item.id === 'aph-cm-parent-page')).toBe(true);
     } finally {
-      // 恢复 sidePanel 桩与 8 项菜单，避免影响后续用例
+      // 恢复 sidePanel 桩与 10 项菜单，避免影响后续用例
       Object.defineProperty(chrome, 'sidePanel', { value: {}, configurable: true });
       setupContextMenu();
-      await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
+      await vi.waitFor(() => expect(createdMenuItems.length).toBe(10));
     }
+  });
+});
+
+describe('从个人信息库选择（导航入口）', () => {
+  it('会话有效时经 OPEN_OPTIONS_AND_IDENTITY 打开身份库，且不下发任何填充消息', async () => {
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
+        sourceTabId: 1,
+      }),
+    );
+    expect(mockedNotifyFailure).not.toHaveBeenCalled();
+    // 该入口只导航：不读右键目标，也不向 frame 下发明文
+    expect(sendMessageSpy).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 来源标签页取浏览器盖章的 `onClicked` tab 对象（非页面自报），库内据此给出「回到原网页」。
+   * URL 缺失时 fail-closed：宁可不给出口，也不给一个来路不明的跳转目标。
+   */
+  it('带上右键发生的那个标签页；拿不到 URL 时不写 sourceTabId 键', async () => {
+    const listener = ensureClickListener();
+
+    listener(
+      { menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData,
+      {
+        id: 7,
+        url: 'https://example.com/form',
+      } as chrome.tabs.Tab,
+    );
+    await vi.waitFor(() =>
+      expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
+        sourceTabId: 7,
+      }),
+    );
+
+    mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: true });
+    mockedOpenOptionsAndSendMessage.mockClear();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, { id: 8 } as chrome.tabs.Tab);
+    await vi.waitFor(() =>
+      expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, undefined),
+    );
+  });
+
+  it('会话失效时提示解锁（可点击直达），且不打开身份库', async () => {
+    mockedSessionActive.mockReturnValue(false);
+    mockedSessionValid.mockResolvedValue(false);
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.identityLocked', 'cm.title', 'unlock-required'),
+    );
+    expect(mockedOpenOptionsAndSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('打开身份库失败时走通知反馈，不静默吞掉', async () => {
+    mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: false });
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.identityPickFailed', 'cm.title', undefined),
+    );
   });
 });

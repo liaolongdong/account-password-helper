@@ -228,6 +228,11 @@ export enum MessageType {
    *   `normalizeSearchKeyword` 的 trim + 64 字上限，只用于把身份库列表筛到那一个人或那一条字段。
    * 空白值不写出 `keyword` 键，缺失时也要照常打开身份库（召唤本身才是主意图）。
    *
+   * - `sourceTabId`（可选）：这一次召唤发生在哪个标签页，供管理页在用户复制完值之后「回到原网页」。
+   *   它**不由内容脚本自报**，而是后台从 `sender.tab` 取浏览器盖章的 id 并经协议白名单收窄
+   *   （`utils/sourceTab.ts`）——自报值等于让任意网页决定管理页上那枚按钮把用户送去哪个站点。
+   *   不可用时整键缺席，选项页据此不显示回程出口。
+   *
    * 页面字段角色**不在载荷里**：它只服务气泡上那句「这是「证件号」字段」。曾经把它透过来
    * 预选类别档位，但一条身份条目同时携带证件号、手机号等多个值，预选会把该命中的筛出视野，
    * 故深链恒落在「全部」档（改判理由见 `tests/architecture/identityHintWiring.test.ts` 头注第 3 条）。
@@ -434,7 +439,7 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES; data?: { domain: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }
   | { type: MessageType.OPEN_OPTIONS_AND_SEARCH; data?: { keyword: string } }
-  | { type: MessageType.OPEN_OPTIONS_AND_IDENTITY; data?: { keyword?: string } }
+  | { type: MessageType.OPEN_OPTIONS_AND_IDENTITY; data?: { keyword?: string; sourceTabId?: number } }
   | { type: MessageType.START_SELECTOR_PICK; data: StartSelectorPickData }
   | { type: MessageType.CANCEL_SELECTOR_PICK; data: CancelSelectorPickData }
   | { type: MessageType.SELECTOR_PICKED; data: SelectorPickedData }

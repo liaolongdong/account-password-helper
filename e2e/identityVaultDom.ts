@@ -59,9 +59,16 @@ export async function closeVault(page: Page): Promise<void> {
  */
 export const identityField = (form: Locator, labelKey: string): Locator => form.getByLabel(textOf(labelKey)).first();
 
-/** 从已打开的身份库里经表单录一条（姓名 + 手机号），并等到成功提示与表单关闭 */
+/**
+ * 从已打开的身份库里经表单录一条（姓名 + 手机号），并等到成功提示与表单关闭
+ *
+ * 「添加」必须按工具栏那一颗定位，不能按角色 + 文案：空库时 `el-empty` 的空态里还藏着第二颗
+ * 同名同型的 primary 按钮（那是深链零命中给的那条出路），全弹窗搜名字会同时命中两颗而撞
+ * strict mode。工具栏那一颗在任何状态下都在，且才是「打开添加流程」的正规入口。
+ */
 export async function addIdentity(page: Page, name: string, phone: string): Promise<void> {
   await vaultDialog(page)
+    .locator('.identity-toolbar')
     .getByRole('button', { name: textOf('identity.add') })
     .click();
   const form = identityFormDialog(page);

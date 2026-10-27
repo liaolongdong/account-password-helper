@@ -61,7 +61,10 @@ test('全选行一行装下全部读数，批量按钮净间距 8px / 可见间�
 
   // 建一条带机密字段的条目：没有机密字段时「显示全部机密」整枚按钮不出现，
   // 就没有两枚按钮的间距可量。护照形态的证件号（非 18 位）不做校验位检查，落库最省事。
+  // 「添加」必须按工具栏那一颗定位：空库时 `el-empty` 里还有一颗同名 primary 按钮（空态出路），
+  // 全弹窗搜名字会命中两颗而撞 strict mode（口径同 `addIdentity`）。
   await vaultDialog(page)
+    .locator('.identity-toolbar')
     .getByRole('button', { name: textOf('identity.add') })
     .click();
   const form = identityFormDialog(page);

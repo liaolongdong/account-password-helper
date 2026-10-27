@@ -821,8 +821,8 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
 /**
  * 身份库取完值后的「回到原网页」出口
  *
- * 状态与三条结束时机都收在 `useVaultReturn` 里；这里只补上第四处——弹窗一关就作废意图，
- * 让「用户已经拿走值了」与「这条意图还活着」保持同一件事。
+ * 意图的生命周期只有这一副弹窗：`useVaultReturn` 管自己的两处清理，这里补上关窗那一条，
+ * 让「用户已经把值拿走了」与「这条意图还活着」始终是同一件事。
  */
 const vaultReturn = useVaultReturn();
 
@@ -833,13 +833,17 @@ watch(showIdentityVaultDialog, visible => {
   if (!visible) vaultReturn.forget();
 });
 
-/** 回程成功顺带收起库弹窗：切走标签页却把解密明文留在后台弹窗里，是最容易忘收的尾 */
+/**
+ * 回到召唤来源那一格
+ *
+ * 刻意**不关**库弹窗：跨卡取值时用户会来回跑几趟，每次回程都关一次窗等于逼他重开。明文仍然
+ * 只活在这一份文档里，收它的既有路径一条没少——关窗（`teardown()`）、会话失效、手动锁定；
+ * 提示条也留在原处，回程按钮可以反复按，每次都是同一个幂等动作。
+ */
 const handleVaultReturnToSource = async (): Promise<void> => {
-  if (await vaultReturn.returnToSource()) {
-    showIdentityVaultDialog.value = false;
-    return;
+  if (!(await vaultReturn.returnToSource())) {
+    ElMessage.warning(t('identity.return.tabGone'));
   }
-  ElMessage.warning(t('identity.return.tabGone'));
 };
 
 /**
