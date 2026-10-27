@@ -71,6 +71,14 @@ export const COPY = {
       title: '回收站与修改历史：误删可恢复，改错能回滚',
       sub: '删除的条目保留 30 天，每条密码默认留存 3 份加密历史快照',
     },
+    identity: {
+      title: '个人信息库：证件和银行卡单独成库，机密字段默认掩码',
+      sub: '与密码库分开的第二个加密数据域，独立复验门槛、独立回收站，还能按类别筛选',
+    },
+    tour: {
+      title: '首次设置完就有新手引导，连「忘记主密码怎么办」也提前讲',
+      sub: '一步一屏，← → 切换、Esc 退出；这一步当场就能登记离线恢复密钥',
+    },
   },
   en: {
     suffix: '-en',
@@ -134,6 +142,14 @@ export const COPY = {
       title: 'Trash and history: recover a deletion, roll back a change',
       sub: 'Deleted entries stay recoverable for 30 days; each password keeps 3 encrypted snapshots',
     },
+    identity: {
+      title: 'Personal info vault: IDs and bank cards in a store of their own',
+      sub: 'A second encrypted data domain, with its own re-verification gate, its own trash and category filters',
+    },
+    tour: {
+      title: 'A first-run tour that mentions the way out before you need it',
+      sub: 'One card per step, ← → to move and Esc to leave; this step can enroll an offline recovery key',
+    },
   },
 };
 
@@ -147,6 +163,12 @@ export const UI = {
     trash: '回收站',
     add: '添加密码',
     fillAndLogin: '填充并登录',
+    /** 头部「个人信息库」按钮的 title（`identity.vaultEntryTitle`），比可见文案更唯一 */
+    identityVault: '打开个人信息库（需要验证主密码）',
+    /** 引导 retreat 步的标题，用于在进度点的 aria-label 里认格 */
+    tourRetreat: '先给自己留好退路',
+    /** 首启页的提交按钮（`firstrun` 拍完加密页要靠它进入引导） */
+    setup: '设置主密码并开始使用',
   },
   en: {
     audit: 'Health Check',
@@ -156,5 +178,8 @@ export const UI = {
     trash: 'Trash',
     add: 'Add Password',
     fillAndLogin: 'Fill and sign in',
+    identityVault: 'Open the personal info vault (master password required)',
+    tourRetreat: 'Leave yourself a way out',
+    setup: 'Set master password and start',
   },
 };

@@ -117,6 +117,14 @@ One fill takes four steps, all on your own machine:
 </p>
 
 <p align="center">
+  <a href="./assets/cws-store/screen-15-identity-vault-en.png"><img src="./assets/cws-store/screen-15-identity-vault-en.png" alt="Personal info vault: ID numbers and bank cards in a store of their own, masked by default in the list" width="100%" /></a>
+  <br />
+  <b>🪪 Personal info vault</b>
+  <br />
+  <sub>IDs, bank cards and addresses live apart from the password vault, with their own re-verification gate and their own trash. Secret fields stay masked in the list until you click the eye.</sub>
+</p>
+
+<p align="center">
   <a href="./assets/cws-store/screen-5-preferences-en.png"><img src="./assets/cws-store/screen-5-preferences-en.png" alt="Preferences panel with six theme swatches and the Chinese/English language switch" width="100%" /></a>
   <br />
   <b>🎨 Themes &amp; bilingual UI</b>

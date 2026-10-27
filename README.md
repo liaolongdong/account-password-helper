@@ -117,6 +117,14 @@
 </p>
 
 <p align="center">
+  <a href="./assets/cws-store/screen-15-identity-vault.png"><img src="./assets/cws-store/screen-15-identity-vault.png" alt="个人信息库：证件号与银行卡号单独成库，列表里默认掩码" width="100%" /></a>
+  <br />
+  <b>🪪 个人信息库</b>
+  <br />
+  <sub>证件、银行卡、地址与密码库分开存放：独立的复验门槛、独立的回收站，机密字段默认掩码，点眼睛才显示。</sub>
+</p>
+
+<p align="center">
   <a href="./assets/cws-store/screen-5-preferences.png"><img src="./assets/cws-store/screen-5-preferences.png" alt="偏好设置：六款色彩主题色块与中英文语言切换" width="100%" /></a>
   <br />
   <b>🎨 主题与双语</b>
