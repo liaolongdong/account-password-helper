@@ -472,4 +472,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: 2026-10-28 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: 2026-10-27 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

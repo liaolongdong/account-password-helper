@@ -13,7 +13,7 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-10-28 · **Latest release**: v3.20.0 (2026-10-27) · CI uploaded v3.20.0 to the Chrome Web Store on 2026-10-28 and it is pending Chrome review — re-verify the served version before restating this line
+- **Last updated**: 2026-10-27 · **Latest release**: v3.20.0 (2026-10-27) · CI uploaded v3.20.0 to the Chrome Web Store on 2026-10-27 and it is pending Chrome review — re-verify the served version before restating this line
 - **Quality**: 4654 automated test cases across 320 test files
 
 ## Key Features
@@ -440,7 +440,7 @@ TOTP 的价值在于「多一个独立因素」，而不是「多一道绝对防
 
 ### [同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html)
 
-> Published: 2026-09-22 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-22 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 自 2026-07 把匹配口径收敛成「精确 host 相等」以来，这条规则一直是这个扩展的多环境隔离底座：`fat.example.com` 的页面上不会看到 `uat.example.com` 或 `example.com` 的账号。它同时是最容易被用户碰到的一面墙——同一主域名下的账号，在别的子域里就是不出来。
 
@@ -560,7 +560,7 @@ _本文涉及的关键文件：`utils/domain.ts`（`resolveMatchTier` / `isCross
 
 ### [四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html)
 
-> Published: 2026-09-05 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-05 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 这一批更新里，没有一个功能新增设置页开关，权限也只多了一个——`contextMenus`，而且它属于这一批里唯一的重量级功能（右键填充）。其余功能全部寄生在既有链路上：登录框、侧边栏、密码列表。这是刻意的——密码管理器的设置页每多一个开关，用户就要多做一次"这个我要不要开"的判断。
 
@@ -616,7 +616,7 @@ _本文涉及的关键文件：`entrypoints/background/contextMenuManager.ts`（
 
 ### [零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![Account Password Helper 核心价值一览](https://liaolongdong.github.io/account-password-helper/imgs/01-infographic-core-value.webp)
 
@@ -707,7 +707,7 @@ TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计�
 
 ### [让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：**侧边栏（Side Panel）冷启动白屏**。
 
@@ -810,7 +810,7 @@ _本文涉及的关键文件：`entrypoints/background/backgroundServices.ts`（
 
 ### [用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![从主密码到密文：加密管线全流程](https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.webp)
 
@@ -1151,7 +1151,7 @@ For the local encryption and key-management details, read [Web Crypto in practic
 
 ### [Three Tiers of Cross-Subdomain Matching](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html)
 
-> Published: 2026-09-22 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-22 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 Ever since the matching rule was narrowed to "hostnames must be equal" in July 2026, that rule has been this extension's foundation for multi-environment isolation: a page on `fat.example.com` never sees entries from `uat.example.com` or from `example.com`. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.
 
@@ -1271,7 +1271,7 @@ _Key files referenced: `utils/domain.ts` (`resolveMatchTier` / `isCrossSubdomain
 
 ### [Four Features, Four Implementation Notes](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html)
 
-> Published: 2026-09-05 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-05 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 Not one feature in this batch added a switch to the settings page, and only one permission grew the manifest — `contextMenus`, belonging to the single heavyweight item in the group (right-click fill). Everything else rides on rails that already existed: the login field, the side panel, the password list. That was deliberate — every extra toggle on a password manager's settings page is one more "should I turn this on?" decision pushed onto the user.
 
@@ -1327,7 +1327,7 @@ _Key files referenced: `entrypoints/background/contextMenuManager.ts` (menu regi
 
 ### [Why I Built a Local-First Password Manager](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![Account Password Helper core value overview](https://liaolongdong.github.io/account-password-helper/imgs/01-infographic-core-value.webp)
 
@@ -1414,7 +1414,7 @@ Next up: how to make the extension side panel open in under one second — a tra
 
 ### [Sub-Second Chrome Side Panel on MV3](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 If you've shipped a Manifest V3 extension, you've probably been bitten by the same bug: **the side panel cold-start white screen**.
 
@@ -1517,7 +1517,7 @@ _Key files referenced: `entrypoints/background/backgroundServices.ts` (keep-aliv
 
 ### [Web Crypto for a Real Password Manager](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![From master password to ciphertext: the full encryption pipeline](https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.webp)
 

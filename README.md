@@ -472,4 +472,4 @@
 
 ---
 
-> 📅 文档最后更新：2026-10-28 · 功能描述以当前开发分支的最新实现为准，已发布版本请见 [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 文档最后更新：2026-10-27 · 功能描述以当前开发分支的最新实现为准，已发布版本请见 [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
