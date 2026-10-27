@@ -3,7 +3,7 @@ title: Three Tiers of Cross-Subdomain Matching
 description: Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught.
 tags: chrome extension, password manager, domain matching, multi-environment testing, frontend
 date: 2026-09-22
-modified: 2026-10-27
+modified: 2026-10-28
 author: liaolongdong
 image: imgs/blog-cover-05-cross-subdomain-matching.png
 ---
@@ -106,7 +106,7 @@ Three caveats so these numbers aren't over-read: they measure the JS data layer,
 
 ## Test and guard surface
 
-The repo currently holds 4603 automated test cases across 316 test files. What covers this area directly: the `resolveMatchTier` tier cases (`off` reproducing the pre-migration exact-host rule, `wildcard` admitting only wildcard entries, `sameMainDomain` producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as `%2A`, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io`) all return -1 against `*.qq.com`; an equivalence guard on `filterAndSortEntriesForDomain` claiming the same set in the same order id by id under `off`, plus the widened tiers' priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.
+The repo currently holds 4654 automated test cases across 320 test files. What covers this area directly: the `resolveMatchTier` tier cases (`off` reproducing the pre-migration exact-host rule, `wildcard` admitting only wildcard entries, `sameMainDomain` producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as `%2A`, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io`) all return -1 against `*.qq.com`; an equivalence guard on `filterAndSortEntriesForDomain` claiming the same set in the same order id by id under `off`, plus the widened tiers' priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.
 
 The unusual one is `tests/architecture/crossSubdomainTierWiring.test.ts`: it doesn't exercise behaviour, it scans source. Invariants of the form "all four consumers must agree" die most often when a new call site forgets to pass the tier — and because the parameter has an `off` default, type checking and ESLint stay completely silent. It happened once for real: a full row click in the side panel used the tier-aware predicate while the keyboard Enter path ate the default value, producing "clickable, but Enter won't open it" for cross-subdomain entries. The same file mechanically forbids hand-writing range comparisons like `tier >= 1 && tier <= 3` in runtime code, locking the one definition of that interval inside `isCrossSubdomainTier`. Constraints of the shape "these two places must agree" drift when they rely on discipline; they don't drift when a scanner enforces them.
 

@@ -17,7 +17,7 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 4603 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 4654 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
@@ -385,6 +385,32 @@ The side panel relies on Chrome's Side Panel API (Chromium 114 or newer); you ca
 
 Highlights from the most recent releases. The item-by-item record is in [CHANGELOG.md](./CHANGELOG.md); packages and release notes are on [Releases](https://github.com/liaolongdong/account-password-helper/releases).
 
+### v3.20.0 (2026-10-27)
+
+- **Right-click any web input to open the Personal Info Vault**: in the cases where the field hint never appears (undetected fields, non-top frames) you no longer have to walk back to the manager page; after copying, "Back to the page" returns you to the field you were in — the source tab is only ever the id Chrome stamped, and its origin is re-checked before switching.
+- **The "leave a way out" step after setting the master password can enrol an offline recovery key on the spot** — an in-card button opens the recovery settings, and the copy still says you can do it later.
+- **Dismissing the backup nudge now survives a refresh**: it stays gone for the browser session (`chrome.storage.session`, nothing written to disk), and the banner no longer flashes into view before all three inputs have been read.
+- **Whole-blob writes are serialised**: the password vault, the trash and the personal info vault all commit their read-modify-write behind one commit lock, so a concurrent context can no longer overwrite rows it never read.
+
+### v3.19.0 (2026-10-26)
+
+- **The offline recovery key now really gets the local vault back** after a forgotten master password: five local domains covered, and undecryptable records no longer force a wipe — the plaintext download step spells out its own risk.
+- **Backup status moved from the Data menu into a header chip**, plus a light in-session nudge.
+- **The master-password hint can be edited or cleared any time**, not only at first setup, and it hands off cleanly to the forgot-password wizard.
+- **Eleven built-in personal-info fields gained format-shaped placeholders**, so you know what to type and in what shape.
+
+### v3.18.0 (2026-10-23)
+
+- **Local dev pages can bind to a remote environment**: declare that this `localhost` page is really the dev / fat / uat / prod front end, and reuse the credentials already stored for it.
+- **Sidebar and list ordering now rank by relevance to the current site**; the matching tier only decides visibility, never order.
+- The first identity-vault hit is scrolled into view; the site filter shares the loopback-alias yardstick; the shortcut sheet lists `⌘K` for the command palette.
+
+### v3.17.0 (2026-10-22)
+
+- **The toolbar icon switches between a key and a padlock** with the session state, so unlocked vs locked is readable at a glance.
+- **Personal-info field hints**: the first bubble says where the switch lives and the collapse button shows its shortcut; organisation credential numbers moved into a layer of their own, and five domestic form scenarios joined the dictionary.
+- Preferences rows reordered by usage frequency, with the field-hint switch sitting right under the quick-fill mode.
+
 ### v3.16.0 (2026-10-14)
 
 - **Site rules can override the fill entry per domain**: keep the sidebar globally while a single site falls back to the inline panel or manual mode. The settings panel now states which entry the site rule pins it to, and clearing the last override removes the rule instead of leaving you stuck with a setting you cannot change back.
@@ -446,4 +472,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: 2026-10-15 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: 2026-10-28 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

@@ -13,8 +13,8 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-10-18 · **Latest release**: v3.16.0 (2026-10-14) · the Chrome Web Store listing serves v3.16.0 — no version gap between GitHub Releases and the store
-- **Quality**: 4603 automated test cases across 316 test files
+- **Last updated**: 2026-10-28 · **Latest release**: v3.20.0 (2026-10-27) · CI uploaded v3.20.0 to the Chrome Web Store on 2026-10-28 and it is pending Chrome review — re-verify the served version before restating this line
+- **Quality**: 4654 automated test cases across 320 test files
 
 ## Key Features
 
@@ -440,7 +440,7 @@ TOTP 的价值在于「多一个独立因素」，而不是「多一道绝对防
 
 ### [同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html)
 
-> Published: 2026-09-22 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-22 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 自 2026-07 把匹配口径收敛成「精确 host 相等」以来，这条规则一直是这个扩展的多环境隔离底座：`fat.example.com` 的页面上不会看到 `uat.example.com` 或 `example.com` 的账号。它同时是最容易被用户碰到的一面墙——同一主域名下的账号，在别的子域里就是不出来。
 
@@ -540,7 +540,7 @@ storedHost 以 `*.` 开头 → base = 剥掉 `*.`
 
 ### 测试面与门禁
 
-今天仓库有 4603 个自动化用例、分布在 316 个测试文件。与这块直接相关的覆盖是：`resolveMatchTier` 的分层用例（`off` 档与迁移前精确口径一致、`wildcard` 只额外放行通配、`sameMainDomain` 的 1 → 2 → 3 序列、apex 页面自身、被编码成 `%2A` 的通配标记、两段式 ccTLD、IP 与非法输入降级、当前页无域名的短路），一条「前缀碰撞不被绕过」的安全回归（`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io` 对 `*.qq.com` 一律返回 -1），`filterAndSortEntriesForDomain` 在 `off` 档下「集合与顺序逐 id 一致」的等价性守卫与放宽档的优先级序列测试（通配排在 apex 之前、本地开发域名三档结果一致），内联下拉三档各带一枚来源 chip 的呈现测试，以及上面提到的那条 e2e。
+今天仓库有 4654 个自动化用例、分布在 320 个测试文件。与这块直接相关的覆盖是：`resolveMatchTier` 的分层用例（`off` 档与迁移前精确口径一致、`wildcard` 只额外放行通配、`sameMainDomain` 的 1 → 2 → 3 序列、apex 页面自身、被编码成 `%2A` 的通配标记、两段式 ccTLD、IP 与非法输入降级、当前页无域名的短路），一条「前缀碰撞不被绕过」的安全回归（`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io` 对 `*.qq.com` 一律返回 -1），`filterAndSortEntriesForDomain` 在 `off` 档下「集合与顺序逐 id 一致」的等价性守卫与放宽档的优先级序列测试（通配排在 apex 之前、本地开发域名三档结果一致），内联下拉三档各带一枚来源 chip 的呈现测试，以及上面提到的那条 e2e。
 
 比较特别的是 `tests/architecture/crossSubdomainTierWiring.test.ts`：它不测行为，扫源码。因为「四处消费方必须同口径」这种不变量，最容易的死法是某个新调用忘了传档位参数——而参数带 `off` 默认值时，类型检查和 ESLint 全程静默。真实形态就发生过一次：侧边栏整行点击走了档位感知的判定，键盘回车却吃了形参默认值，跨子域条目「点得到、回车打不开」。同一个文件还机械禁止运行时代码再手写 `tier >= 1 && tier <= 3` 这类区间比较，把区间的唯一定义处锁死在 `isCrossSubdomainTier` 里。这类「两处必须一致」的约束，靠自觉一定会漂移，靠扫描器不会。
 
@@ -560,7 +560,7 @@ _本文涉及的关键文件：`utils/domain.ts`（`resolveMatchTier` / `isCross
 
 ### [四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html)
 
-> Published: 2026-09-05 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-05 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 这一批更新里，没有一个功能新增设置页开关，权限也只多了一个——`contextMenus`，而且它属于这一批里唯一的重量级功能（右键填充）。其余功能全部寄生在既有链路上：登录框、侧边栏、密码列表。这是刻意的——密码管理器的设置页每多一个开关，用户就要多做一次"这个我要不要开"的判断。
 
@@ -602,7 +602,7 @@ _本文涉及的关键文件：`utils/domain.ts`（`resolveMatchTier` / `isCross
 
 ### 这批功能的共同点
 
-回头看，四条链路都遵守同一套约束：**不加开关、除 `contextMenus` 外不加权限、不改存储结构与加密格式、不动既有条目的语义**；新增的用户可见文案全部中英双语成对提交；每个功能都带回归测试，全仓库 4603 项自动化测试（分布在 316 个测试文件）与 `pnpm build`（Chromium）+ `pnpm build:firefox`（Firefox）双端构建作为验收线。
+回头看，四条链路都遵守同一套约束：**不加开关、除 `contextMenus` 外不加权限、不改存储结构与加密格式、不动既有条目的语义**；新增的用户可见文案全部中英双语成对提交；每个功能都带回归测试，全仓库 4654 项自动化测试（分布在 320 个测试文件）与 `pnpm build`（Chromium）+ `pnpm build:firefox`（Firefox）双端构建作为验收线。
 
 密码管理器的功能增量本来就不该是"多几个按钮"。它更像是把同一条登录链路磨得再顺一点：少一次切 App、少一次点错输入框、少一次为了看一眼备注而误改数据。
 
@@ -616,7 +616,7 @@ _本文涉及的关键文件：`entrypoints/background/contextMenuManager.ts`（
 
 ### [零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![Account Password Helper 核心价值一览](https://liaolongdong.github.io/account-password-helper/imgs/01-infographic-core-value.webp)
 
@@ -678,7 +678,7 @@ TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计�
 2. **字段级加密。** 条目的用户名、密码、URL、备注、TOTP 密钥全部单独加密，存储层看到的全是密文。
 3. **标准算法，不发明轮子。** PBKDF2-SHA256（600,000 次迭代）派生密钥，AES-256-GCM 认证加密，全部走浏览器原生 Web Crypto API。下一篇技术文章会展开讲实现细节。
 4. **会话有生命周期。** 默认 24 小时有效期；闲置自动锁定（跟随系统锁屏）与浏览器重启锁定都是可选项、默认关闭；手动一键锁定随时可用。锁定时内存中的密钥句柄与解密快照立即清除。
-5. **代码全开源（GPL-3.0）。** 加密那几行代码、权限声明、每一处网络调用，都可以自己读。4603 项自动化测试覆盖加密、会话、存储与消息路由等关键路径（跑在本地、提交前钩子里，也会在每次 push 与 PR 的仓库 CI 中自动执行）。
+5. **代码全开源（GPL-3.0）。** 加密那几行代码、权限声明、每一处网络调用，都可以自己读。4654 项自动化测试覆盖加密、会话、存储与消息路由等关键路径（跑在本地、提交前钩子里，也会在每次 push 与 PR 的仓库 CI 中自动执行）。
 
 同时也要把话说在前面：**这款工具的定位是开发、测试与日常登录场景，不建议在任何浏览器扩展里存放银行、支付类高敏感凭证**；主密码遗忘默认无法找回——除非你事先在「安全设置」里登记过离线恢复密钥，加密备份则是另一条退路。诚实的边界声明，是安全产品该有的样子。
 
@@ -707,7 +707,7 @@ TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计�
 
 ### [让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：**侧边栏（Side Panel）冷启动白屏**。
 
@@ -792,7 +792,7 @@ SW 常驻之后，下一步是把"用户即将用到的文件"提前读进系统
 - `passwordCache` / `startupRelock` / `idleLock`：缓存回温与各类锁定路径；
 - `sidePanelManager`：打开时序。
 
-目前全仓库 4603 项自动化测试（分布在 316 个测试文件）。性能结论：**缓存快路径 20-50ms 拿到数据**；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。
+目前全仓库 4654 项自动化测试（分布在 320 个测试文件）。性能结论：**缓存快路径 20-50ms 拿到数据**；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。
 
 ### 复盘：三条经验
 
@@ -810,7 +810,7 @@ _本文涉及的关键文件：`entrypoints/background/backgroundServices.ts`（
 
 ### [用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![从主密码到密文：加密管线全流程](https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.webp)
 
@@ -889,7 +889,7 @@ _本文涉及的关键文件：`entrypoints/background/backgroundServices.ts`（
 
 ---
 
-_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（4603 项自动化测试，含加密与换钥路径）。_
+_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（4654 项自动化测试，含加密与换钥路径）。_
 
 ## English originals
 
@@ -1151,7 +1151,7 @@ For the local encryption and key-management details, read [Web Crypto in practic
 
 ### [Three Tiers of Cross-Subdomain Matching](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html)
 
-> Published: 2026-09-22 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-22 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 Ever since the matching rule was narrowed to "hostnames must be equal" in July 2026, that rule has been this extension's foundation for multi-environment isolation: a page on `fat.example.com` never sees entries from `uat.example.com` or from `example.com`. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.
 
@@ -1251,7 +1251,7 @@ Three caveats so these numbers aren't over-read: they measure the JS data layer,
 
 ### Test and guard surface
 
-The repo currently holds 4603 automated test cases across 316 test files. What covers this area directly: the `resolveMatchTier` tier cases (`off` reproducing the pre-migration exact-host rule, `wildcard` admitting only wildcard entries, `sameMainDomain` producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as `%2A`, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io`) all return -1 against `*.qq.com`; an equivalence guard on `filterAndSortEntriesForDomain` claiming the same set in the same order id by id under `off`, plus the widened tiers' priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.
+The repo currently holds 4654 automated test cases across 320 test files. What covers this area directly: the `resolveMatchTier` tier cases (`off` reproducing the pre-migration exact-host rule, `wildcard` admitting only wildcard entries, `sameMainDomain` producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as `%2A`, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io`) all return -1 against `*.qq.com`; an equivalence guard on `filterAndSortEntriesForDomain` claiming the same set in the same order id by id under `off`, plus the widened tiers' priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.
 
 The unusual one is `tests/architecture/crossSubdomainTierWiring.test.ts`: it doesn't exercise behaviour, it scans source. Invariants of the form "all four consumers must agree" die most often when a new call site forgets to pass the tier — and because the parameter has an `off` default, type checking and ESLint stay completely silent. It happened once for real: a full row click in the side panel used the tier-aware predicate while the keyboard Enter path ate the default value, producing "clickable, but Enter won't open it" for cross-subdomain entries. The same file mechanically forbids hand-writing range comparisons like `tier >= 1 && tier <= 3` in runtime code, locking the one definition of that interval inside `isCrossSubdomainTier`. Constraints of the shape "these two places must agree" drift when they rely on discipline; they don't drift when a scanner enforces them.
 
@@ -1271,7 +1271,7 @@ _Key files referenced: `utils/domain.ts` (`resolveMatchTier` / `isCrossSubdomain
 
 ### [Four Features, Four Implementation Notes](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html)
 
-> Published: 2026-09-05 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-09-05 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 Not one feature in this batch added a switch to the settings page, and only one permission grew the manifest — `contextMenus`, belonging to the single heavyweight item in the group (right-click fill). Everything else rides on rails that already existed: the login field, the side panel, the password list. That was deliberate — every extra toggle on a password manager's settings page is one more "should I turn this on?" decision pushed onto the user.
 
@@ -1313,7 +1313,7 @@ The read-only detail drawer (`components/options/PasswordDetailDrawer.vue`) serv
 
 ### What the four have in common
 
-Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 4603 automated tests across 316 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
+Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 4654 automated tests across 320 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
 
 Feature increments in a password manager shouldn't be "a few more buttons". They should polish the same login chain until it's a little smoother: one less app switch, one less wrong input box, one less accidental edit made just to read a note.
 
@@ -1327,7 +1327,7 @@ _Key files referenced: `entrypoints/background/contextMenuManager.ts` (menu regi
 
 ### [Why I Built a Local-First Password Manager](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![Account Password Helper core value overview](https://liaolongdong.github.io/account-password-helper/imgs/01-infographic-core-value.webp)
 
@@ -1385,7 +1385,7 @@ A password manager earns trust through verifiable design, not slogans. The hard 
 2. **Field-level encryption.** Username, password, URL, notes, and TOTP secret are each encrypted individually. The storage layer sees only ciphertext.
 3. **Standard algorithms, no invention.** PBKDF2-SHA256 (600,000 iterations) for key derivation, AES-256-GCM authenticated encryption, all via the browser-native Web Crypto API. A follow-up post covers the implementation in depth.
 4. **Sessions have lifecycles.** 24 hours by default (1 hour to 7 days configurable). Idle auto-lock tied to system screen lock, and relock on browser restart, are both opt-in and off by default; one-click manual lock is always available. On any lock path, in-memory key handles and decrypted snapshots are wiped.
-5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 4603 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
+5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 4654 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
 
 An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And a forgotten master password cannot be recovered by default — unless you enrolled an offline recovery key beforehand, with encrypted backups as the other way back. Stating boundaries plainly is what security products should do.
 
@@ -1414,7 +1414,7 @@ Next up: how to make the extension side panel open in under one second — a tra
 
 ### [Sub-Second Chrome Side Panel on MV3](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 If you've shipped a Manifest V3 extension, you've probably been bitten by the same bug: **the side panel cold-start white screen**.
 
@@ -1499,7 +1499,7 @@ Alongside the implementation, the test suite grew to cover every layer (vitest �
 - `passwordCache` / `startupRelock` / `idleLock`: cache re-warm and every lock path;
 - `sidePanelManager`: open sequencing.
 
-The repo now has 4603 automated tests across 316 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
+The repo now has 4654 automated tests across 320 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
 
 ### Retrospective: Three Lessons
 
@@ -1517,7 +1517,7 @@ _Key files referenced: `entrypoints/background/backgroundServices.ts` (keep-aliv
 
 ### [Web Crypto for a Real Password Manager](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html)
 
-> Published: 2026-08-28 · Updated: 2026-10-27 · Author: [liaolongdong](https://github.com/liaolongdong)
+> Published: 2026-08-28 · Updated: 2026-10-28 · Author: [liaolongdong](https://github.com/liaolongdong)
 
 ![From master password to ciphertext: the full encryption pipeline](https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.webp)
 
@@ -1596,4 +1596,4 @@ Source and discussion: [the GitHub repository](https://github.com/liaolongdong/a
 
 ---
 
-_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (4603 automated tests, including encryption and re-key paths)._
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (4654 automated tests, including encryption and re-key paths)._
