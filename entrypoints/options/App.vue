@@ -378,6 +378,8 @@
     <OnboardingTour
       v-if="tourActive"
       :tour="tour"
+      :recovery-enrolled="recoveryEnrolledForTour"
+      @recovery="handleTourRecovery"
     />
 
     <!-- 「关于」抽屉：版本、数据存放口径与对外链接的集中落点（纯展示，不读存储也不发请求） -->
@@ -2059,6 +2061,32 @@ watch(guideActive, (active, previous) => {
  */
 const tour = useOnboardingTour();
 
+/** 引导「留退路」步的按钮文案：已登记时改为「管理」，不是再登记一次 */
+const recoveryEnrolledForTour = ref(false);
+
+/** 读一次恢复登记态；失败按未登记呈现，真正的门禁仍在恢复设置弹窗与存储层 */
+const refreshRecoveryEnrolledForTour = async (): Promise<void> => {
+  try {
+    const { isRecoveryEnrolled } = await import('@/utils/storage/recoveryState');
+    recoveryEnrolledForTour.value = await isRecoveryEnrolled();
+  } catch (error) {
+    recoveryEnrolledForTour.value = false;
+    logger.warn('读取引导用恢复登记状态失败，按未登记呈现:', error);
+  }
+};
+
+/**
+ * 引导里的「登记 / 管理恢复密钥」
+ *
+ * 引导 z-index 3200 高于 EP 弹层（2000+），不能把恢复弹窗叠在幕布下开；先结束引导
+ * （落 seen，避免下次自动重播），再打开既有恢复设置弹窗。用户取消也未完成登记时，
+ * 引导不会自动回来，但可从头部「新手引导」重播。
+ */
+const handleTourRecovery = async (): Promise<void> => {
+  await tour.skip();
+  showRecoverySettingsDialog.value = true;
+};
+
 /** 顶层解构才能在模板里自动解包 ref：`tour.isActive` 作为对象属性是 Ref 本体，恒为真值 */
 const tourActive = tour.isActive;
 
@@ -2067,6 +2095,7 @@ let tourAutoChecked = false;
 
 /** 手动重温：HeaderBar「新手引导」按钮的入口，走完或退出后仍可反复唤起 */
 const replayTour = async () => {
+  await refreshRecoveryEnrolledForTour();
   await tour.start();
 };
 
@@ -2088,6 +2117,8 @@ watch(
     tourAutoChecked = true;
     const state = await StorageUtils.getOnboardingTourState();
     if (state.seen) return;
+    // 引导里的「留退路」步要按真实登记态决定按钮文案；读失败按未登记，弹窗内仍有门禁。
+    await refreshRecoveryEnrolledForTour();
     await nextTick();
     await tour.start();
   },

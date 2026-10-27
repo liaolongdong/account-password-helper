@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import { MASTER_PASSWORD, createEntry, expect, test } from './harness';
-import { textOf } from './i18n';
+import { anchoredTextOf, textOf } from './i18n';
 
 /**
  * 认证屏（首次设置 / 解锁）与主内容区的版式回归
@@ -312,6 +312,51 @@ test.describe('认证屏与主内容区版式', () => {
       expect(headTop, `${vp.label} 解锁页标题被推出屏幕上方`).toBeGreaterThanOrEqual(0);
       expect(tailBottom, `${vp.label} 滚到底后安全声明仍不可达`).toBeLessThanOrEqual(viewportHeight + 1);
     }
+  });
+
+  test('首次设置后的引导可直接登记恢复密钥', async ({ extContext, extensionId }) => {
+    test.setTimeout(180_000);
+    const page = await extContext.newPage();
+    const url = `chrome-extension://${extensionId}/options.html`;
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(
+      async ({ key }: { key: string }) => {
+        await chrome.storage.local.clear();
+        localStorage.setItem(key, 'zh-CN');
+        await chrome.storage.local.set({ [key]: 'zh-CN' });
+      },
+      { key: STORAGE_KEYS.LOCALE },
+    );
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.setup-page')).toBeVisible({ timeout: 30_000 });
+    await setupMasterPassword(page);
+
+    const tour = page.locator('.tour');
+    await expect(tour).toBeVisible({ timeout: 30_000 });
+    const retreatTitle = anchoredTextOf('onboarding.retreat.title');
+    for (let step = 0; step < 12; step++) {
+      const title = await page.evaluate(() => document.querySelector('.tour__title')?.textContent?.trim() ?? '');
+      if (retreatTitle.test(title)) break;
+      // 卡片是 Teleport 到 body 的 dynamic 节点；这里用 DOM click 避开 actionability 等待。
+      await page.evaluate(() => document.querySelector<HTMLButtonElement>('.tour__foot .tour__btn--primary')?.click());
+      await page.waitForTimeout(350);
+    }
+    expect(
+      retreatTitle.test(await page.evaluate(() => document.querySelector('.tour__title')?.textContent?.trim() ?? '')),
+      '没走到「留退路」这一步',
+    ).toBe(true);
+
+    const actionLabel = await page.evaluate(
+      () => document.querySelector('.tour__action-btn')?.textContent?.trim() ?? '',
+    );
+    expect(actionLabel, '「留退路」步骤没有登记恢复密钥的入口').toMatch(textOf('onboarding.retreat.action'));
+    await page.evaluate(() => document.querySelector<HTMLButtonElement>('.tour__action-btn')?.click());
+
+    const recovery = page.getByRole('dialog').filter({ hasText: textOf('recovery.settingsTitle') });
+    await expect(recovery, '点击登记后没有打开既有恢复设置弹窗').toBeVisible({ timeout: 30_000 });
+    await expect(tour, '恢复弹窗打开时引导幕布仍盖在上面').toBeHidden();
+    await recovery.getByRole('button', { name: textOf('common.cancel') }).click();
+    await expect(recovery).toBeHidden();
   });
 
   test('备份提醒卡片与搜索条、密码列表共用一条左右基线', async ({ optionsPage }) => {
