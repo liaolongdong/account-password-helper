@@ -101,32 +101,22 @@
     "wxt": "^0.20.27"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ],
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
     "overrides": {
       "shell-quote": "~1.11.0",
       "tmp": ">=0.2.7",
       "uuid": ">=9.0.1",
       "js-yaml": "~4.3.2",
-      "fast-uri": "~3.1.7",
+      "fast-uri": "~3.1.9",
+      "undici": "^8.12.2",
       "firefox-profile": "~4.7.1",
       "vite": "~8.2.4"
     }
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "keywords": [
     "password-manager",
