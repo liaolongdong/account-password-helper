@@ -214,10 +214,10 @@ describe('site-dist 组装：真仓库的公开面', () => {
     expect(rewritten).toEqual([]);
   });
 
-  it('运行期轮播的 28 张 WebP 与博客 3 张信息图全部进部署包', () => {
+  it('运行期轮播的 32 张 WebP 与博客 3 张信息图全部进部署包', () => {
     const page = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
     const shots = [...page.matchAll(/file:\s*'(screen-[^']+\.png)'/g)].map(match => match[1]);
-    expect(shots.length, 'index.html 的 SLIDES 截图数量变了，请同步本守卫').toBe(14);
+    expect(shots.length, 'index.html 的 SLIDES 截图数量变了，请同步本守卫').toBe(16);
     const expected = shots.flatMap(file => [
       `assets/cws-store/${file.replace(/\.png$/, '.webp')}`,
       `assets/cws-store/${file.replace(/\.png$/, '-en.webp')}`,

@@ -79,4 +79,4 @@ Dashboard 的中文页与 English 页截图槽**互相独立、不继承**，所
 | 标题带文案       | `copy.mjs` 的 `identity` / `tour` 两组（中英各一份）                                    | 与商店四个字段同一套禁词口径：零竞品品牌名、零绝对化表述                                                                                                                                                                                                 |
 | 产线两个开关     | `SHOT_CDP_PORT`（`cdp.mjs` / `shot.mjs`）、`SHOT_OUT_DIR`（`capture.mjs`）              | 前者治同机并行跑批互相抢 9333 的挂死（实测两批都在 `Runtime.evaluate` 超时上死过）；后者让新场景试跑不落进母版目录。默认值都不变                                                                                                                         |
 
-**没做的一件事**：`index.html` 的截图画廊仍是 14 张。画廊条目会经 `assets:webp` 推导 WebP，并被 `tests/docs/landingNoJsSurface.test.ts` 按文件名核对，属对外页面表面的增量，另开一轮更干净。
+**画廊一并补上了**：`index.html` / `en.html` 的 SLIDES 从 14 屏加到 16 屏（引导屏排在「本地加密与主密码」之后，个人信息库排在「回收站」之后），STEP 序号按数组顺序重排；`tests/scripts/buildWebAssets.test.ts` 那条数量守卫同步改成 16（它本来就写着「数量变了请同步本守卫」），WebP 由 `pnpm assets:webp` 推导、`pnpm gen:en` 重出英文页。浏览器实测中英各翻到新增那一屏，图与标题带都对。
