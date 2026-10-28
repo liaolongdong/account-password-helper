@@ -7916,8 +7916,17 @@ pnpm lint:style  # Stylelint</code></pre>
           },
         },
         {
-          file: 'screen-7-favorites.png',
+          file: 'screen-16-onboarding-recovery.png',
           tag: 'STEP 06',
+          title: { zh: '新手引导与离线恢复密钥', en: 'First-run tour and recovery key' },
+          desc: {
+            zh: '设完主密码自动开始的分步引导，覆盖添加条目、侧边栏与内联下拉、搜索、备份和安全设置；其中一步专门交代主密码无法找回时怎么办——可当场登记离线恢复密钥，之后凭它重置主密码并解开本机已存数据。',
+            en: 'A step-by-step tour that starts on its own once the master password is set, covering adding entries, the side panel and inline dropdown, search, backups and security settings. One step is devoted to a forgotten master password: enroll an offline recovery key on the spot, then use it to reset the password and unlock the data already on this device.',
+          },
+        },
+        {
+          file: 'screen-7-favorites.png',
+          tag: 'STEP 07',
           title: { zh: '标签、收藏与智能搜索', en: 'Tags, favorites and smart search' },
           desc: {
             zh: '搜索同时匹配用户名、标签、备注与网址，认拼音全拼与首字母并高亮命中片段；星标收藏会置顶显示，再点一下只看收藏，标签按名称稳定配色。',
@@ -7926,7 +7935,7 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         {
           file: 'screen-8-detail-drawer.png',
-          tag: 'STEP 07',
+          tag: 'STEP 08',
           title: { zh: '只读详情与修改历史', en: 'Read-only details and history' },
           desc: {
             zh: '每行「查看详情」以抽屉展示完整备注、两步验证活码与密码修改历史，不必进入编辑态；密码默认掩码，点眼睛才显示，复制后按设定的秒数自动清理剪贴板。',
@@ -7935,7 +7944,7 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         {
           file: 'screen-9-inline-fill.png',
-          tag: 'STEP 08',
+          tag: 'STEP 09',
           title: { zh: '页内填充面板', en: 'In-page fill panel' },
           desc: {
             zh: '输入框获焦后点钥匙图标，就在框边挑账号直接填充；快捷键 Ctrl+Shift+K 可直接唤起，面板带网站图标、标签与收藏标识。',
@@ -7944,7 +7953,7 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         {
           file: 'screen-10-floating-button.png',
-          tag: 'STEP 09',
+          tag: 'STEP 10',
           title: { zh: '页面悬浮填充按钮', en: 'Floating fill button' },
           desc: {
             zh: '登录页上常驻一枚可拖拽的悬浮按钮，拖到任意位置会自动吸附屏幕边缘，透明度 10%~100% 可调；浮层自带设置面板，不用切回管理页就能就地调整。',
@@ -7953,7 +7962,7 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         {
           file: 'screen-11-auto-save.png',
-          tag: 'STEP 10',
+          tag: 'STEP 11',
           title: { zh: '自动保存登录凭证', en: 'Auto-save credentials' },
           desc: {
             zh: '提交登录时弹窗确认，自动去重，可设域名黑白名单与「不再提示」；密码偏弱或被多个账号复用时在同一弹窗中提醒，同一账号改了密码则自动转为「更新」并沿用原有标签与备注。',
@@ -7962,7 +7971,7 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         {
           file: 'screen-12-import-backup.png',
-          tag: 'STEP 11',
+          tag: 'STEP 12',
           title: { zh: '导入导出与加密备份', en: 'Import, export and encrypted backup' },
           desc: {
             zh: '支持 CSV 与 JSON 双向导入导出，自动识别主流密码管理器导出表格的字段（含两步验证密钥列），可整库导出也可勾选条目批量导出；另有 .aph 加密备份（每次导出换用新的随机盐与初始化向量）与邮箱备份提醒。',
@@ -7971,7 +7980,7 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         {
           file: 'screen-13-generator.png',
-          tag: 'STEP 12',
+          tag: 'STEP 13',
           title: { zh: '密码生成器双模式', en: 'Dual-mode password generator' },
           desc: {
             zh: '随机密码 6~50 位可调（默认 16 位），启用的每种字符集保证至少各出现一次，并可排除 0/O、1/l 一类易混淆字符；助记词组模式从内置的 3,080 词英文词库取 3~8 个单词，可追加数字与分隔符。',
@@ -7980,7 +7989,7 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         {
           file: 'screen-14-trash.png',
-          tag: 'STEP 13',
+          tag: 'STEP 14',
           title: { zh: '回收站与误删恢复', en: 'Trash and recovery' },
           desc: {
             zh: '删除的条目进入回收站保留 30 天可恢复，在回收站里彻底删除会连带清掉它的历史快照与到期提醒；每条密码默认留存 3 份加密历史快照（可调 1~10 份）以便回滚。',
@@ -7988,8 +7997,17 @@ pnpm lint:style  # Stylelint</code></pre>
           },
         },
         {
+          file: 'screen-15-identity-vault.png',
+          tag: 'STEP 15',
+          title: { zh: '个人信息库', en: 'Personal info vault' },
+          desc: {
+            zh: '证件号、银行卡与地址和账号密码分开存放，是第二个独立加密的数据域：按设置可在打开时再验一次主密码，机密字段在列表里默认掩码、点眼睛才显示；自带回收站、加密备份（.aphid）与按类别筛选，上限 100 条。',
+            en: 'ID numbers, bank cards and addresses live in a second encrypted store, apart from your passwords. Opening it can ask for the master password again, secret fields stay masked in the list until you click the eye, and it ships its own trash, encrypted .aphid backup and category filters, up to 100 records.',
+          },
+        },
+        {
           file: 'screen-5-preferences.png',
-          tag: 'STEP 14',
+          tag: 'STEP 16',
           title: { zh: '主题换肤与双语界面', en: 'Themes and bilingual UI' },
           desc: {
             zh: '6 款色彩主题与中英文界面即时切换，扩展页与注入页面的浮层同步生效；四个默认快捷键可在浏览器的「扩展程序快捷键」页改键。',
