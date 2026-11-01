@@ -82,6 +82,16 @@ const SHADOW_ROOT_SCAN_BUDGET = 6000;
 const SIDE_PANEL_FILLABLE_ROLES: ReadonlySet<IdentityHintRole> = new Set<IdentityHintRole>(['phone', 'email']);
 
 /**
+ * 一次 DOM 突变突发内允许逐个判定文本的候选上限
+ *
+ * 超出上限只丢弃后续候选，不因此放宽 `detectForms` 的触发条件：全页扫描是贵操作，
+ * 动画密集页每抖一轮 class 就重扫一次，等于把下沉判定省下的成本原样还回去。
+ * 取 32 是因为一次真实的「登录方式标签切换」通常只改个位数元素的属性，
+ * 而字段出现那条路径本就不依赖文本候选（走 forceDetect），不受此上限影响。
+ */
+const MUTATION_TEXT_TARGET_CAP = 32;
+
+/**
  * 表单检测器
  * 负责检测页面中的登录表单字段，自动显示侧边栏，以及填充密码。
  * 作为主编排器，组合 InputFiller、CheckboxHandler、LoginFormAnalyzer 等模块。
@@ -147,6 +157,20 @@ export class FormDetector {
   private lastUrl: string = location.href;
   /** DOM 变化检测的 debounce 计时器（可取消） */
   private detectionTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * 本轮突发内「属性变更」的元素候选
+   *
+   * 回调阶段只登记、不读文本：SPA 按帧抖 `class` / `style` 时，若在此取
+   * `element.textContent`，单条记录就要把整棵子树拼成一个字符串，成本是
+   * O(记录数 × 子树规模) 且全压在宿主页面主线程上。文本判定统一推迟到去抖
+   * 到期后的那一次任务里做（见 `runMutationDetection`）。
+   */
+  private pendingMutationAttributeTargets = new Set<Element>();
+  /** 本轮突发内「新增」的按钮候选（文本口径与属性候选不同，故分开登记） */
+  private pendingMutationButtons = new Set<Element>();
+  /** 本轮突发是否已确定要重检测（新增节点里直接出现表单字段，无需再看文本） */
+  private pendingMutationForceDetect = false;
+
   /**
    * 实例是否已销毁（B11 门）
    *
@@ -366,67 +390,50 @@ export class FormDetector {
         this.notifyUrlChange();
       }
 
-      let shouldRedetect = false;
+      // 回调阶段只登记候选、不读文本，也不重复查询选择器：文本判定下沉到去抖到期后的
+      // 一次任务里完成（`runMutationDetection`）。观察范围与关键词口径不变；
+      // 判定所用的时刻从「记录发生时」变为「去抖到期时」，突发内的瞬时文案回退不再触发重扫。
+      let hasMutationSignal = false;
 
       mutations.forEach(mutation => {
         if (mutation.type === 'attributes') {
-          const element = mutation.target as HTMLElement;
-          // `innerText` 只作兜底：它会对整棵子树强制布局，因此排在 `textContent` 之后短路，
-          // 实际只有「文本全靠 CSS 生成内容（::before content）呈现」的元素会走到这一步——
-          // 这类 SPA 标签页在主树里确实取不到任何文本，去掉兜底会丢掉重检测触发。
-          const textContent = element.textContent || element.innerText || '';
-          if (textContent.includes('密码登录') || textContent.includes('验证码登录') || textContent.includes('密码')) {
-            shouldRedetect = true;
-            return;
-          }
-
-          if (MUTATION_LOGIN_KEYWORDS.some(keyword => textContent.includes(keyword))) {
-            shouldRedetect = true;
-            return;
-          }
+          this.addMutationCandidate(mutation.target as Element, this.pendingMutationAttributeTargets);
+          hasMutationSignal = true;
+          return;
         }
+
         // 检测新增的登录相关输入框和按钮，触发重新检测
         mutation.addedNodes.forEach(node => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            if (
-              element.querySelector &&
-              (element.querySelector('input[type="password"]') ||
-                element.querySelector('input[type="email"]') ||
-                element.querySelector('input[type="tel"]') ||
-                element.querySelector('input[type="number"]') ||
-                // 动态渲染的验证码/手机号文本输入框
-                element.querySelector('input[type="text"]'))
-            ) {
-              shouldRedetect = true;
-            }
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          const element = node as Element;
+          if (!element.querySelector) return;
 
-            const loginButtonSelectors = ['button', 'input[type="submit"]', 'input[type="button"]', '[role="button"]'];
-            for (const selector of loginButtonSelectors) {
-              if (element.querySelector && element.querySelector(selector)) {
-                const button = element.querySelector(selector) as HTMLElement;
-                if (button) {
-                  const buttonText = button.innerText || button.textContent || '';
-                  const normalizedText = normalizeButtonText(buttonText);
-                  if (MUTATION_LOGIN_KEYWORDS.some(keyword => normalizedText.includes(normalizeButtonText(keyword)))) {
-                    shouldRedetect = true;
-                    break;
-                  }
-                }
-              }
-            }
+          if (
+            element.querySelector('input[type="password"]') ||
+            element.querySelector('input[type="email"]') ||
+            element.querySelector('input[type="tel"]') ||
+            element.querySelector('input[type="number"]') ||
+            // 动态渲染的验证码/手机号文本输入框
+            element.querySelector('input[type="text"]')
+          ) {
+            // 字段出现本身就是重检测的充分条件，无需再判定文本
+            this.pendingMutationForceDetect = true;
+            hasMutationSignal = true;
+          }
+
+          const loginButtonSelectors = ['button', 'input[type="submit"]', 'input[type="button"]', '[role="button"]'];
+          for (const selector of loginButtonSelectors) {
+            // 每个选择器每元素只查一次：旧写法在「是否存在」与「取值」上各查一遍，
+            // 等于把同一棵子树遍历翻倍
+            const button = element.querySelector(selector);
+            if (!button) continue;
+            this.addMutationCandidate(button, this.pendingMutationButtons);
+            hasMutationSignal = true;
           }
         });
       });
 
-      if (shouldRedetect) {
-        // 使用可取消的 debounce，避免连续 DOM 变化导致重复检测
-        if (this.detectionTimer) clearTimeout(this.detectionTimer);
-        this.detectionTimer = setTimeout(() => {
-          this.detectionTimer = null;
-          this.detectForms();
-        }, this.shortDelayTime);
-      }
+      if (hasMutationSignal) this.scheduleMutationDetection();
     });
 
     // allFrames 注入时部分 iframe（about:blank / srcdoc 空文档）document.body 为 null，
@@ -441,6 +448,89 @@ export class FormDetector {
     }
 
     return observer;
+  }
+
+  /**
+   * 登记一个待判定文本的候选，超出上限即丢弃后续候选
+   *
+   * 上限管两件事：去抖被持续抖动一路推后时，集合不会按记录数持有 DOM 引用（内容脚本与页面
+   * 同寿命，集合只在到期任务里清空）；以及一次突发的文本判定次数有界。
+   * 溢出**不放宽触发条件**（见 `MUTATION_TEXT_TARGET_CAP` 的取舍），也不影响字段出现那条
+   * 必重扫的路径。
+   */
+  private addMutationCandidate(target: Element, bucket: Set<Element>): void {
+    if (bucket.size >= MUTATION_TEXT_TARGET_CAP) return;
+    bucket.add(target);
+  }
+
+  /**
+   * 安排一次 DOM 突变重检测（可取消的 debounce）
+   *
+   * 与改造前同一计时口径：连续 DOM 变化只保留最后一次，短延迟 `shortDelayTime`。
+   */
+  private scheduleMutationDetection(): void {
+    if (this.detectionTimer) clearTimeout(this.detectionTimer);
+    this.detectionTimer = setTimeout(() => {
+      this.detectionTimer = null;
+      this.runMutationDetection();
+    }, this.shortDelayTime);
+  }
+
+  /**
+   * 去抖到期后统一判定本轮突变的文本信号
+   *
+   * 一次突发只付一次文本判定：候选按元素去重且数量有上界，
+   * 溢出时不再逐个读文本、直接重检测。
+   */
+  private runMutationDetection(): void {
+    if (this.disposed) return;
+    const forceDetect = this.pendingMutationForceDetect;
+    const attributeTargets = [...this.pendingMutationAttributeTargets];
+    const buttonTargets = [...this.pendingMutationButtons];
+    this.pendingMutationAttributeTargets.clear();
+    this.pendingMutationButtons.clear();
+    this.pendingMutationForceDetect = false;
+
+    if (forceDetect) {
+      this.detectForms();
+      return;
+    }
+
+    const hitLoginSignal =
+      attributeTargets.some(element => this.matchesMutationRawKeyword(element)) ||
+      buttonTargets.some(element => this.matchesMutationButtonKeyword(element));
+    if (hitLoginSignal) this.detectForms();
+  }
+
+  /**
+   * 属性变更候选是否携带登录字样（原样包含判定，与改造前的属性分支同口径）
+   *
+   * `innerText` 只作兜底：它会对整棵子树强制布局，因此排在 `textContent` 之后短路，
+   * 实际只有「文本全靠 CSS 生成内容（::before content）呈现」的元素会走到这一步——
+   * 这类 SPA 标签页在主树里确实取不到任何文本，去掉兜底会丢掉重检测触发。
+   */
+  private matchesMutationRawKeyword(element: Element): boolean {
+    const node = element as HTMLElement;
+    const textContent = node.textContent || node.innerText || '';
+    if (!textContent) return false;
+    if (textContent.includes('密码登录') || textContent.includes('验证码登录') || textContent.includes('密码')) {
+      return true;
+    }
+    return MUTATION_LOGIN_KEYWORDS.some(keyword => textContent.includes(keyword));
+  }
+
+  /**
+   * 新增按钮候选是否携带登录字样（去空白 + 小写后判定，与改造前的按钮分支同口径）
+   *
+   * 取值口径与改造前逐字保持一致（`innerText || textContent`），也与 `LoginFormAnalyzer`
+   * 判定按钮文案的三处同一顺序——这里若改成 `textContent` 优先，会出现「突发判定认不出的
+   * 按钮，`detectForms` 的扫描却能认出」的口径分裂。强制布局的成本改由候选上限与
+   * 「一次突发只判一次」共同兜住。
+   */
+  private matchesMutationButtonKeyword(element: Element): boolean {
+    const node = element as HTMLElement;
+    const normalizedText = normalizeButtonText(node.innerText || node.textContent || '');
+    return MUTATION_LOGIN_KEYWORDS.some(keyword => normalizedText.includes(normalizeButtonText(keyword)));
   }
 
   /**
@@ -2123,6 +2213,10 @@ export class FormDetector {
       clearTimeout(this.detectionTimer);
       this.detectionTimer = null;
     }
+    // 突发候选持有可能已卸载的 DOM 引用，销毁时必须清空（Set 不像 WeakSet 会自动放行）
+    this.pendingMutationAttributeTargets.clear();
+    this.pendingMutationButtons.clear();
+    this.pendingMutationForceDetect = false;
     document.removeEventListener('click', this.handleDelegatedClick, { capture: true });
     document.removeEventListener('focusin', this.handleDelegatedFocusIn, { capture: true });
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
