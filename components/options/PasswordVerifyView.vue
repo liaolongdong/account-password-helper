@@ -82,8 +82,11 @@
                 aria-live="polite"
               >
                 <span class="verify-hint-inline__label">{{ t('auth.hintShown') }}</span>
+                <!-- 折叠用 `v-show` 而不是 `v-if`：下面那颗按钮的 `aria-controls` 指向这个 id，
+                     节点被摘走时该关联就成了悬空引用（axe 按 aria-valid-attr-value 判违规）。
+                     display:none 的内容屏幕阅读器同样不会念出，收起态的观感不变。 -->
                 <span
-                  v-if="!hintCollapsed"
+                  v-show="!hintCollapsed"
                   id="verify-hint-text"
                   class="verify-hint-inline__text"
                   >{{ hint }}</span
