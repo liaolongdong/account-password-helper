@@ -177,6 +177,34 @@ test.describe('认证屏与主内容区版式', () => {
     await page.locator('.setup-header').click();
     await page.waitForTimeout(200);
 
+    // 宽屏反向对照：窄屏那条只证明「不撑出横向滚动」，证明不了「不压住别的字段」。
+    // 落点被从 right 统一改成 bottom-start 之后，220px 的规则面板就压在输入框正下方——
+    // 聚焦主密码那一刻，「确认密码」与「密码提示」两个表单项被整块盖住（实测盖 72px / 126px），
+    // 而这是用户第一次建立主密码、最需要看见下面两格的时刻。宽屏同样不许盖住任何表单项。
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForTimeout(300);
+    await page.getByPlaceholder(textOf('auth.setupPasswordPlaceholder')).focus();
+    await page.waitForTimeout(300);
+    const covered = await page.evaluate(() => {
+      const pop = document.querySelector<HTMLElement>('.password-rules-popover');
+      if (!pop) return ['<量不到规则面板>'];
+      const pr = pop.getBoundingClientRect();
+      return [...document.querySelectorAll<HTMLElement>('.el-form-item')]
+        .map((item, index) => {
+          const r = item.getBoundingClientRect();
+          const both = {
+            x: Math.min(pr.right, r.right) - Math.max(pr.left, r.left),
+            y: Math.min(pr.bottom, r.bottom) - Math.max(pr.top, r.top),
+          };
+          const label = item.querySelector('label')?.textContent?.trim() ?? `第 ${index + 1} 项`;
+          return both.x > 0 && both.y > 0 ? `${label}（压 ${Math.round(Math.min(both.y, r.height))}px）` : '';
+        })
+        .filter(Boolean);
+    });
+    expect(covered, `宽屏聚焦主密码时规则面板压住了其他表单项：${covered.join('、')}`).toEqual([]);
+    await page.locator('.setup-header').click();
+    await page.waitForTimeout(200);
+
     await page.setViewportSize({ width: 1440, height: 800 });
     await page.waitForTimeout(300);
     const align = await measureAlignment(page, '.setup-header', '.form-card');
