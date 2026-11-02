@@ -1,12 +1,19 @@
+/** @vitest-environment jsdom */
 /**
  * 解锁页提示语的 `aria-controls` 不得悬空（评审 2026-11-02 Minor 9）
  *
- * 折叠按钮写了 `aria-controls="verify-hint-text"`，而被指向的那段文本挂在 `v-if="!hintCollapsed"` 上：
- * 用户一收起提示语，节点就不存在了，`aria-controls` 指向一个查无此人的 id——axe 按
- * `aria-valid-attr-value` 判违规，屏幕阅读器也失去「这个按钮控制哪块内容」的关联。
+ * 折叠按钮原先写死 `aria-controls="verify-hint-text"`，而被指向的那段文本挂在
+ * `v-if="!hintCollapsed"` 上：用户一收起提示语，节点就不存在，这个关联指向查无此人的 id
+ * （axe 按 `aria-valid-attr-value` 判违规），屏幕阅读器也失去「这按钮控制哪块内容」的线索。
  *
- * 取真实 SFC 模板片段来判（与 `identityEmptyState.dom.test.ts` 同一套方式），不重写组件逻辑；
- * 断言落在「静态 aria-controls 指向的 id 必须无条件存在」这条通用规则上，而不是只钉当前这一处。
+ * 修法有两个方向，只能选后者：
+ * - 把 `v-if` 换成 `v-show` —— **不行**。`e2e/auth-screen-layout.spec.ts` 断的是
+ *   `toHaveCount(0)`：提示语是躺在本机的明文，「收起」是它的窥屏隐私出口，契约是节点真的从文档里
+ *   消失，而不是只是看不见。（实测踩过：换成 v-show 后那条用例红在 Expected 0 / Received 1。）
+ * - 保留 `v-if`，把 `aria-controls` 改成同条件下的动态绑定，折叠时把属性整个摘掉。
+ *
+ * 所以这里的不变量是「**静态** aria-controls 不许指向条件渲染的 id」，并要求动态绑定在没有目标时
+ * 交出 `undefined`（Vue 对 `undefined`/`null` 的绑定会移除属性）。取真实 SFC 模板判，不重写组件逻辑。
  */
 import { describe, expect, it } from 'vitest';
 import { parse } from 'vue/compiler-sfc';
@@ -20,47 +27,51 @@ const TEMPLATE = (() => {
   return descriptor.template?.content ?? '';
 })();
 
-/** 模板里出现过的全部 id 值 */
-function templateIds(): Set<string> {
-  return new Set([...TEMPLATE.matchAll(/\sid="([^"]+)"/g)].map(match => match[1]));
+/** 无论折叠与否都一定在场的 id：被 v-if / v-else-if 罩着的那些要剔掉 */
+function alwaysPresentIds(): Set<string> {
+  const all = new Set([...TEMPLATE.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
+  for (const m of TEMPLATE.matchAll(/<(\w+)([^>]*?)\sid="([^"]+)"/g)) {
+    if (/\sv-if[=.]/.test(m[2]) || /v-else-if/.test(m[2])) all.delete(m[3]);
+  }
+  return all;
 }
 
-/**
- * 挂在 `v-if` / `v-else-if` 上的元素 id
- *
- * 判定方式：从该元素开标签的起点向前回溯到上一个 `>`，如果中间夹着 `v-if`/`v-else-if` 属性，
- * 就认为这个节点是条件渲染的。够用且不需要引完整模板解析器。
- */
-function conditionalIds(): Set<string> {
-  const result = new Set<string>();
-  for (const match of TEMPLATE.matchAll(/<(\w+)([^>]*?)\sid="([^"]+)"/g)) {
-    const attrs = match[2];
-    if (/\sv-if(?:=|\.else)/.test(attrs) || /v-else-if/.test(attrs)) result.add(match[3]);
-  }
-  return result;
+/** 分开取静态与动态两类 aria-controls 绑定（`(?<![:\w-])` 把 `:aria-controls` 让给动态那一类） */
+function ariaControlsBindings(): { statics: string[]; dynamics: string[] } {
+  return {
+    statics: [...TEMPLATE.matchAll(/(?<![:\w-])aria-controls="([^"]+)"/g)].map(m => m[1]),
+    dynamics: [...TEMPLATE.matchAll(/:aria-controls="([^"]+)"/g)].map(m => m[1]),
+  };
 }
 
 describe('提示语折叠按钮的无障碍关联', () => {
-  it('扫描到 aria-controls 与目标 id（判据不是空跑）', () => {
-    expect([...TEMPLATE.matchAll(/aria-controls="([^"]+)"/g)].length).toBeGreaterThan(0);
-    expect(templateIds().has('verify-hint-text')).toBe(true);
+  it('扫描到 aria-controls 绑定与那个 id（判据不是空跑）', () => {
+    const { statics, dynamics } = ariaControlsBindings();
+    expect(statics.length + dynamics.length, '模板里一个 aria-controls 都没有，下面的断言就是空跑').toBeGreaterThan(0);
+    expect(TEMPLATE).toMatch(/\sid="verify-hint-text"/);
   });
 
-  it('每个静态 aria-controls 指向的 id 都必须存在，且不在条件渲染分支里', () => {
-    const existing = templateIds();
-    const conditional = conditionalIds();
-    const dangling = [...TEMPLATE.matchAll(/aria-controls="([^"]+)"/g)]
-      .map(match => match[1])
-      .filter(id => !existing.has(id) || conditional.has(id));
-
+  it('静态 aria-controls 不得指向条件渲染的 id', () => {
+    const present = alwaysPresentIds();
+    const dangling = ariaControlsBindings().statics.filter(id => !present.has(id));
     expect(
       dangling,
-      '指向 v-if 节点的 aria-controls 在收起态就是悬空引用，axe 按 aria-valid-attr-value 判违规；' +
-        '要隐藏文本请改用 v-show（节点留在 DOM 里，屏幕阅读器也不会念出隐藏内容）',
+      `这些静态 aria-controls 指向的节点会被 v-if 摘走，收起态即悬空引用：${dangling.join(', ')}`,
     ).toEqual([]);
   });
 
-  it('展开态标记 aria-expanded，折叠按钮本身仍可聚焦', () => {
-    expect(TEMPLATE).toMatch(/:aria-expanded="!hintCollapsed"/);
+  it('动态 aria-controls 在无目标时交出 undefined/null，而不是指向空 id', () => {
+    const broken = ariaControlsBindings().dynamics.filter(expr => !/undefined|null/.test(expr));
+    expect(
+      broken,
+      `动态绑定缺「目标不在场就摘属性」那一支，折叠时仍会指向空 id：${broken.join(' | ')}`,
+    ).toEqual([]);
+  });
+
+  it('提示语文本仍走 v-if：收起是隐私出口，节点必须真的从文档里消失', () => {
+    expect(
+      TEMPLATE,
+      '改成 v-show 会把明文留在 DOM 里，且 e2e 的 toHaveCount(0) 契约（窥屏时当场收掉）会红',
+    ).toMatch(/v-if="!hintCollapsed"\s+id="verify-hint-text"/);
   });
 });

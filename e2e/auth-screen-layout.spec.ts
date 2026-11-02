@@ -241,11 +241,18 @@ test.describe('认证屏与主内容区版式', () => {
     // 「收起」是这条信息条的隐私出口：提示语明文躺在本机，旁人窥屏时要能当场收掉。
     // 收起后内容必须真的从屏上消失（不是只变颜色），且能再展开回来。
     const hintText = page.locator('.verify-hint-inline__text');
+    const toggle = page.locator('.verify-hint-inline__toggle');
     await expect(hintText).toHaveText('最喜欢的数字和符号组合');
-    await page.locator('.verify-hint-inline__toggle').click();
+    // 展开态：aria-controls 指向那节点，且指向的东西真在 DOM 里（悬空引用会被 axe 判违规）
+    await expect(toggle).toHaveAttribute('aria-controls', 'verify-hint-text');
+    await expect(page.locator('#verify-hint-text')).toHaveCount(1);
+    await toggle.click();
     await expect(hintText).toHaveCount(0);
-    await page.locator('.verify-hint-inline__toggle').click();
+    // 收起态：节点摘走了，属性也必须整个消失，而不是留一个指向空 id 的关联
+    await expect(toggle).not.toHaveAttribute('aria-controls');
+    await toggle.click();
     await expect(hintText).toHaveText('最喜欢的数字和符号组合');
+    await expect(toggle).toHaveAttribute('aria-controls', 'verify-hint-text');
 
     // 700 视口下错误行与提示语条都在场（最坏情况），仍不该出现滚动条。
     // 上一版这里恒定多 32px：`min-height:100vh` 加了上下 16px padding 却没配 `box-sizing`。

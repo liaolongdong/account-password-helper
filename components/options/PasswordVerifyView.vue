@@ -82,11 +82,16 @@
                 aria-live="polite"
               >
                 <span class="verify-hint-inline__label">{{ t('auth.hintShown') }}</span>
-                <!-- 折叠用 `v-show` 而不是 `v-if`：下面那颗按钮的 `aria-controls` 指向这个 id，
-                     节点被摘走时该关联就成了悬空引用（axe 按 aria-valid-attr-value 判违规）。
-                     display:none 的内容屏幕阅读器同样不会念出，收起态的观感不变。 -->
+                <!--
+                  收起走 v-if 而不是 v-show：提示语是躺在本机的明文，「收起」是它的窥屏隐私出口，
+                  契约是节点真的从文档里消失（e2e 的 auth-screen-layout 就断 toHaveCount(0)，
+                  换成 v-show 实测红在 Expected 0 / Received 1）。
+                  代价是下面那颗按钮的 aria-controls 不能写死——节点不在场时静态关联指向空 id
+                  （axe 判 aria-valid-attr-value 违规），所以绑成同一个条件：收起时交 undefined，
+                  Vue 会把这枚属性整个摘掉。
+                -->
                 <span
-                  v-show="!hintCollapsed"
+                  v-if="!hintCollapsed"
                   id="verify-hint-text"
                   class="verify-hint-inline__text"
                   >{{ hint }}</span
@@ -97,7 +102,7 @@
                   type="info"
                   link
                   :aria-expanded="!hintCollapsed"
-                  aria-controls="verify-hint-text"
+                  :aria-controls="hintCollapsed ? undefined : 'verify-hint-text'"
                   @click="hintCollapsed = !hintCollapsed"
                 >
                   {{ hintCollapsed ? t('auth.hintExpand') : t('auth.hintCollapse') }}
