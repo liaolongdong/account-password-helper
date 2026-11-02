@@ -84,12 +84,25 @@ const SIDE_PANEL_FILLABLE_ROLES: ReadonlySet<IdentityHintRole> = new Set<Identit
 /**
  * 一次 DOM 突变突发内允许逐个判定文本的候选上限
  *
- * 超出上限只丢弃后续候选，不因此放宽 `detectForms` 的触发条件：全页扫描是贵操作，
- * 动画密集页每抖一轮 class 就重扫一次，等于把下沉判定省下的成本原样还回去。
- * 取 32 是因为一次真实的「登录方式标签切换」通常只改个位数元素的属性，
- * 而字段出现那条路径本就不依赖文本候选（走 forceDetect），不受此上限影响。
+ * 溢出时**淘汰最早登记的候选、保留最新的**（Set 按插入序迭代）：一个尚未到期的突发里可能
+ * 夹着上百个只是换了 class 的动画容器，而真正值得判定的登录字样几乎总是最后出现的那个。
+ * 取 32 是因为一次真实的「登录方式标签切换」通常只改个位数元素的属性。
+ * 上限本身不放宽 `detectForms` 的触发条件——全页扫描是贵操作，动画密集页每抖一轮 class
+ * 就重扫一次，等于把下沉判定省下的成本原样还回去；字段出现那条路径本就不依赖文本候选
+ * （走 forceDetect），不受此上限影响。
  */
 const MUTATION_TEXT_TARGET_CAP = 32;
+
+/**
+ * 突发判定的最长等待（毫秒）：去抖只许压成本，不许压触发
+ *
+ * 判定从「记录发生时」下沉到「去抖到期时」之后，续期方从「命中登录字样的记录」变成
+ * 「任意 class/style 抖动」——SPA 按帧抖 class 时，纯 debounce 会把到期一路推后，
+ * 让「字段已存在、靠 class 显隐」的登录页永不重检（focusin 也不调 detectForms）。
+ * 这里给一个等待上界：无论突发持续多久，最迟经过这段预算就强制执行一次判定。
+ * 取 2 倍 `shortDelayTime`：正常页面仍按 500ms 合并，只有真被饿着时才提前到 1s 结算一次。
+ */
+const MUTATION_DETECT_MAX_WAIT_MS = 1000;
 
 /**
  * 表单检测器
@@ -170,6 +183,13 @@ export class FormDetector {
   private pendingMutationButtons = new Set<Element>();
   /** 本轮突发是否已确定要重检测（新增节点里直接出现表单字段，无需再看文本） */
   private pendingMutationForceDetect = false;
+  /**
+   * 本轮突发第一个信号的时刻（0 = 没有待判定突发）
+   *
+   * 用于给去抖一个等待上界，见 `MUTATION_DETECT_MAX_WAIT_MS`。它在判定执行时归零，
+   * 因此「持续抖动」会被切成每 1s 一次的判定，而不是永不判定。
+   */
+  private mutationBurstStartedAt = 0;
 
   /**
    * 实例是否已销毁（B11 门）
@@ -451,29 +471,46 @@ export class FormDetector {
   }
 
   /**
-   * 登记一个待判定文本的候选，超出上限即丢弃后续候选
+   * 登记一个待判定文本的候选，集合满时挤掉最早那一个
    *
-   * 上限管两件事：去抖被持续抖动一路推后时，集合不会按记录数持有 DOM 引用（内容脚本与页面
-   * 同寿命，集合只在到期任务里清空）；以及一次突发的文本判定次数有界。
-   * 溢出**不放宽触发条件**（见 `MUTATION_TEXT_TARGET_CAP` 的取舍），也不影响字段出现那条
-   * 必重扫的路径。
+   * 上限管两件事：去抖被续期推后时，集合不会按记录数持有 DOM 引用（内容脚本与页面同寿命，
+   * 集合只在到期任务里清空）；以及一次突发的文本判定次数有界。
+   * 溢出走 FIFO 而不是丢弃新候选：被挤掉的几乎总是「只是换了 class 的动画容器」，
+   * 而新到的才是刚显形的那个登录字样。
    */
   private addMutationCandidate(target: Element, bucket: Set<Element>): void {
-    if (bucket.size >= MUTATION_TEXT_TARGET_CAP) return;
+    if (bucket.has(target)) {
+      // 重新登记 = 移到队尾：一个持续在抖自己 class 的登录元素如果留在队首，下一个噪声就会把它挤掉。
+      bucket.delete(target);
+      bucket.add(target);
+      return;
+    }
+    if (bucket.size >= MUTATION_TEXT_TARGET_CAP) {
+      const oldest = bucket.values().next().value;
+      if (oldest !== undefined) bucket.delete(oldest);
+    }
     bucket.add(target);
   }
 
   /**
-   * 安排一次 DOM 突变重检测（可取消的 debounce）
+   * 安排一次 DOM 突变重检测（带等待上界的可取消 debounce）
    *
-   * 与改造前同一计时口径：连续 DOM 变化只保留最后一次，短延迟 `shortDelayTime`。
+   * 连续 DOM 变化仍只保留最后一次判定，延迟 `shortDelayTime`；但本轮突发的总等待不超过
+   * `MUTATION_DETECT_MAX_WAIT_MS`——预算耗尽时按剩余时间排定，于是「每帧抖一次 class」的
+   * 页面最迟 1s 结算一次，而不是永远结算不上。
    */
   private scheduleMutationDetection(): void {
+    const now = Date.now();
+    if (!this.mutationBurstStartedAt) this.mutationBurstStartedAt = now;
+    const budgetLeft = MUTATION_DETECT_MAX_WAIT_MS - (now - this.mutationBurstStartedAt);
+    const delay = Math.max(0, Math.min(this.shortDelayTime, budgetLeft));
+
     if (this.detectionTimer) clearTimeout(this.detectionTimer);
     this.detectionTimer = setTimeout(() => {
       this.detectionTimer = null;
+      this.mutationBurstStartedAt = 0;
       this.runMutationDetection();
-    }, this.shortDelayTime);
+    }, delay);
   }
 
   /**
@@ -484,6 +521,7 @@ export class FormDetector {
    */
   private runMutationDetection(): void {
     if (this.disposed) return;
+    this.mutationBurstStartedAt = 0;
     const forceDetect = this.pendingMutationForceDetect;
     const attributeTargets = [...this.pendingMutationAttributeTargets];
     const buttonTargets = [...this.pendingMutationButtons];
@@ -2217,6 +2255,7 @@ export class FormDetector {
     this.pendingMutationAttributeTargets.clear();
     this.pendingMutationButtons.clear();
     this.pendingMutationForceDetect = false;
+    this.mutationBurstStartedAt = 0;
     document.removeEventListener('click', this.handleDelegatedClick, { capture: true });
     document.removeEventListener('focusin', this.handleDelegatedFocusIn, { capture: true });
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);

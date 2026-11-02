@@ -305,4 +305,82 @@ describe('FormDetector 观察器回调的页面主线程成本', () => {
     vi.advanceTimersByTime(5000);
     expect(detectForms).not.toHaveBeenCalled();
   });
+
+  /**
+   * 下沉判定带来的两个触发面风险（评审 2026-11-02 F1 / F2）
+   *
+   * 改造前只有「读到登录字样」的记录会排去抖计时器；改造后**任意** class/style 抖动都会续期，
+   * 于是「判定时刻」从记录发生时变成去抖到期时——若页面持续抖动，到期可以被无限推后。
+   * 同一批里，候选集合一旦灌满，旧实现丢的是**最新**的候选，而集合只在到期任务里清空，
+   * 于是饥饿期内真正含登录字样的元素连被判定的资格都没有。
+   */
+  it('无关抖动一路续期时必须有等待上界，登录字样不得被饿死', () => {
+    resetCaseCounters();
+    const noisy = mountNoisyContainer(2);
+    const tab = document.createElement('span');
+    tab.textContent = '密码登录';
+    document.body.appendChild(tab);
+
+    // 关键词先到，随后每 200ms 投一条无关抖动：短于 500ms 的纯 debounce 会把它无限推后
+    formDetectorCallback()([attrRecord(tab)], {} as MutationObserver);
+    for (let i = 0; i < 10; i++) {
+      vi.advanceTimersByTime(200);
+      formDetectorCallback()([attrRecord(noisy)], {} as MutationObserver);
+    }
+
+    expect(
+      detectForms,
+      '登录字样被无关抖动饿死：字段早已存在、靠 class 显隐的登录页不再重检，而 focusin 也不调 detectForms',
+    ).toHaveBeenCalled();
+  });
+
+  it('候选溢出时丢掉的最早那批，最新的登录字样必须留下', () => {
+    resetCaseCounters();
+    const noisy = Array.from({ length: 32 }, () => mountNoisyContainer(1));
+    formDetectorCallback()(
+      noisy.map(el => attrRecord(el)),
+      {} as MutationObserver,
+    );
+
+    const tab = document.createElement('span');
+    tab.textContent = '密码登录';
+    document.body.appendChild(tab);
+    formDetectorCallback()([attrRecord(tab)], {} as MutationObserver);
+
+    const buckets = detector as unknown as { pendingMutationAttributeTargets: Set<Element> };
+    expect(buckets.pendingMutationAttributeTargets.size).toBeLessThanOrEqual(32);
+    expect(buckets.pendingMutationAttributeTargets.has(tab), '上限本身没错，错的是丢哪一边').toBe(true);
+
+    vi.advanceTimersByTime(500);
+    expect(detectForms, '第 33 个之后的登录字样被永久丢弃＝自动保存与钥匙图标都不出现').toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * FIFO 的第二个坑：一个**持续在抖自己 class** 的登录元素会一直待在队首，被后来的动画容器先挤掉。
+   *
+   * 重复登记时只 `has` 判重就早退，等于把它留在最老的位置——它恰恰是那个最该留下的。
+   */
+  it('反复抖动的登录字样元素每次重新登记都要移到队尾，不被后来的动画容器先挤掉', () => {
+    resetCaseCounters();
+    const tab = document.createElement('span');
+    tab.textContent = '密码登录';
+    document.body.appendChild(tab);
+
+    formDetectorCallback()([attrRecord(tab)], {} as MutationObserver);
+    const filler = Array.from({ length: 31 }, () => mountNoisyContainer(1));
+    formDetectorCallback()(
+      filler.map(el => attrRecord(el)),
+      {} as MutationObserver,
+    );
+
+    // 该元素又抖了一次 class（32 格已满）：早退会让它继续待在队首，下一批噪声就先把它挤出去
+    formDetectorCallback()([attrRecord(tab)], {} as MutationObserver);
+    formDetectorCallback()([attrRecord(mountNoisyContainer(1))], {} as MutationObserver);
+
+    const buckets = detector as unknown as { pendingMutationAttributeTargets: Set<Element> };
+    expect(buckets.pendingMutationAttributeTargets.has(tab), '队首 = 下一个被挤掉的那个').toBe(true);
+
+    vi.advanceTimersByTime(500);
+    expect(detectForms, '登录元素被挤掉后本轮判不到登录字样，侧边栏提示静默不出现').toHaveBeenCalledTimes(1);
+  });
 });
