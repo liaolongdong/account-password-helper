@@ -40,6 +40,13 @@ export function useRuntimeMessageHandler(options: {
    *                    由后台从 `sender.tab` 推导（非页面自报），非法时为 `undefined`
    */
   openIdentityVault?: (keyword?: string, sourceTabId?: number) => void;
+  /**
+   * 身份库因「选项页未认证」被打回时的反馈出口
+   *
+   * 门禁本身留在本处（开库只会得到一张空列表），但被挡下不能无声——只有调用方握着
+   * `t()` 与 `ElMessage`，所以由它来说话。缺省不接时退化成原来的静默忽略。
+   */
+  notifyIdentityNeedUnlock?: () => void;
 }) {
   const {
     passwords,
@@ -52,6 +59,7 @@ export function useRuntimeMessageHandler(options: {
     openDomainMatchSetting,
     applySearchKeyword,
     openIdentityVault,
+    notifyIdentityNeedUnlock,
   } = options;
 
   /**
@@ -135,8 +143,13 @@ export function useRuntimeMessageHandler(options: {
       // 与「到全库找」那条（没词就没有检索可言，直接终止）刻意不同。
       // 但锁定态不能开：身份库解密依赖会话数据密钥，此时打开只会得到空列表。
       // 气泡侧已按会话有效性隐藏，这里兜住残留气泡与会话恰好在点击瞬间过期的竞态。
+      // 被门禁挡下的那一次必须出声（AGENTS.md：用户可见操作失败不得静默吞掉）——
+      // 用户在页面里点了右键，切过来的标签页若什么都没有，这条链路就是黑洞。
       waitForPasswords().then(() => {
-        if (!isAuthenticated.value) return;
+        if (!isAuthenticated.value) {
+          notifyIdentityNeedUnlock?.();
+          return;
+        }
         openIdentityVault?.(keyword || undefined, sourceTabId);
       });
     }

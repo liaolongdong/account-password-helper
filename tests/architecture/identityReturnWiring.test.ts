@@ -177,8 +177,16 @@ describe('身份库回程链路的接线边界', () => {
       'normalizeSourceTabId(message.data?.sourceTabId)',
     );
     expect(body, '门槛前置的解锁判定被挪走').toMatch(
-      /if \(!isAuthenticated\.value\) return;\n\s*openIdentityVault\?\.\(keyword \|\| undefined, sourceTabId\);/,
+      /if \(!isAuthenticated\.value\) \{\n\s*notifyIdentityNeedUnlock\?\.\(\);\n\s*return;\n\s*\}\n\s*openIdentityVault\?\.\(keyword \|\| undefined, sourceTabId\);/,
     );
+    // 门禁照旧（锁定态开库只会得到一张空列表），但被挡下的那一次不得静默——用户点完右键
+    // 只看见标签页切过来、屏幕上什么都没有，就是这条链路的黑洞。
+    expect(body, '被门禁挡下时没有给反馈出口').toContain('notifyIdentityNeedUnlock?.();');
+    const app = stripComments(readSource('entrypoints/options/App.vue'));
+    expect(
+      app,
+      '反馈出口没接线，或接线写了硬编码文案（中英双语都必须在 identity.json 里）',
+    ).toMatch(/notifyIdentityNeedUnlock: \(\) => ElMessage\.info\(t\('identity\.needUnlock'\)\)/);
   });
 
   it('回程 composable 只被 Options 使用，不渗进侧边栏 / 弹窗 / 内容脚本', () => {
