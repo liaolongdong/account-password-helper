@@ -14,7 +14,7 @@ import type { VaultErrorCode } from '@/utils/recoveryTypes';
 import { getSessionDataKey } from './facades';
 import { isExactHostMatch } from '@/utils/domain';
 import { applySavedSortConfig } from './configManager';
-import { snapshotPasswordHistory } from './passwordHistory';
+import { snapshotPasswordHistoryWithinLease } from './passwordHistory';
 import { moveToTrash } from './trashManager';
 import { assertWithinCapacity } from './vaultCapacity';
 import { markFirstQuickFill } from './reviewPrompt';
@@ -96,18 +96,23 @@ export async function getAllPasswordsRaw(): Promise<(PasswordEntry | EncryptedPa
  *
  * 代价：每次落盘多一次 `PASSWORDS` 读取（2000 条约百毫秒级 IO，Windows 慢盘更甚）。
  * 这是刻意取舍：静默丢数据不可挽回，而保存/编辑是低频用户动作；`agents.md` 的排序也把
- * 数据正确性放在性能之前。热路径的元数据批量落盘走 `flushMetadataUpdates`，
- * 那里读与写之间只剩一次 session 打标，不套用本函数。
+ * 数据正确性放在性能之前。热路径的元数据批量落盘走 `flushMetadataUpdates`，它同样经本函数
+ * 落盘，差别只在多带一个 `beforeWrite` 打标副作用、且不排入 `queuePasswordWrite`——
+ * 高频小改动串到用户可见的保存动作后面会拖慢交互。
  *
  * @param mutate 收到最新列表，返回要落盘的列表；返回 `null` 表示本次不写
  */
 async function commitPasswordRows(
   mutate: (fresh: (PasswordEntry | EncryptedPasswordEntry)[]) => (PasswordEntry | EncryptedPasswordEntry)[] | null,
+  beforeWrite?: () => Promise<unknown>,
 ): Promise<void> {
   await withVaultCommit(async () => {
     const fresh = await getAllPasswordsRaw();
     const next = mutate(fresh);
     if (next === null) return;
+    // 落盘前最后一刻才执行副作用（目前是元数据打标）：让它与 `set` 落在同一临界区，
+    // 别的写者就无法在「打标」与「数据真的写下去」之间把短 TTL 的暗号消费掉。
+    await beforeWrite?.();
     await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: next });
   });
 }
@@ -307,7 +312,9 @@ async function updatePasswordInternal(
 
     // 旧密文快照必须在 lease 释放前结算，不能在换钥完成后迟到写回；失败仍非致命。
     if ('password' in updates && updates.password !== currentPlain.password) {
-      await snapshotPasswordHistory(id, current.password).catch(() => {});
+      await snapshotPasswordHistoryWithinLease(id, current.password).catch(error =>
+        logger.error('保存旧密码历史快照失败:', error),
+      );
     }
 
     // 同上：显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
@@ -492,25 +499,24 @@ async function flushMetadataUpdates(): Promise<void> {
   try {
     await withVaultMutation(async () => {
       let modified = false;
-      // 先打标再写数据：SW 的 storage.onChanged 据此识别「仅元数据变更」，
-      // 原地修补内存缓存与快照而非全量失效。没有命中任何条目时下面会把标记撤回。
-      await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.METADATA_FLUSH_AT]: Date.now() });
+      // SW 的 storage.onChanged 据标记识别「仅元数据变更」，原地修补内存缓存与快照而非全量失效。
+      // 打标交给 commitPasswordRows 在 `set` 前一刻执行：空批次根本不会走到那里，也就不会留下一枚
+      // 等着被别人吃掉的暗号。
       try {
-        await commitPasswordRows(list => {
-          const next = list.map(current => {
-            const updates = batch.get(current.id);
-            if (!updates) return current;
-            modified = true;
-            return { ...current, ...updates, updateTime: updates.updateTime ?? Date.now() } as
-              PasswordEntry | EncryptedPasswordEntry;
-          });
-          return modified ? next : null;
-        });
-        if (modified) {
-          if (hasFillUpdate) void markFirstQuickFill();
-        } else {
-          await chrome.storage.session.remove(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT);
-        }
+        await commitPasswordRows(
+          list => {
+            const next = list.map(current => {
+              const updates = batch.get(current.id);
+              if (!updates) return current;
+              modified = true;
+              return { ...current, ...updates, updateTime: updates.updateTime ?? Date.now() } as
+                PasswordEntry | EncryptedPasswordEntry;
+            });
+            return modified ? next : null;
+          },
+          () => chrome.storage.session.set({ [SESSION_MEMORY_KEYS.METADATA_FLUSH_AT]: Date.now() }),
+        );
+        if (modified && hasFillUpdate) void markFirstQuickFill();
       } catch (error) {
         void chrome.storage.session.remove(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT).catch(() => {});
         throw error;
