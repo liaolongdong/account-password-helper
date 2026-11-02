@@ -157,6 +157,32 @@ describe('身份库写路径的临界区范围', () => {
 });
 
 /**
+ * 「所有整包覆写型写入都在提交锁内」这句话目前的覆盖面（评审 2026-11-02 Q2）
+ *
+ * at-rest 迁移原先自带 updateTime 漂移检测，就把自己算作「安全」了——但漂移检测只挡得住
+ * 「同一条目被改过」，挡不住「我读完之后、写下去之前，另一个上下文提交了整包结果」：
+ * 那一次交错里迁移会拿自己早一步的快照把对方的编辑整片盖掉。补齐后这句话才真的成立。
+ *
+ * 这条用源码形状判（迁移入口要驱动旧版会话状态，成本与收益不对等），但它有牙：
+ * 把 `withVaultCommit` 那层包裹摘掉，紧邻的前一次出现就找不到，判据当场红。
+ */
+describe('整包覆写型写入的锁覆盖', () => {
+  it('at-rest 迁移的「重读 → 合并 → set」必须在提交锁内', async () => {
+    const { readSource } = await import('../helpers/architectureScan');
+    const src = readSource('utils/sessionManager-storage.ts');
+    const readAt = src.indexOf('const latest = await readAtRest()');
+    expect(readAt, '迁移的落盘前重读被改名或删除：本守卫需同步').toBeGreaterThan(-1);
+
+    const commitAt = src.lastIndexOf('withVaultCommit(', readAt);
+    expect(commitAt, '重读与 set 这段落回提交锁外：漂移检测挡不住「读后写前」的整包交错').toBeGreaterThan(-1);
+    expect(readAt - commitAt, 'withVaultCommit 与这段之间隔得太远，多半不是同一层包裹').toBeLessThan(400);
+
+    const setAt = src.indexOf('await chrome.storage.local.set(payload)', readAt);
+    expect(setAt, '迁移的整包 set 找不到：本守卫需同步').toBeGreaterThan(readAt);
+  });
+});
+
+/**
  * 收窄临界区不得顺带改掉单错的优先级与结果——这三条是「行为等价」的守卫。
  */
 describe('收窄临界区后既有错误口径不变', () => {
