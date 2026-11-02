@@ -101,6 +101,28 @@ export async function getAllIdentityRaw(): Promise<IdentityRecord[]> {
 }
 
 /**
+ * 落盘前重读 + 合并 + 单次 set，整段在跨上下文提交锁内完成。
+ *
+ * **调用前必须已经算好要落盘的密文**：`aph-vault-commit` 是全仓唯一一把排他提交锁，密码库、
+ * 身份库、两个回收站共用它。把 PBKDF2 派生（600k 迭代 ×2，秒级）或整批逐条加密放进锁内，
+ * 会让另一个上下文的「保存密码」无声排队——两库键位互不冲突，却被同一把锁串起，而
+ * `navigator.locks` 的等待没有超时。密码域的 `commitPasswordRows` 一直是这个口径，此处对齐。
+ *
+ * @param mutate 收到最新列表，返回要落盘的列表；返回 `null` 表示本次不写。允许异步——
+ *   但异步里只许做「一对 AES-GCM」级别的每条目即时加解密，密钥派生与批量重加密必须在外面算完。
+ */
+async function commitIdentityRows(
+  mutate: (fresh: IdentityRecord[]) => IdentityRecord[] | null | Promise<IdentityRecord[] | null>,
+): Promise<void> {
+  await withVaultCommit(async () => {
+    const fresh = await getAllIdentityRaw();
+    const next = await mutate(fresh);
+    if (next === null) return;
+    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: next });
+  });
+}
+
+/**
  * 获取所有身份条目（自动解密）
  *
  * storage.local 始终为密文：会话期用缓存数据密钥解密（无 PBKDF2），
@@ -166,13 +188,15 @@ export async function getAllIdentity(
  * @param masterPassword 锁定态显式传入；会话有效时省略
  */
 export async function saveIdentity(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
-  return withVaultMutation(() => withVaultCommit(() => saveIdentityInternal(payload, masterPassword)));
+  return withVaultMutation(() => saveIdentityInternal(payload, masterPassword));
 }
 
 async function saveIdentityInternal(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
   try {
-    const records = await getAllIdentityRaw();
-    if (records.length >= MAX_IDENTITIES) {
+    // 锁外预读只为保住错误优先级：达到上限必须先报 LIMIT_REACHED，而不是先报密钥不可用。
+    // 权威的容量判定由 commitIdentityRows 对着落盘前的最新快照再做一次。
+    const preview = await getAllIdentityRaw();
+    if (preview.length >= MAX_IDENTITIES) {
       throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
     }
 
@@ -190,7 +214,12 @@ async function saveIdentityInternal(payload: IdentityPayload, masterPassword?: s
       updateTime: now,
     };
 
-    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: [...records, record] });
+    await commitIdentityRows(fresh => {
+      if (fresh.length >= MAX_IDENTITIES) {
+        throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+      }
+      return [...fresh, record];
+    });
 
     return { ...record, payload };
   } catch (error) {
@@ -219,9 +248,8 @@ export async function updateIdentity(
   expectedUpdateTime: number,
   masterPassword?: string,
 ): Promise<void> {
-  return withVaultMutation(() =>
-    withVaultCommit(() => updateIdentityInternal(id, patch, expectedUpdateTime, masterPassword)),
-  );
+  // 租约内、提交锁外先完成密钥派生，再把「重读 + 令牌复验 + 一条加解密 + set」交给提交锁。
+  return withVaultMutation(() => updateIdentityInternal(id, patch, expectedUpdateTime, masterPassword));
 }
 
 async function updateIdentityInternal(
@@ -231,14 +259,14 @@ async function updateIdentityInternal(
   masterPassword?: string,
 ): Promise<void> {
   try {
-    const records = await getAllIdentityRaw();
-    const index = records.findIndex(r => r.id === id);
-    if (index === -1) {
+    // 锁外预读只为保住错误优先级：条目缺失/令牌过期必须先于「密钥不可用」报出，
+    // 否则锁定态编辑一条已被别的窗口删掉的记录时，用户会看到一句与实情无关的密钥错误。
+    const preview = await getAllIdentityRaw();
+    const previewIndex = preview.findIndex(r => r.id === id);
+    if (previewIndex === -1) {
       throw identityCrudError('NOT_FOUND', '该身份信息已被删除，请刷新后重试');
     }
-
-    const current = records[index];
-    if (current.updateTime !== expectedUpdateTime) {
+    if (preview[previewIndex].updateTime !== expectedUpdateTime) {
       throw identityCrudError('UPDATE_CONFLICT', '该身份信息已被其他窗口修改，请刷新后重试');
     }
 
@@ -248,18 +276,30 @@ async function updateIdentityInternal(
     }
     const enc = await _getEncryption();
 
-    const json = await enc.decryptData(current.encryptedPayload, key);
-    const existingPayload = JSON.parse(json) as IdentityPayload;
-    const nextPayload = { ...existingPayload, ...patch, pv: 1 } as IdentityPayload;
+    // 权威判定在提交锁内对着最新快照重做一遍；这里留在锁内的只有一对 AES-GCM（亚毫秒），
+    // 密钥派生已经挪到锁外——它才是把其它数据域一起拖住的那一段。
+    await commitIdentityRows(async fresh => {
+      const index = fresh.findIndex(r => r.id === id);
+      if (index === -1) {
+        throw identityCrudError('NOT_FOUND', '该身份信息已被删除，请刷新后重试');
+      }
+      const current = fresh[index];
+      if (current.updateTime !== expectedUpdateTime) {
+        throw identityCrudError('UPDATE_CONFLICT', '该身份信息已被其他窗口修改，请刷新后重试');
+      }
 
-    const entriesToSave = [...records];
-    entriesToSave[index] = {
-      ...current,
-      encryptedPayload: await enc.encryptData(JSON.stringify(nextPayload), key),
-      updateTime: Date.now(),
-    };
+      const json = await enc.decryptData(current.encryptedPayload, key);
+      const existingPayload = JSON.parse(json) as IdentityPayload;
+      const nextPayload = { ...existingPayload, ...patch, pv: 1 } as IdentityPayload;
 
-    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: entriesToSave });
+      const next = [...fresh];
+      next[index] = {
+        ...current,
+        encryptedPayload: await enc.encryptData(JSON.stringify(nextPayload), key),
+        updateTime: Date.now(),
+      };
+      return next;
+    });
   } catch (error) {
     logger.error('更新身份信息失败:', error);
     throw error;
@@ -357,7 +397,7 @@ export async function replaceAllIdentity(
   entries: Array<Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }>,
   masterPassword?: string,
 ): Promise<void> {
-  return withVaultMutation(() => withVaultCommit(() => replaceAllIdentityInternal(entries, masterPassword)));
+  return withVaultMutation(() => replaceAllIdentityInternal(entries, masterPassword));
 }
 
 async function replaceAllIdentityInternal(
@@ -370,10 +410,8 @@ async function replaceAllIdentityInternal(
   }
   const enc = await _getEncryption();
 
-  const existingRaw = await getAllIdentityRaw();
-  const incomingIds = new Set(entries.map(entry => entry.id));
-  const preserved = existingRaw.filter(record => !incomingIds.has(record.id));
-
+  // 逐条加密全部发生在提交锁之外：一次导入可达 MAX_IDENTITIES 条，锁内串行加密会把
+  // 密码库的整包写一起拖住秒级。
   const reencrypted: IdentityRecord[] = [];
   for (const entry of entries) {
     reencrypted.push({
@@ -383,7 +421,8 @@ async function replaceAllIdentityInternal(
       encryptedPayload: await enc.encryptData(JSON.stringify(entry.payload), key),
     });
   }
-  await replaceAllIdentityRawInternal([...reencrypted, ...preserved]);
+  const incomingIds = new Set(entries.map(entry => entry.id));
+  await commitIdentityRows(fresh => [...reencrypted, ...fresh.filter(record => !incomingIds.has(record.id))]);
 }
 
 // ==================== 列表偏好（非 PII，明文单键） ====================
