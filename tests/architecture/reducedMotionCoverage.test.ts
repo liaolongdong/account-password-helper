@@ -187,9 +187,7 @@ function selectorList(selector: string): string[] {
 function interactionMovementRules(css: string): { selector: string; start: number }[] {
   return [...flattenInterpolation(css).matchAll(RULE_RE)]
     .filter(rule => INTERACTION_PSEUDO_RE.test(rule[1]) && MOVE_RE.test(rule[2]))
-    .flatMap(rule =>
-      selectorList(rule[1]).map(selector => ({ selector, start: rule.index ?? 0 })),
-    );
+    .flatMap(rule => selectorList(rule[1]).map(selector => ({ selector, start: rule.index ?? 0 })));
 }
 
 /**

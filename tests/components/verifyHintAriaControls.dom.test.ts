@@ -62,16 +62,12 @@ describe('提示语折叠按钮的无障碍关联', () => {
 
   it('动态 aria-controls 在无目标时交出 undefined/null，而不是指向空 id', () => {
     const broken = ariaControlsBindings().dynamics.filter(expr => !/undefined|null/.test(expr));
-    expect(
-      broken,
-      `动态绑定缺「目标不在场就摘属性」那一支，折叠时仍会指向空 id：${broken.join(' | ')}`,
-    ).toEqual([]);
+    expect(broken, `动态绑定缺「目标不在场就摘属性」那一支，折叠时仍会指向空 id：${broken.join(' | ')}`).toEqual([]);
   });
 
   it('提示语文本仍走 v-if：收起是隐私出口，节点必须真的从文档里消失', () => {
-    expect(
-      TEMPLATE,
-      '改成 v-show 会把明文留在 DOM 里，且 e2e 的 toHaveCount(0) 契约（窥屏时当场收掉）会红',
-    ).toMatch(/v-if="!hintCollapsed"\s+id="verify-hint-text"/);
+    expect(TEMPLATE, '改成 v-show 会把明文留在 DOM 里，且 e2e 的 toHaveCount(0) 契约（窥屏时当场收掉）会红').toMatch(
+      /v-if="!hintCollapsed"\s+id="verify-hint-text"/,
+    );
   });
 });

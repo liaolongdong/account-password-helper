@@ -49,10 +49,9 @@ test('正对照：默认档下头部按钮悬浮确实上浮 1px', async ({ opti
   await requireHeaderButton(page);
 
   const transform = await settledTransform(page, '.header .el-button');
-  expect(
-    transform,
-    '默认档读不到上浮，说明这条选择器在真页面上根本没生效，减弱档那条断言也就成了空读数',
-  ).toMatch(/matrix\(1, 0, 0, 1, 0, -1\)/);
+  expect(transform, '默认档读不到上浮，说明这条选择器在真页面上根本没生效，减弱档那条断言也就成了空读数').toMatch(
+    /matrix\(1, 0, 0, 1, 0, -1\)/,
+  );
 });
 
 test('减弱档下同一枚按钮悬浮不再上浮', async ({ optionsPage }) => {
@@ -62,8 +61,5 @@ test('减弱档下同一枚按钮悬浮不再上浮', async ({ optionsPage }) =>
   await requireHeaderButton(page);
 
   const transform = await settledTransform(page, '.header .el-button');
-  expect(
-    transform,
-    '减弱档还在上浮：撤销声明被同选择器的后来者压过了（媒体查询不加特异性，源序后者胜）',
-  ).toBe('none');
+  expect(transform, '减弱档还在上浮：撤销声明被同选择器的后来者压过了（媒体查询不加特异性，源序后者胜）').toBe('none');
 });

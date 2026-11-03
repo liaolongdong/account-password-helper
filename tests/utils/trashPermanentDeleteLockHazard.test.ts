@@ -82,10 +82,7 @@ afterEach(() => {
 
 describe('彻底删除与排队换钥的交错', () => {
   it('宿主必须提供真实 navigator.locks，否则本文件的交错断言全是空跑', () => {
-    expect(
-      hasRealWebLocks(),
-      '探针依赖真 Web Locks 的写者优先语义；缺环境时宁可当场失败，不允许静默绿',
-    ).toBe(true);
+    expect(hasRealWebLocks(), '探针依赖真 Web Locks 的写者优先语义；缺环境时宁可当场失败，不允许静默绿').toBe(true);
   });
 
   it('独占换钥排在临界区中途时，彻底删除仍须走完历史清理', async () => {

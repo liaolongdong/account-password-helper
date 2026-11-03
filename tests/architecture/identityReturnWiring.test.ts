@@ -183,10 +183,9 @@ describe('身份库回程链路的接线边界', () => {
     // 只看见标签页切过来、屏幕上什么都没有，就是这条链路的黑洞。
     expect(body, '被门禁挡下时没有给反馈出口').toContain('notifyIdentityNeedUnlock?.();');
     const app = stripComments(readSource('entrypoints/options/App.vue'));
-    expect(
-      app,
-      '反馈出口没接线，或接线写了硬编码文案（中英双语都必须在 identity.json 里）',
-    ).toMatch(/notifyIdentityNeedUnlock: \(\) => ElMessage\.info\(t\('identity\.needUnlock'\)\)/);
+    expect(app, '反馈出口没接线，或接线写了硬编码文案（中英双语都必须在 identity.json 里）').toMatch(
+      /notifyIdentityNeedUnlock: \(\) => ElMessage\.info\(t\('identity\.needUnlock'\)\)/,
+    );
   });
 
   it('回程 composable 只被 Options 使用，不渗进侧边栏 / 弹窗 / 内容脚本', () => {

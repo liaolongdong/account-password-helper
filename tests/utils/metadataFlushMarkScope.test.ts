@@ -70,13 +70,9 @@ afterEach(() => {
   vi.resetModules();
 });
 
-
 describe('探针的运行前提', () => {
   it('宿主必须提供真实 navigator.locks，否则本文件的临界区断言全是空跑', () => {
-    expect(
-      hasRealWebLocks(),
-      '探针依赖真 Web Locks 的持有/排队语义；缺环境时宁可当场失败，不允许静默绿',
-    ).toBe(true);
+    expect(hasRealWebLocks(), '探针依赖真 Web Locks 的持有/排队语义；缺环境时宁可当场失败，不允许静默绿').toBe(true);
   });
 });
 

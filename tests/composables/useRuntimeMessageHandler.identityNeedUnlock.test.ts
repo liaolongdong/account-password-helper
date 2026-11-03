@@ -55,7 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   openIdentityVault.mockReset();
   notifyIdentityNeedUnlock.mockReset();
-  vi.spyOn(chrome.runtime.onMessage, 'addListener').mockImplementation((cb) => {
+  vi.spyOn(chrome.runtime.onMessage, 'addListener').mockImplementation(cb => {
     registeredListener = cb as (message: unknown) => unknown;
   });
   vi.spyOn(chrome.runtime.onMessage, 'removeListener').mockImplementation(() => {});
