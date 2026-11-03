@@ -352,6 +352,63 @@ describe('replaceAllIdentity（导入写回不丢弃不可解密记录）', () =
     expect(raw).toHaveLength(MAX_IDENTITIES);
   });
 
+  it('导入期间别人删掉的条目不被复活、别人改过的行以落盘时刻那一版为准', async () => {
+    // 预读：磁盘有 a、b 两条，导入想把两条都换成 updateTime=5 的版本。
+    localStore[STORAGE_KEYS.IDENTITY] = [
+      {
+        id: 'a',
+        encryptedPayload: enc(JSON.stringify(payload({ name: '旧 A' })), SESSION_KEY),
+        createTime: 1,
+        updateTime: 1,
+      },
+      {
+        id: 'b',
+        encryptedPayload: enc(JSON.stringify(payload({ name: '旧 B' })), SESSION_KEY),
+        createTime: 1,
+        updateTime: 1,
+      },
+    ];
+    const incoming = [
+      { id: 'a', createTime: 1, updateTime: 5, payload: payload({ name: '导入 A' }) },
+      { id: 'b', createTime: 1, updateTime: 5, payload: payload({ name: '导入 B' }) },
+    ];
+
+    // 落盘前的那次重读代表「预读到落盘之间别人动过」：b 已被删除，a 被改到 updateTime=9。
+    // 只翻转第 2 次读——第 3 次起是断言里的验证读，必须回到真实落盘结果，否则用例读的是
+    // 自己注入的假数据，怎么改实现都不会红。
+    let identityReads = 0;
+    const plainGet = localGet.getMockImplementation() as (key: string) => Promise<Record<string, unknown>>;
+    localGet.mockImplementation(async (key: string) => {
+      const found = await plainGet(key);
+      if (key !== STORAGE_KEYS.IDENTITY) return found;
+      identityReads += 1;
+      if (identityReads !== 2) return found;
+      return {
+        [STORAGE_KEYS.IDENTITY]: [
+          {
+            id: 'a',
+            encryptedPayload: enc(JSON.stringify(payload({ name: '并发改的 A' })), SESSION_KEY),
+            createTime: 1,
+            updateTime: 9,
+          },
+        ],
+      };
+    });
+
+    await replaceAllIdentity(incoming);
+
+    expect(identityReads, '夹具没走到「锁内重读」那一步，本用例在空跑').toBeGreaterThanOrEqual(2);
+    const raw = await getAllIdentityRaw();
+    expect(
+      raw.map(r => r.id),
+      '期间被删的 b 被导入复活回主列表了——它同时还在回收站里，一处一份就成了双份',
+    ).toEqual(['a']);
+    expect(
+      JSON.parse(dec(raw[0].encryptedPayload, SESSION_KEY)).name,
+      '导入拿预读时的 updateTime 定夺，把别人在窗口内改的那一版（9）回卷成了 5',
+    ).toBe('并发改的 A');
+  });
+
   it('磁盘记录比入参更新时保留磁盘版本：旧快照不得覆盖并发编辑', async () => {
     localStore[STORAGE_KEYS.IDENTITY] = [
       {

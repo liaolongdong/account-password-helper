@@ -131,17 +131,15 @@ describe('身份库写路径的临界区范围', () => {
       'master-pw',
     );
 
-    // 逐 id 择优要比较磁盘与入参谁更新，磁盘记录因此也 decrypt → encrypt 走一遍：
-    // 3 条入参 + 1 条被保留的既有记录 = 4 次加密，且全程在提交锁外。
-    expect(heldAt.encrypt).toHaveLength(4);
+    // 只有导入胜出的行才重新加密：磁盘上没被导入覆盖的 id=a 连密文都不该动
+    // （逐 id 定夺只需要 decrypt 一次判断可解性，不需要再加密回去）。
+    expect(heldAt.encrypt).toHaveLength(3);
     assertOutsideCommitSection(heldAt.encrypt, '批量 encryptData');
     assertOutsideCommitSection(heldAt.derive, 'deriveEncryptionKey');
-    // 「不丢弃不变量」：入参没覆盖到的既有记录（id=a）仍留在结果里，所以是 3 新 + 1 旧 = 4 条。
-    // 逐 id 择优要读磁盘明文比 updateTime，这条因此也被 decrypt → encrypt 走了一遍：
-    // 换的是密文（新 IV），不变的是内容与时间戳——断言按后者收，不去比一份会漂移的密文串。
+    // 「不丢弃不变量」：入参没覆盖到的既有记录（id=a）原样保留，所以是 3 新 + 1 旧 = 4 条。
     const rows = await getAllIdentityRaw();
     expect(rows).toHaveLength(4);
-    expect(rows.find(r => r.id === 'a')?.updateTime).toBe(100);
+    expect(rows.find(r => r.id === 'a')?.encryptedPayload).toBe('cipher-a');
   });
 
   it('会话态更新一条身份：主密码派生不在锁内，落盘前的重读与合并仍在锁内', async () => {

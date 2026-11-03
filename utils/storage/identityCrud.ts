@@ -384,15 +384,16 @@ async function replaceAllIdentityRawInternal(records: IdentityRecord[]): Promise
  * `IdentityEntry` 与 `IdentityBackupRecord` 均可直接传入。
  * 无有效会话且未提供主密码时抛错，绝不退回明文。
  *
- * 本函数把「重读磁盘 → 逐 id 按 updateTime 三方合并 → 容量复核 → 整体写回」收进
- * 同一个提交锁事务，因此调用方传的是**导入文件里的记录**，而不是自己按旧内存快照
- * 预先合并好的列表：
+ * 本函数把「重读磁盘 → 逐 id 按 updateTime 择优 → 容量复核 → 整体写回」收进同一个提交锁
+ * 事务，因此调用方传的是**导入文件里的记录**，而不是自己按旧内存快照预先合并好的列表。
+ * 逐 id 的定夺在锁外做（要为判断可解性解密一次），**落盘一律以锁内重读到的最新快照为权威**：
  *
- * - **不丢弃不变量（镜像 reencryptAll「原样携带」）**：磁盘上可能有 `getAllIdentity`
- *   因解密失败而跳过、因而从未出现在明文里的原始密文记录，它们一律原样保留（密文不动），
- *   避免整体覆盖把这些记录静默删除；
- * - **不覆盖并发编辑**：同 id 的三方（磁盘现值 / 入参 / 入参来源的旧快照）以 updateTime
- *   择优，磁盘上比入参更新的记录保留磁盘版本；
+ * - **不丢弃不变量（镜像 reencryptAll「原样携带」）**：磁盘上 `getAllIdentity` 因解密失败而
+ *   从未进入明文的原始密文，锁内按 id 原样带走，密文一个字节都不动；只有导入胜出的行被替换；
+ * - **不覆盖并发编辑**：同 id 以 updateTime 择优，磁盘比入参更新的保留磁盘**最新那一条**
+ *   （不是预读那一条——预读到落盘之间又改过一轮时，拿预读副本落盘就等于回滚了那一轮）；
+ * - **以删除为准，不复活**：预读里有、落盘时没了的胜出行不追加，期间被删掉的记录不会
+ *   被导入拽回主列表（它同时在回收站里，复活就成了两处各一份）；
  * - **不越容量**：`MAX_IDENTITIES` 按最终落盘条数复核，超限整批拒绝——若按入参条数放行，
  *   并发新增会把结果推过上限，而这份库随后连自己的 `.aphid` 导出都解不开（自己的
  *   parser 判 INVALID_STRUCTURE）。
@@ -419,69 +420,62 @@ async function replaceAllIdentityInternal(
   }
   const enc = await _getEncryption();
   const existingRaw = await getAllIdentityRaw();
+  const diskById = new Map(existingRaw.map(record => [record.id, record]));
 
-  // 入参按 id 索引；磁盘记录解密一份用于逐 id 择优（解不开的按「原样携带」处理）
-  const incomingById = new Map(entries.map(entry => [entry.id, entry]));
-  const decryptedExisting = await mapWithConcurrency(existingRaw, async record => {
+  // 解密整库只为回答一个问题：磁盘上那一条到底解不解得开。谁更新不必靠解密判断——
+  // `updateTime` 在记录上本就是明文，落盘时磁盘胜出的行直接取最新快照那一条即可。
+  const undecryptableIds = new Set<string>();
+  await mapWithConcurrency(existingRaw, async record => {
     try {
-      const json = await enc.decryptData(record.encryptedPayload, key);
-      return { record, payload: JSON.parse(json) as IdentityPayload };
+      await enc.decryptData(record.encryptedPayload, key);
     } catch {
-      return { record, payload: null as IdentityPayload | null };
+      undecryptableIds.add(record.id);
     }
   });
 
-  const finalById = new Map<
-    string,
-    Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }
-  >();
-  const carried: IdentityRecord[] = [];
-  for (const { record, payload } of decryptedExisting) {
-    const incoming = incomingById.get(record.id);
-    if (!incoming) {
-      // 磁盘独有：可解的进最终集，解不开的原样携带密文
-      if (payload) finalById.set(record.id, { ...record, payload });
-      else carried.push(record);
-      continue;
-    }
-    if (payload && incoming.updateTime <= record.updateTime) {
-      // 磁盘版本不比入参旧：并发期间别人改过（或本就相同），保留磁盘版本，不用旧快照覆盖
-      finalById.set(record.id, { ...record, payload });
-      continue;
-    }
-    if (!payload) {
-      // 磁盘密文解不开而入参带同一 id：以入参为准（这正是导入要修复的场景）
-      finalById.set(record.id, incoming);
-      continue;
-    }
-    finalById.set(record.id, incoming);
-  }
+  // 逐 id 定夺「这条以导入为准吗」：磁盘没有 → 以导入为准；磁盘解不开 → 以导入为准
+  // （这正是导入要修复的场景）；否则比 updateTime，磁盘不比入参旧就保留磁盘版本，
+  // 不用旧快照覆盖并发编辑。判落盘时一律以提交锁内重读到的 `fresh` 为准。
+  const winnerById = new Map<string, IdentityRecord>();
+  const brandNewIds: string[] = [];
   for (const entry of entries) {
-    if (!finalById.has(entry.id)) finalById.set(entry.id, entry);
-  }
-
-  const total = finalById.size + carried.length;
-  if (total > MAX_IDENTITIES) {
-    throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
-  }
-
-  // 逐条加密全部发生在提交锁之外：一次导入可达 MAX_IDENTITIES 条，锁内串行加密会把
-  // 密码库的整包写一起拖住秒级。
-  const merged: IdentityRecord[] = [];
-  for (const entry of finalById.values()) {
-    merged.push({
+    const disk = diskById.get(entry.id);
+    if (disk && !undecryptableIds.has(entry.id) && entry.updateTime <= disk.updateTime) continue;
+    winnerById.set(entry.id, {
       id: entry.id,
       createTime: entry.createTime,
       updateTime: entry.updateTime,
       encryptedPayload: await enc.encryptData(JSON.stringify(entry.payload), key),
     });
+    if (!disk) brandNewIds.push(entry.id);
   }
-  // 本次已经逐个 id 定夺过的行（含磁盘原样携带的解不开者）；其余 id 一律以落盘前重读到的为准，
-  // 这样并发期间新建、而我们那次预读里根本没有的条目不会被整包覆写抹掉。
-  const decidedIds = new Set([...merged, ...carried].map(record => record.id));
+
+  // 预检只为错误优先级（超限要先报 LIMIT_REACHED，而不是先报密钥不可用）；权威判定在下面
+  // 对着落盘前的最新快照再走一次——并发新增若只按入参放行，这份库随后连自己的
+  // `.aphid` 导出都解不开。
+  const projected = existingRaw.length + brandNewIds.length;
+  if (projected > MAX_IDENTITIES) {
+    throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+  }
+
+  // 逐条加密全部发生在提交锁之外：一次导入可达 MAX_IDENTITIES 条，锁内串行加密会把
+  // 密码库的整包写一起拖住秒级。
   await commitIdentityRows(fresh => {
-    const next = [...merged, ...carried, ...fresh.filter(record => !decidedIds.has(record.id))];
-    // 容量以落盘前的最新快照为准再判一次：预读到落盘之间别人可能已经写到上限
+    const freshIds = new Set(fresh.map(record => record.id));
+    // 择优在落盘时刻重做一遍：`updateTime` 在记录上是明文，比一次不花一分钱；而预读到落盘之间
+    // 别人可能又改过这一行，拿预读副本落盘就等于回滚了那一轮编辑。磁盘行的密文一个字节都不动
+    // （含解不开的那些：不丢弃不变量），只有导入确实更新的那一行被换掉。
+    const next = fresh.map(record => {
+      const candidate = winnerById.get(record.id);
+      return candidate && candidate.updateTime > record.updateTime ? candidate : record;
+    });
+    for (const id of brandNewIds) {
+      // 预读时不存在、落盘时也不存在 → 真正的新行；落盘时已存在 → 期间别人建了同 id，
+      // 由上面的择优按 updateTime 决定谁留，这里不重复追加。
+      if (!freshIds.has(id)) next.push(winnerById.get(id)!);
+    }
+    // 预读里有、落盘时没了的候选行**不追加**：那是期间被删掉的条目，以删除为准，
+    // 导入不许把刚进回收站的记录复活回主列表（它同时在回收站里，复活就成了两处各一份）。
     if (next.length > MAX_IDENTITIES) {
       throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
     }
