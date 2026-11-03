@@ -21,7 +21,7 @@
  *
  * 首帧与兜底段都挂着 `<!-- prettier-ignore -->`：printWidth 120 会把长句在 CJK 之间折行，折行在
  * HTML 里塌成一个空格，「本地存储方案」会变成「本地 存储方案」。所以这里按「规范排版」逐字比对——
- * 排版标记被 prettier 抢走时，卡面就不再逐字等于字典值，断言随之变红（自检那三例证的就是这条牙）。
+ * 排版标记被 prettier 抢走时，卡面就不再逐字等于字典值，断言随之变红（「守卫自检」里有例证这条牙）。
  *
  * 数「页内有几处某标记」一律先过 `servedDom`：脚本里的 `I18N` 字典与注释都会把这些串再说一遍，
  * 直接对整份文件计数会把 2 数成 7。
@@ -72,11 +72,15 @@ const readPage = (file: string): string => readFileSync(path.join(ROOT, file), '
  *
  * `I18N` 字典把 `<noscript>`、`href="./llms.txt"` 这些串又写了一遍，`<style>` 里的注释也是；不剥就会
  * 把「页面上有一处」数成「文件里出现 N 次」，而本守卫要的恰恰是前者。
+ *
+ * 标志位带 `i`、结束标签容忍空白与属性：HTML 标签名大小写不敏感，浏览器也接受 `</script >`
+ * 和 `</script foo="bar">` 这种收尾。按大小写敏感、按写死的 `</script>` 去剥，这些写法就会绕过
+ * 剥离、被后面的计数当成 DOM 来数。
  */
 function servedDom(html: string): string {
   return html
-    .replace(/<script[\s\S]*?<\/script>/g, '')
-    .replace(/<style[\s\S]*?<\/style>/g, '')
+    .replace(/<script[\s\S]*?<\/script(?:\s[^>]*)?>/gi, '')
+    .replace(/<style[\s\S]*?<\/style(?:\s[^>]*)?>/gi, '')
     .replace(/<!-{2}[\s\S]*?-->/g, '');
 }
 
@@ -245,5 +249,22 @@ describe('守卫自检：卡面漂移与排版失守都会变红', () => {
     expect(reflowed).not.toBe(ZH);
     expect(NOSCRIPT_BLOCK_RE.exec(reflowed)).toBeNull();
     expect(() => parseNoscriptNote(reflowed, 'index.html')).toThrow();
+  });
+
+  it('<SCRIPT> 换个收尾写法就不被剥 → 剥离漏；容忍过头 → 剥离多吃', () => {
+    // 夹具刻意是一页「后面再无 </script> 可吃」的最小 HTML。若拿真页当夹具，惰性匹配会一路吃到
+    // 页面后面某个真结束标签，漏剥被过度匹配掩盖，这条断言就永不翻红。
+    for (const close of ['</SCRIPT>', '</script >', '</script foo="bar">']) {
+      const page = `<SCRIPT>var s = "<noscript></noscript>";${close}<noscript>REAL</noscript>`;
+      expect(servedDom(page), `${close} 绕过了剥离`).toBe('<noscript>REAL</noscript>');
+    }
+    // 反方向：容忍空白与属性之后，真页面的计数不许变——防止结束标签匹配反向扩大吞噬范围
+    for (const { file, label } of PAGES) {
+      const shouty = `<SCRIPT>var s = "<noscript></noscript>";</SCRIPT>\n${readPage(file)}`;
+      expect(
+        (servedDom(shouty).match(/<noscript\b/g) || []).length,
+        `${label} 塞进脚本块后计数变了，说明剥离范围失真`,
+      ).toBe(2);
+    }
   });
 });

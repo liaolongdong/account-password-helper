@@ -1,7 +1,7 @@
 import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry, TrashRestoreResult } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { deleteHistoryByEntryIds } from './passwordHistory';
+import { deleteHistoryByEntryIdsWithinLease } from './passwordHistory';
 import { pauseReminders, removeReminders, resumeReminders } from './reminderManager';
 import { assertWithinCapacity } from './vaultCapacity';
 import { withVaultCommit, withVaultMutation } from './vaultWriteLock';
@@ -206,13 +206,14 @@ async function permanentDeleteFromTrashInternal(ids: string[]): Promise<void> {
     const trash = await readTrash();
     const remainingTrash = trash.filter(entry => !idSet.has(entry.id));
 
+    // 先清历史、后摘条目：顺序反过来时，一旦历史清理写盘失败，条目已经离开回收站——
+    // 用户看到「删除成功」，旧口令密文却留在库里再没有重试入口。这个顺序下失败只是「多待一轮」。
+    await deleteHistoryByEntryIdsWithinLease(ids);
+
     await writeTrash(remainingTrash);
 
-    // 清理对应的密码历史记录
-    await deleteHistoryByEntryIds(ids);
-
     // 安全兜底：清理可能残留的到期提醒
-    await removeReminders(ids).catch(() => {});
+    await removeReminders(ids).catch(error => logger.error('清理已删除条目的到期提醒失败:', error));
   } catch (error) {
     logger.error('彻底删除失败:', error);
     throw error;
@@ -230,11 +231,13 @@ async function emptyTrashInternal(): Promise<void> {
     if (trash.length === 0) return;
 
     const entryIds = trash.map(entry => entry.id);
+    // 同 `permanentDeleteFromTrashInternal`：历史清理排在整包清空之前，失败时条目仍在回收站里可重试。
+    await deleteHistoryByEntryIdsWithinLease(entryIds);
+
     await writeTrash([]);
-    await deleteHistoryByEntryIds(entryIds);
 
     // 安全兜底：清理可能残留的到期提醒
-    await removeReminders(entryIds).catch(() => {});
+    await removeReminders(entryIds).catch(error => logger.error('清理回收站条目的到期提醒失败:', error));
   } catch (error) {
     logger.error('清空回收站失败:', error);
     throw error;
@@ -270,14 +273,14 @@ async function cleanExpiredTrashInternal(): Promise<void> {
 
     if (expired.length === 0) return;
 
+    // 先清历史再摘条目：这一步抛错时条目仍留在回收站，下一个闹钟周期会重新结算这批过期项。
+    const expiredIds = expired.map(e => e.id);
+    await deleteHistoryByEntryIdsWithinLease(expiredIds);
+
     await writeTrash(remaining);
 
-    // 清理过期条目的历史记录
-    const expiredIds = expired.map(e => e.id);
-    await deleteHistoryByEntryIds(expiredIds);
-
     // 安全兜底：清理过期条目可能残留的到期提醒
-    await removeReminders(expiredIds).catch(() => {});
+    await removeReminders(expiredIds).catch(error => logger.error('清理过期条目的到期提醒失败:', error));
 
     logger.debug(`回收站自动清理: 移除 ${expired.length} 条过期条目`);
   } catch (error) {

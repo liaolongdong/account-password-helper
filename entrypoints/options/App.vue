@@ -2020,6 +2020,9 @@ useRuntimeMessageHandler({
   openDomainMatchSetting,
   applySearchKeyword,
   openIdentityVault: openIdentityVaultFromPage,
+  // 锁定态被门禁挡下的右键召唤：与 `openSiteRules` 同一口径给一句可读反馈，
+  // 别让「标签页切过来然后什么都没有」成为这条链路的唯一下场。
+  notifyIdentityNeedUnlock: () => ElMessage.info(t('identity.needUnlock')),
 });
 
 // ==================== 使用指引文档中页 ====================

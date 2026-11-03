@@ -65,24 +65,6 @@
   opacity: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .backup-nudge-enter-active,
-  .backup-nudge-leave-active {
-    transition: none;
-  }
-
-  /*
-   * 同一档里也撤掉全局按钮那 1px 悬浮上浮。它原先靠 `reducedMotionCoverage` 的
-   * 「整文件豁免」留在减弱档之外；这个文件一旦有了减弱档，就不该再一边声明尊重系统设置、
-   * 一边留两条不受它管的位移——那条豁免因此必须随之删掉。撤掉上浮后按钮仍有提亮与投影
-   * 两条反馈在动，不是「按下去什么都看不见」那一形（那才是登记表该留的情形）。
-   */
-  :deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover),
-  :deep(.el-button:hover) {
-    transform: none;
-  }
-}
-
 /* 弹窗样式 */
 .dialog-footer {
   display: flex;
@@ -274,4 +256,31 @@
 
 :deep(.el-button--danger.is-link:hover) {
   color: #f78989;
+}
+
+/*
+ * ==================== 减弱动效档（必须留在文件末尾） ====================
+ *
+ * 媒体查询**不增加特异性**：同一个选择器只要在本块之后再次出现并带上位移，后写的规则就赢，
+ * 这里的撤销会当场变成死规则——而 `prefers-reduced-motion` 写在前面的那次翻车，守卫按
+ * 「文件里有没有减弱档」判是绿的，真机减弱档下按钮照样上浮。
+ * 所以本块必须排在所有基规则之后，别把它挪回上面去。
+ * （`tests/architecture/reducedMotionCoverage.test.ts` 的层叠判据会当场拦住。）
+ */
+@media (prefers-reduced-motion: reduce) {
+  .backup-nudge-enter-active,
+  .backup-nudge-leave-active {
+    transition: none;
+  }
+
+  /*
+   * 同一档里也撤掉全局按钮那 1px 悬浮上浮。它原先靠 `reducedMotionCoverage` 的
+   * 「整文件豁免」留在减弱档之外；这个文件一旦有了减弱档，就不该再一边声明尊重系统设置、
+   * 一边留两条不受它管的位移——那条豁免因此必须随之删掉。撤掉上浮后按钮仍有提亮与投影
+   * 两条反馈在动，不是「按下去什么都看不见」那一形（那才是登记表该留的情形）。
+   */
+  :deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover),
+  :deep(.el-button:hover) {
+    transform: none;
+  }
 }

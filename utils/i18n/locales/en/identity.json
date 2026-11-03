@@ -1,6 +1,7 @@
 {
   "identity.title": "Personal Info Vault",
   "identity.vaultEntryTitle": "Open the personal info vault (master password required)",
+  "identity.needUnlock": "Password manager opened — unlock it to view the Personal Info Vault",
   "identity.verifyTitle": "Verify master password",
   "identity.verifyPrompt": "Enter your master password to view personal information:",
   "identity.add": "Add personal info",

@@ -119,7 +119,19 @@ function missingReducedMotionFallback(source: string): boolean {
  * ——注入 UI（恰好是最需要减弱档的那一族样式）会整族静默逃逸。拍平成占位符后再匹配。
  */
 function flattenInterpolation(css: string): string {
-  return css.replace(/\$\{[^{}]*\}/g, 'INTERP');
+  return blankComments(css.replace(/\$\{[^{}]*\}/g, 'INTERP'));
+}
+
+/**
+ * 把 CSS 注释抹成等长空格
+ *
+ * `RULE_RE` 的选择器捕获组是 `[^{}]+`，注释里没有花括号，于是紧贴在规则前面的那段说明会被
+ * 当成选择器的一部分收进来（`entrypoints/options/styles.css` 的减弱档覆写前面正有一段注释），
+ * 分组选择器拆开后就再也对不上基规则。保留长度是为了让各条规则的 `index` 仍可跨函数比较——
+ * 层叠顺序判据全靠这个偏移。
+ */
+function blankComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, match => ' '.repeat(match.length));
 }
 
 /**
@@ -145,6 +157,85 @@ function interactionMovementSelectors(css: string): string[] {
 /** 该文件是否「有交互态位移却缺减弱档」 */
 function missingInteractionFallback(source: string): boolean {
   return interactionMovementSelectors(source).length > 0 && !REDUCED_MOTION_RE.test(source);
+}
+
+/**
+ * 拆开选择器组（`a:hover, b:hover { … }`），只在圆括号深度 0 处按逗号切
+ *
+ * `:not(.is-link, .is-text)` 里就带逗号，机械 `split(',')` 会把一条选择器切成两截，
+ * 于是减弱档里的分组撤销永远对不上任何一条基规则——正是 U1 那条死规则的藏身之处。
+ */
+function selectorList(selector: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of selector) {
+    if (char === '(') depth += 1;
+    else if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      parts.push(current.trim().replace(/\s+/g, ' '));
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  parts.push(current.trim().replace(/\s+/g, ' '));
+  return parts.filter(Boolean);
+}
+
+/** 取出交互态位移规则及其在（拍平后）文本中的偏移，供层叠顺序判定使用 */
+function interactionMovementRules(css: string): { selector: string; start: number }[] {
+  return [...flattenInterpolation(css).matchAll(RULE_RE)]
+    .filter(rule => INTERACTION_PSEUDO_RE.test(rule[1]) && MOVE_RE.test(rule[2]))
+    .flatMap(rule => selectorList(rule[1]).map(selector => ({ selector, start: rule.index ?? 0 })));
+}
+
+/**
+ * 取出 `@media (prefers-reduced-motion)` 块的区间
+ *
+ * 手工配平花括号而不是再写一个 `[^{}]+` 正则：块里嵌的是规则本身，外层花括号会让
+ * 逐规则正则以错位的方式切开它。
+ */
+function reducedMotionBlocks(css: string): { start: number; end: number; body: string }[] {
+  const blocks: { start: number; end: number; body: string }[] = [];
+  const headRe = /@media[^{}]*prefers-reduced-motion[^{}]*\{/g;
+  let head: RegExpExecArray | null;
+  while ((head = headRe.exec(css))) {
+    let depth = 1;
+    let i = head.index + head[0].length;
+    while (i < css.length && depth > 0) {
+      if (css[i] === '{') depth += 1;
+      else if (css[i] === '}') depth -= 1;
+      i += 1;
+    }
+    blocks.push({ start: head.index, end: i, body: css.slice(head.index + head[0].length, i - 1) });
+  }
+  return blocks;
+}
+
+/**
+ * 减弱档里「撤销位移」的那几条，是否被**同选择器且排在它后面**的位移规则压过
+ *
+ * 这是本守卫原先看不见的那一半：文件级的 `REDUCED_MOTION_RE` 只证明「写了减弱档」，
+ * 而媒体查询**不增加特异性**——同一条选择器在文件后面又出现一次，后者的值就赢了。
+ * 结果是作者与守卫都以为减弱档生效了，真机减弱档下按钮照样上浮。
+ *
+ * @returns 被压过的选择器列表（空数组 = 该文件的撤销声明都真的有效）
+ */
+function deadReducedMotionOverrides(css: string): string[] {
+  const flat = flattenInterpolation(css);
+  const movements = interactionMovementRules(flat);
+  const dead: string[] = [];
+  for (const block of reducedMotionBlocks(flat)) {
+    for (const rule of [...block.body.matchAll(RULE_RE)]) {
+      if (!/transform\s*:\s*none/.test(rule[2])) continue;
+      for (const selector of selectorList(rule[1])) {
+        // `>=` 而不是 `>`：块闭合后的下一个字符就是后一条规则的起点，两者可以相邻相等
+        if (movements.some(move => move.selector === selector && move.start >= block.end)) dead.push(selector);
+      }
+    }
+  }
+  return dead;
 }
 
 /**
@@ -307,6 +398,63 @@ describe('交互态位移与减弱动效兜底配对', () => {
     expect(
       violations,
       `以下文件 hover/active 会产生位移或缩放却没有 prefers-reduced-motion：\n${violations.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  /**
+   * 层叠顺序判据（评审 2026-11-02 U1）
+   *
+   * 上面那条只证明「写了减弱档」。`entrypoints/options/styles.css` 的备份轻提醒把
+   * `transform: none` 写在文件前段，而要撤销的那两条按钮上浮写在同文件后段——媒体查询
+   * 不增加特异性，同选择器源序后者胜，于是减弱档一条都没撤销，而守卫与作者都以为撤销了。
+   * 登记表的 interaction 轴豁免也正是按「这条已生效」的前提删掉的，所以这一判据同时是
+   * 那次删除的前提校验。
+   */
+  it('减弱档里的撤销声明不得被同选择器的后来者压过', () => {
+    const offenders = scannedFiles.flatMap(file =>
+      deadReducedMotionOverrides(styleSource(file, readSource(file))).map(selector => `${file} → ${selector}`),
+    );
+    expect(
+      offenders,
+      [
+        '以下选择器在 prefers-reduced-motion 块里写了 `transform: none`，但同文件后面又出现一条同选择器的位移规则。',
+        '媒体查询不增加特异性，源序后者取胜——减弱档形同未写，真机减弱档下位移仍然发生：',
+        offenders.join('\n'),
+      ].join('\n'),
+    ).toEqual([]);
+  });
+
+  it('层叠判据有牙：覆写在后被拒、覆写在前放行、不同选择器不互咬', () => {
+    // 反例：撤销排在前，位移规则排在后 → 位移赢，撤销是死规则
+    expect(
+      deadReducedMotionOverrides(
+        '@media (prefers-reduced-motion: reduce) { .x:hover { transform: none; } }\n' +
+          '.x:hover { transform: translateY(-1px); }',
+      ),
+    ).toEqual(['.x:hover']);
+
+    // 正例：位移规则在前，撤销排在后 → 减弱档真的生效
+    expect(
+      deadReducedMotionOverrides(
+        '.x:hover { transform: translateY(-1px); }\n' +
+          '@media (prefers-reduced-motion: reduce) { .x:hover { transform: none; } }',
+      ),
+    ).toEqual([]);
+
+    // 不许扩大打击面：不同选择器之间不构成压制关系
+    expect(
+      deadReducedMotionOverrides(
+        '@media (prefers-reduced-motion: reduce) { .y:hover { transform: none; } }\n' +
+          '.x:hover { transform: translateY(-1px); }',
+      ),
+    ).toEqual([]);
+
+    // 只撤销别的属性（如 opacity）不算声明了位移撤销，不能凭空制造违规
+    expect(
+      deadReducedMotionOverrides(
+        '@media (prefers-reduced-motion: reduce) { .x:hover { opacity: 1; } }\n' +
+          '.x:hover { transform: translateY(-1px); }',
+      ),
     ).toEqual([]);
   });
 });

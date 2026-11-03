@@ -9,7 +9,7 @@ const WRONG_PASSWORD: VaultErrorCode = 'WRONG_PASSWORD';
 
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isWebPageContext } from './runtimeContext';
-import { withVaultMutation } from '@/utils/storage/vaultWriteLock';
+import { withVaultCommit, withVaultMutation } from '@/utils/storage/vaultWriteLock';
 import { verifyMasterPassword } from '@/utils/storage/masterPassword';
 import {
   recoverBrowserStartupRelockAfterAuthentication,
@@ -603,44 +603,49 @@ async function ensurePasswordsEncryptedAtRestInternal(masterPassword?: string): 
       }
     }
 
-    // 重新读取最新快照，仅替换「仍为明文且自快照以来未被并发修改」的条目，
-    // 并发新增/修改/删除的条目原样保留，彻底避免与并发写入互相覆盖导致数据丢失。
-    const latest = await readAtRest();
-    let passwordsChanged = false;
-    const outPasswords = latest.passwords.map(e => {
-      if (isEncrypted(e)) return e;
-      const m = encById.get(e.id);
-      if (m && (e as PasswordEntry).updateTime === m.updateTime) {
-        passwordsChanged = true;
-        return m.enc;
-      }
-      return e; // 并发新增/修改的明文条目：保留，交由下一轮迁移处理
-    });
+    // 逐条加密已在上面锁外算完，这里只做「重读最新快照 → 就地替换仍为明文且未被并发修改的条目 →
+    // 单次 set」，整段必须在跨上下文提交锁内：漂移检测只挡得住「同一条目被改过」，挡不住
+    // 「读之后、写之前」另一个上下文提交的整包结果——那种交错里迁移会拿自己早一步的快照把
+    // 对方的编辑整片盖掉。其余整包覆写型写入都在这把锁里，这里补齐后「所有整包写都在提交锁内」
+    // 才真正成立（评审 2026-11-02 Q2）。
+    await withVaultCommit(async () => {
+      const latest = await readAtRest();
+      let passwordsChanged = false;
+      const outPasswords = latest.passwords.map(e => {
+        if (isEncrypted(e)) return e;
+        const m = encById.get(e.id);
+        if (m && (e as PasswordEntry).updateTime === m.updateTime) {
+          passwordsChanged = true;
+          return m.enc;
+        }
+        return e; // 并发新增/修改的明文条目：保留，交由下一轮迁移处理
+      });
 
-    let trashChanged = false;
-    const outTrash = latest.trash.map(e => {
-      if (isEncrypted(e)) return e;
-      const m = encById.get(e.id);
-      if (m && e.updateTime === m.updateTime) {
-        trashChanged = true;
-        // encryptPasswordEntry 以展开方式保留 deletedAt，此处按最新值显式补齐类型与字段
-        return { ...m.enc, deletedAt: e.deletedAt };
-      }
-      return e;
-    });
+      let trashChanged = false;
+      const outTrash = latest.trash.map(e => {
+        if (isEncrypted(e)) return e;
+        const m = encById.get(e.id);
+        if (m && e.updateTime === m.updateTime) {
+          trashChanged = true;
+          // encryptPasswordEntry 以展开方式保留 deletedAt，此处按最新值显式补齐类型与字段
+          return { ...m.enc, deletedAt: e.deletedAt };
+        }
+        return e;
+      });
 
-    // 仅写回本次确实发生变化的列表：未变化的列表不参与 set，避免覆盖并发写入
-    const payload: Record<string, unknown> = {};
-    if (passwordsChanged) payload[STORAGE_KEYS.PASSWORDS] = outPasswords;
-    if (trashChanged) payload[STORAGE_KEYS.TRASH] = outTrash;
-    if (Object.keys(payload).length > 0) {
-      await chrome.storage.local.set(payload);
-    }
-    // 仅当最新快照（主列表 + 回收站）中已无明文时才标记完成，否则留待下次触发继续迁移
-    if (!hasPlaintext(outPasswords) && !hasPlaintext(outTrash)) {
-      _encryptAtRestDone = true;
-      logger.debug('at-rest 不变量已满足：storage.local 中所有密码条目（含回收站）均为密文');
-    }
+      // 仅写回本次确实发生变化的列表：未变化的列表不参与 set，避免覆盖并发写入
+      const payload: Record<string, unknown> = {};
+      if (passwordsChanged) payload[STORAGE_KEYS.PASSWORDS] = outPasswords;
+      if (trashChanged) payload[STORAGE_KEYS.TRASH] = outTrash;
+      if (Object.keys(payload).length > 0) {
+        await chrome.storage.local.set(payload);
+      }
+      // 仅当最新快照（主列表 + 回收站）中已无明文时才标记完成，否则留待下次触发继续迁移
+      if (!hasPlaintext(outPasswords) && !hasPlaintext(outTrash)) {
+        _encryptAtRestDone = true;
+        logger.debug('at-rest 不变量已满足：storage.local 中所有密码条目（含回收站）均为密文');
+      }
+    });
   } catch (error) {
     logger.error('确保密码密文落盘失败:', error);
   } finally {
