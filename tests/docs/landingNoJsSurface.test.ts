@@ -21,7 +21,7 @@
  *
  * 首帧与兜底段都挂着 `<!-- prettier-ignore -->`：printWidth 120 会把长句在 CJK 之间折行，折行在
  * HTML 里塌成一个空格，「本地存储方案」会变成「本地 存储方案」。所以这里按「规范排版」逐字比对——
- * 排版标记被 prettier 抢走时，卡面就不再逐字等于字典值，断言随之变红（自检那三例证的就是这条牙）。
+ * 排版标记被 prettier 抢走时，卡面就不再逐字等于字典值，断言随之变红（「守卫自检」里有例证这条牙）。
  *
  * 数「页内有几处某标记」一律先过 `servedDom`：脚本里的 `I18N` 字典与注释都会把这些串再说一遍，
  * 直接对整份文件计数会把 2 数成 7。
@@ -72,11 +72,14 @@ const readPage = (file: string): string => readFileSync(path.join(ROOT, file), '
  *
  * `I18N` 字典把 `<noscript>`、`href="./llms.txt"` 这些串又写了一遍，`<style>` 里的注释也是；不剥就会
  * 把「页面上有一处」数成「文件里出现 N 次」，而本守卫要的恰恰是前者。
+ *
+ * 标志位带 `i`：HTML 标签名大小写不敏感，`<SCRIPT>` 在浏览器里照样是脚本。按大小写敏感去剥，
+ * 大写写法就会绕过剥离、被后面的计数当成 DOM 来数。
  */
 function servedDom(html: string): string {
   return html
-    .replace(/<script[\s\S]*?<\/script>/g, '')
-    .replace(/<style[\s\S]*?<\/style>/g, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<!-{2}[\s\S]*?-->/g, '');
 }
 
@@ -245,5 +248,11 @@ describe('守卫自检：卡面漂移与排版失守都会变红', () => {
     expect(reflowed).not.toBe(ZH);
     expect(NOSCRIPT_BLOCK_RE.exec(reflowed)).toBeNull();
     expect(() => parseNoscriptNote(reflowed, 'index.html')).toThrow();
+  });
+
+  it('大写 <SCRIPT> 块没被剥掉 → 计数会把它当 DOM（证明剥离的 i 标志有牙）', () => {
+    const shouty = `${'<SCRIPT>var s = "<noscript></noscript>";</SCRIPT>'}\n${ZH}`;
+    expect(servedDom(shouty), '夹具：大写写法同样是脚本，必须剥干净').not.toContain('<SCRIPT>');
+    expect((servedDom(shouty).match(/<noscript\b/g) || []).length, '剥离漏了大写脚本块').toBe(2);
   });
 });
