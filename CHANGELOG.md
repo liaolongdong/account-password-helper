@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.21.0](https://github.com/liaolongdong/account-password-helper/compare/v3.20.0...v3.21.0) (2026-11-03)
+
+
+### Features
+
+* **review-replay:** 把并行会话未提交的增量三方重放到 [#149](https://github.com/liaolongdong/account-password-helper/issues/149) 之上 ([e73d02c](https://github.com/liaolongdong/account-password-helper/commit/e73d02cb2c33be17ac6cc12423a38b4db2424566))
+* **vault:** 编辑冲突拒绝与保存提示委托，并收口并发语义的四组缺陷 ([85ec7ff](https://github.com/liaolongdong/account-password-helper/commit/85ec7ffa6bf087f16bd71039bde449667007e633))
+
+
+### Bug Fixes
+
+* **a11y:** 提示语收起仍走 v-if，aria-controls 改条件绑定 ([b9febca](https://github.com/liaolongdong/account-password-helper/commit/b9febca1e4b127f7f4c80fd0cdc843af7bc81386))
+* **auth:** 会话过期一律清空已输入的主密码 ([22f0586](https://github.com/liaolongdong/account-password-helper/commit/22f0586b954f3fb05bc201595d4e699508ed3f90))
+* **content:** 突变判定加去抖等待上界，候选溢出改淘汰最旧 ([89f87bb](https://github.com/liaolongdong/account-password-helper/commit/89f87bbf6ddc0840109a708d54c3fcd5797054d7))
+* **i18n:** 自动保存撞 UPDATE_CONFLICT 时给本地化专文，不上送存储层中文串 ([f5e0aeb](https://github.com/liaolongdong/account-password-helper/commit/f5e0aeb3490a4f782e81c773e3dbf90ee6c62f1a))
+* **identity:** 导入的逐 id 择优改在落盘时刻重做，期间被删的条目不再被复活 ([380970d](https://github.com/liaolongdong/account-password-helper/commit/380970da8fcc91be3ab66646fbf64ab425fd3bf6))
+* **options:** 减弱档撤销挪到文件末尾，守卫从存在性升级为层叠配对 ([5dae540](https://github.com/liaolongdong/account-password-helper/commit/5dae540baba94d116c59a0302962303510b99d36))
+* **options:** 右键召唤身份库被锁定态门禁挡下时给可读反馈 ([b942eb4](https://github.com/liaolongdong/account-password-helper/commit/b942eb4282160b9ac169eac410e1a48d05ab7d57))
+* **options:** 强度气泡优先放右侧，放不下才退到下方 ([958df21](https://github.com/liaolongdong/account-password-helper/commit/958df2174ddb988e68bb8552aaafbab9bd264505))
+* **review:** 收口深度评审的 5 条 Major 与并发正确性项 ([ac4ff14](https://github.com/liaolongdong/account-password-helper/commit/ac4ff1484e251c6e5dfdee2260bfe7468bf9eab5))
+* **storage:** at-rest 迁移的整包读改写也进跨上下文提交锁 ([1ffd944](https://github.com/liaolongdong/account-password-helper/commit/1ffd9449bc50b5ccf40dc274b0e365d12c061b4c))
+* **storage:** 临界区内不再嵌套取租约，回收站整写失败不再静默 ([d292f6a](https://github.com/liaolongdong/account-password-helper/commit/d292f6ab7a03f52a33c3d1860c1d83fd4bb571a7))
+* **storage:** 历史快照改记被本次取代的那份密文，未迁移明文行不再写成混排行 ([1da72b1](https://github.com/liaolongdong/account-password-helper/commit/1da72b1a8385c26006d6f999d982eaa0d5419c5f))
+* **storage:** 收口两版并发方案——基线拒绝 + 无条件密文级字段合并 ([6c10d40](https://github.com/liaolongdong/account-password-helper/commit/6c10d4071a53de1064ca162429c604257079211b))
+* **storage:** 敏感写按字段取最新密文；租约内历史写回到历史锁内 ([de5e89b](https://github.com/liaolongdong/account-password-helper/commit/de5e89b1e7681a6e82b92c198d506965aa48aaa4))
+* **storage:** 敏感编辑对着落盘前的最新行解密，跨上下文不再互相盖字段 ([25425cb](https://github.com/liaolongdong/account-password-helper/commit/25425cbba10436256f71fc4321c68c5923d2e914))
+* **storage:** 身份库写路径把 PBKDF2 派生与批量加密移出跨上下文提交锁 ([163980c](https://github.com/liaolongdong/account-password-helper/commit/163980c70c1762e277eb5933f41032e28b6d942e))
+
+
+### Performance Improvements
+
+* **content:** 观察器回调只登记候选 + 商店用户数口径结案 ([6ed597d](https://github.com/liaolongdong/account-password-helper/commit/6ed597d5cbca97c39913d1a91775a39671addc28))
+* **content:** 观察器回调只登记候选，文本判定下沉到去抖之后 ([1c1cf51](https://github.com/liaolongdong/account-password-helper/commit/1c1cf51f8ece77581536724343880bdafff232c7))
+
 ## [3.20.0](https://github.com/liaolongdong/account-password-helper/compare/v3.19.0...v3.20.0) (2026-10-27)
 
 
