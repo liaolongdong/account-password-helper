@@ -25,7 +25,11 @@ import { isWeakPassword } from '@/utils/passwordStrengthCore';
 // 类型导入会被编译期擦除，零运行时成本；下面这个具名常量仍要求字面量是 `VaultErrorCode`
 // 的成员，登记表里改名或拼错照样编译失败。
 const VAULT_BUSY: VaultErrorCode = 'VAULT_BUSY';
+// 同上口径：`UPDATE_CONFLICT` 也只借类型不做值导入，字面量必须是 `PasswordCrudErrorCode`
+// 的成员，passwordCrud 那边改名或拼错当场编译失败。
+const UPDATE_CONFLICT: PasswordCrudErrorCode = 'UPDATE_CONFLICT';
 import type { VaultErrorCode } from '@/utils/recoveryTypes';
+import type { PasswordCrudErrorCode } from './passwordCrud';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
@@ -297,6 +301,11 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     if ((error as { code?: string })?.code === VAULT_BUSY) {
       // 换钥窗口内重试仍拿不到租约：给本地化文案，绝不把存储层的英文内部串抛到页面上
       return { success: false, message: tl('bg.autoSave.busy') };
+    }
+    if ((error as { code?: string })?.code === UPDATE_CONFLICT) {
+      // 这条凭据在用户于另一处编辑期间被拒：同样是「绝不把存储层中文串送到页面上」这条线。
+      // 自动保存是一次性动作，不能像编辑弹窗那样让用户刷新重试，文案因此要说清「这次没存」。
+      return { success: false, message: tl('bg.autoSave.conflict') };
     }
     return {
       success: false,

@@ -169,6 +169,7 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.tooLong': '账号、密码或备注过长，请精简后重试',
     'bg.autoSave.capacityReached': '账号密码条目数已达上限（{max} 条），本次未保存。请先删除不再需要的条目',
     'bg.autoSave.busy': '正在更换主密码加密，本次自动保存稍后会自动重试',
+    'bg.autoSave.conflict': '该账号在别的窗口已被修改，本次自动保存已取消，以免覆盖那边的改动',
     'bg.quickAdd.invalidFields': '账号不能为空',
     'bg.quickAdd.tooLong': '账号或密码过长，请精简后重试',
     'bg.quickAdd.locked': '会话已过期，请先验证主密码',
@@ -353,6 +354,8 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.capacityReached':
       'The entry limit ({max}) has been reached, so this password was not saved. Delete entries you no longer need first.',
     'bg.autoSave.busy': 'Vault encryption is being rotated; this auto-save will retry shortly',
+    'bg.autoSave.conflict':
+      'This account was changed in another window, so this auto-save was skipped to avoid overwriting it',
     'bg.quickAdd.invalidFields': 'Username cannot be empty',
     'bg.quickAdd.tooLong': 'Username or password is too long. Please shorten it and retry.',
     'bg.quickAdd.locked': 'Session expired. Please verify your master password first.',

@@ -897,6 +897,20 @@ describe('autoSavePassword 前置门禁与失败分支', () => {
     });
   });
 
+  it('更新撞上 UPDATE_CONFLICT 时给本地化专文，不把存储层的中文串送到页面上', async () => {
+    isSessionValid.mockResolvedValue(true);
+    getAllPasswords.mockResolvedValue(storedEntries());
+    updatePassword.mockRejectedValueOnce(
+      Object.assign(new Error('该条目已被其他窗口修改，请刷新后重试'), { code: 'UPDATE_CONFLICT' }),
+    );
+
+    const res = await autoSavePassword(makePayload());
+
+    expect(res).toEqual({ success: false, message: tl('bg.autoSave.conflict') });
+    // 存储层那条中文是内部串：英文界面下会原样上屏，判据把它和文案本体分开钉住
+    expect(res.message).not.toContain('该条目已被其他窗口修改');
+  });
+
   it('其他异常走通用失败文案并带上错误原因', async () => {
     isSessionValid.mockResolvedValue(true);
     getAllPasswords.mockResolvedValue([]);
