@@ -161,4 +161,30 @@ describe('对话框异步结果落点的接线守卫', () => {
       expect(healthDialog).toMatch(/ref="healthRootRef"/);
     });
   });
+
+  describe('健康报告：每次打开都重算，只合流在飞的那一轮', () => {
+    it('结果落地受列表引用守卫，且不存在「算过就复用」的结果缓存', () => {
+      expectGuard(
+        '报告落地引用守卫',
+        optionsApp,
+        /const promise = buildHealthReportAsync\(list, Date\.now\(\)\)\s*\.then\(report => \{\s*if \(list === passwords\.value\) healthReport\.value = report;/,
+        '      if (list === passwords.value) healthReport.value = report;',
+      );
+      // 新增与编辑走就地更新（`passwords.value.push` / `Object.assign`），数组引用恒定：任何
+      // 「同一份列表复用上次结果」的短路都会让挂载那次算出的空库报告永久命中，表现为「加完
+      // 条目点体检仍说还没有密码」。按内容认又漏掉 `batchEditTags` 这类刻意不动 updateTime
+      // 的就地改字段，而 2000 条整库重算实测 warm 23ms——所以这里只允许合流，不允许复用。
+      // 切片边界先各自断言存在：`indexOf` 返回 -1 会让右界截空，负向断言就静默永真。
+      const syncStart = optionsApp.indexOf('const syncHealthReport');
+      const syncEnd = optionsApp.indexOf('const openHealthDialog');
+      expect(syncStart, '找不到 syncHealthReport 声明').toBeGreaterThan(-1);
+      expect(syncEnd, '找不到 openHealthDialog 声明').toBeGreaterThan(syncStart);
+      const sync = optionsApp.slice(syncStart, syncEnd);
+      expect(sync, 'syncHealthReport 里出现了结果复用短路').not.toContain('return Promise.resolve()');
+      expect(optionsApp).not.toContain('healthReportCached');
+      expect(sync).toContain(
+        'if (healthReportPromise && healthReportInFlightList === list) return healthReportPromise;',
+      );
+    });
+  });
 });

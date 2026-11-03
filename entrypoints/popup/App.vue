@@ -569,7 +569,7 @@ const handleEmailClick = (event: Event) => {
 
 .update-arrow {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .session-status {
@@ -617,7 +617,7 @@ const handleEmailClick = (event: Event) => {
 }
 
 .session-remaining-chip--urgent {
-  color: #b88230;
+  color: var(--aph-warning-strong);
   background: #fdf6ec;
 }
 
@@ -627,7 +627,7 @@ const handleEmailClick = (event: Event) => {
 
 /* 危急态（≤1 分钟）：警示红，信号强度高于紧迫态 */
 .session-remaining-chip--critical {
-  color: #c45656;
+  color: var(--aph-danger-strong);
   background: #fef0f0;
 }
 
@@ -653,7 +653,11 @@ const handleEmailClick = (event: Event) => {
   background: #fafafa;
   border: 1px solid #ebeef5;
   border-radius: 10px;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
 .action-card:hover {
@@ -732,7 +736,7 @@ const handleEmailClick = (event: Event) => {
   margin-top: 2px;
   font-size: 12px;
   line-height: 1.3;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .action-card__shortcut {
@@ -775,7 +779,11 @@ const handleEmailClick = (event: Event) => {
   background: #fef0f0;
   border: 1px solid #fbc4c4;
   border-radius: 10px;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
 .update-card:hover {
@@ -831,7 +839,7 @@ const handleEmailClick = (event: Event) => {
   margin-top: 2px;
   font-size: 12px;
   line-height: 1.3;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .contact-info {
@@ -848,7 +856,7 @@ const handleEmailClick = (event: Event) => {
   flex-shrink: 0;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: #909399;
+  color: var(--aph-text-muted);
   text-decoration: none;
   transition: color 0.2s;
 }

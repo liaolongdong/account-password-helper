@@ -14,7 +14,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
 import { DEFAULT_IDENTITY_VERIFY_POLICY, normalizeIdentityVerifyPolicy } from '@/utils/identityVaultAccess';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
-import { isExactHostMatch, isDomainMatchMode, type DomainMatchMode } from '@/utils/domain';
+import { isExactHostMatch, isDomainMatchMode, isPortScope, type DomainMatchMode, type PortScope } from '@/utils/domain';
 import { DEFAULT_PAGE_SIZE, isVaultPageSize } from '@/utils/vaultPageSize';
 
 /** 默认收藏上限 */
@@ -228,6 +228,7 @@ const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
     fillMode: 'inline',
     theme: DEFAULT_THEME,
     penetrateShadow: true,
+    identityHintEnabled: true,
   }),
   '悬浮按钮配置',
 );
@@ -572,36 +573,60 @@ export async function savePasswordHistoryConfig(config: Partial<PasswordHistoryC
   return passwordHistoryStore.save(config);
 }
 
-// ==================== 跨子域匹配档位 ====================
+// ==================== 站点匹配策略（跨子域档位 + 端口范围） ====================
 
 /** 默认档位：仅精确 host 匹配，与引入跨子域之前的行为逐条一致 */
 export const DEFAULT_DOMAIN_MATCH_MODE: DomainMatchMode = 'off';
 
+/**
+ * 默认端口范围：`loose`
+ *
+ * 端口隔离是新增轴，缺省必须等于「本功能存在之前」的行为：公网域名不比端口、
+ * 本地开发域名沿用既有的端口过滤。旧用户的 `domain_match_config` 里根本没有这个键，
+ * 回读时按缺省回落即可，无需数据迁移。
+ */
+export const DEFAULT_PORT_SCOPE: PortScope = 'loose';
+
+/** 站点匹配策略的固定形状（存储层读出后总是归一到这两项；也是各入口回落用的缺省策略） */
+export const DEFAULT_DOMAIN_MATCH_CONFIG: DomainMatchConfig = {
+  mode: DEFAULT_DOMAIN_MATCH_MODE,
+  portScope: DEFAULT_PORT_SCOPE,
+};
+
 const domainMatchStore = createConfigStore<DomainMatchConfig>(
   STORAGE_KEYS.DOMAIN_MATCH_CONFIG,
-  { mode: DEFAULT_DOMAIN_MATCH_MODE },
-  '跨子域匹配档位',
+  DEFAULT_DOMAIN_MATCH_CONFIG,
+  '站点匹配策略',
 );
 
 /**
- * 获取跨子域匹配档位
+ * 获取站点匹配策略
  *
- * 存储值非法（未知枚举、被外部改写成非对象）时回落 `off`：宁可少显示条目，也不静默放宽匹配。
+ * 存储值非法（未知枚举、被外部改写成非对象）时逐项回落缺省：宁可少显示条目，也不静默放宽匹配。
  * 返回固定形状，避免存储里的多余键位透出到调用方。
  */
 export async function getDomainMatchConfig(): Promise<DomainMatchConfig> {
   const config = await domainMatchStore.get();
-  return { mode: isDomainMatchMode(config?.mode) ? config.mode : DEFAULT_DOMAIN_MATCH_MODE };
+  return {
+    mode: isDomainMatchMode(config?.mode) ? config.mode : DEFAULT_DOMAIN_MATCH_MODE,
+    portScope: isPortScope(config?.portScope) ? config.portScope : DEFAULT_PORT_SCOPE,
+  };
 }
 
 /**
- * 保存跨子域匹配档位（增量合并）
+ * 保存站点匹配策略（增量合并）
  *
  * 非法档位值直接忽略写入并告警，避免把异常状态落盘后长期影响匹配口径。
+ * 端口轴的非法值与档位同口径处理：`strict` 写错不会更危险（少显示），但一次落盘的坏值
+ * 会长期决定用户看到什么，因此拒写并告警，让他重新点一次。
  */
 export async function saveDomainMatchConfig(config: Partial<DomainMatchConfig>): Promise<void> {
   if (config.mode !== undefined && !isDomainMatchMode(config.mode)) {
     logger.warn('忽略非法的跨子域匹配档位写入');
+    return;
+  }
+  if (config.portScope !== undefined && !isPortScope(config.portScope)) {
+    logger.warn('忽略非法的端口隔离范围写入');
     return;
   }
   await domainMatchStore.save(config);

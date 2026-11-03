@@ -1,4 +1,9 @@
-import { type RuntimeMessage, type PendingCipherKeyResponse, MessageType } from '@/utils/types';
+import {
+  type RuntimeMessage,
+  type PendingCipherKeyResponse,
+  type SelectorPickedData,
+  MessageType,
+} from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
   getTabIdSync,
@@ -8,6 +13,7 @@ import {
   getSidePanelPorts,
 } from './sidePanelManager';
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
+import type { OptionsFirstView } from '@/utils/optionsFirstView';
 import {
   getCachedPasswords,
   invalidatePasswordCache,
@@ -24,16 +30,21 @@ import {
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { issuePendingCipherKey } from './pendingCipherKeyStore';
+import { cancelSavePromptDelegations, delegateSavePrompt, decideSavePrompt } from './savePromptDelegation';
 import { handleQuickAddPassword } from './quickAddHandler';
-import { handleQuickFill, deliverPageNotice } from './quickFillHandler';
+import { handleQuickFill, deliverPageNotice, showPageNotice } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
+import { handleCancelSelectorPick, handleStartSelectorPick } from './selectorPickerHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
-import { normalizeSiteRuleDomain } from '@/utils/storage/siteRules';
+import { normalizeSiteRuleDomain, SITE_RULE_SELECTOR_MAX_LENGTH } from '@/utils/storage/siteRules';
 import { normalizeEntryId } from '@/utils/generateId';
-import { isFrameFillable } from '@/utils/frameFill';
-import { isSameMainDomain } from '@/utils/domain';
+import { authorizeSenderDocument, isFrameFillable, sendToAuthorizedDocument } from '@/utils/frameFill';
+import { isSameMainDomain, normalizeToHostname, parsePagePortContext, type PagePortContext } from '@/utils/domain';
+import { getEnvBinding, setEnvBinding } from './environmentBinding';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
+import { resolveSourceTabId } from '@/utils/sourceTab';
+import { tl } from '@/utils/i18n-lite';
 
 /**
  * SW 模块加载时刻（epoch 毫秒）
@@ -46,9 +57,9 @@ const _swLoadedAt = Date.now();
 /**
  * 延迟加载 sessionManager-storage 模块
  *
- * 仅在 GET_INITIAL_DATA（isSessionValid）和 INVALIDATE_PASSWORD_CACHE
- * （invalidateSessionCache / markSessionInvalid / clearSession）路径中使用，
- * 延迟 session/encryption 模块的初始化执行到首次消息到达时。
+ * 仅在 GET_INITIAL_DATA（isSessionValid）、OPEN_OPTIONS_PAGE 的骨架预判和
+ * INVALIDATE_PASSWORD_CACHE（invalidateSessionCache / markSessionInvalid / clearSession）
+ * 路径中使用，延迟 session/encryption 模块的初始化执行到首次消息到达时。
  * 注：SW 产物被 WXT 内联为单文件，此懒加载不减少冷启动解析/编译量。
  */
 let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
@@ -70,6 +81,24 @@ async function _getCrudModule(): Promise<typeof import('@/utils/storage/password
     _crudModule = await import('@/utils/storage/passwordCrud');
   }
   return _crudModule;
+}
+
+/**
+ * 「打开管理页」新标签页的首帧骨架预判
+ *
+ * 侧边栏与悬浮按钮的「管理」入口共用 OPEN_OPTIONS_PAGE，它们可能出现在会话有效或锁定的
+ * 界面里，因此不能像有效期胶囊那样无条件写死 vault：仅在会话确实有效时提示 vault，
+ * 锁定时保持中性 boot，由选项页的认证检查落到验证页。
+ */
+async function resolveOptionsFirstView(): Promise<OptionsFirstView | undefined> {
+  try {
+    const { isSessionValid } = await _getSessionModule();
+    // 只是给首屏骨架选形态，不需要顺带触发 at-rest 一致性自检（那是完整读库路径的职责）
+    return (await isSessionValid({ skipConsistencyCheck: true })) ? 'vault' : undefined;
+  } catch (error) {
+    logger.warn('Background: 检查会话状态失败，打开管理页时使用中性骨架:', error);
+    return undefined;
+  }
 }
 
 /**
@@ -132,33 +161,46 @@ async function handleGetInitialData(_domain?: string) {
  * 处理 FILL_BY_ID：按条目 ID 从缓存取明文，复用 FILL_PASSWORD 下发到发起填充的 frame
  *
  * 安全：明文仅在此刻经 FILL_PASSWORD 瞬时下发到内容脚本所在 frame（与侧边栏填充暴露面一致），
- * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页；下发前经 isFrameFillable 校验，
- * 仅顶层或与顶层同主域名的 frame 可接收，跨域 iframe（如第三方广告位）会被拒绝，防止越权骗取顶层站点凭证。
+ * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页；下发前把接收者绑定到
+ * 授权那一刻的文档身份（`authorizeSenderDocument` + `sendToAuthorizedDocument`），
+ * 仅顶层或与顶层同主域名的 frame 可接收，跨域 iframe（如第三方广告位）会被拒绝，
+ * 防止越权骗取顶层站点凭证；检查与发送之间该 frame 若已导航到新文档，新文档不继承资格。
+ * 拒绝与失败只补发固定文案的页面提示条：载荷取自 `tl()`，不含条目内容，也不含任何页面可控文本。
  *
  * @param data FILL_BY_ID 载荷（条目 ID 与是否自动登录）
  * @param tabId 发起请求的标签页 ID
  * @param frameId 发起请求的 frame ID（用于精确回填含表单的 frame）
  * @returns 填充结果或失败信息
  */
-async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: number, frameId: number | undefined) {
-  // 安全：仅允许顶层或与顶层同主域名的 frame 接收明文凭证，
-  // 避免跨域 iframe 伪造登录框骗取顶层站点账密（与侧边栏 getFillableFrameIds 同一道防线）
-  if (!(await isFrameFillable(tabId, frameId))) {
-    return { success: false, message: '当前 frame 无权填充' };
+async function handleFillById(
+  data: { id: string; autoLogin?: boolean },
+  tabId: number,
+  sender: chrome.runtime.MessageSender,
+) {
+  // 安全：仅允许发起请求的那个文档接收明文凭证。
+  // 与旧的 isFrameFillable 相比，这里把「同主域名判定」与「具体文档实例」绑在一起：
+  // 解密、元数据落盘等 await 期间即便该 frame 导航到新站，新文档也不会继承接收资格。
+  // 拒绝即补发提示条：内联面板点击后立刻收起，而这条路径 content script 从未收到填充指令，
+  // 页面侧「找不到表单」的就地引导也不会触发——不补发就是用户眼里的「点了没反应」。
+  const target = await authorizeSenderDocument(sender);
+  if (!target) {
+    void showPageNotice(tabId, tl('bg.router.frameDenied'));
+    return { success: false, message: tl('bg.router.frameDenied') };
   }
 
+  // 同一口径：锁定态与条目已删除都是「面板收起后页面无任何变化」，且文案已是给发起方的最终串，直接复用
   const entry = await getDecryptedEntryById(data.id);
   if (!entry) {
-    return { success: false, message: '会话已锁定或账号不存在' };
+    void showPageNotice(tabId, tl('bg.router.sessionOrAccount'));
+    return { success: false, message: tl('bg.router.sessionOrAccount') };
   }
 
-  const fillMessage = {
+  const fillMessage: RuntimeMessage = {
     type: MessageType.FILL_PASSWORD,
     data: { username: entry.username, password: entry.password, autoLogin: data.autoLogin },
   };
-  // 显式定向发起 frame：frameId 缺失时回退顶层（0）而非广播全帧，
-  // 与上方 isFrameFillable「仅顶层或同主域名 frame 可接收」的门控语义保持一致
-  const result = await chrome.tabs.sendMessage(tabId, fillMessage, { frameId: frameId ?? 0 });
+  // 定向授权时的那个文档；导航或身份变化时抛「接收端不存在」，绝不回退 frameId 广播。
+  const result = (await sendToAuthorizedDocument(tabId, target, fillMessage)) as FillResult | undefined;
 
   // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致
   void _getCrudModule()
@@ -194,12 +236,12 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
  */
 async function handleGetInlineTotp(data: { id: string }, tabId: number, frameId: number | undefined) {
   if (!(await isFrameFillable(tabId, frameId))) {
-    return { success: false, message: '当前 frame 无权获取验证码' };
+    return { success: false, message: tl('bg.router.frameDeniedTotpRead') };
   }
 
   const totp = await getInlineTotpCode(data.id);
   if (!totp) {
-    return { success: false, message: '会话已锁定、账号不存在或未配置两步验证' };
+    return { success: false, message: tl('bg.router.sessionOrNoTotp') };
   }
 
   return { success: true, data: totp };
@@ -216,22 +258,21 @@ async function handleGetInlineTotp(data: { id: string }, tabId: number, frameId:
  * @param frameId 发起请求的 frame ID（精确回填含验证码输入框的 frame）
  * @returns 填充结果或失败信息
  */
-async function handleFillTotpById(data: { id: string }, tabId: number, frameId: number | undefined) {
-  if (!(await isFrameFillable(tabId, frameId))) {
-    return { success: false, message: '当前 frame 无权填充验证码' };
+async function handleFillTotpById(data: { id: string }, tabId: number, sender: chrome.runtime.MessageSender) {
+  // 与 FILL_BY_ID 同口径：动态码只投递给发起请求的那个文档实例，
+  // 计算动态码期间的导航不会把一次性码交给复用同一 frameId 的新文档。
+  const target = await authorizeSenderDocument(sender);
+  if (!target) {
+    return { success: false, message: tl('bg.router.frameDeniedTotpFill') };
   }
 
   const totp = await getInlineTotpCode(data.id);
   if (!totp) {
-    return { success: false, message: '会话已锁定、账号不存在或未配置两步验证' };
+    return { success: false, message: tl('bg.router.sessionOrNoTotp') };
   }
 
-  // 显式定向发起 frame（与 FILL_BY_ID 一致，frameId 缺失时回退顶层）
-  return chrome.tabs.sendMessage(
-    tabId,
-    { type: MessageType.FILL_TOTP, data: { code: totp.code } },
-    { frameId: frameId ?? 0 },
-  );
+  const fillMessage: RuntimeMessage = { type: MessageType.FILL_TOTP, data: { code: totp.code } };
+  return sendToAuthorizedDocument(tabId, target, fillMessage);
 }
 
 /**
@@ -268,7 +309,7 @@ async function handleGetPendingTotp(tabId: number) {
 async function handleSetPendingTotp(data?: { tabId?: number; entryId?: string }) {
   const tabId = data?.tabId;
   const entryId = data?.entryId;
-  if (!tabId || !entryId) return { success: false, message: '缺少参数' };
+  if (!tabId || !entryId) return { success: false, message: tl('bg.router.missingParams') };
   const entry = await getDecryptedEntryById(entryId);
   if (entry?.totp && entry.totp.trim()) {
     await recordPendingTotpIfEligible(tabId, entryId);
@@ -298,6 +339,29 @@ function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean 
   if (sender.id !== chrome.runtime.id) return false;
   if (sender.tab !== undefined) return false;
   return sender.url ? sender.url.startsWith(chrome.runtime.getURL('')) : true;
+}
+
+/**
+ * 绑定消息里的主机名是否可接受
+ *
+ * 消息体是跨上下文边界，编译期类型不构成校验：只允许 hostname 形态的字符集与长度，
+ * 带 `/`、`#`、空格的串一律拒绝。绑定值会参与主机相等判定，脏值留在那里只会让
+ * 「为什么绑不上」变成无法排查的问题。
+ */
+function isBindingHostArg(host: string): boolean {
+  return host.length > 0 && host.length <= 253 && !/[^a-z0-9._[\]-]/.test(host);
+}
+
+/**
+ * 扩展自身页面（Options / Popup / Sidepanel），允许带 sender.tab
+ *
+ * `isTrustedInternalSender` 额外要求 `sender.tab === undefined`，那是给 popup / sidepanel
+ * 这类非 tab 上下文用的；Options 是普通标签页，若套用同一条闸门，站点规则拾取会被误判为
+ * 未授权。这里只认「扩展 id + 扩展页面 URL」，内容脚本（URL 是站点地址）仍被排除。
+ */
+function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
+  if (sender.id !== chrome.runtime.id) return false;
+  return !!sender.url?.startsWith(chrome.runtime.getURL(''));
 }
 
 /**
@@ -334,6 +398,11 @@ export const EXTENSION_CONTEXT_COMMANDS: readonly MessageType[] = [
   MessageType.OPEN_OPTIONS_AND_SITE_RULES,
   MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH,
   MessageType.OPEN_OPTIONS_AND_SEARCH,
+  MessageType.OPEN_OPTIONS_AND_IDENTITY,
+  MessageType.START_SELECTOR_PICK,
+  MessageType.CANCEL_SELECTOR_PICK,
+  MessageType.SELECTOR_PICKED,
+  MessageType.SELECTOR_PICK_CANCELLED,
 ];
 
 /**
@@ -472,7 +541,8 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.OPEN_OPTIONS_PAGE:
-        openOptionsPage()
+        resolveOptionsFirstView()
+          .then(firstView => openOptionsPage(firstView))
           .then(tabId => {
             // doOpenOptionsPage 内部吞异常并返回 undefined，故这里按真实结果应答，
             // 否则失败时上游（popup 的「打开密码管理页」）拿到的仍是 success:true。
@@ -509,8 +579,10 @@ export function setupMessageRouter(): void {
         return true;
 
       case MessageType.OPEN_OPTIONS_AND_VALIDITY:
-        // 无载荷：打开密码管理页并自动弹出有效期设置对话框（Popup 倒计时胶囊点击续期）
-        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY).then(sendResponse);
+        // 无载荷：打开密码管理页并自动弹出有效期设置对话框（Popup 倒计时胶囊点击续期）。
+        // 该入口只会在会话有效时出现，新建标签页可直接把首屏骨架预判为 vault，
+        // 避免先闪一屏「验证主密码」再切到表格。
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY, undefined, 'vault').then(sendResponse);
         return true;
 
       case MessageType.OPEN_OPTIONS_AND_SITE_RULES: {
@@ -525,6 +597,90 @@ export function setupMessageRouter(): void {
           sendResponse,
         );
         return true;
+      }
+
+      case MessageType.START_SELECTOR_PICK: {
+        // 只接受扩展页面发起：内容脚本没有理由替用户启动拾取器
+        if (!isExtensionPageSender(sender)) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        handleStartSelectorPick(message.data)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: 启动选择器拾取失败:', error);
+            sendResponse({ success: false, error: 'NO_TAB' });
+          });
+        return true;
+      }
+
+      case MessageType.CANCEL_SELECTOR_PICK: {
+        if (!isExtensionPageSender(sender)) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        void handleCancelSelectorPick(message.data);
+        sendResponse({ success: true });
+        break;
+      }
+
+      case MessageType.SELECTOR_PICKED: {
+        // 只接受顶层内容脚本回传；页面 JS 无法构造该消息
+        if (sender.id !== chrome.runtime.id || sender.tab?.id === undefined || sender.frameId !== 0) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        const raw = message.data as Partial<SelectorPickedData> | undefined;
+        const selector = typeof raw?.selector === 'string' ? raw.selector.trim() : '';
+        const domain = normalizeSiteRuleDomain(raw?.domain);
+        const field = raw?.field;
+        const requestId = typeof raw?.requestId === 'string' ? raw.requestId.trim().slice(0, 64) : '';
+        if (
+          !domain ||
+          (field !== 'username' && field !== 'password') ||
+          !requestId ||
+          !selector ||
+          selector.length > SITE_RULE_SELECTOR_MAX_LENGTH
+        ) {
+          sendResponse({ success: false, error: 'INVALID_REQUEST' });
+          break;
+        }
+        // 只广播给扩展页面（Options）；选择器不写入日志、不落盘
+        chrome.runtime
+          .sendMessage({
+            type: MessageType.SELECTOR_PICKED,
+            data: {
+              domain,
+              field,
+              requestId,
+              selector,
+              unique: raw?.unique === true,
+              codeLike: raw?.codeLike === true,
+            },
+          })
+          .catch(() => {
+            // 没有打开的 Options 页面时无人接收，属正常情况
+          });
+        sendResponse({ success: true });
+        break;
+      }
+
+      case MessageType.SELECTOR_PICK_CANCELLED: {
+        if (sender.id !== chrome.runtime.id || sender.tab?.id === undefined || sender.frameId !== 0) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        const requestId =
+          typeof (message.data as { requestId?: unknown } | undefined)?.requestId === 'string'
+            ? (message.data as { requestId: string }).requestId.trim().slice(0, 64)
+            : '';
+        if (requestId) {
+          chrome.runtime
+            .sendMessage({ type: MessageType.SELECTOR_PICK_CANCELLED, data: { requestId } })
+            .catch(() => {});
+        }
+        sendResponse({ success: true });
+        break;
       }
 
       case MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH:
@@ -555,6 +711,26 @@ export function setupMessageRouter(): void {
         void warmPasswordCache();
         sendResponse({ success: true });
         break;
+      }
+
+      case MessageType.OPEN_OPTIONS_AND_IDENTITY: {
+        // 身份库召唤提示：搜索词由内容脚本自报，属不可信输入，在本边界统一收口。
+        // 只收这一个标签——页面角色不再跨入口（它只服务气泡文案），所以这里也不做角色收窄：
+        // 少一个没人消费的标签，比「收窄一个用不到的值」更窄的攻击面。
+        // 词本身复用「到全库找」同一个 `normalizeSearchKeyword`（trim + 64 字上限），不另立长度真源；
+        // 空白值不写出 `keyword` 键，否则选项页会把「筛成空」和「不筛」读成同一件事。
+        // 词的内容可能是用户姓名，属 PII，故本分支不记任何取值。
+        const keyword = normalizeSearchKeyword((message.data as { keyword?: unknown } | undefined)?.keyword);
+        // 来源标签页只从 sender.tab 推导（浏览器盖章），页面自报的 sourceTabId 一律丢弃：
+        // 这个数决定管理页那枚「回到原网页」把用户送去哪个站点，交给网页就等于把跳转权交出。
+        // 判据与 DELEGATE_PAGE_NOTICE 同源（见 utils/sourceTab 的头注）。
+        const sourceTabId = resolveSourceTabId(sender.tab?.id, sender.tab?.url);
+        const identityData: { keyword?: string; sourceTabId?: number } | undefined =
+          keyword || sourceTabId !== undefined
+            ? { ...(keyword ? { keyword } : {}), ...(sourceTabId !== undefined ? { sourceTabId } : {}) }
+            : undefined;
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_IDENTITY, identityData).then(sendResponse);
+        return true;
       }
 
       case MessageType.UPDATE_PASSWORD_METADATA: {
@@ -619,47 +795,40 @@ export function setupMessageRouter(): void {
           sendResponse({ success: false, error: '未授权的请求来源' });
           break;
         }
-        // 使用 async IIFE 使动态 import + 异步 clearSession 在 switch-case 内正确执行
         void (async () => {
-          const {
-            invalidateSessionCache: invalidateSess,
-            markSessionInvalid: markSessInvalid,
-            clearSession: clearSess,
-          } = await _getSessionModule();
-
-          invalidatePasswordCache();
-          invalidateSess();
-          // 同步标记会话为无效（在 async clearSession 之前执行），
-          // 使并发的 isSessionValid() 调用立即从缓存返回 false，
-          // 消除 clearSession() 异步执行期间（~100-200ms）的竞态窗口
-          markSessInvalid();
-
-          // 在 BG SW 上下文中清除会话（lockSession 已在 popup/options 上下文中调用过 clearSession，
-          // 但 BG SW 有独立的模块级状态和 _sessionValidCache，必须同步清除，
-          // 否则 isSessionValid() 的 5 秒 TTL 缓存会返回过期的 true，
-          // 导致后续 GET_INITIAL_DATA 在用户重新打开侧边栏时返回错误的已认证状态）
-          clearSess().catch(e => {
-            logger.error('Background: INVALIDATE_PASSWORD_CACHE 清除会话失败:', e);
-          });
-
-          // 会话已清除：经 syncSwKeepaliveAlarm 统一决策保活（全平台常驻）
-          syncSwKeepaliveAlarm();
-        })();
-
-        for (const port of getSidePanelPorts()) {
           try {
-            port.postMessage({ type: MessageType.SESSION_EXPIRED });
-          } catch {
-            // port 可能已断开
+            const {
+              invalidateSessionCache: invalidateSess,
+              markSessionInvalid: markSessInvalid,
+              clearSession: clearSess,
+            } = await _getSessionModule();
+            invalidatePasswordCache();
+            invalidateSess();
+            markSessInvalid();
+            // 在广播与清理之前先撤销所有在途保存委托：锁定那一刻起，任何已弹出的确认
+            // 都不该再把凭据送回保存链路（幂等，storage 监听兜底其他锁定路径）。
+            cancelSavePromptDelegations();
+            // 先把锁定广播出去，再结算清理：广播被排在 `clearSess()` 之后时，其它上下文要多
+            // 等一次 `storage.session` + `storage.local` 的删除（Windows 慢盘可到数百毫秒）
+            // 才切到锁定态，期间明文列表仍摊在屏幕上。回执仍等清理结算完再发，
+            // 保证调用方随后创建的新会话不会被迟到的后台清理抹掉。
+            for (const port of getSidePanelPorts()) {
+              try {
+                port.postMessage({ type: MessageType.SESSION_EXPIRED });
+              } catch {
+                // Port may have disconnected while storage was being cleared.
+              }
+            }
+            chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {});
+            await clearSess();
+            syncSwKeepaliveAlarm();
+            sendResponse({ success: true });
+          } catch (error) {
+            logger.error('Background: INVALIDATE_PASSWORD_CACHE 清除会话失败:', error);
+            sendResponse({ success: false, error: 'SESSION_CLEAR_FAILED' });
           }
-        }
-
-        chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
-          // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
-        });
-
-        sendResponse({ success: true });
-        break;
+        })();
+        return true;
       }
 
       case MessageType.AUTO_SAVE_PASSWORD: {
@@ -715,6 +884,19 @@ export function setupMessageRouter(): void {
         return true;
       }
 
+      case MessageType.DELEGATE_SAVE_PROMPT: {
+        // iframe 捕获凭据后的保存确认：网页 window.postMessage 不是入口。
+        // 归属、会话、两端文档与一次性授权统一由委托模块校验，结果只沿本条
+        // runtime 请求通道返回，页面世界无法伪造或旁听。
+        delegateSavePrompt(message.data, sender).then(sendResponse);
+        return true;
+      }
+
+      case MessageType.SAVE_PROMPT_DECISION: {
+        decideSavePrompt(message.data, sender).then(sendResponse);
+        return true;
+      }
+
       case MessageType.GET_PENDING_CIPHER_KEY: {
         // 内容脚本为宿主页面 sessionStorage 中的待确认凭据密文申请密钥。
         // 归属仅由 sender.tab.id + sender.url 推导（不接受自报值），无法归属时签发失败，
@@ -756,15 +938,16 @@ export function setupMessageRouter(): void {
         const gmaFrameId = sender.frameId;
         const rawUrl = sender.tab?.url;
         let domain = message.data?.domain ?? '';
-        let port = '';
+        let page: PagePortContext | null = null;
         if (rawUrl) {
           try {
             const parsedUrl = new URL(rawUrl);
             domain = parsedUrl.hostname;
-            port = parsedUrl.port;
           } catch {
-            // 解析失败时保底使用 message.data.domain
+            // 解析失败时保底使用 message.data.domain，端口上下文按不可得处理
           }
+          // 端口上下文同样以 sender.tab.url 为权威（内容脚本自报的 domain 不参与判定）
+          page = parsePagePortContext(rawUrl);
         }
         void (async () => {
           try {
@@ -777,10 +960,60 @@ export function setupMessageRouter(): void {
             // 关键词是页面侧可伪造的文本：类型/长度在边界处收口（空白等价于不过滤）。
             // 该值参与拼音匹配但不进日志、不出扩展，且仅用于过滤展示元数据。
             const keyword = normalizeSearchKeyword(message.data?.keyword);
-            const data = await getMatchingAccounts(domain, port, keyword);
+            const data = await getMatchingAccounts(domain, page, keyword);
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
+            sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
+          }
+        })();
+        return true;
+      }
+
+      case MessageType.GET_ENV_BINDING:
+      case MessageType.SET_ENV_BINDING: {
+        // 绑定决定「另一个主机的凭证能不能出现在眼前这一页并被填充」，因此只有扩展自身页面
+        // （侧边栏芯片）能读写：内容脚本若能改写，等于宿主页面自己给网页开凭证可见范围。
+        // 用 isExtensionPageSender 而不是 isTrustedInternalSender：侧边栏与标签页关联，
+        // 其 sender.tab 在本机真机上有值（e2e 实测），后者会把侧边栏自己拒掉。
+        if (!isExtensionPageSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
+        const data = message.data;
+        const host = typeof data?.host === 'string' ? data.host.trim().toLowerCase() : '';
+        if (!isBindingHostArg(host)) {
+          sendResponse({ success: false, error: '无效的页面主机名' });
+          break;
+        }
+        const port = typeof data?.port === 'string' && data.port ? data.port : null;
+        void (async () => {
+          try {
+            if (message.type === MessageType.SET_ENV_BINDING) {
+              const rawEnv = message.data.envHost;
+              // 只接受「null / 非空字符串」两种形态：把 undefined、数字、对象一律当非法请求拒绝，
+              // 而不是悄悄当成「清除绑定」——静默清除会让用户以为环境还绑着
+              if (rawEnv !== null && (typeof rawEnv !== 'string' || !rawEnv.trim())) {
+                sendResponse({ success: false, error: '无效的环境主机名' });
+                return;
+              }
+              // 非空一律先归一，杜绝「带协议的完整 URL」被当成主机名存下
+              const envHost = rawEnv ? normalizeToHostname(rawEnv.trim()) : null;
+              if (rawEnv && !envHost) {
+                sendResponse({ success: false, error: '无效的环境主机名' });
+                return;
+              }
+              const data = await setEnvBinding(host, port, envHost, message.data.ack === true);
+              if (data.failed) {
+                sendResponse({ success: false, error: '环境绑定写入失败' });
+                return;
+              }
+              sendResponse({ success: true, data });
+              return;
+            }
+            sendResponse({ success: true, data: { envHost: await getEnvBinding(host, port) } });
+          } catch (error) {
+            logger.error('Background: 环境绑定读写失败:', error);
             sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
           }
         })();
@@ -793,7 +1026,7 @@ export function setupMessageRouter(): void {
           sendResponse({ success: false, error: '无法获取标签ID' });
           break;
         }
-        handleFillById(message.data, tabId, sender.frameId)
+        handleFillById(message.data, tabId, sender)
           .then(sendResponse)
           .catch(error => {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -802,8 +1035,12 @@ export function setupMessageRouter(): void {
               logger.debug('Background: FILL_BY_ID 接收端已不存在（页面导航/刷新竞态）');
             } else {
               logger.error('Background: FILL_BY_ID 处理失败:', error);
+              // 只在非竞态分支补发：竞态时用户已经在新页面上，提示条会落在他没点过的页面；
+              // 其余异常（目标 frame 未注入、tab 已销毁）同样没有任何页面侧反馈可用。
+              // 载荷用固定串而非 errorMsg——错误消息可能夹带 URL 等页面可控内容，不进提示条。
+              void showPageNotice(tabId, tl('bg.router.fillFailed'));
             }
-            sendResponse({ success: false, message: '填充失败' });
+            sendResponse({ success: false, message: tl('bg.router.fillFailed') });
           });
         return true;
       }
@@ -811,14 +1048,14 @@ export function setupMessageRouter(): void {
       case MessageType.GET_INLINE_TOTP: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
         handleGetInlineTotp(message.data, tabId, sender.frameId)
           .then(sendResponse)
           .catch(error => {
             logger.error('Background: GET_INLINE_TOTP 处理失败:', error);
-            sendResponse({ success: false, message: '获取验证码失败' });
+            sendResponse({ success: false, message: tl('bg.router.totpReadFailed') });
           });
         return true;
       }
@@ -826,10 +1063,10 @@ export function setupMessageRouter(): void {
       case MessageType.FILL_TOTP_BY_ID: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
-        handleFillTotpById(message.data, tabId, sender.frameId)
+        handleFillTotpById(message.data, tabId, sender)
           .then(sendResponse)
           .catch(error => {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -839,7 +1076,7 @@ export function setupMessageRouter(): void {
             } else {
               logger.error('Background: FILL_TOTP_BY_ID 处理失败:', error);
             }
-            sendResponse({ success: false, message: '填充验证码失败' });
+            sendResponse({ success: false, message: tl('bg.router.totpFillFailed') });
           });
         return true;
       }
@@ -847,7 +1084,7 @@ export function setupMessageRouter(): void {
       case MessageType.GET_PENDING_TOTP: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
         handleGetPendingTotp(tabId)
@@ -862,7 +1099,7 @@ export function setupMessageRouter(): void {
       case MessageType.CLEAR_PENDING_TOTP: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
         handleClearPendingTotp(tabId)
@@ -877,7 +1114,7 @@ export function setupMessageRouter(): void {
       case MessageType.SET_PENDING_TOTP: {
         // 仅允许扩展内部页面（sidepanel）：防止内容脚本伪造接力标记
         if (!isTrustedInternalSender(sender)) {
-          sendResponse({ success: false, message: '未授权的请求来源' });
+          sendResponse({ success: false, message: tl('bg.router.unauthorized') });
           break;
         }
         handleSetPendingTotp(message.data)

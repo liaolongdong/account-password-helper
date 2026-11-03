@@ -20,6 +20,7 @@ import {
   getSiteRules,
   isValidCssSelector,
   normalizeSiteRuleDomain,
+  type CustomSelectors,
   type SiteRule,
 } from '@/utils/storage/siteRules';
 
@@ -94,9 +95,11 @@ export interface SiteRulesParseResult {
  * 把一条来源不可知的记录收敛成合法站点规则
  *
  * 域名走与写入端相同的规范化（小写、去空白、可含端口），否则规则会在内容脚本的
- * 精确匹配下静默失效。选择器两侧要么都合法要么整体丢弃：`CustomSelectors` 本来就
- * 要求成对，半条规则只会让消费端在两种来源之间摇摆。三样覆盖项（选择器 / 影子穿透 /
- * 填充档位）全不成立时返回 null，避免往存储里塞一条什么都不做的记录。
+ * 精确匹配下静默失效。选择器两侧独立可选（只钉一侧是合法形态），但**写了的那一侧**
+ * 语法非法时整条剔除：侧级丢弃不在「新增 / 更新 / 忽略」的条数口径里，静默收下会让用户
+ * 以为两侧都钉住了，而实际有一侧悄悄回到自动检测——与本文件「不得静默丢数据」的约定相悖。
+ * 空串与缺失同样按「该侧不覆盖」处理。三样覆盖项（选择器 / 影子穿透 / 填充档位）
+ * 全不成立时返回 null，避免往存储里塞一条什么都不做的记录。
  */
 function toSiteRule(rawDomain: unknown, rawRule: unknown): SiteRule | null {
   const domain = normalizeSiteRuleDomain(rawDomain);
@@ -107,18 +110,15 @@ function toSiteRule(rawDomain: unknown, rawRule: unknown): SiteRule | null {
 
   const selectors = source.customSelectors;
   if (typeof selectors === 'object' && selectors !== null) {
-    const username = (selectors as Record<string, unknown>).username;
-    const password = (selectors as Record<string, unknown>).password;
-    if (
-      typeof username === 'string' &&
-      typeof password === 'string' &&
-      username.trim() &&
-      password.trim() &&
-      isValidCssSelector(username) &&
-      isValidCssSelector(password)
-    ) {
-      rule.customSelectors = { username: username.trim(), password: password.trim() };
+    const raw = selectors as Record<string, unknown>;
+    const accepted: CustomSelectors = {};
+    for (const side of ['username', 'password'] as const) {
+      const value = raw[side];
+      if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) continue;
+      if (typeof value !== 'string' || !isValidCssSelector(value)) return null;
+      accepted[side] = value.trim();
     }
+    if (Object.keys(accepted).length > 0) rule.customSelectors = accepted;
   }
 
   // 默认即为 true，只保留显式关闭，避免把可推导的默认值固化进存储

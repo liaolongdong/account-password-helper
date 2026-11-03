@@ -1,0 +1,270 @@
+/**
+ * 两个上下文并发做敏感编辑时，不得互相抹掉对方的字段（评审 2026-11-02 Q1）
+ *
+ * 敏感编辑的加解密都在提交锁外做（锁内只排「重读 → 逐字段对账 → 单次 `set`」），代价是手里这份
+ * 明文可能已经过期。落盘因此按字段收口：本次没写到的敏感字段与元数据一律取锁内重读到的那一行，
+ * 而且这一步不看调用方有没有带基线。2026-11-02 评审 Q1 之前是整行拿**事务开头那份旧明文**
+ * 重新加密写回，`username`/`password`/`url`/`remark`/`totp` 全都来自那份旧明文快照。
+ *
+ * 于是两张管理页标签（或标签与 SW）同时编辑同一条：一个改密码、一个改备注，后落盘的那个会拿
+ * 自己的旧快照把前者的字段整片盖掉，而**两边都收到「保存成功」**。同上下文内不会翻车，因为
+ * `queuePasswordWrite` 已经把它自己排队了；跨上下文没有那把内存队列，只有提交锁。
+ *
+ * 带 `expectedUpdateTime` 基线的调用方（编辑弹窗、网页自动保存）还多一层保护：改过任一敏感字段
+ * 而行又被别人改过时，本次按 `UPDATE_CONFLICT` 拒绝——手里只有密文，判不出对方改的是不是同一
+ * 字段，静默覆盖任一方都是不可逆的凭据丢失。下面两条基线用例锁的就是这层。
+ *
+ * 这里用两个独立求值的模块实例模拟两个上下文（各自的内存队列互不知情，共享同一份 storage 与
+ * 同一把真 `navigator.locks`），这是本仓唯一能证伪这条的路径。
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+import type { EncryptedPasswordEntry, PasswordEntry } from '@/utils/types';
+
+const SESSION_KEY = 'session-key';
+
+/** 敏感字段的「密文」用前缀模拟：让 encrypt/decrypt 成为可逆往返，落盘结果就能逐字段核对 */
+const strip = (value: unknown): string => String(value ?? '').replace(/^enc:/, '');
+
+vi.mock('@/utils/storage/facades', () => ({
+  getSessionDataKey: vi.fn(async () => SESSION_KEY),
+}));
+
+vi.mock('@/utils/storage/masterPassword', () => ({
+  verifyMasterPassword: vi.fn(async () => true),
+}));
+
+vi.mock('@/utils/encryption', () => ({
+  encryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>) => {
+    const out = { ...entry, encrypted: true } as Record<string, unknown>;
+    for (const key of ['username', 'password', 'url', 'remark', 'totp']) {
+      if (typeof out[key] === 'string' && out[key]) out[key] = `enc:${out[key]}`;
+    }
+    return out;
+  }),
+  decryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>) => {
+    const out = { ...entry } as Record<string, unknown>;
+    for (const key of ['username', 'password', 'url', 'remark', 'totp']) {
+      if (typeof out[key] === 'string') out[key] = String(out[key]).replace(/^enc:/, '');
+    }
+    return out;
+  }),
+  deriveEncryptionKey: vi.fn(async () => SESSION_KEY),
+  encryptData: vi.fn(async (data: unknown) => `enc:${JSON.stringify(data)}`),
+  decryptData: vi.fn(async (data: unknown) => JSON.parse(String(data).replace(/^enc:/, ''))),
+}));
+
+let store: Record<string, unknown>;
+
+const cipherRow = (): EncryptedPasswordEntry =>
+  ({
+    id: 'a',
+    username: 'enc:u0',
+    password: 'enc:p0',
+    url: 'enc:https://example.com',
+    remark: 'enc:r0',
+    totp: '',
+    tag: '',
+    createTime: 1,
+    updateTime: 1,
+    order: 0,
+    favorite: false,
+    encrypted: true,
+  }) as unknown as EncryptedPasswordEntry;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  store = { [STORAGE_KEYS.PASSWORDS]: [cipherRow()] };
+  vi.stubGlobal('chrome', {
+    storage: {
+      local: {
+        get: vi.fn(async (keys: string | string[]) => {
+          const list = Array.isArray(keys) ? keys : [keys];
+          const found: Record<string, unknown> = {};
+          for (const key of list) if (key in store) found[key] = store[key];
+          return found;
+        }),
+        set: vi.fn(async (items: Record<string, unknown>) => Object.assign(store, items)),
+        remove: vi.fn(async (key: string) => {
+          delete store[key];
+        }),
+      },
+      session: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+    },
+    runtime: { id: 'fixture' },
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.resetModules();
+});
+
+const rows = (): EncryptedPasswordEntry[] => store[STORAGE_KEYS.PASSWORDS] as EncryptedPasswordEntry[];
+const rowOf = (): Record<string, unknown> => rows()[0] as unknown as Record<string, unknown>;
+
+/** 历史整包（键名与 `passwordHistory.ts` 共用）；没写过就是 undefined */
+const historyRows = (): Array<{ entryId: string; password: string; changedAt: number }> =>
+  (store[STORAGE_KEYS.PASSWORD_HISTORY] as
+    Array<{ entryId: string; password: string; changedAt: number }> | undefined) ?? [];
+
+/** 起一个独立的模块实例，代表一个扩展上下文（自己的内存写队列，共享同一份 storage 与真提交锁） */
+async function createContext(): Promise<{
+  updatePassword: (
+    id: string,
+    updates: Partial<PasswordEntry>,
+    masterPassword?: string,
+    baseline?: { expectedUpdateTime: number },
+  ) => Promise<void>;
+}> {
+  vi.resetModules();
+  const crud = await import('@/utils/storage/passwordCrud');
+  return { updatePassword: crud.updatePassword };
+}
+
+const errorCodeOf = async (fn: () => Promise<unknown>): Promise<string | undefined> => {
+  try {
+    await fn();
+  } catch (error) {
+    return (error as { code?: string })?.code;
+  }
+  return undefined;
+};
+
+describe('跨上下文的敏感编辑', () => {
+  it('两个上下文各改一个敏感字段：两处改动都必须落盘', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    await Promise.all([
+      tabA.updatePassword('a', { password: 'p1' } as Partial<PasswordEntry>),
+      tabB.updatePassword('a', { remark: '备注改了' } as Partial<PasswordEntry>),
+    ]);
+
+    const written = rowOf();
+    expect(strip(written.password), '后落盘的一方拿事务开头的旧明文快照整行重加密，把对方的密码改动盖掉了').toBe('p1');
+    expect(strip(written.remark), '同理，备注被另一方盖回旧值').toBe('备注改了');
+    expect(rows(), '不得凭空多出行').toHaveLength(1);
+  });
+
+  it('敏感编辑不得回卷另一上下文刚完成的收藏（元数据随锁内重读到的那一行一起带走）', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    await Promise.all([
+      tabA.updatePassword('a', { password: 'p1' } as Partial<PasswordEntry>),
+      tabB.updatePassword('a', { favorite: true } as Partial<PasswordEntry>),
+    ]);
+
+    const written = rowOf();
+    expect(strip(written.password)).toBe('p1');
+    expect(written.favorite).toBe(true);
+  });
+
+  it('带基线的敏感编辑撞上别人的新版本：按 UPDATE_CONFLICT 拒绝，且不覆盖对方', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    // B 先落盘（updateTime 随之前进），A 手里仍是打开编辑弹窗那一刻的基线
+    await tabB.updatePassword('a', { password: 'p-B' } as Partial<PasswordEntry>);
+    const code = await errorCodeOf(() =>
+      tabA.updatePassword('a', { password: 'p-A' } as Partial<PasswordEntry>, undefined, { expectedUpdateTime: 1 }),
+    );
+
+    expect(code, '行已被别人改过，本次敏感写必须被拒而不是静默覆盖').toBe('UPDATE_CONFLICT');
+    expect(strip(rowOf().password), '被拒的一方不得把对方的新密码盖回去').toBe('p-B');
+  });
+
+  it('基线对得上时照常落盘（冲突拒绝不许误伤单窗口编辑）', async () => {
+    const tabA = await createContext();
+
+    await tabA.updatePassword('a', { remark: '只有我在改' } as Partial<PasswordEntry>, undefined, {
+      expectedUpdateTime: 1,
+    });
+
+    expect(strip(rowOf().remark)).toBe('只有我在改');
+  });
+
+  it('不带基线时同一字段被两处并发修改仍是后写者胜：没有令牌可对账，只能按字段合并兜住别人改过的其它字段', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    await Promise.all([
+      tabA.updatePassword('a', { password: 'p1' } as Partial<PasswordEntry>),
+      tabB.updatePassword('a', { password: 'p2' } as Partial<PasswordEntry>),
+    ]);
+
+    expect(['p1', 'p2']).toContain(strip(rowOf().password));
+  });
+
+  it('被冲突拒掉的提交不得在历史里留下孤儿快照', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    // B 先落盘推进版本，A 手里还是打开弹窗那一刻的基线 → A 必须被拒
+    await tabB.updatePassword('a', { remark: 'B 改的备注' } as Partial<PasswordEntry>);
+    const before = historyRows().length;
+
+    await expect(
+      tabA.updatePassword('a', { password: 'p-A' } as Partial<PasswordEntry>, undefined, { expectedUpdateTime: 1 }),
+    ).rejects.toMatchObject({ code: 'UPDATE_CONFLICT' });
+
+    expect(historyRows(), '提交被拒、什么都没写，历史却先记了一笔：每次冲突重试都会污染该条目的历史').toHaveLength(
+      before,
+    );
+  });
+
+  it('历史快照存的是被这次编辑取代的那一份密文，不是事务开头读到的那一份', async () => {
+    const tabA = await createContext();
+
+    // 让锁内那次重读返回一个「比预读更新」的行：预读的密文是 enc:p0，落盘时盘上已经是 enc:p9。
+    // 被这次编辑真正取代的是 enc:p9；拿预读的 enc:p0 进历史，等于把对方那把口令永久漏出历史。
+    let passwordsReads = 0;
+    const localGet = chrome.storage.local.get as ReturnType<typeof vi.fn>;
+    const readStore = localGet.getMockImplementation() as (keys: string | string[]) => Promise<Record<string, unknown>>;
+    localGet.mockImplementation(async (keys: string | string[]) => {
+      const list = Array.isArray(keys) ? keys : [keys];
+      const found = await readStore(list);
+      if (!list.includes(STORAGE_KEYS.PASSWORDS)) return found;
+      passwordsReads += 1;
+      if (passwordsReads > 1) {
+        found[STORAGE_KEYS.PASSWORDS] = [{ ...cipherRow(), password: 'enc:p9', updateTime: 555 }];
+      }
+      return found;
+    });
+
+    await tabA.updatePassword('a', { password: 'p-new' } as Partial<PasswordEntry>);
+
+    const stored = historyRows().map(record => record.password);
+    expect(stored, '历史里没有本次真正覆盖掉的那把旧密文').toContain('enc:p9');
+    expect(stored, '历史里出现了事务开头的过期密文：快照基准用错了行').not.toContain('enc:p0');
+  });
+
+  it('条目在期间被删除时以删除为准，不用本次编辑把它复活', async () => {
+    const tabA = await createContext();
+
+    // 事务已经读到行；落盘前那次重读报告「条目已不存在」。只对 PASSWORDS 的读计数并翻转——
+    // 任意一次 get 都推进游标的话，将来进锁前多插一次读就会让本用例绿着空跑，不再覆盖这一支。
+    const localGet = chrome.storage.local.get as ReturnType<typeof vi.fn>;
+    let passwordsReads = 0;
+    localGet.mockImplementation(async (keys: string | string[]) => {
+      const list = Array.isArray(keys) ? keys : [keys];
+      const found: Record<string, unknown> = {};
+      const asksPasswords = list.includes(STORAGE_KEYS.PASSWORDS);
+      if (asksPasswords) passwordsReads += 1;
+      for (const key of list) {
+        if (key === STORAGE_KEYS.PASSWORDS && passwordsReads > 1) continue;
+        if (key in store) found[key] = store[key];
+      }
+      return found;
+    });
+
+    await tabA.updatePassword('a', { remark: 'r1' } as Partial<PasswordEntry>);
+    expect(rows()).toHaveLength(1);
+    expect(strip(rowOf().remark)).toBe('r0');
+    expect(
+      passwordsReads,
+      'PASSWORDS 读次数变了（当前实现应为「早退读 + 锁内重读」共 2 次）：本用例的锁内删除分支可能已不被覆盖',
+    ).toBe(2);
+  });
+});

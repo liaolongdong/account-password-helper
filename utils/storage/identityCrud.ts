@@ -26,6 +26,9 @@ import { generateId } from '@/utils/generateId';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
+import { moveIdentitiesToTrash } from './identityTrashManager';
+import { withVaultCommit, withVaultMutation } from './vaultWriteLock';
+import { verifyMasterPassword } from './masterPassword';
 
 /**
  * 延迟加载加密模块（encryptData / decryptData / deriveEncryptionKey）
@@ -44,12 +47,14 @@ const _getEncryption = lazyImport(() => import('@/utils/encryption'));
  *
  * @returns 数据密钥 hex；无有效会话且未提供主密码时返回 null
  */
-async function resolveDataKey(masterPassword?: string): Promise<string | null> {
+async function resolveDataKey(masterPassword?: string, forMutation = false): Promise<string | null> {
   if (masterPassword) {
+    // lease 内校验当前配置，不能将换钥前验证过的主密码用于新的写入。
+    if (forMutation && !(await verifyMasterPassword(masterPassword))) return null;
     const enc = await _getEncryption();
     return enc.deriveEncryptionKey(masterPassword);
   }
-  return getSessionDataKey();
+  return forMutation ? getSessionDataKey(true) : getSessionDataKey();
 }
 
 /**
@@ -93,6 +98,28 @@ export async function getAllIdentityRaw(): Promise<IdentityRecord[]> {
     logger.error('获取原始身份信息列表失败:', error);
     throw error;
   }
+}
+
+/**
+ * 落盘前重读 + 合并 + 单次 set，整段在跨上下文提交锁内完成。
+ *
+ * **调用前必须已经算好要落盘的密文**：`aph-vault-commit` 是全仓唯一一把排他提交锁，密码库、
+ * 身份库、两个回收站共用它。把 PBKDF2 派生（600k 迭代 ×2，秒级）或整批逐条加密放进锁内，
+ * 会让另一个上下文的「保存密码」无声排队——两库键位互不冲突，却被同一把锁串起，而
+ * `navigator.locks` 的等待没有超时。密码域的 `commitPasswordRows` 一直是这个口径，此处对齐。
+ *
+ * @param mutate 收到最新列表，返回要落盘的列表；返回 `null` 表示本次不写。允许异步——
+ *   但异步里只许做「一对 AES-GCM」级别的每条目即时加解密，密钥派生与批量重加密必须在外面算完。
+ */
+async function commitIdentityRows(
+  mutate: (fresh: IdentityRecord[]) => IdentityRecord[] | null | Promise<IdentityRecord[] | null>,
+): Promise<void> {
+  await withVaultCommit(async () => {
+    const fresh = await getAllIdentityRaw();
+    const next = await mutate(fresh);
+    if (next === null) return;
+    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: next });
+  });
 }
 
 /**
@@ -161,13 +188,19 @@ export async function getAllIdentity(
  * @param masterPassword 锁定态显式传入；会话有效时省略
  */
 export async function saveIdentity(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
+  return withVaultMutation(() => saveIdentityInternal(payload, masterPassword));
+}
+
+async function saveIdentityInternal(payload: IdentityPayload, masterPassword?: string): Promise<IdentityEntry> {
   try {
-    const records = await getAllIdentityRaw();
-    if (records.length >= MAX_IDENTITIES) {
+    // 锁外预读只为保住错误优先级：达到上限必须先报 LIMIT_REACHED，而不是先报密钥不可用。
+    // 权威的容量判定由 commitIdentityRows 对着落盘前的最新快照再做一次。
+    const preview = await getAllIdentityRaw();
+    if (preview.length >= MAX_IDENTITIES) {
       throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
     }
 
-    const key = await resolveDataKey(masterPassword);
+    const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
@@ -181,7 +214,12 @@ export async function saveIdentity(payload: IdentityPayload, masterPassword?: st
       updateTime: now,
     };
 
-    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: [...records, record] });
+    await commitIdentityRows(fresh => {
+      if (fresh.length >= MAX_IDENTITIES) {
+        throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+      }
+      return [...fresh, record];
+    });
 
     return { ...record, payload };
   } catch (error) {
@@ -210,36 +248,58 @@ export async function updateIdentity(
   expectedUpdateTime: number,
   masterPassword?: string,
 ): Promise<void> {
+  // 租约内、提交锁外先完成密钥派生，再把「重读 + 令牌复验 + 一条加解密 + set」交给提交锁。
+  return withVaultMutation(() => updateIdentityInternal(id, patch, expectedUpdateTime, masterPassword));
+}
+
+async function updateIdentityInternal(
+  id: string,
+  patch: Partial<IdentityPayload>,
+  expectedUpdateTime: number,
+  masterPassword?: string,
+): Promise<void> {
   try {
-    const records = await getAllIdentityRaw();
-    const index = records.findIndex(r => r.id === id);
-    if (index === -1) {
+    // 锁外预读只为保住错误优先级：条目缺失/令牌过期必须先于「密钥不可用」报出，
+    // 否则锁定态编辑一条已被别的窗口删掉的记录时，用户会看到一句与实情无关的密钥错误。
+    const preview = await getAllIdentityRaw();
+    const previewIndex = preview.findIndex(r => r.id === id);
+    if (previewIndex === -1) {
       throw identityCrudError('NOT_FOUND', '该身份信息已被删除，请刷新后重试');
     }
-
-    const current = records[index];
-    if (current.updateTime !== expectedUpdateTime) {
+    if (preview[previewIndex].updateTime !== expectedUpdateTime) {
       throw identityCrudError('UPDATE_CONFLICT', '该身份信息已被其他窗口修改，请刷新后重试');
     }
 
-    const key = await resolveDataKey(masterPassword);
+    const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
     const enc = await _getEncryption();
 
-    const json = await enc.decryptData(current.encryptedPayload, key);
-    const existingPayload = JSON.parse(json) as IdentityPayload;
-    const nextPayload = { ...existingPayload, ...patch, pv: 1 } as IdentityPayload;
+    // 权威判定在提交锁内对着最新快照重做一遍；这里留在锁内的只有一对 AES-GCM（亚毫秒），
+    // 密钥派生已经挪到锁外——它才是把其它数据域一起拖住的那一段。
+    await commitIdentityRows(async fresh => {
+      const index = fresh.findIndex(r => r.id === id);
+      if (index === -1) {
+        throw identityCrudError('NOT_FOUND', '该身份信息已被删除，请刷新后重试');
+      }
+      const current = fresh[index];
+      if (current.updateTime !== expectedUpdateTime) {
+        throw identityCrudError('UPDATE_CONFLICT', '该身份信息已被其他窗口修改，请刷新后重试');
+      }
 
-    const entriesToSave = [...records];
-    entriesToSave[index] = {
-      ...current,
-      encryptedPayload: await enc.encryptData(JSON.stringify(nextPayload), key),
-      updateTime: Date.now(),
-    };
+      const json = await enc.decryptData(current.encryptedPayload, key);
+      const existingPayload = JSON.parse(json) as IdentityPayload;
+      const nextPayload = { ...existingPayload, ...patch, pv: 1 } as IdentityPayload;
 
-    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: entriesToSave });
+      const next = [...fresh];
+      next[index] = {
+        ...current,
+        encryptedPayload: await enc.encryptData(JSON.stringify(nextPayload), key),
+        updateTime: Date.now(),
+      };
+      return next;
+    });
   } catch (error) {
     logger.error('更新身份信息失败:', error);
     throw error;
@@ -247,19 +307,15 @@ export async function updateIdentity(
 }
 
 /**
- * 硬删除身份条目（一期无回收站）
+ * 删除身份条目（软删除：移入回收站，30 天内可恢复）
  *
- * @param ids 待删除条目 ID 列表；不存在的 ID 静默忽略
+ * 命名保持不变（调用方零改动），语义由「硬删除」升级为与密码库同口径的软删除：
+ * 实际搬迁由 `identityTrashManager.moveIdentitiesToTrash` 原子双写完成。
+ *
+ * @param ids 待移入回收站的条目 ID 列表；不存在的 ID 静默忽略
  */
 export async function deleteIdentities(ids: string[]): Promise<void> {
-  try {
-    const records = await getAllIdentityRaw();
-    const remaining = records.filter(r => !ids.includes(r.id));
-    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: remaining });
-  } catch (error) {
-    logger.error('删除身份信息失败:', error);
-    throw error;
-  }
+  await moveIdentitiesToTrash(ids);
 }
 
 /**
@@ -273,10 +329,16 @@ export async function deleteIdentities(ids: string[]): Promise<void> {
  * @param newKey 新数据密钥（hex）
  * @returns 全部记录（成功者已换新钥，失败者保持旧密文原样）
  */
-export async function reencryptAll(raw: IdentityRecord[], oldKey: string, newKey: string): Promise<IdentityRecord[]> {
+export async function reencryptAll(
+  raw: IdentityRecord[],
+  oldKey: string,
+  newKey: string,
+  onFailure?: (record: IdentityRecord) => void,
+): Promise<IdentityRecord[]> {
   const enc = await _getEncryption();
   // 条目级并行（与 changeMasterPassword 的密码/回收站/历史三段同口径）：
   // 顺序与入参一致，单条失败仍「原样携带」，只是串行 await 的 ~2× 固定开销被批内并发摊掉。
+  // `onFailure` 只给换钥编排层数条数用；日志不写 id，避免把条目元数据带进日志。
   return mapWithConcurrency(raw, async record => {
     try {
       const json = await enc.decryptData(record.encryptedPayload, oldKey);
@@ -286,7 +348,8 @@ export async function reencryptAll(raw: IdentityRecord[], oldKey: string, newKey
         encryptedPayload: await enc.encryptData(JSON.stringify(payload), newKey),
       };
     } catch {
-      logger.warn('跳过无法重加密的身份条目（原样保留）: ' + record.id);
+      onFailure?.(record);
+      logger.warn('跳过无法重加密的身份条目（原样保留）');
       return record;
     }
   });
@@ -300,6 +363,10 @@ export async function reencryptAll(raw: IdentityRecord[], oldKey: string, newKey
  * @param records 完整记录列表
  */
 export async function replaceAllIdentityRaw(records: IdentityRecord[]): Promise<void> {
+  return withVaultMutation(() => withVaultCommit(() => replaceAllIdentityRawInternal(records)));
+}
+
+async function replaceAllIdentityRawInternal(records: IdentityRecord[]): Promise<void> {
   try {
     await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: records });
   } catch (error) {
@@ -317,39 +384,103 @@ export async function replaceAllIdentityRaw(records: IdentityRecord[]): Promise<
  * `IdentityEntry` 与 `IdentityBackupRecord` 均可直接传入。
  * 无有效会话且未提供主密码时抛错，绝不退回明文。
  *
- * **不丢弃不变量（镜像 reencryptAll「原样携带」）**：调用方传入的是**可解密**的明文列表，
- * 磁盘上可能另有 `getAllIdentity` 因解密失败而跳过、或并发期间其他窗口新增、因而未出现在
- * 该列表中的原始密文记录。写回前以时刻 `getAllIdentityRaw()` 为基，凡 id 不在入参列表中的
- * 原始记录一律**原样保留**（其密文不动），避免整体覆盖把这些记录静默删除；id 命中入参者以
- * 入参（新明文重加密）为准。读失败在任何写入发生前上抛（fail-closed）。
+ * 本函数把「重读磁盘 → 逐 id 按 updateTime 择优 → 容量复核 → 整体写回」收进同一个提交锁
+ * 事务，因此调用方传的是**导入文件里的记录**，而不是自己按旧内存快照预先合并好的列表。
+ * 逐 id 的定夺在锁外做（要为判断可解性解密一次），**落盘一律以锁内重读到的最新快照为权威**：
  *
- * @param entries 合并后的明文条目列表
+ * - **不丢弃不变量（镜像 reencryptAll「原样携带」）**：磁盘上 `getAllIdentity` 因解密失败而
+ *   从未进入明文的原始密文，锁内按 id 原样带走，密文一个字节都不动；只有导入胜出的行被替换；
+ * - **不覆盖并发编辑**：同 id 以 updateTime 择优，磁盘比入参更新的保留磁盘**最新那一条**
+ *   （不是预读那一条——预读到落盘之间又改过一轮时，拿预读副本落盘就等于回滚了那一轮）；
+ * - **以删除为准，不复活**：预读里有、落盘时没了的胜出行不追加，期间被删掉的记录不会
+ *   被导入拽回主列表（它同时在回收站里，复活就成了两处各一份）；
+ * - **不越容量**：`MAX_IDENTITIES` 按最终落盘条数复核，超限整批拒绝——若按入参条数放行，
+ *   并发新增会把结果推过上限，而这份库随后连自己的 `.aphid` 导出都解不开（自己的
+ *   parser 判 INVALID_STRUCTURE）。
+ *
+ * 读失败在任何写入发生前上抛（fail-closed）。
+ *
+ * @param entries 待合并导入的明文记录（通常为备份文件里的记录）
  * @param masterPassword 锁定态显式传入；会话有效时省略
  */
 export async function replaceAllIdentity(
   entries: Array<Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }>,
   masterPassword?: string,
 ): Promise<void> {
-  const key = await resolveDataKey(masterPassword);
+  return withVaultMutation(() => replaceAllIdentityInternal(entries, masterPassword));
+}
+
+async function replaceAllIdentityInternal(
+  entries: Array<Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }>,
+  masterPassword?: string,
+): Promise<void> {
+  const key = await resolveDataKey(masterPassword, true);
   if (!key) {
     throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
   }
   const enc = await _getEncryption();
-
   const existingRaw = await getAllIdentityRaw();
-  const incomingIds = new Set(entries.map(entry => entry.id));
-  const preserved = existingRaw.filter(record => !incomingIds.has(record.id));
+  const diskById = new Map(existingRaw.map(record => [record.id, record]));
 
-  const reencrypted: IdentityRecord[] = [];
+  // 解密整库只为回答一个问题：磁盘上那一条到底解不解得开。谁更新不必靠解密判断——
+  // `updateTime` 在记录上本就是明文，落盘时磁盘胜出的行直接取最新快照那一条即可。
+  const undecryptableIds = new Set<string>();
+  await mapWithConcurrency(existingRaw, async record => {
+    try {
+      await enc.decryptData(record.encryptedPayload, key);
+    } catch {
+      undecryptableIds.add(record.id);
+    }
+  });
+
+  // 逐 id 定夺「这条以导入为准吗」：磁盘没有 → 以导入为准；磁盘解不开 → 以导入为准
+  // （这正是导入要修复的场景）；否则比 updateTime，磁盘不比入参旧就保留磁盘版本，
+  // 不用旧快照覆盖并发编辑。判落盘时一律以提交锁内重读到的 `fresh` 为准。
+  const winnerById = new Map<string, IdentityRecord>();
+  const brandNewIds: string[] = [];
   for (const entry of entries) {
-    reencrypted.push({
+    const disk = diskById.get(entry.id);
+    if (disk && !undecryptableIds.has(entry.id) && entry.updateTime <= disk.updateTime) continue;
+    winnerById.set(entry.id, {
       id: entry.id,
       createTime: entry.createTime,
       updateTime: entry.updateTime,
       encryptedPayload: await enc.encryptData(JSON.stringify(entry.payload), key),
     });
+    if (!disk) brandNewIds.push(entry.id);
   }
-  await replaceAllIdentityRaw([...reencrypted, ...preserved]);
+
+  // 预检只为错误优先级（超限要先报 LIMIT_REACHED，而不是先报密钥不可用）；权威判定在下面
+  // 对着落盘前的最新快照再走一次——并发新增若只按入参放行，这份库随后连自己的
+  // `.aphid` 导出都解不开。
+  const projected = existingRaw.length + brandNewIds.length;
+  if (projected > MAX_IDENTITIES) {
+    throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+  }
+
+  // 逐条加密全部发生在提交锁之外：一次导入可达 MAX_IDENTITIES 条，锁内串行加密会把
+  // 密码库的整包写一起拖住秒级。
+  await commitIdentityRows(fresh => {
+    const freshIds = new Set(fresh.map(record => record.id));
+    // 择优在落盘时刻重做一遍：`updateTime` 在记录上是明文，比一次不花一分钱；而预读到落盘之间
+    // 别人可能又改过这一行，拿预读副本落盘就等于回滚了那一轮编辑。磁盘行的密文一个字节都不动
+    // （含解不开的那些：不丢弃不变量），只有导入确实更新的那一行被换掉。
+    const next = fresh.map(record => {
+      const candidate = winnerById.get(record.id);
+      return candidate && candidate.updateTime > record.updateTime ? candidate : record;
+    });
+    for (const id of brandNewIds) {
+      // 预读时不存在、落盘时也不存在 → 真正的新行；落盘时已存在 → 期间别人建了同 id，
+      // 由上面的择优按 updateTime 决定谁留，这里不重复追加。
+      if (!freshIds.has(id)) next.push(winnerById.get(id)!);
+    }
+    // 预读里有、落盘时没了的候选行**不追加**：那是期间被删掉的条目，以删除为准，
+    // 导入不许把刚进回收站的记录复活回主列表（它同时在回收站里，复活就成了两处各一份）。
+    if (next.length > MAX_IDENTITIES) {
+      throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+    }
+    return next;
+  });
 }
 
 // ==================== 列表偏好（非 PII，明文单键） ====================
@@ -438,7 +569,7 @@ export async function getIdentityManualOrder(): Promise<string[]> {
 }
 
 /**
- * 保存身份库 `manual` 档的手排顺序（明文单键，上限即条目上限 30 条）
+ * 保存身份库 `manual` 档的手排顺序（明文单键，上限即条目上限 `MAX_IDENTITIES`）
  *
  * 只在用户真的动了顺序（拖拽 / 键盘换位）时被调用，数组由调用方先经
  * `normalizeManualOrder` 剪枝 + 追加对齐过，故这里的形状校验只是第二道闸门：

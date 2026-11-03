@@ -21,6 +21,7 @@ vi.mock('@/utils/browserStartupRelock', () => ({
 }));
 
 vi.mock('@/utils/encryption', () => ({
+  deriveVerifierHash: vi.fn(async (password: string) => (password === 'plain' ? 'verifier' : 'invalid-verifier')),
   deriveEncryptionKey: vi.fn(async () => 'data-key'),
   deriveSessionKey: vi.fn(async () => 'legacy-wrap-key'),
   encryptData: vi.fn(async () => 'wrapped-data-key'),

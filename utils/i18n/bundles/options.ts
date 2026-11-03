@@ -21,6 +21,7 @@ import zhMessage from '@/utils/i18n/locales/zh-CN/message.json';
 import zhOnboarding from '@/utils/i18n/locales/zh-CN/onboarding.json';
 import zhOptions from '@/utils/i18n/locales/zh-CN/options.json';
 import zhPopup from '@/utils/i18n/locales/zh-CN/popup.json';
+import zhRecovery from '@/utils/i18n/locales/zh-CN/recovery.json';
 import zhSession from '@/utils/i18n/locales/zh-CN/session.json';
 import zhSidepanel from '@/utils/i18n/locales/zh-CN/sidepanel.json';
 import zhStrength from '@/utils/i18n/locales/zh-CN/strength.json';
@@ -40,6 +41,7 @@ import enMessage from '@/utils/i18n/locales/en/message.json';
 import enOnboarding from '@/utils/i18n/locales/en/onboarding.json';
 import enOptions from '@/utils/i18n/locales/en/options.json';
 import enPopup from '@/utils/i18n/locales/en/popup.json';
+import enRecovery from '@/utils/i18n/locales/en/recovery.json';
 import enSession from '@/utils/i18n/locales/en/session.json';
 import enSidepanel from '@/utils/i18n/locales/en/sidepanel.json';
 import enStrength from '@/utils/i18n/locales/en/strength.json';
@@ -62,6 +64,7 @@ registerMessages(
   zhOnboarding,
   zhOptions,
   zhPopup,
+  zhRecovery,
   zhSession,
   zhSidepanel,
   zhStrength,
@@ -84,6 +87,7 @@ registerMessages(
   enOnboarding,
   enOptions,
   enPopup,
+  enRecovery,
   enSession,
   enSidepanel,
   enStrength,

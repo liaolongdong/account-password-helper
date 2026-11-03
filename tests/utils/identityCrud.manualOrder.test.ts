@@ -69,7 +69,7 @@ describe('getIdentityManualOrder', () => {
     }
   });
 
-  it('恰好等于条目上限的数组合法（30 条满库不该被判成脏数据）', async () => {
+  it('恰好等于条目上限的数组合法（满库不该被判成脏数据）', async () => {
     const full = Array.from({ length: MAX_IDENTITIES }, (_, i) => `uuid-${i}`);
     store[STORAGE_KEYS.IDENTITY_MANUAL_ORDER] = full;
     expect(await getIdentityManualOrder()).toEqual(full);

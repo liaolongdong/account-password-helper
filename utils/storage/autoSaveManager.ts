@@ -9,13 +9,33 @@ import type {
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { isCrossSubdomainTier, normalizeToHostname, resolveMatchTier } from '@/utils/domain';
+import {
+  isCrossSubdomainTier,
+  matchesPortScope,
+  normalizeToHostname,
+  pagePortFromHostLike,
+  resolveMatchTier,
+  type PagePortContext,
+  type PortScope,
+} from '@/utils/domain';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
+// 刻意不把 `VAULT_ERROR_CODES` 当值导入：本模块在 popup 首屏的 eager 依赖图里，
+// 为一个常量引入值依赖，Rollup 就会把 `recoveryTypes` 切成独立 chunk 挂进 popup.html
+// 的 modulepreload（eager 文件数 +1，被 `tests/architecture/sidepanelClosure.test.ts` 挡下）。
+// 类型导入会被编译期擦除，零运行时成本；下面这个具名常量仍要求字面量是 `VaultErrorCode`
+// 的成员，登记表里改名或拼错照样编译失败。
+const VAULT_BUSY: VaultErrorCode = 'VAULT_BUSY';
+// 同上口径：`UPDATE_CONFLICT` 也只借类型不做值导入，字面量必须是 `PasswordCrudErrorCode`
+// 的成员，passwordCrud 那边改名或拼错当场编译失败。
+const UPDATE_CONFLICT: PasswordCrudErrorCode = 'UPDATE_CONFLICT';
+import type { VaultErrorCode } from '@/utils/recoveryTypes';
+import type { PasswordCrudErrorCode } from './passwordCrud';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from './vaultCapacity';
 import { tl } from '@/utils/i18n-lite';
+import { withVaultMutationRetry } from './vaultWriteLock';
 
 // ==================== 自动保存配置 ====================
 
@@ -214,13 +234,23 @@ function hostMatchScore(dataHost: string, entryHost: string): number {
  * 多条命中时取**最精确**的一条（同一 hostname 优先于父子域），而非数组顺序首条 ——
  * 避免在 `example.com` 与 `uat.example.com` 并存时改写错条目。精度并列时保留原顺序。
  *
+ * 端口隔离（`strict`）开启时再加一道归属门：只有与当前端点端口相容的条目才可被改写。
+ * 这条门必须与「侧边栏看不看得到它」同判据（同用 `matchesPortScope`），否则会写出
+ * 用户看不见的更新；而跨端口覆盖密码是**数据损失**，比多存一条严重得多。
+ * 端口上下文不可得（调用方未带 `protocol`，或策略本就是 `loose`）时不额外拦，
+ * 退回本功能存在之前的归属行为。
+ *
  * @param passwords 已解密的密码条目列表
  * @param data 待匹配的账号与域名
+ * @param page 当前页面端口上下文，null 表示不可得
+ * @param portScope 端口匹配范围（`loose` 下端口不参与归属判定）
  * @returns 匹配到的条目，未找到返回 undefined
  */
 export function findMatchingEntry(
   passwords: PasswordEntry[],
   data: { username: string; url: string },
+  page: PagePortContext | null = null,
+  portScope: PortScope = 'loose',
 ): PasswordEntry | undefined {
   const dataHost = toMatchableHost(data.url);
   let best: PasswordEntry | undefined;
@@ -228,6 +258,7 @@ export function findMatchingEntry(
 
   for (const entry of passwords) {
     if (!entry.url || entry.username !== data.username) continue;
+    if (!matchesPortScope(entry.url, page, portScope)) continue;
     const score = hostMatchScore(dataHost, toMatchableHost(entry.url));
     // 严格大于：并列时先到者胜，保持与迁移前相同的条目选择
     if (score > bestScore) {
@@ -240,65 +271,41 @@ export function findMatchingEntry(
 }
 
 /**
+ * 解析本次写入的端口归属入参
+ *
+ * 返回 `findMatchingEntry` 的端口两参。刻意把「读不到」统一退成不限端口
+ * （`loose`，或 `strict` 但页面端点缺失时上下文为 null）：自动保存是用户点下登录那一下
+ * 触发的动作，任何一次判定失败都不该让这次登录静默不落盘——宁可少隔离一次，不可漏保存一次。
+ *
+ * @param url 本次登录的站点（`location.host`，非默认端口时含端口）
+ * @param protocol 页面协议（`location.protocol`），用于分辨默认端口是 80 还是 443
+ * @returns `[页面端口上下文, 端口范围]`
+ */
+async function resolvePortOwnership(url: string, protocol?: string): Promise<[PagePortContext | null, PortScope]> {
+  const { portScope } = await getDomainMatchConfig();
+  if (portScope === 'loose') return [null, 'loose'];
+  return [pagePortFromHostLike(url, protocol), portScope];
+}
+
+/**
  * 自动保存密码
  */
 export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ success: boolean; message: string }> {
   try {
-    const sessionValid = await isSessionValid();
-    if (!sessionValid) {
-      return { success: false, message: tl('bg.autoSave.sessionExpired') };
-    }
-
-    const config = await getAutoSaveConfig();
-    if (!config.enabled) {
-      return { success: false, message: tl('bg.autoSave.disabled') };
-    }
-    if (!isDomainMatchForAutoSave(data.url, config)) {
-      return { success: false, message: tl('bg.autoSave.domainMismatch') };
-    }
-
-    if (!data.username || !data.password) {
-      return { success: false, message: tl('bg.autoSave.emptyFields') };
-    }
-
-    // 匹配需基于明文 username/url，而 storage.local 中为密文（at-rest 不变量），
-    // 故这里用 getAllPasswords()（会话期用缓存数据密钥解密，无 PBKDF2）而非原始密文。
-    // 载荷容量边界由调用方（background/autoSaveHandler）在本函数之前收口。
-    const passwords = await getAllPasswords();
-
-    const existingEntry = findMatchingEntry(passwords, data);
-
-    if (existingEntry) {
-      const newTag = data.tagEdited ? data.tag : existingEntry.tag || data.tag || '';
-      const newRemark = data.remarkEdited
-        ? data.remark || tl('cs.save.autoSaveRemark')
-        : existingEntry.remark || data.remark || tl('cs.save.autoSaveRemark');
-
-      await updatePassword(existingEntry.id, {
-        password: data.password,
-        tag: newTag,
-        remark: newRemark,
-        updateTime: Date.now(),
-      });
-      return { success: true, message: tl('bg.autoSave.updated') };
-    } else {
-      await savePassword({
-        username: data.username,
-        password: data.password,
-        url: data.url,
-        tag: data.tag || '',
-        remark: data.remark || tl('cs.save.autoSaveRemark'),
-        createTime: Date.now(),
-        updateTime: Date.now(),
-      });
-      return { success: true, message: tl('bg.autoSave.savedNew') };
-    }
+    return await withVaultMutationRetry(() => persistAutoSavePassword(data));
   } catch (error) {
     logger.error('自动保存密码失败:', error);
-    // 上限拒绝要单独成文并在页面提示里说明「未保存」：走通用失败分支的话，
-    // 用户看到的是一个含糊的错误，会反复重试同一次登录，而真实需要先清理条目。
     if (isVaultCapacityError(error)) {
       return { success: false, message: tl('bg.autoSave.capacityReached', { max: MAX_PASSWORD_ENTRIES }) };
+    }
+    if ((error as { code?: string })?.code === VAULT_BUSY) {
+      // 换钥窗口内重试仍拿不到租约：给本地化文案，绝不把存储层的英文内部串抛到页面上
+      return { success: false, message: tl('bg.autoSave.busy') };
+    }
+    if ((error as { code?: string })?.code === UPDATE_CONFLICT) {
+      // 这条凭据在用户于另一处编辑期间被拒：同样是「绝不把存储层中文串送到页面上」这条线。
+      // 自动保存是一次性动作，不能像编辑弹窗那样让用户刷新重试，文案因此要说清「这次没存」。
+      return { success: false, message: tl('bg.autoSave.conflict') };
     }
     return {
       success: false,
@@ -306,6 +313,68 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
         message: error instanceof Error ? error.message : tl('bg.common.unknownError'),
       }),
     };
+  }
+}
+
+/** 在 shared lease 内完成校验、读取匹配与实际保存，避免中途换钥。 */
+async function persistAutoSavePassword(data: AutoSavePasswordData): Promise<{ success: boolean; message: string }> {
+  const sessionValid = await isSessionValid();
+  if (!sessionValid) {
+    return { success: false, message: tl('bg.autoSave.sessionExpired') };
+  }
+
+  const config = await getAutoSaveConfig();
+  if (!config.enabled) {
+    return { success: false, message: tl('bg.autoSave.disabled') };
+  }
+  if (!isDomainMatchForAutoSave(data.url, config)) {
+    return { success: false, message: tl('bg.autoSave.domainMismatch') };
+  }
+
+  if (!data.username || !data.password) {
+    return { success: false, message: tl('bg.autoSave.emptyFields') };
+  }
+
+  // 匹配需基于明文 username/url，而 storage.local 中为密文（at-rest 不变量），
+  // 写入匹配强制解包当前 local DK，避免错过换钥通知的旧缓存将已有条目判成不存在。
+  // 载荷容量边界由调用方（background/autoSaveHandler）在本函数之前收口。
+  const passwords = await getAllPasswords(undefined, true);
+
+  // 端口归属门：策略与页面端点一起取，任一边取不到都退成「不限端口」
+  const existingEntry = findMatchingEntry(passwords, data, ...(await resolvePortOwnership(data.url, data.protocol)));
+
+  if (existingEntry) {
+    const newTag = data.tagEdited ? data.tag : existingEntry.tag || data.tag || '';
+    const newRemark = data.remarkEdited
+      ? data.remark || tl('cs.save.autoSaveRemark')
+      : existingEntry.remark || data.remark || tl('cs.save.autoSaveRemark');
+
+    // 带上本次读取的 updateTime 作为并发基线：若在「解密比对 → 落盘」窗口里
+    // 另一张管理页标签刚保存过这条，本次自动保存必须被拒并提示，而不是静默覆盖
+    // 用户刚改好的凭据（两侧都是凭据写入，无法判断谁更新）。
+    await updatePassword(
+      existingEntry.id,
+      {
+        password: data.password,
+        tag: newTag,
+        remark: newRemark,
+        updateTime: Date.now(),
+      },
+      undefined,
+      { expectedUpdateTime: existingEntry.updateTime },
+    );
+    return { success: true, message: tl('bg.autoSave.updated') };
+  } else {
+    await savePassword({
+      username: data.username,
+      password: data.password,
+      url: data.url,
+      tag: data.tag || '',
+      remark: data.remark || tl('cs.save.autoSaveRemark'),
+      createTime: Date.now(),
+      updateTime: Date.now(),
+    });
+    return { success: true, message: tl('bg.autoSave.savedNew') };
   }
 }
 
@@ -437,7 +506,9 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     }
 
     const passwords = await getAllPasswords();
-    const existingEntry = findMatchingEntry(passwords, data);
+    // 与 autoSavePassword 用同一份端口归属入参：预检查说「新账号」而真正保存时改写了另一条
+    // （或反之），弹窗文案就会与落盘结果自相矛盾
+    const existingEntry = findMatchingEntry(passwords, data, ...(await resolvePortOwnership(data.url, data.protocol)));
 
     if (!existingEntry) {
       return {

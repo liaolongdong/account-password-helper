@@ -17,7 +17,7 @@ export type IdentityCategory = 'person' | 'id_card' | 'bank_card' | 'address';
  *   否则切语言会把顺序换一遍；
  * - `title` 用列表标题（`displayTitle` 回退链）按界面语言排序，走 Intl 拼写排序而非码位序；
  * - `manual` 用户手排：不比较记录本身，只查落盘的 id 顺序数组（`IDENTITY_MANUAL_ORDER`，
- *   明文 `string[]`、上限 30 条），未登记的 id 落到末尾而不会消失。
+ *   明文 `string[]`、上限同条数上限），未登记的 id 落到末尾而不会消失。
  */
 export type IdentitySortMode = 'updated' | 'created' | 'category' | 'title' | 'manual';
 
@@ -80,7 +80,32 @@ export interface IdentityRecord {
   updateTime: number;
 }
 
+/**
+ * 回收站落盘形状：`IdentityRecord` 四键 + `deletedAt`
+ *
+ * 密文原样搬移（与密码库 `TrashedPasswordEntry` 同一口径），TTL 判定只读
+ * 明文时间戳，到期清理无需数据密钥。
+ */
+export interface TrashedIdentityRecord extends IdentityRecord {
+  /** 移入回收站的时刻（epoch 毫秒），30 天 TTL 的基准 */
+  deletedAt: number;
+}
+
 /** 解密后的内存形状（仅在 Options 上下文，会话失效即销毁） */
 export interface IdentityEntry extends IdentityRecord {
   payload: IdentityPayload;
+}
+
+/**
+/**
+ * 回收站恢复的分档结果
+ *
+ * 与密码库 `TrashRestoreResult` 同形状、不同名（两侧读写模块刻意不共用，理由与
+ * 「为什么返回计数而不是抛错」的完整说明住在那一处的注释里，不在这儿复述一遍）。
+ */
+export interface IdentityTrashRestoreResult {
+  /** 真正追加回主列表的条数 */
+  restored: number;
+  /** 主列表已存在同 id、本次仅从回收站消费副本的条数 */
+  skippedExisting: number;
 }

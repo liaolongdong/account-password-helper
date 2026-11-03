@@ -3,6 +3,7 @@ import { MessageType, type PasswordEntry, type RuntimeMessage } from '@/utils/ty
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
+import { normalizeSourceTabId } from '@/utils/sourceTab';
 
 /**
  * Runtime 消息监听 Composable
@@ -29,6 +30,23 @@ export function useRuntimeMessageHandler(options: {
   openDomainMatchSetting?: () => void;
   /** 应用全库检索关键词（来自内联下拉空态的「到全库找」，实现侧需一并清掉叠加筛选） */
   applySearchKeyword?: (keyword: string) => void;
+  /**
+   * 打开身份库，可选携带搜索词预填检索框与来源标签页
+   *
+   * 两个参数都来自页面侧，已在本函数内收口过；`keyword` 为空时按「不预填」传 `undefined`。
+   * 类别档位不由这条指令决定，恒为「全部」。
+   *
+   * @param sourceTabId 这一次召唤发生在哪个标签页，供库内取完值后「回到原网页」使用；
+   *                    由后台从 `sender.tab` 推导（非页面自报），非法时为 `undefined`
+   */
+  openIdentityVault?: (keyword?: string, sourceTabId?: number) => void;
+  /**
+   * 身份库因「选项页未认证」被打回时的反馈出口
+   *
+   * 门禁本身留在本处（开库只会得到一张空列表），但被挡下不能无声——只有调用方握着
+   * `t()` 与 `ElMessage`，所以由它来说话。缺省不接时退化成原来的静默忽略。
+   */
+  notifyIdentityNeedUnlock?: () => void;
 }) {
   const {
     passwords,
@@ -40,6 +58,8 @@ export function useRuntimeMessageHandler(options: {
     openSiteRules,
     openDomainMatchSetting,
     applySearchKeyword,
+    openIdentityVault,
+    notifyIdentityNeedUnlock,
   } = options;
 
   /**
@@ -108,6 +128,30 @@ export function useRuntimeMessageHandler(options: {
       logger.debug('RuntimeMsg: 收到全库检索指令');
       // 无需等列表就绪：写入的是筛选条件本身，锁定态下同样成立，解锁后列表自然按此过滤
       applySearchKeyword?.(keyword);
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_IDENTITY) {
+      // 与站点规则同一时序口径：身份库要过复验门槛，等会话状态落地后再交给调用方决策。
+      // 后台已收口过一次，这里按「外部输入一律不可校验上游」再收一次，且沿用同一个
+      // `normalizeSearchKeyword`——两处的 64 字上限只有一份真源，不会各自漂移。
+      // 页面字段角色仍然不跨入口（它只服务气泡上那句话），深链恒落在「全部」类别档。
+      const keyword = normalizeSearchKeyword(message.data?.keyword);
+      // 来源标签页同样再收一次形状：它驱动一枚会切换标签页的按钮，非法值当成「没有来源」，
+      // 出口就不显示，而不是拿去切到一个来路不明的标签页。
+      const sourceTabId = normalizeSourceTabId(message.data?.sourceTabId);
+      // 词的内容可能是用户姓名，属 PII：只记指令本身，不回显取值
+      logger.debug('RuntimeMsg: 收到打开身份库指令');
+      // 没带词也照样开库：这条指令的本意是「带我去身份库」，预填词只是省一次手打，
+      // 与「到全库找」那条（没词就没有检索可言，直接终止）刻意不同。
+      // 但锁定态不能开：身份库解密依赖会话数据密钥，此时打开只会得到空列表。
+      // 气泡侧已按会话有效性隐藏，这里兜住残留气泡与会话恰好在点击瞬间过期的竞态。
+      // 被门禁挡下的那一次必须出声（AGENTS.md：用户可见操作失败不得静默吞掉）——
+      // 用户在页面里点了右键，切过来的标签页若什么都没有，这条链路就是黑洞。
+      waitForPasswords().then(() => {
+        if (!isAuthenticated.value) {
+          notifyIdentityNeedUnlock?.();
+          return;
+        }
+        openIdentityVault?.(keyword || undefined, sourceTabId);
+      });
     }
   };
 

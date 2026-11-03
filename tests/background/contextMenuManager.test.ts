@@ -26,7 +26,6 @@ vi.mock('@/entrypoints/background/quickFillHandler', () => ({
       return '';
     }
   }),
-  extractPortFromUrl: vi.fn(() => undefined),
 }));
 
 vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({
@@ -35,6 +34,7 @@ vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({
 
 vi.mock('@/entrypoints/background/optionsPageManager', () => ({
   openOptionsPage: vi.fn(async () => {}),
+  openOptionsAndSendMessage: vi.fn(async () => ({ success: true })),
 }));
 
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
@@ -55,8 +55,20 @@ vi.mock('@/utils/sessionManager-storage', () => ({
   isSessionActiveSync: vi.fn(() => true),
 }));
 
+/** 文档绑定投递的桩：右键填充的「定向下发」契约现在由 sendToAuthorizedDocument 承载 */
+const mockedSend = vi.hoisted(() => vi.fn(async () => ({ success: true })));
+const mockedFrameFillable = vi.hoisted(() => vi.fn(async () => true));
+const mockedDocuments = vi.hoisted(() =>
+  vi.fn(async () => [
+    { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
+    { tabId: 1, frameId: 2, documentId: 'doc-2', topDocumentId: 'doc-0' },
+  ]),
+);
+
 vi.mock('@/utils/frameFill', () => ({
-  isFrameFillable: vi.fn(async () => true),
+  isFrameFillable: (...args: unknown[]) => mockedFrameFillable(...(args as [])),
+  getFillableDocuments: (...args: unknown[]) => mockedDocuments(...(args as [])),
+  sendToAuthorizedDocument: (...args: unknown[]) => mockedSend(...(args as [])),
 }));
 
 vi.mock('@/utils/passwordGenerator', () => ({
@@ -69,7 +81,7 @@ vi.mock('@/utils/storage/passwordCrud', () => ({
 
 import { notifyFailure, showBadgeFeedback, showPageNotice } from '@/entrypoints/background/quickFillHandler';
 import { tryOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
-import { openOptionsPage } from '@/entrypoints/background/optionsPageManager';
+import { openOptionsAndSendMessage, openOptionsPage } from '@/entrypoints/background/optionsPageManager';
 import { openSidePanelAndRespond } from '@/entrypoints/background/sidePanelManager';
 import {
   ensureCredentialAccessAfterStartupRelock,
@@ -78,7 +90,7 @@ import {
   getInlineTotpCode,
   recordPendingTotpIfEligible,
 } from '@/entrypoints/background/passwordCache';
-import { isFrameFillable } from '@/utils/frameFill';
+
 import { isSessionActiveSync, isSessionValid } from '@/utils/sessionManager-storage';
 import { updatePasswordInSession } from '@/utils/storage/passwordCrud';
 import { MessageType, type PasswordEntry } from '@/utils/types';
@@ -94,9 +106,10 @@ const mockedCached = vi.mocked(getCachedPasswords);
 const mockedSort = vi.mocked(sortMatchesForDomain);
 const mockedTotp = vi.mocked(getInlineTotpCode);
 const mockedPending = vi.mocked(recordPendingTotpIfEligible);
-const mockedFrameFillable = vi.mocked(isFrameFillable);
+
 const mockedUpdate = vi.mocked(updatePasswordInSession);
 const mockedOpenSidePanel = vi.mocked(openSidePanelAndRespond);
+const mockedOpenOptionsAndSendMessage = vi.mocked(openOptionsAndSendMessage);
 
 const entryA = {
   id: 'entry-a',
@@ -162,11 +175,15 @@ const armHappyPath = (entries: PasswordEntry[]) => {
   mockedEnsure.mockResolvedValue(true);
   mockedCached.mockResolvedValue({ isAuthenticated: true, passwords: entries } as never);
   mockedSort.mockImplementation(async passwords => passwords as PasswordEntry[]);
-  mockedFrameFillable.mockResolvedValue(true);
+  mockedDocuments.mockResolvedValue([
+    { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
+    { tabId: 1, frameId: 2, documentId: 'doc-2', topDocumentId: 'doc-0' },
+  ]);
   mockedSessionActive.mockReturnValue(true);
   mockedSessionValid.mockResolvedValue(true);
   mockedOpenInline.mockResolvedValue('opened');
-  sendMessageSpy.mockResolvedValue({ success: true } as never);
+  mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: true });
+  mockedSend.mockResolvedValue({ success: true });
 };
 
 /** chrome.tabs.sendMessage  spies（fakeBrowser 桩非 vi.fn，需 spy 包装） */
@@ -183,9 +200,9 @@ afterEach(() => {
 });
 
 describe('菜单注册（结构契约）', () => {
-  it('两个显式父项 + 4 个输入框填充项 + 2 个页面入口项，子项挂在父项下', async () => {
+  it('两个显式父项 + 4 个输入框填充项 + 1 个身份库入口 + 2 个页面入口项，子项挂在父项下', async () => {
     ensureClickListener();
-    await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
+    await vi.waitFor(() => expect(createdMenuItems.length).toBe(10));
     const editable = createdMenuItems.filter(item => item.contexts?.includes('editable'));
     const page = createdMenuItems.filter(item => item.contexts?.includes('page'));
     expect(editable.map(item => item.id)).toEqual([
@@ -194,15 +211,18 @@ describe('菜单注册（结构契约）', () => {
       'aph-cm-fill-password',
       'aph-cm-fill-totp',
       'aph-cm-generate-password',
+      'aph-cm-separator-identity',
+      'aph-cm-identity',
     ]);
     expect(page.map(item => item.id)).toEqual(['aph-cm-parent-page', 'aph-cm-open-sidepanel', 'aph-cm-open-options']);
-    expect(createdMenuItems.every(item => typeof item.title === 'string' && item.title.length > 0)).toBe(true);
+    const titled = createdMenuItems.filter(item => item.type !== 'separator');
+    expect(titled.every(item => typeof item.title === 'string' && item.title.length > 0)).toBe(true);
   });
 
   it('每个上下文只有一个顶级项（避开 Chrome 按扩展全名折叠），且父项先于子项创建', async () => {
     // 直接重建而非复用 ensureClickListener（监听器已存在时它会短路，断言的将是上一个用例的残留菜单）
     setupContextMenu();
-    await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
+    await vi.waitFor(() => expect(createdMenuItems.length).toBe(10));
     const topLevel = createdMenuItems.filter(item => item.parentId === undefined);
     expect(topLevel.map(item => item.id)).toEqual(['aph-cm-parent-fill', 'aph-cm-parent-page']);
     for (const item of createdMenuItems) {
@@ -240,10 +260,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-username', frameId: 2 } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 2, documentId: 'doc-2', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'username', value: 'user-a' } },
-        { frameId: 2 },
       ),
     );
     await vi.waitFor(() => expect(mockedBadge).toHaveBeenCalledWith(true));
@@ -255,10 +275,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-password' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'password', value: 'pass-a' } },
-        { frameId: 0 },
       ),
     );
   });
@@ -271,7 +291,7 @@ describe('填充类菜单点击分发', () => {
     await vi.waitFor(() =>
       expect(mockedOpenInline).toHaveBeenCalledWith(1, { useContextMenuTarget: true, frameId: 2 }),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
     expect(mockedNotifyFailure).not.toHaveBeenCalled();
   });
 
@@ -284,7 +304,7 @@ describe('填充类菜单点击分发', () => {
     await vi.waitFor(() =>
       expect(mockedOpenInline).toHaveBeenCalledWith(1, { useContextMenuTarget: true, frameId: undefined }),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
     expect(mockedNotifyFailure).not.toHaveBeenCalled();
   });
 
@@ -303,7 +323,7 @@ describe('填充类菜单点击分发', () => {
         'unlock-required',
       ),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('旧标签页未注入 content script 时按「刷新页面」指引反馈，不误导用户去验证主密码', async () => {
@@ -327,10 +347,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-generate-password' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'generate', value: 'Gen@rated123' } },
-        { frameId: 0 },
       ),
     );
     expect(mockedCached).not.toHaveBeenCalled();
@@ -342,14 +362,14 @@ describe('填充类菜单点击分发', () => {
   });
 
   it('跨域 frame 门控拒绝时提示且不下发明文', async () => {
-    mockedFrameFillable.mockResolvedValue(false);
+    mockedDocuments.mockResolvedValueOnce([]);
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username', frameId: 3 } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
       expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.frameNotFillable', 'cm.title', undefined),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('无匹配条目时提示 noMatch，并同时走页面内提示条兜底', async () => {
@@ -361,11 +381,11 @@ describe('填充类菜单点击分发', () => {
       expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.noMatch', 'cm.title', undefined),
     );
     expect(mockedPageNotice).toHaveBeenCalledWith(1, 'bg.quickFill.noMatch');
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('content script 未注入（Receiving end does not exist）时引导刷新页面', async () => {
-    sendMessageSpy.mockRejectedValue(new Error('Could not establish connection. Receiving end does not exist.'));
+    mockedSend.mockRejectedValueOnce(new Error('Could not establish connection. Receiving end does not exist.'));
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
 
@@ -375,7 +395,7 @@ describe('填充类菜单点击分发', () => {
   });
 
   it('content 端返回失败时透传其失败原因', async () => {
-    sendMessageSpy.mockResolvedValue({ success: false, message: 'cs.cm.noTarget' } as never);
+    mockedSend.mockResolvedValueOnce({ success: false, message: 'cs.cm.noTarget' } as never);
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
 
@@ -389,10 +409,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-totp' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'totp', value: '123456' } },
-        { frameId: 0 },
       ),
     );
     expect(mockedTotp).toHaveBeenCalledWith('entry-b');
@@ -404,7 +424,7 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-totp' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.noTotpEntry', 'cm.title', undefined));
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('账密填充成功且条目配置 2FA 时记录待接力标记并更新最近使用时间', async () => {
@@ -466,15 +486,81 @@ describe('页面类菜单点击分发', () => {
     Object.defineProperty(chrome, 'sidePanel', { value: undefined, configurable: true });
     try {
       setupContextMenu();
-      await vi.waitFor(() => expect(createdMenuItems.length).toBe(7));
+      await vi.waitFor(() => expect(createdMenuItems.length).toBe(9));
       expect(createdMenuItems.some(item => item.id === 'aph-cm-open-sidepanel')).toBe(false);
       expect(createdMenuItems.some(item => item.id === 'aph-cm-open-options')).toBe(true);
       expect(createdMenuItems.some(item => item.id === 'aph-cm-parent-page')).toBe(true);
     } finally {
-      // 恢复 sidePanel 桩与 8 项菜单，避免影响后续用例
+      // 恢复 sidePanel 桩与 10 项菜单，避免影响后续用例
       Object.defineProperty(chrome, 'sidePanel', { value: {}, configurable: true });
       setupContextMenu();
-      await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
+      await vi.waitFor(() => expect(createdMenuItems.length).toBe(10));
     }
+  });
+});
+
+describe('从个人信息库选择（导航入口）', () => {
+  it('会话有效时经 OPEN_OPTIONS_AND_IDENTITY 打开身份库，且不下发任何填充消息', async () => {
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
+        sourceTabId: 1,
+      }),
+    );
+    expect(mockedNotifyFailure).not.toHaveBeenCalled();
+    // 该入口只导航：不读右键目标，也不向 frame 下发明文
+    expect(sendMessageSpy).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 来源标签页取浏览器盖章的 `onClicked` tab 对象（非页面自报），库内据此给出「回到原网页」。
+   * URL 缺失时 fail-closed：宁可不给出口，也不给一个来路不明的跳转目标。
+   */
+  it('带上右键发生的那个标签页；拿不到 URL 时不写 sourceTabId 键', async () => {
+    const listener = ensureClickListener();
+
+    listener(
+      { menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData,
+      {
+        id: 7,
+        url: 'https://example.com/form',
+      } as chrome.tabs.Tab,
+    );
+    await vi.waitFor(() =>
+      expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
+        sourceTabId: 7,
+      }),
+    );
+
+    mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: true });
+    mockedOpenOptionsAndSendMessage.mockClear();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, { id: 8 } as chrome.tabs.Tab);
+    await vi.waitFor(() =>
+      expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, undefined),
+    );
+  });
+
+  it('会话失效时提示解锁（可点击直达），且不打开身份库', async () => {
+    mockedSessionActive.mockReturnValue(false);
+    mockedSessionValid.mockResolvedValue(false);
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.identityLocked', 'cm.title', 'unlock-required'),
+    );
+    expect(mockedOpenOptionsAndSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('打开身份库失败时走通知反馈，不静默吞掉', async () => {
+    mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: false });
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.identityPickFailed', 'cm.title', undefined),
+    );
   });
 });

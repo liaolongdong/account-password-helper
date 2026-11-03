@@ -396,8 +396,8 @@
           <span class="lang-en">Account Password Helper Browser Extension</span>
         </p>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年10月13日 · 生效日期：2026年10月13日</span>
-          <span class="lang-en">Last updated: October 13, 2026 · Effective: October 13, 2026</span>
+          <span class="lang-zh">最后更新：2026年10月27日 · 生效日期：2026年10月27日</span>
+          <span class="lang-en">Last updated: October 27, 2026 · Effective: October 27, 2026</span>
         </span>
       </div>
 
@@ -406,7 +406,7 @@
         <div class="highlight-box">
           <p>
             核心承诺：账号、密码、URL、备注、TOTP
-            密钥与身份信息逐字段加密后只写入您本机的浏览器存储，不上传任何服务器；本扩展的全部网络行为只有第 4
+            密钥与个人信息逐字段加密后只写入您本机的浏览器存储，不上传任何服务器；本扩展的全部网络行为只有第 4
             节列出的两类匿名请求。本政策另逐节说明了数据保留与删除的具体路径（第 8 节）、我们采取的安全措施（第 9
             节）、每一类数据的使用目的与单一用途（第 10 节）、不出售不共享不转移（第 11 节），以及 GDPR / CCPA
             等法规下您的权利如何行使（第 12 节）。
@@ -434,7 +434,7 @@
           <h2>2. 数据收集</h2>
           <p>
             <strong>本扩展不收集、不接收、也不传输您的任何个人数据。</strong>您录入的账号、密码、URL、备注、TOTP
-            密钥与身份信息，自始至终只在您自己的设备上被处理；我们之所以能这样承诺，是因为本扩展<strong>没有任何自有服务器，也没有任何数据上报通道</strong>——不存在一个「我们这边」可以存放您的数据的地方。具体来说：
+            密钥与个人信息，自始至终只在您自己的设备上被处理；我们之所以能这样承诺，是因为本扩展<strong>没有任何自有服务器，也没有任何数据上报通道</strong>——不存在一个「我们这边」可以存放您的数据的地方。具体来说：
           </p>
           <ul>
             <li>不使用任何分析工具（如 Google Analytics、Mixpanel 等）</li>
@@ -465,7 +465,27 @@
             <li><strong>加密实现：</strong>浏览器原生 Web Crypto API（无第三方加密库）</li>
             <li><strong>随机数：</strong>使用密码学安全的随机数生成器（crypto.getRandomValues）</li>
           </ul>
-          <p>主密码不以明文保存，磁盘上只留有加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
+          <p>主密码不以原文或可逆密文保存，其校验使用加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
+          <p>
+            <strong>可选离线恢复：</strong>默认不启用、没有自动迁移。在「安全设置 →
+            离线恢复密钥」输入当前主密码可创建、换发或停用；创建和换发须先保存并回填验证套件，成功后才启用。 恢复密钥 R
+            由 32 随机字节生成，经 HKDF-SHA256 域分离派生不可导出的 AES-GCM 包裹钥 KEK，用当前主密码配置作 AAD
+            绑定数据钥 DK。 恢复功能仅在本机持久化包裹 DK 与非敏感元数据，不保存 R 或
+            KEK。此恢复包独立于会话，锁定或过期不会将其停用；它不新增网络请求、权限或遥测，既有匿名版本检查不变。
+          </p>
+          <p>
+            <strong>恢复套件不是备份：</strong
+            ><code>.aphrecovery</code> 仅含恢复密钥、套件标识、版本和时间，不含密码库，请与设备和数据备份分开保管。
+            创建、换发或停用都不是备份；持有旧 R
+            与匹配旧恢复包/密文的人，不会因为您换发或停用而失去已复制数据的访问能力。怀疑泄漏时应修改主密码轮换数据钥，但历史副本无法收回。
+            已启用者正常改主密码也须先保存并验证新套件，成功后旧 R
+            不再适用于当前本机入口；未启用者保留原改密交互。若密码或回收站里有记录解不开，改密默认整笔中止；中止后可在明确知情下携带这些记录继续，但新主密码无法读取它们。
+          </p>
+          <p>
+            <strong>恢复套件是未加密的明文：</strong><code>.aphrecovery</code> 内含恢复密钥；
+            拿到它并取得这台电脑的库数据即可解密，泄露后果等同于第二把万能钥匙。请与设备和数据备份分开保管，
+            不要留在下载目录，也不要经邮件或网盘传递；换发后请删除旧套件。
+          </p>
           <p>
             <strong>请这样理解「保持登录」：</strong
             >会话有效期内，用于恢复登录状态的密钥材料（数据密钥的包装值与包裹密钥）会随密文一起留在本机磁盘上，
@@ -474,13 +494,21 @@
             完全关闭浏览器后密钥材料即被清除，重新打开必须输入主密码。
           </p>
           <p>
-            <strong>一处明文例外：</strong
+            <strong>明文例外之一（到期提醒的账号名）：</strong
             >为某条密码设置到期提醒时，该条的账号名会以明文冗余记录在本地的到期提醒表中（提醒由系统在任意时刻发出桌面通知，
             含已锁定状态，账号名用于让通知指明是哪个账号），它同时会留下「哪个账号将在何时到期」这一信息；删除该条提醒、删除对应条目或清空回收站都会连带清除这条明文记录。
           </p>
           <p>
-            身份信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
-            认证加密后写入本地存储，默认掩码显示；打开该库是否要求验证主密码由「身份库复验设置」决定（默认同一管理页会话内只问一次，锁定、会话过期或刷新、重开管理页后会重新问），库内的查看与复制不再额外索要主密码。
+            <strong>明文例外之二（主密码提示语）：</strong
+            >设置主密码时您可以自愿留一句提示语，它以<strong>明文</strong>保存在本机的
+            <code>master_password_config</code>
+            里，用途是在您忘记主密码、连续输错几次后帮自己回想——用主密码加密它就等于「忘了才需要看、看了却解不开」，因此明文是这项功能的前提而非疏漏。
+            提示语不参与任何密钥派生，也不包含主密码材料；它只是帮您回想，<strong>不构成找回机制</strong>。建议不要写入主密码本身或其变形，共用电脑上请勿设置，或只写只有您能解读的间接线索。
+          </p>
+          <p>
+            个人信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
+            认证加密后写入本地存储，默认掩码显示；打开该库是否要求验证主密码由「个人信息库复验设置」决定（默认同一管理页会话内只问一次，锁定、会话过期或刷新、重开管理页后会重新问），库内的查看与复制不再额外索要主密码。
+            从网页输入框右键「从个人信息库选择」进入该库时，该菜单项<strong>不读取右键目标与字段内容</strong>、不预填检索词、不把库内的值回填页面，跨上下文只传递一个由浏览器盖章的<strong>来源标签页编号</strong>（一个整数，不含页面地址、不含字段内容、不含任何库内数据），用途是在库内给出「回到原网页」出口；这个编号不落盘，切回前还会复核来源页是否仍在原站点，不符即作废该出口。页面字段提示气泡上的同名按钮会额外带一个<strong>可选检索词</strong>：只在您点下按钮的那一刻读一次，取同一表单里判定为本人姓名那个框的值，或该格的标签文字，读完即用——不落盘、不进日志、不参与解密。两条入口都仍要过原有的主密码复验门槛，库内的值只由你逐字段或整卡经剪贴板限时清除通道复制。
           </p>
         </div>
 
@@ -519,7 +547,7 @@
             <tbody>
               <tr>
                 <td>storage</td>
-                <td>在本地浏览器中存储加密后的密码数据、身份信息和用户设置</td>
+                <td>在本地浏览器中存储加密后的密码数据、个人信息和用户设置</td>
               </tr>
               <tr>
                 <td>activeTab</td>
@@ -561,7 +589,9 @@
               </tr>
               <tr>
                 <td>contextMenus</td>
-                <td>在网页右键菜单中提供填充入口（填充用户名/密码/两步验证码、生成强密码、打开侧边栏或管理页）</td>
+                <td>
+                  在网页右键菜单中提供填充入口（填充用户名/密码/两步验证码、生成强密码、打开侧边栏或管理页），以及「从个人信息库选择」——该项只做跳转：不读取右键目标与字段内容、不预填检索词、不把库内的值回填页面，个人信息始终留在管理页内由你逐字段复制
+                </td>
               </tr>
               <tr>
                 <td>favicon</td>
@@ -594,11 +624,11 @@
             </li>
             <li><strong>加密备份（.aph）：</strong>使用 AES-256-GCM 加密的本地文件</li>
             <li>
-              <strong>身份信息加密备份（.aphid）：</strong>使用 AES-256-GCM
-              加密的本地文件，仅本地导出导入；身份信息不参与自动备份，请定期手动导出
+              <strong>个人信息加密备份（.aphid）：</strong>使用 AES-256-GCM
+              加密的本地文件，仅本地导出导入；个人信息不参与自动备份，请定期手动导出
             </li>
             <li>
-              <strong>身份信息明文导出 / 导入（.json，可选）：</strong
+              <strong>个人信息明文导出 / 导入（.json，可选）：</strong
               >供迁移到其他工具查看的<strong>未加密</strong>导出，需验证主密码并经风险二次确认后方可进行；文件为明文（含姓名、证件号、银行卡号、CVV
               等），任何能访问该文件的人均可直接读取。该明文 .json 也可经「导入」按 id
               合并重新导入（同样需验证主密码并确认风险），请谨慎使用并妥善保管
@@ -630,14 +660,21 @@
               <strong>删除单条条目：</strong
               >条目先移入回收站，在回收站中彻底删除或「清空回收站」后，其密文即从本机存储移除
             </li>
-            <li><strong>身份信息库：</strong>整块独立加密存储，删除条目即移除对应的密文块；清空回收站同样连带清理</li>
+            <li><strong>个人信息库：</strong>整块独立加密存储，删除条目即移除对应的密文块；清空回收站同样连带清理</li>
             <li>
               <strong>到期提醒：</strong
               >删除该条提醒、删除对应条目或清空回收站，都会一并清除提醒表里那条明文的账号名记录（见第 3 节）
             </li>
             <li>
-              <strong>「忘记密码？重置所有数据」：</strong
-              >主密码无法找回，重置会清空本机全部密码数据且不可撤销——这是忘记主密码时唯一的路径，操作前有二次确认
+              <strong>「忘记密码？查看找回方法」：</strong
+              >主密码本身不能找回，提示语只是记忆辅助、不是安全提问。若已提前启用离线恢复且保留匹配密钥，可在锁屏输入密钥或导入套件，设置新主密码，再保存并验证新套件，恢复当前本机的密码、密码回收站、密码历史、个人信息与个人信息回收站。
+              默认任一数据无法解密都会阻止原地恢复，数据不做任何改动；只有恢复被中止后，用户明确知情选择携带，才会恢复其余数据，解不开的记录会原样留在库里、新主密码无法读取，也不会出现在列表或备份中。成功后保持锁定，用新主密码解锁。
+              没有可用密钥时，先在向导只读验证 <code>.aph</code> / <code>.aphid</code>，再到另一设备或独立浏览器 Profile
+              导入核对，最后才考虑清除原库，不能先清再试。
+              两种独立备份格式不变，仍需<strong>导出时的主密码</strong>，新恢复密钥不能解开旧备份；若导出时与当前是同一密码且已遗忘，旧备份仍打不开。明文
+              CSV / JSON 导出也是数据来源。
+              没有可用恢复密钥或可解备份时仍无法恢复，最后的「重置所有数据」经二次确认后清空本机库且不可撤销。数据或
+              Profile 丢失时，仅有恢复密钥无用，仍需匹配数据备份；也不能事后给锁死库补恢复
             </li>
             <li>
               <strong>卸载扩展：</strong>扩展被移除时，Chrome 会一并清除它在 <code>chrome.storage.local</code> 中的数据
@@ -646,7 +683,7 @@
           </ul>
           <p>
             您导出的文件（CSV / JSON /
-            <code>.aph</code> / <code>.aphid</code>
+            <code>.aph</code> / <code>.aphid</code> / <code>.aphrecovery</code>
             /站点规则
             JSON）离开扩展后就归您所有，删除只能在您存放它们的位置进行；其中明文形态的文件包含可直接读取的凭据，请按第 7
             节的提示妥善保管。
@@ -658,7 +695,7 @@
           <ul>
             <li>
               <strong>静态加密：</strong>账号、密码、URL、备注、TOTP 密钥逐字段以 AES-256-GCM
-              认证加密后落盘；身份信息库整块加密
+              认证加密后落盘；个人信息库整块加密
             </li>
             <li>
               <strong>密钥来源：</strong>数据密钥由主密码经 PBKDF2-SHA-256（600,000 次迭代 +
@@ -679,7 +716,7 @@
             </li>
             <li>
               <strong>二次验证：</strong
-              >打开身份信息库是否要求验证主密码由复验策略决定（默认同一管理页会话内只问一次），机密字段默认掩码显示；明文导出与「不加密备份」需风险二次确认并复验主密码
+              >打开个人信息库是否要求验证主密码由复验策略决定（默认同一管理页会话内只问一次），机密字段默认掩码显示；明文导出与「不加密备份」需风险二次确认并复验主密码
             </li>
             <li>
               <strong>投递面收窄：</strong
@@ -704,7 +741,7 @@
           </p>
           <ul>
             <li>
-              <strong>凭据（账号 / 密码 / TOTP 密钥 / 身份信息）：</strong>只用于「加密存储 → 会话内解密 →
+              <strong>凭据（账号 / 密码 / TOTP 密钥 / 个人信息）：</strong>只用于「加密存储 → 会话内解密 →
               填充、复制或展示」，以及您主动发起的导出与备份
             </li>
             <li>
@@ -774,8 +811,8 @@
       <div class="lang-en">
         <div class="highlight-box">
           <p>
-            Core Commitment: Account names, passwords, URLs, notes, TOTP secrets and identity fields are encrypted field
-            by field and written only to your browser's local storage — never uploaded to any server. All network
+            Core Commitment: Account names, passwords, URLs, notes, TOTP secrets and personal info fields are encrypted
+            field by field and written only to your browser's local storage — never uploaded to any server. All network
             activity this extension performs is limited to the two anonymous requests listed in Section 4. This policy
             also sets out, section by section: how long data is retained and every path you can use to delete it
             (Section 8), the security measures we take (Section 9), the purpose of use for each category of information
@@ -805,8 +842,8 @@
           <h2>2. Data Collection</h2>
           <p>
             <strong>The Extension does not collect, receive, or transmit any of your personal data.</strong> The account
-            names, passwords, URLs, notes, TOTP secrets and identity fields you enter are processed exclusively on your
-            own device. We can make that commitment because the Extension has
+            names, passwords, URLs, notes, TOTP secrets and personal info fields you enter are processed exclusively on
+            your own device. We can make that commitment because the Extension has
             <strong>no servers of its own and no data-reporting channel</strong> — there is no "our side" where your
             data could ever end up. Specifically:
           </p>
@@ -850,8 +887,27 @@
             </li>
           </ul>
           <p>
-            The master password is never stored in plaintext — only a salted PBKDF2 (SHA-256, 600,000 iterations)
-            verifier is kept.
+            The master password is never stored as plaintext or reversible ciphertext. Verification uses a salted PBKDF2
+            (SHA-256, 600,000 iterations) verifier.
+          </p>
+          <p>
+            <strong>Optional offline recovery:</strong> off by default, with no automatic migration. Under Security
+            Settings → Offline Recovery Key, enter the current master password to create, replace or disable it.
+            Creation and replacement require saving and re-entering the kit for verification before activation. Recovery
+            key R is generated from 32 random bytes. Domain-separated HKDF-SHA256 derives a non-exportable AES-GCM
+            wrapping key KEK; the current master-password configuration is AAD binding the data key DK. Recovery
+            persists only wrapped DK and non-sensitive metadata locally, never R or KEK. This envelope is separate from
+            the session and is not disabled on lock or expiry. Recovery adds no requests, permissions or telemetry;
+            existing anonymous version checks remain.
+          </p>
+          <p>
+            <strong>A recovery kit is not a backup:</strong> <code>.aphrecovery</code> contains only the recovery key,
+            kit ID, version and time, not the vault. Keep it separate from the device and data backups. Creating,
+            replacing or disabling recovery is not a backup. Anyone with old R and its matching old envelope/ciphertext
+            retains access to those copied data even after replacement or disabling. If exposure is suspected, change
+            the master password to rotate the data key; historical copies cannot be recalled. Ordinary password changes
+            with recovery enabled also require saving and verifying a new kit first; after success old R no longer works
+            at the current local entry point. Users without recovery keep the original password-change interaction.
           </p>
           <p>
             <strong>What "stay signed in" really means:</strong> while a session is valid, the key material that
@@ -865,17 +921,39 @@
             fully closing the browser then clears the key material, and reopening requires the master password.
           </p>
           <p>
-            <strong>One plaintext exception:</strong> when you set an expiry reminder for an entry, that entry's
-            username is redundantly recorded in plaintext in the local reminder table, because reminders fire as desktop
-            notifications at any moment — including while locked — and the username is what makes the notice name an
-            account. It also leaves behind which account is expiring and when. Deleting that reminder, deleting the
-            entry, or emptying the trash clears the record.
+            <strong>Plaintext exception 1 (expiry-reminder account names):</strong> when you set an expiry reminder for
+            an entry, that entry's username is redundantly recorded in plaintext in the local reminder table, because
+            reminders fire as desktop notifications at any moment — including while locked — and the username is what
+            makes the notice name an account. It also leaves behind which account is expiring and when. Deleting that
+            reminder, deleting the entry, or emptying the trash clears the record.
           </p>
           <p>
-            Identity information (name, ID number, phone, email, address, bank card details and custom fields) is kept
+            <strong>Plaintext exception 2 (the master password hint):</strong> you may optionally leave a hint when
+            setting the master password. It is stored <strong>in plain text</strong> in
+            <code>master_password_config</code> on this machine so that it can still be read after you forget the
+            password — encrypting it with that password would make it useless exactly when it is needed, so plaintext is
+            the feature's premise rather than an oversight. The hint takes no part in key derivation and contains no
+            password material; it only helps you recall, and it is <strong>not a recovery mechanism</strong>. Do not put
+            the master password itself or a variation of it in the hint, and on shared computers either leave it empty
+            or write only an indirect cue only you can decode.
+          </p>
+          <p>
+            Personal information (name, ID number, phone, email, address, bank card details and custom fields) is kept
             in a separate vault, stored locally only as one AES-256-GCM authenticated-encrypted blob; it is masked by
             default, and whether opening that vault asks for the master password follows a configurable policy (once per
             manager-page session by default) — viewing or copying inside an already opened vault asks nothing further.
+            Opening that vault from a web page through the right-click item "Pick from Personal Info Vault" does
+            <strong>not</strong> read the field under the cursor or any page content, prefills nothing and never writes
+            a vault value back into the page; the only thing that crosses contexts is a
+            <strong>source tab number</strong> stamped by the browser itself (an integer — no page address, no field
+            content, no vault data) used to offer a "Back to the page" exit inside the dialog. That number is never
+            persisted, and the origin is re-checked against the page you came from immediately before switching — if it
+            no longer matches, the exit is voided. The identically named button on the in-page field hint carries one
+            extra <strong>optional search term</strong>, read once at the moment you click it — the value of the field
+            judged to be your own name in that same form, or the label of that field — and used and discarded there:
+            never stored, never logged, never involved in decryption. Either route still passes the existing
+            master-password verification gate, and values leave the vault only through your own per-field or whole-card
+            copy under the timed clipboard wipe.
           </p>
         </div>
 
@@ -920,7 +998,7 @@
             <tbody>
               <tr>
                 <td>storage</td>
-                <td>Store encrypted password data, identity information and user settings locally</td>
+                <td>Store encrypted password data, personal information and user settings locally</td>
               </tr>
               <tr>
                 <td>activeTab</td>
@@ -965,7 +1043,10 @@
                 <td>contextMenus</td>
                 <td>
                   Provide fill entries in the page right-click menu (fill username/password/2FA code, generate a strong
-                  password, open the side panel or manager page)
+                  password, open the side panel or manager page), plus "Pick from Personal Info Vault" — that item only
+                  navigates: it reads no field content and no page content, prefills nothing and never writes a vault
+                  value back into the page; personal info stays on the manager page and is copied out by you, field by
+                  field
                 </td>
               </tr>
               <tr>
@@ -1003,15 +1084,17 @@
             </li>
             <li><strong>Encrypted Backup (.aph):</strong> AES-256-GCM encrypted local files</li>
             <li>
-              <strong>Identity Encrypted Backup (.aphid):</strong> AES-256-GCM encrypted local files, exported and
-              imported locally only; identity information is not covered by automatic backups, so export it regularly
+              <strong>Personal info encrypted backup (.aphid):</strong> AES-256-GCM encrypted local files, exported and
+              imported locally only; personal information is not covered by automatic backups, so export it regularly
             </li>
             <li>
-              <strong>Identity Plaintext Export / Import (.json, optional):</strong> an <strong>unencrypted</strong>
+              <strong>Personal info plaintext export / import (.json, optional):</strong> an
+              <strong>unencrypted</strong>
               export for migrating to other tools, allowed only after verifying the master password and confirming the
               risk; the file is plaintext (name, ID number, card number, CVV, etc.) readable by anyone who can access
-              it. The same plaintext .json can also be re-imported through the identity import entry and merged by id,
-              likewise requiring master-password verification and risk confirmation — use with care and store securely
+              it. The same plaintext .json can also be re-imported through the personal info import entry and merged by
+              id, likewise requiring master-password verification and risk confirmation — use with care and store
+              securely
             </li>
             <li>
               <strong>Email Backup:</strong> defaults to the encrypted tier, producing an .aph ciphertext file handed to
@@ -1042,17 +1125,30 @@
               emptying the trash removes its ciphertext from local storage
             </li>
             <li>
-              <strong>Identity vault:</strong> stored as its own encrypted block — removing an entry removes that block,
-              and emptying the trash cleans it up as well
+              <strong>Personal info vault:</strong> stored as its own encrypted block — removing an entry removes that
+              block, and emptying the trash cleans it up as well
             </li>
             <li>
               <strong>Expiry reminders:</strong> removing the reminder, removing the related entry, or emptying the
               trash all clear the plaintext account-name record kept in the reminder table (see Section 3)
             </li>
             <li>
-              <strong>"Forgot password? Reset all data":</strong> the master password cannot be recovered, and resetting
-              wipes all local password data irreversibly — it is the only path when the master password is lost, and it
-              requires a confirmation step
+              <strong>"Forgot password? See recovery options":</strong> the master password itself cannot be retrieved;
+              hints aid memory, not security-question unlocking. If recovery was enabled beforehand and you kept its
+              matching key, enter the key or import the kit on the lock screen, set a new master password, then save and
+              verify a new kit to recover the current local passwords, password trash, password history, personal info
+              and personal info trash. By default, any undecryptable data blocks in-place recovery and nothing is
+              changed. Only after such an abort, and only with explicit informed consent, can the rest be recovered;
+              those records stay in the vault as-is, remain unreadable under the new master password, and are omitted
+              from lists and backups. After success the vault stays locked; unlock with the new master password. Without
+              a usable key, verify <code>.aph</code> / <code>.aphid</code> read-only in the wizard, then import on
+              another device or in a separate browser profile to check the result before considering a wipe — never wipe
+              first and test later. Both independent backup formats are unchanged and still need their
+              <strong>export-time master password</strong>, not a new recovery key. If that was the same password now
+              forgotten, old backups remain unreadable. Plaintext CSV / JSON exports are another data source. With no
+              usable key or decryptable backup, data remains unrecoverable; the last-resort reset irreversibly clears
+              the local vault after confirmation. If data or the profile is lost, a recovery key alone is useless and a
+              matching data backup is still needed. Recovery cannot be added after lockout
             </li>
             <li>
               <strong>Uninstalling the Extension:</strong> Chrome clears the extension's
@@ -1066,7 +1162,7 @@
           </ul>
           <p>
             Files you export (CSV / JSON /
-            <code>.aph</code> / <code>.aphid</code>
+            <code>.aph</code> / <code>.aphid</code> / <code>.aphrecovery</code>
             / site-rule JSON) leave the Extension and become yours to keep; they can only be deleted wherever you store
             them. Plaintext forms contain directly readable credentials, so handle them as Section 7 advises.
           </p>
@@ -1077,8 +1173,8 @@
           <ul>
             <li>
               <strong>Encryption at rest:</strong> usernames, passwords, URLs, notes and TOTP secrets are encrypted
-              field by field with AES-256-GCM (authenticated encryption); the identity vault is encrypted as a whole
-              block
+              field by field with AES-256-GCM (authenticated encryption); the personal info vault is encrypted as a
+              whole block
             </li>
             <li>
               <strong>Key origin:</strong> the data key is derived on your device from the master password via
@@ -1100,8 +1196,8 @@
               unchanged before clearing (the sole purpose of the <code>clipboardRead</code> permission)
             </li>
             <li>
-              <strong>Step-up verification:</strong> identity fields are masked by default, and opening the vault asks
-              for the master password per the configurable verification policy (once per manager-page session by
+              <strong>Step-up verification:</strong> personal info fields are masked by default, and opening the vault
+              asks for the master password per the configurable verification policy (once per manager-page session by
               default); plaintext exports and the "unencrypted backup" tier require a risk acknowledgement plus
               master-password re-verification
             </li>
@@ -1136,9 +1232,9 @@
           </p>
           <ul>
             <li>
-              <strong>Credentials (username / password / TOTP secret / identity fields):</strong> used only for "encrypt
-              at rest → decrypt within the session → fill, copy or display", plus the exports and backups you start
-              yourself
+              <strong>Credentials (username / password / TOTP secret / personal info fields):</strong> used only for
+              "encrypt at rest → decrypt within the session → fill, copy or display", plus the exports and backups you
+              start yourself
             </li>
             <li>
               <strong>Page form structure and the current domain:</strong> used only to locate the input to fill, the

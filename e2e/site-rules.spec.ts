@@ -23,6 +23,14 @@ import { textOf } from './i18n';
 
 const RULE_DOMAIN = 'site-rules.e2e.test';
 
+/**
+ * 拾取器对 shadow DOM 内元素给出的穿透前缀
+ *
+ * 分隔符是 `utils/storage/siteRules.ts` 的 `SHADOW_SELECTOR_SEPARATOR`（`>>>`）；这里按字面写，
+ * 是为了让本文件不把这个模块的整张依赖图拉进测试进程——它一旦改了分隔符，下面三条断言会一起红。
+ */
+const SHADOW_PREFIX = 'widget-login >>> ';
+
 /** 打开「安全设置 → 站点规则」 */
 async function openSiteRulesDialog(page: Page): Promise<void> {
   await page.getByRole('button', { name: textOf('options.header.securitySettings') }).click();
@@ -287,5 +295,61 @@ test.describe('内容脚本消费站点规则', () => {
 
     const fields = await pingDetectedFields(optionsPage, E2E_PAGE_ORIGIN);
     expect(fields).toMatchObject({ username: 1, password: 1 });
+  });
+
+  test('只钉账号一侧时，密码字段仍由自动检测给出', async ({ optionsPage, extContext }) => {
+    // 短信验证码登录页没有密码框，规则只能钉一侧；旧表单强制成对填写，用户为了钉账号框
+    // 只能把「密码框」随手点到页面上唯一剩下的框，凭证因此写进错误的字段
+    await seedSiteRule(optionsPage, {
+      domain: RULE_DOMAIN,
+      username: '#a-user',
+    });
+    const page = await openFixturePage(extContext);
+    await page.waitForTimeout(1500);
+
+    const fields = await pingDetectedFields(optionsPage, E2E_PAGE_ORIGIN);
+    expect(fields.username).toBe(1);
+    // 未配置的一侧不得被顺手清空：密码字段数量与无规则时同源（夹具里是 2）
+    expect(fields.password).toBeGreaterThan(1);
+  });
+
+  test('在目标页拾取 Shadow DOM 输入框，回填选择器并保存', async ({ optionsPage: page, extContext }) => {
+    const site = await openFixturePage(extContext);
+    // 等内容脚本完成首轮注入；否则 START_SELECTOR_PICK 会得到 NO_CONTENT_SCRIPT
+    await site.waitForTimeout(1500);
+
+    await openSiteRulesDialog(page);
+    await page.getByRole('button', { name: textOf('options.siteRules.addButton') }).click();
+    await domainInput(page).fill(RULE_DOMAIN);
+
+    await page.getByRole('button', { name: textOf('options.siteRules.pickUsername') }).click();
+    await expect(site.locator('[data-aph-selector-picker]')).toBeVisible();
+    await site.locator('#a-user').click();
+    // 夹具里 `#a-user` 在 `<widget-login>` 的 open shadowRoot 内，裸 `#a-user` 在文档上根本选不中，
+    // 拾取器给的是穿透形态 `host >>> inner`（`utils/storage/siteRules.ts` 的 SHADOW_SELECTOR_SEPARATOR）
+    await expect(usernameInput(page)).toHaveValue(`${SHADOW_PREFIX}#a-user`);
+    await expect(site.locator('[data-aph-selector-picker]')).toHaveCount(0);
+    // 拾取成功后管理页应自动回到前台，而不是把用户留在目标站点
+    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
+
+    // 只填一侧是合法的：短信码登录页本就没有密码框，强制成对只会逼用户把「密码框」
+    // 随手指到验证码框上（密码因此被写进短信码输入框）。这里必须不再有校验错误冒出。
+    const selectorErrors = page.locator('.el-form-item__error');
+    await expect(selectorErrors).toHaveCount(0);
+
+    await page.getByRole('button', { name: textOf('options.siteRules.pickPassword') }).click();
+    await expect(site.locator('[data-aph-selector-picker]')).toBeVisible();
+    await site.locator('#a-pwd').click();
+    await expect(passwordInput(page)).toHaveValue(`${SHADOW_PREFIX}#a-pwd`);
+    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
+    await expect(selectorErrors).toHaveCount(0);
+
+    await saveButton(page).click();
+    await expectSuccessToast(page, 'options.siteRules.saveSuccess');
+    const rules = await readSiteRules(page);
+    expect(rules[RULE_DOMAIN]).toMatchObject({
+      domain: RULE_DOMAIN,
+      customSelectors: { username: `${SHADOW_PREFIX}#a-user`, password: `${SHADOW_PREFIX}#a-pwd` },
+    });
   });
 });

@@ -58,6 +58,9 @@ export function useSessionLock(options: UseSessionLockOptions) {
       ElMessage.success(t('message.locked'));
     } catch (error) {
       logger.error('锁定失败:', error);
+      // 安全语义上最不该静默的一条：clearSession 失败时会话可能仍然有效，
+      // 只记日志会让用户以为已经锁定
+      ElMessage.error(t('message.lockFailed'));
     } finally {
       lockLoading.value = false;
     }

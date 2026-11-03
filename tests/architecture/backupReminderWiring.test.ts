@@ -100,7 +100,7 @@ describe('备份提醒的接线', () => {
 
   it('导入写回后补置「待备份」（它绕开了 composable 的 CRUD 路径）', () => {
     const body = functionBody(readSource(DIALOG), 'applyImportedData');
-    const writeAt = body.indexOf('replaceAllIdentity(merged.records)');
+    const writeAt = body.indexOf('replaceAllIdentity(data.records)');
     const pendingAt = body.indexOf('markBackupPending()');
     expect(writeAt, '导入写回调用了别的函数：本条判据需要跟着重新确认').toBeGreaterThan(-1);
     expect(pendingAt, '导入后没置待备份——SW 落时间戳是异步的，紧随其后的 load() 读不到').toBeGreaterThan(-1);
@@ -167,6 +167,43 @@ describe('备份提醒的接线', () => {
     expect(keysBlock).not.toContain('STORAGE_KEYS.IDENTITY');
   });
 
+  it('SW 侧：换钥匙批次不刷新待备份时间戳（rekey 只是换钥匙，不是内容变更）', () => {
+    const background = readSource(BACKGROUND);
+    const recorderAt = background.indexOf('async function recordBackupRelevantChanges');
+    expect(recorderAt).toBeGreaterThan(-1);
+    const recorderBody = background.slice(recorderAt, recorderAt + 1600);
+
+    // 早退必须排在两条 setLast*ChangeAt 之前，否则 rekey 仍会把戳往前推。
+    // 两个信号都要传：只盯包裹密钥会漏掉离线恢复——它刻意不建立会话，提交前一步就是
+    // lockSession()，那批整库重加密里没有新包裹密钥，于是每次成功恢复都凭空报一条「待备份」。
+    const guardAt = recorderBody.indexOf('isKeyRotationBatch(');
+    expect(guardAt, 'rekey 早退判据不见了：用户每改一次主密码就会凭空欠一次备份').toBeGreaterThan(-1);
+    const guardCall = recorderBody.slice(guardAt, recorderBody.indexOf(')', guardAt));
+    expect(guardCall).toContain('changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]');
+    expect(guardCall, '离线恢复批次会绕过早退判据，报出假「待备份」').toContain(
+      'changes[STORAGE_KEYS.MASTER_PASSWORD]',
+    );
+    expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastPasswordChangeAt(now)'));
+    expect(guardAt).toBeLessThan(recorderBody.indexOf('await StorageUtils.setLastIdentityChangeAt(now)'));
+  });
+
+  it('SW 侧：备份判据只读主列表键，回收站单独变化不点亮提醒（与密码库同口径）', () => {
+    const background = readSource(BACKGROUND);
+    const recorderAt = background.indexOf('async function recordBackupRelevantChanges');
+    expect(recorderAt).toBeGreaterThan(-1);
+    const recorderBody = background.slice(recorderAt, recorderAt + 1400);
+
+    // 密码侧先立规矩：TRASH 从未进入判据，身份侧不得自创一套
+    expect(recorderBody).toContain('changes[STORAGE_KEYS.PASSWORDS]');
+    expect(recorderBody).not.toContain('changes[STORAGE_KEYS.TRASH]');
+    // 身份侧同理：彻底删除 / 清空 / TTL 自动清理只动 IDENTITY_TRASH、活动条目不变，
+    // 而 .aphid 备份不含回收站——为回收站单独刷新时间戳会点亮「重新导出也无法消除」的假提醒
+    expect(recorderBody).toContain('changes[STORAGE_KEYS.IDENTITY]');
+    expect(recorderBody, '回收站键回到了备份判据：会制造无法消除的假提醒').not.toContain(
+      'changes[STORAGE_KEYS.IDENTITY_TRASH]',
+    );
+  });
+
   it('SW 侧：静默早退排在闹钟时间戳推进之后，且 changed 分支用专属文案', () => {
     const background = readSource(BACKGROUND);
     const advanceAt = background.indexOf('await StorageUtils.setLastAutoBackupTime()');
@@ -176,6 +213,29 @@ describe('备份提醒的接线', () => {
     // 顺序即承诺：先推进时间戳再决定是否出声，闹钟节奏与改造前完全一致
     expect(silenceAt).toBeGreaterThan(advanceAt);
     expect(background).toContain("tl(verdict === 'changed' ? 'bg.backup.messageChanged' : 'bg.backup.message'");
+  });
+
+  /**
+   * 邮箱备份通道递出去的是 `passwords_*.csv` / `.aph`，不含 `.aphid`，
+   * 所以这条定时提醒的作用域必须停在密码库：给只有个人信息库的用户发「请用邮箱备份」，
+   * 是在引导一个备不到他数据的动作。身份库的欠备份由管理页横幅承担（那里能指到导出入口）。
+   * 真要加站外身份库提醒，前提是先有一条带 `.aphid` 的定时通道——那是产品决策，
+   * 不该由一次顺手改码悄悄发生，所以这里把它钉成断言。
+   */
+  it('SW 侧：邮箱备份提醒只判密码库，不把身份库悄悄并进来', () => {
+    const background = readSource(BACKGROUND);
+    const start = background.indexOf('async function performAutoBackup');
+    expect(start, 'performAutoBackup 的声明形状变了：本条守卫需要跟着调整').toBeGreaterThan(-1);
+    const body = background.slice(start, background.indexOf('\n}', background.indexOf('auto-backup-reminder', start)));
+    expect(body.length, '提取到的函数体为空，判据会空跑').toBeGreaterThan(200);
+
+    expect(body).toContain('STORAGE_KEYS.PASSWORDS');
+    expect(body, '提醒里出现了身份库：邮箱通道不带 .aphid，会引导用户做备不到数据的动作').not.toContain(
+      'STORAGE_KEYS.IDENTITY',
+    );
+    expect(body, '判据不再走 decidePasswordBackupReminder：确认改动是否连带改了出声条件').toContain(
+      'decidePasswordBackupReminder(',
+    );
   });
 
   it('变更分支文案中英两套都在，且都带 {count} 占位符', () => {

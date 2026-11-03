@@ -65,13 +65,24 @@ const MAX_WORD_LENGTH = 8;
  */
 export const MAX_PASSPHRASE_LENGTH = MAX_WORD_COUNT * MAX_WORD_LENGTH + (MAX_WORD_COUNT - 1) + MAX_NUMBER_DIGITS;
 
-/** 可选分隔符列表（供 UI 使用） */
+/**
+ * 可选分隔符列表（供 UI 使用）
+ *
+ * 后两项的 `label` 是词不是符号，必须走 i18n（`labelKey`），否则中文界面里直接露出
+ * "space" / "none"。`-` `_` `.` 三个是符号本身，跨语言同一写法，保留字面量。
+ *
+ * `value: ''`（无分隔符）这一项在 Element Plus 里是**空值**：EP 的
+ * `DEFAULT_EMPTY_VALUES = ['', undefined, null]` 会让 `hasModelValue` 判 false，
+ * 于是选完"无"之后下拉框走的是 placeholder 分支而不是选项文案。因此渲染它的
+ * `el-select` 必须带 placeholder（见 PasswordGeneratorPopover），否则用户那次选择
+ * 在界面上是一片空白，看着像没选。
+ */
 export const SEPARATOR_OPTIONS = [
   { label: '-', value: '-' },
   { label: '_', value: '_' },
   { label: '.', value: '.' },
-  { label: 'space', value: ' ' },
-  { label: 'none', value: '' },
+  { label: 'space', labelKey: 'options.generator.separatorSpace', value: ' ' },
+  { label: 'none', labelKey: 'options.generator.separatorNone', value: '' },
 ] as const;
 
 /** 懒加载的词库数组 */

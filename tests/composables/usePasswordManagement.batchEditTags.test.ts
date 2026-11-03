@@ -85,7 +85,7 @@ describe('usePasswordManagement.batchEditTags', () => {
     Object.assign(globalThis, ep);
 
     // 列表读取与批量写入都打桩：本文件只关心「喂给存储的载荷」与「就地更新的落点」
-    vi.spyOn(StorageUtils, 'getAllPasswords').mockResolvedValue([]);
+    vi.spyOn(StorageUtils, 'getAllPasswordsDetailed').mockResolvedValue({ entries: [], undecryptableCount: 0 });
     writeSpy = vi.spyOn(StorageUtils, 'batchUpdatePasswordMetadata').mockResolvedValue(undefined);
 
     scope = effectScope();

@@ -311,11 +311,12 @@ export async function seedSiteRule(
     const key = 'site_rules';
     const stored = ((await chrome.storage.local.get(key)) as Record<string, Record<string, unknown>>)[key] ?? {};
     const rule: Record<string, unknown> = { domain: payload.domain };
-    // 选择器要么成对要么整体不写：单侧留空会造出内容脚本要当场降级的半条规则，
-    // 而「只设填充档位」正是本扩展的合法形态（这个站别自动弹侧边栏）
-    if (payload.username && payload.password) {
-      rule.customSelectors = { username: payload.username, password: payload.password };
-    }
+    // 每一侧独立写入：只钉一侧是合法形态（短信验证码登录页根本没有密码框），
+    // 「只设填充档位」和「只关穿透」同样是有效规则
+    const customSelectors: Record<string, string> = {};
+    if (payload.username) customSelectors.username = payload.username;
+    if (payload.password) customSelectors.password = payload.password;
+    if (Object.keys(customSelectors).length > 0) rule.customSelectors = customSelectors;
     if (payload.penetrateShadow === false) rule.penetrateShadow = false;
     if (payload.fillEntry) rule.fillEntry = payload.fillEntry;
     stored[payload.domain] = rule;
@@ -457,7 +458,7 @@ export const parkPointer = async (page: Page): Promise<void> => {
 };
 
 /**
- * 展开 HeaderBar 的某个下拉菜单（「数据管理」/「安全设置」）
+ * 展开 HeaderBar 的某个下拉菜单（「数据管理」/「安全设置」/「帮助」）
  *
  * Element Plus 的 popper 懒渲染，未展开时菜单项根本不在 DOM 里，
  * 因此以「首个 menuitem 可见」为展开信号，而不是给固定等待时长。

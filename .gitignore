@@ -135,6 +135,10 @@ docs/blog/en/imgs
 test-results/
 playwright-report/
 e2e/.auth/
+# 几何/密度守卫每次运行写出的对比截图（`domain-match-radio-alignment` 与
+# `identity-vault-selectbar-density` 的 `.e2e-visual/*.png`）：跑一次即重生成，
+# 内容全是合成夹具，入库只会让 `git status` 常脏、diff 里混进二进制
+.e2e-visual/
 
 # 性能测量脚本的私有产物：构建快照（避免并发构建移动测量基线）与原始测量结果。
 # results/ 为 19MB 量级的 JSON / .cpuprofile，且绝对值受当时整机负载影响、跨窗口不可比，

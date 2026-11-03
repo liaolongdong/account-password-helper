@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { filterActions, nextActiveIndex, clampActiveIndex, type CommandAction } from '@/utils/commandPalette';
 
+/** 图标只是渲染用的组件引用，纯过滤/索引逻辑不碰它，给个占位即可 */
+const ICON = {} as CommandAction['icon'];
+
 /** 构造最小动作（run 用空函数占位，纯过滤/索引逻辑不触发它） */
 function action(
   id: string,
@@ -8,7 +11,7 @@ function action(
   keywords: string[] = [],
   group: CommandAction['group'] = 'data',
 ): CommandAction {
-  return { id, group, label, keywords, run: () => {} };
+  return { id, group, label, icon: ICON, keywords, run: () => {} };
 }
 
 describe('filterActions', () => {

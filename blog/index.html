@@ -18,6 +18,12 @@
       href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
     />
     <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="账号密码管理助手 · 博客"
+      href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml"
+    />
+    <link
       rel="icon"
       type="image/png"
       sizes="32x32"
@@ -129,6 +135,21 @@
       "@type": "ListItem",
       "position": 5,
       "url": "https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 6,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 7,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 8,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html"
     }
   ]
 }
@@ -215,6 +236,22 @@
       .topbar .spacer {
         flex: 1;
       }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        font-size: 14px;
+        color: #ffffff;
+        text-decoration: none;
+        background: var(--accent);
+        border-radius: 6px;
+        transform: translateY(-200%);
+      }
+      .skip-link:focus-visible {
+        transform: translateY(0);
+      }
       main {
         max-width: 960px;
         margin: 0 auto;
@@ -291,12 +328,13 @@
     </style>
   </head>
   <body>
-    <nav class="topbar">
+    <a class="skip-link" href="#main">跳到正文</a>
+    <nav class="topbar" aria-label="博客导航">
       <a href="https://liaolongdong.github.io/account-password-helper/">← 产品官网与功能演示</a>
       <span class="spacer"></span>
       <a href="https://liaolongdong.github.io/account-password-helper/blog/index.en.html">English</a>
     </nav>
-    <main>
+    <main id="main" tabindex="-1">
       <h1>博客 · 本地优先密码管理器的工程实战</h1>
       <p class="subtitle">账号密码管理助手的产品思考与工程实现：本地优先的安全设计、MV3 秒开实战与 Web Crypto 加密详解。</p>
       <div class="grid">
@@ -340,11 +378,35 @@
           <span class="card-meta">2026-09-22 · 阅读全文 →</span>
         </div>
       </a>
+      <a class="card" href="06-chrome-password-manager-guide.html">
+        <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-06-chrome-password-manager.png" alt="Chrome 自带密码管理器够用吗？三种方案对比" loading="lazy" />
+        <div class="card-body">
+          <h2>Chrome 自带密码管理器够用吗？三种方案对比</h2>
+          <p>Chrome 自带、云端管理器与本地优先工具各适合谁？从多环境隔离、加密方式、迁移成本与离线可用四个维度给出选择清单。</p>
+          <span class="card-meta">2026-10-19 · 阅读全文 →</span>
+        </div>
+      </a>
+      <a class="card" href="07-multi-environment-accounts.html">
+        <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-07-multi-environment-accounts.png" alt="开发者的多环境账号管理：dev / test / prod 不串号" loading="lazy" />
+        <div class="card-body">
+          <h2>开发者的多环境账号管理：dev / test / prod 不串号</h2>
+          <p>同一套系统四套账号，如何避免 test 账号填进 prod 登录框？从域名匹配、账号命名、保存判重到团队协作，给开发者与测试一套可落地的做法。</p>
+          <span class="card-meta">2026-10-19 · 阅读全文 →</span>
+        </div>
+      </a>
+      <a class="card" href="08-totp-two-factor-guide.html">
+        <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-08-totp-two-factor.png" alt="TOTP 两步验证怎么用：原理、迁移与安全边界" loading="lazy" />
+        <div class="card-body">
+          <h2>TOTP 两步验证怎么用：原理、迁移与安全边界</h2>
+          <p>TOTP 是什么、验证码为什么每 30 秒变化、把密钥从手机迁到浏览器扩展要注意什么？一篇讲清原理、迁移步骤与安全边界。</p>
+          <span class="card-meta">2026-10-19 · 阅读全文 →</span>
+        </div>
+      </a>
       </div>
     </main>
     <footer class="footer">
       <p>账号密码管理助手 · 开源（GPL-3.0）</p>
-      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml">RSS 订阅</a></p>
       <p>同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></p>
     </footer>
   </body>

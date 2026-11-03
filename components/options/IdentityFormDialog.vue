@@ -45,6 +45,7 @@
         >
           <el-input
             v-model="localForm[fieldKey]"
+            :placeholder="t(`identity.form.placeholder.${fieldKey}`)"
             :maxlength="fieldMaxlength(fieldKey)"
             clearable
             show-word-limit
@@ -77,6 +78,7 @@
             >
               <el-input
                 v-model="localForm[fieldKey]"
+                :placeholder="t(`identity.form.placeholder.${fieldKey}`)"
                 :maxlength="fieldMaxlength(fieldKey)"
                 clearable
                 show-word-limit
@@ -91,6 +93,7 @@
             v-model="localForm.remark"
             type="textarea"
             :rows="3"
+            :placeholder="t('identity.form.placeholder.remark')"
             :maxlength="MAX_REMARK_LEN"
             show-word-limit
           />
@@ -431,8 +434,10 @@ function handleClosed(): void {
   color: var(--el-text-color-regular);
 }
 
-/* link 型按钮（添加字段 / 删除）：抵消 options 全局 .el-button--primary 的实心背景/边框，
-   恢复透明底 + 主色文字，避免主色文字压在同色背景上默认不可见（对标 PasswordHealthDialog） */
+/* link 型按钮（添加字段 / 删除）：透明底 + 主色文字。
+   管理页全局那条 `.el-button--primary` 实心规则已排除 `link` / `text` 变体，所以这里对
+   primary link 已是冗余；留着是因为它按 `.el-button.is-link` 通配，仍为其它色型的 link
+   按钮兜住「同色文字压同色底」这一类问题，删它等于把兜底范围收窄。 */
 :deep(.el-button.is-link),
 :deep(.el-button.is-link:hover) {
   background-color: transparent;

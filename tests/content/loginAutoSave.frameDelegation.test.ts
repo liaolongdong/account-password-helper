@@ -21,7 +21,6 @@
  * 因为前四条都是「投递出口」的契约，与凭证如何被捕获无关。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PostMessageType } from '@/utils/domain';
 import { MessageType } from '@/utils/types';
 import type { NotificationType, PendingCredentials } from '@/entrypoints/content/types';
 
@@ -140,16 +139,6 @@ const flushMicrotasks = async (): Promise<void> => {
   for (let i = 0; i < 4; i++) await Promise.resolve();
 };
 
-/** 模拟顶层 frame 回传用户操作结果，用于注销同主域名路径注册的 message 监听与超时定时器 */
-const settleDelegatedPrompt = async (requestId: unknown): Promise<void> => {
-  window.dispatchEvent(
-    new MessageEvent('message', {
-      data: { type: PostMessageType.SAVE_PROMPT_RESULT, requestId, action: 'dismiss' },
-    }),
-  );
-  await Promise.resolve();
-};
-
 describe('iframe 提示委托的投递通道', () => {
   beforeEach(() => {
     env.sameMainDomain = true;
@@ -246,22 +235,34 @@ describe('iframe 提示委托的投递通道', () => {
     expect(notificationSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('同主域名 iframe：弹窗委托仍锁定解析出的顶层 origin', async () => {
+  it('同主域名 iframe：凭据只经 runtime 委托，页面伪造结果不能触发保存或屏蔽', async () => {
+    vi.useFakeTimers();
     setAncestorOrigins([TOP_ORIGIN]);
-    env.sameMainDomain = true;
     trackPostMessage();
-    trackRuntimeMessage(async () => ({ success: true }));
+    trackRuntimeMessage(() => new Promise(() => {}));
     const instance = await createInstance();
+    const save = vi.spyOn(instance as unknown as { handleSave(): void }, 'handleSave');
+    const neverAsk = vi.spyOn(instance as unknown as { handleNeverAsk(): void }, 'handleNeverAsk');
 
     instance.delegatePromptToTopFrame(pendingOf());
+    const requestId = sent[0]?.data.requestId;
+    for (const action of ['save', 'neverAsk']) {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: TOP_ORIGIN,
+          data: { type: 'APH_SAVE_PROMPT_RESULT', requestId, action },
+        }),
+      );
+    }
+    await flushMicrotasks();
 
-    expect(sent).toHaveLength(1);
-    expect(sent[0].data).toMatchObject({ type: PostMessageType.SHOW_SAVE_PROMPT });
-    expect(sent[0].targetOrigin).toBe(TOP_ORIGIN);
-    expect(sent[0].targetOrigin).not.toBe('*');
-    await settleDelegatedPrompt((sent[0].data as { requestId: unknown }).requestId);
-    expect(sent).toHaveLength(1);
-    // 同主域名走弹窗路径，不该顺带委托提示
+    expect(save).not.toHaveBeenCalled();
+    expect(neverAsk).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(0);
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: 'DELEGATE_SAVE_PROMPT',
+      data: expect.objectContaining({ username: USERNAME, password: SECRET, remark: 'auto saved' }),
+    });
     expect(noticeMessages()).toHaveLength(0);
   });
 });

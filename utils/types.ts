@@ -1,6 +1,6 @@
 import type { ThemeName } from '@/utils/theme';
 import type { SidepanelOpenTrigger } from '@/utils/perfMetrics';
-import type { DomainMatchMode, MatchTier } from '@/utils/domain';
+import type { DomainMatchMode, MatchTier, PortScope } from '@/utils/domain';
 
 /**
  * 页面填充模式
@@ -113,6 +113,16 @@ export interface MasterPasswordConfig {
    * - 缺失（undefined）：旧版单轮 SHA-256，在下次成功验证时透明迁移升级
    */
   kdf?: 'pbkdf2-sha256';
+  /**
+   * 主密码提示语（可选，纯本地明文）
+   *
+   * 只用于在解锁页帮用户回想，不参与任何密钥派生与校验；主密码本身仍不落盘。
+   * 明文是刻意取舍：用主密码加密提示语会形成「忘了才需要看、看了却解不开」的死循环，
+   * 因此 UI 必须向用户声明它以明文保存在本机，且不要写入主密码本身或其变形。
+   *
+   * 缺失（undefined）= 用户未设置提示语，存量配置无需迁移即可继续解锁。
+   */
+  hint?: string;
 }
 
 /**
@@ -209,6 +219,27 @@ export enum MessageType {
    */
   OPEN_OPTIONS_AND_SEARCH = 'OPEN_OPTIONS_AND_SEARCH',
   /**
+   * 跳转到密码管理页并自动打开身份库（内容脚本识别出个人信息字段后的召唤式提示）
+   *
+   * 载荷只有一个标签，属内容脚本自报的不可信输入、在后台边界统一收口：
+   * - `keyword`（可选）：由内容脚本按页面字段角色分两条通道取值（分派见 `IdentityHint` 的 `pickSearchKeyword`），
+   *   姓名档取同一个表单里用户已打好的**本人姓名**（`piiClassifier.selfNameValueNear`），自定义字段落点档
+   *   （编号族）取**这一格自己的标签文本**（`piiClassifier.hintFieldKeyword`，不含字段值）。两条通道共用
+   *   `normalizeSearchKeyword` 的 trim + 64 字上限，只用于把身份库列表筛到那一个人或那一条字段。
+   * 空白值不写出 `keyword` 键，缺失时也要照常打开身份库（召唤本身才是主意图）。
+   *
+   * - `sourceTabId`（可选）：这一次召唤发生在哪个标签页，供管理页在用户复制完值之后「回到原网页」。
+   *   它**不由内容脚本自报**，而是后台从 `sender.tab` 取浏览器盖章的 id 并经协议白名单收窄
+   *   （`utils/sourceTab.ts`）——自报值等于让任意网页决定管理页上那枚按钮把用户送去哪个站点。
+   *   不可用时整键缺席，选项页据此不显示回程出口。
+   *
+   * 页面字段角色**不在载荷里**：它只服务气泡上那句「这是「证件号」字段」。曾经把它透过来
+   * 预选类别档位，但一条身份条目同时携带证件号、手机号等多个值，预选会把该命中的筛出视野，
+   * 故深链恒落在「全部」档（改判理由见 `tests/architecture/identityHintWiring.test.ts` 头注第 3 条）。
+   * 除此之外不带任何字段值或库内数据。
+   */
+  OPEN_OPTIONS_AND_IDENTITY = 'OPEN_OPTIONS_AND_IDENTITY',
+  /**
    * 主动触发版本更新检测
    */
   CHECK_UPDATE = 'CHECK_UPDATE',
@@ -228,6 +259,17 @@ export enum MessageType {
    * 内联下拉：获取当前域名匹配账号的元数据列表（仅标题/用户名，绝不含密码）
    */
   GET_MATCHING_ACCOUNTS = 'GET_MATCHING_ACCOUNTS',
+  /**
+   * 本地开发页：查询这一页当前绑定的远端环境主机（会话级，无绑定返回 null）
+   *
+   * 事实来源在后台的 `chrome.storage.session`，侧边栏与内联下拉都向它取，
+   * 避免两个入口各自持有一份而给出不同的可填充集合。
+   */
+  GET_ENV_BINDING = 'GET_ENV_BINDING',
+  /**
+   * 本地开发页：设置或清除这一页的远端环境绑定
+   */
+  SET_ENV_BINDING = 'SET_ENV_BINDING',
   /**
    * 内联下拉：按条目 ID 触发填充（由 background 取明文后复用 FILL_PASSWORD 下发）
    */
@@ -320,6 +362,87 @@ export enum MessageType {
    * `sender.tab.id` 与 `frameId: 0` 决定，页面侧既看不到也发不出。
    */
   DELEGATE_PAGE_NOTICE = 'DELEGATE_PAGE_NOTICE',
+  /** iframe 经后台委托顶层文档呈现保存确认；响应只返回经验证的一次性决定。 */
+  DELEGATE_SAVE_PROMPT = 'DELEGATE_SAVE_PROMPT',
+  /** 后台 → 指定顶层 documentId，绝不经过宿主 window message。 */
+  SHOW_DELEGATED_SAVE_PROMPT = 'SHOW_DELEGATED_SAVE_PROMPT',
+  /** 顶层内容脚本 → 后台，requestId 只能由绑定的渲染文档消费一次。 */
+  SAVE_PROMPT_DECISION = 'SAVE_PROMPT_DECISION',
+  /** 后台取消到期、导航或锁定后的委托 UI。 */
+  CANCEL_DELEGATED_SAVE_PROMPT = 'CANCEL_DELEGATED_SAVE_PROMPT',
+  /** Options 站点规则表单请求在目标页面进入「点击拾取选择器」模式 */
+  START_SELECTOR_PICK = 'START_SELECTOR_PICK',
+  /** Options 站点规则表单取消拾取（弹窗关闭 / 切换字段） */
+  CANCEL_SELECTOR_PICK = 'CANCEL_SELECTOR_PICK',
+  /** 内容脚本拾取到选择器后回传（只含 CSS 选择器，不含字段值） */
+  SELECTOR_PICKED = 'SELECTOR_PICKED',
+  /** 内容脚本按 Esc 取消拾取 */
+  SELECTOR_PICK_CANCELLED = 'SELECTOR_PICK_CANCELLED',
+}
+
+/**
+ * 授权时的接收者快照。
+ *
+ * `documentId` 是首选身份：Chrome 132+ 的 `webNavigation.getAllFrames` / `MessageSender`
+ * 才提供它，能把「授权时判定的那个文档」一直绑到投递时刻。缺它时退回 frameId +
+ * 顶层文档身份（Firefox 形态），仍要求顶层文档在授权与投递两次检查间未被替换。
+ */
+export interface AuthorizedFillDocument {
+  readonly tabId: number;
+  readonly frameId: number;
+  readonly documentId?: string;
+  readonly topDocumentId?: string;
+}
+
+/** 保存弹窗内部消息契约，与内容脚本既有展示/编辑类型共享字段。 */
+export type DelegatedSavePromptData = import('@/entrypoints/content/types').SavePromptData;
+export type SavePromptDecision =
+  | { action: 'save'; editedData: import('@/entrypoints/content/types').SavePromptEditedData }
+  | { action: 'dismiss' | 'neverAsk' };
+export type DelegatedSavePromptResponse = { success: true; decision: SavePromptDecision } | { success: false };
+
+/** 站点规则表单里要拾取的字段 */
+export type SelectorPickField = 'username' | 'password';
+
+/** 启动拾取：域名用于匹配已打开的目标标签页，requestId 用于丢弃过期回包 */
+export interface StartSelectorPickData {
+  domain: string;
+  field: SelectorPickField;
+  requestId: string;
+}
+
+/** 拾取结果：只包含选择器与唯一性提示，绝不包含输入框的值 */
+export interface SelectorPickedData {
+  domain: string;
+  field: SelectorPickField;
+  requestId: string;
+  selector: string;
+  unique: boolean;
+  /**
+   * 拾取到的那个框自身是否声明了一次性口令语义（`autocomplete="one-time-code"`、
+   * name/placeholder 含验证码/otp/code 等）。仅作 UI 提示元数据，不落库：账号与密码
+   * 任一侧指到这样的框都值得当场提醒一句，但内容脚本照用户配置写入、不据此否决落点，
+   * 只在填充回执上把来源标出来。
+   */
+  codeLike?: boolean;
+}
+
+/** 取消拾取 */
+export interface CancelSelectorPickData {
+  tabId?: number;
+  requestId: string;
+}
+
+/** 拾取取消回包 */
+export interface SelectorPickCancelledData {
+  requestId: string;
+}
+
+/** Background 对 START_SELECTOR_PICK 的响应 */
+export interface StartSelectorPickResponse {
+  success: boolean;
+  tabId?: number;
+  error?: 'UNAUTHORIZED' | 'INVALID_REQUEST' | 'NO_TAB' | 'NO_CONTENT_SCRIPT';
 }
 
 /**
@@ -345,6 +468,11 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES; data?: { domain: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }
   | { type: MessageType.OPEN_OPTIONS_AND_SEARCH; data?: { keyword: string } }
+  | { type: MessageType.OPEN_OPTIONS_AND_IDENTITY; data?: { keyword?: string; sourceTabId?: number } }
+  | { type: MessageType.START_SELECTOR_PICK; data: StartSelectorPickData }
+  | { type: MessageType.CANCEL_SELECTOR_PICK; data: CancelSelectorPickData }
+  | { type: MessageType.SELECTOR_PICKED; data: SelectorPickedData }
+  | { type: MessageType.SELECTOR_PICK_CANCELLED; data: SelectorPickCancelledData }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
@@ -353,6 +481,8 @@ export type RuntimeMessage =
   | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
   | { type: MessageType.SIDEPANEL_PRELOAD }
   | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string; keyword?: string } }
+  | { type: MessageType.GET_ENV_BINDING; data: EnvBindingQueryData }
+  | { type: MessageType.SET_ENV_BINDING; data: EnvBindingData }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
   | { type: MessageType.GET_INLINE_TOTP; data: InlineTotpByIdData }
   | { type: MessageType.FILL_TOTP_BY_ID; data: InlineTotpByIdData }
@@ -367,7 +497,11 @@ export type RuntimeMessage =
   | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
   | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData }
   | { type: MessageType.SHOW_PAGE_NOTICE; data: PageNoticeData }
-  | { type: MessageType.DELEGATE_PAGE_NOTICE; data: PageNoticeData };
+  | { type: MessageType.DELEGATE_PAGE_NOTICE; data: PageNoticeData }
+  | { type: MessageType.DELEGATE_SAVE_PROMPT; data: DelegatedSavePromptData }
+  | { type: MessageType.SHOW_DELEGATED_SAVE_PROMPT; data: { requestId: string; prompt: DelegatedSavePromptData } }
+  | { type: MessageType.SAVE_PROMPT_DECISION; data: { requestId: string; decision: SavePromptDecision } }
+  | { type: MessageType.CANCEL_DELEGATED_SAVE_PROMPT; data: { requestId: string } };
 
 /**
  * 侧边栏 → Background 的 Port 通道消息
@@ -435,6 +569,12 @@ export interface FloatingButtonConfig {
    * 也一并隐藏。默认 true；与站点规则同名开关取「任一为 false 即关闭」。
    */
   penetrateShadow?: boolean;
+  /**
+   * 个人信息字段召唤提示总闸：聚焦到「语义上属于个人信息」的字段时，在字段下方
+   * 出现一枚只说明「这个框要的是什么」的气泡，动作项跳转管理页身份库（库内明文
+   * 始终不出管理页）。默认 true；关闭后识别链完全不启动，页面不注入任何扩展 UI。
+   */
+  identityHintEnabled?: boolean;
 }
 
 /**
@@ -532,6 +672,13 @@ export interface MatchingAccountMeta {
    * 不再自行做域名判断（避免两处口径分歧）。
    */
   tier: MatchTier;
+  /**
+   * 仅因「本地页环境绑定」才出现在这一页的条目所对应的环境主机（其余为 undefined）
+   *
+   * 由 background 单点判定并下发，内容脚本据此渲染「fat 环境」来源标签：
+   * 一个不属于本页主机的凭证出现在登录框下拉里，必须行内可读，而不是只有侧边栏头部在说。
+   */
+  envHost?: string;
 }
 
 /**
@@ -601,6 +748,65 @@ export interface FillByIdData {
   id: string;
   /** 是否填充后自动触发登录 */
   autoLogin?: boolean;
+}
+
+/**
+ * 环境绑定查询数据（GET_ENV_BINDING）
+ *
+ * 键是**页面端点**而不是标签页：同一台机器上 `localhost:3000` 与 `localhost:5173` 是两个
+ * 不同的前端，各自连不同后端，绑定必须分开记。
+ */
+export interface EnvBindingQueryData {
+  /** 页面 hostname（仅环回主机可绑定） */
+  host: string;
+  /** 页面端口；null 表示默认端口或取不到 */
+  port: string | null;
+}
+
+/**
+ * 环境绑定写入数据（SET_ENV_BINDING）
+ *
+ * `envHost` 为 null 即清除该端点的绑定。这里传的是主机名（`fat.example.com`），
+ * 不含任何凭证，可安全留在会话存储里。
+ */
+export interface EnvBindingData extends EnvBindingQueryData {
+  /** 目标环境主机；null 表示清除 */
+  envHost: string | null;
+  /**
+   * 用户已确认「把线上环境账号带到本地页」
+   *
+   * 确认必须由后台判定而不是芯片自己决定：界面漏一次确认就等于没有确认。
+   * 未带确认写线上主机时后台拒绝并回 `needsAck`，前端弹一次确认再重发。
+   */
+  ack?: boolean;
+}
+
+/** 环境绑定读写结果 */
+export interface EnvBindingResultData {
+  /** 生效中的环境主机；未绑定或该页面不可绑定时为 null */
+  envHost: string | null;
+  /** 本次请求因「线上环境未确认」被拒绝，调用方据此发起确认 */
+  needsAck?: boolean;
+  /**
+   * 存储没收下这次写入（镜像已回滚）
+   *
+   * 与 `needsAck` 区分开：那一次是「等用户确认」，这一次是「操作失败」，
+   * 混成一个返回值就会把失败显示成「绑上了」。
+   */
+  failed?: boolean;
+}
+
+/**
+ * 环境绑定消息的统一响应信封
+ *
+ * 侧边栏此前没有「读后台响应」的先例（其它消息都是 fire-and-forget），因此这里显式命名，
+ * 而不是在 UI 里裸写断言。`success: false` 时 UI 一律按「未绑定」处理：
+ * 读不到绑定的后果是少显示条目，而不是多显示。
+ */
+export interface EnvBindingResponse {
+  success: boolean;
+  data?: EnvBindingResultData;
+  error?: string;
 }
 
 /**
@@ -693,6 +899,15 @@ export interface AutoSavePasswordData {
   tagEdited: boolean;
   /** 用户是否在弹窗中主动编辑了备注字段 */
   remarkEdited: boolean;
+  /**
+   * 本次登录所在页面的协议（捕获帧 `location.protocol`，如 `https:`）
+   *
+   * 只用于端口归属判定，不参与存储、展示与日志：`url` 存的是 `location.host`，
+   * 而浏览器会把协议默认端口从 host 里省略掉，光看它分不出 `https://a.com`（443）
+   * 与 `http://a.com`（80）——这两者对端口隔离的答案不同，协议只在补这一位上被用一次。
+   * 缺省时后台按「端口上下文不可得」处理，退回本功能存在之前的归属行为。
+   */
+  protocol?: string;
 }
 
 /**
@@ -754,8 +969,16 @@ export interface CheckCredentialStatusData {
   username: string;
   /** 密码（仅用于在 background 侧比对是否变化，绝不回传） */
   password: string;
-  /** 网站域名（捕获帧 hostname） */
+  /** 网站域名（捕获帧 `location.host`，与自动保存写入的 `url` 同口径） */
   url: string;
+  /**
+   * 本次操作所在页面的协议（捕获帧 `location.protocol`，如 `https:`），仅用于端口归属判定
+   *
+   * 与 `AutoSavePasswordData.protocol` 同义：`url` 用的是 `location.host`，协议默认端口在其中
+   * 被浏览器省略，只靠它分不出「页面在 443」与「页面在 80」，而端口隔离的答案不同。
+   * 缺失时按「端口上下文不可得」处理，退回不限端口的既有归属行为。
+   */
+  protocol?: string;
 }
 
 /**
@@ -956,11 +1179,13 @@ export interface IdentityVaultAccessConfig {
 /**
  * 跨子域匹配档位配置
  *
- * 取值语义见 `utils/domain.ts` 的 `DomainMatchMode`。仅存枚举值，不含任何域名或账号信息。
+ * 取值语义见 `utils/domain.ts` 的 `DomainMatchMode` 与 `PortScope`。仅存枚举值，不含任何域名或账号信息。
  */
 export interface DomainMatchConfig {
   /** 匹配档位，默认 `off`（仅精确 host 匹配） */
   mode: DomainMatchMode;
+  /** 端口匹配范围，默认 `loose`（公网域名不比较端口，本地开发域名沿用既有端口过滤） */
+  portScope: PortScope;
 }
 
 /**
@@ -972,6 +1197,23 @@ export interface DomainMatchConfig {
 export interface TrashedPasswordEntry extends EncryptedPasswordEntry {
   /** 移入回收站的时间戳（毫秒） */
   deletedAt: number;
+}
+
+/**
+ * 回收站恢复的分档结果
+ *
+ * 存在的全部理由：弹窗原先无条件弹「已恢复」，而 `restoreFromTrash` 在「请求的 id 已不在
+ * 回收站」（弹窗开着的那几秒里到期清理跑过，或另一张管理页标签把它彻底删除了）与
+ * 「主列表已有同 id、只消费副本」两种情况下确实一条都没恢复。返回计数让弹窗能说清是哪一种，
+ * 而不是把空操作报成成功。
+ * 身份库侧 `IdentityTrashRestoreResult` 同形状不同类型——两侧的读写模块刻意不共用
+ *（落盘形状与容量口径都不同，见 `identityTrashManager` 头部），类型也跟着各自的主人走。
+ */
+export interface TrashRestoreResult {
+  /** 真正追加回主列表的条数 */
+  restored: number;
+  /** 主列表已存在同 id、本次仅从回收站消费副本的条数 */
+  skippedExisting: number;
 }
 
 /**
@@ -1012,13 +1254,36 @@ export interface FieldFillResult {
 }
 
 /**
+ * 填充失败的结构化原因（仅 `success === false` 时出现）
+ *
+ * 文案一律由消费侧按自己的语言本地化：`message` 由 content script 的 `tl()` 产出，
+ * 而 `currentLiteLocale` 初值为 `zh-CN` 且要等异步 `getStoredLocale()` 才切档，
+ * 因此跨上下文透传 `message` 会让英文界面收到中文串。
+ */
+export type FillFailureReason = 'no_form' | 'no_totp_input' | 'nothing_filled' | 'fill_error';
+
+/** 填充成功的可信度（仅 `success === true` 时出现）：字段已写入但是否回读校验通过 */
+export type FillOutcome = 'verified' | 'unverified';
+
+/**
  * 填充结果接口
  */
 export interface FillResult {
   success: boolean;
   message: string;
   /** 结构化失败原因（跨语言稳定判断，替代对 message 文案的字符串匹配） */
-  reason?: 'no_form';
+  reason?: FillFailureReason;
+  /** 结构化成功档位，供消费侧选择「已填充」还是「已填充待核对」文案 */
+  outcome?: FillOutcome;
+  /**
+   * 本次写入的落点是否来自用户配置的站点规则（`customSelectors`）
+   *
+   * 规则覆盖是权威路径、绕过全部启发式判据，落点合不合意只有用户能判断，
+   * 因此不替用户拒填，而是把来源标出来（页面胶囊与管理页提示共用）。
+   */
+  viaSiteRule?: boolean;
+  /** 规则指定的密码落点自身是否声明了一次性口令语义且未打码（提示用户复核这条规则） */
+  ruleTargetCodeLike?: boolean;
   details: {
     usernameField: FieldFillResult;
     passwordField: FieldFillResult;

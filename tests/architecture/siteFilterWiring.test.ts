@@ -137,7 +137,7 @@ describe('筛选栏候选行的共同形状（标签计数与截断兜底）', (
    */
   const DROPDOWNS = [
     { name: '标签', field: 'tag', block: tagBlock },
-    { name: '站点', field: 'label', block: siteBlock },
+    { name: '站点', field: 'title', block: siteBlock },
   ] as const;
 
   it('两份候选字段映射的键集相同，值的分工不同', () => {
@@ -312,7 +312,9 @@ describe('无网址候选桶', () => {
     expect(SITE_SRC, '通用条目桶变成无条件产出：库里一条空网址都没有时也会多出一个 0 计数候选').toMatch(
       /if \(genericCount > 0\) options\.push\(\{ site: GENERIC_SITE_KEY, count: genericCount \}\)/,
     );
-    const sortAt = SITE_SRC.indexOf('.sort(');
+    // 探针必须钉在**候选排序**那一次上：桶内还有一次 `aliases` 的 `.sort()`，
+    // 用泛的 '.sort(' 会先命中它，届时把产桶行提到候选排序之前也照样绿灯（守卫被掏空）
+    const sortAt = SITE_SRC.indexOf('.sort((a, b)');
     const pushAt = SITE_SRC.indexOf('if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY');
     expect(sortAt, '站点候选不再排序（同数量站点的顺序会随平台漂）').toBeGreaterThan(-1);
     expect(pushAt, '通用条目桶不再固定末位，或根本不再产桶').toBeGreaterThan(sortAt);
@@ -329,22 +331,33 @@ describe('无网址候选桶', () => {
       '',
     );
     expect(
-      noPush.indexOf('if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY') > noPush.indexOf('.sort('),
+      noPush.indexOf('if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY') > noPush.indexOf('.sort((a, b)'),
       '末位固定的判据没有牙齿：不产桶也算通过',
     ).toBe(false);
     // 「没填网址」走和其他站点同一条判定：空键先映射成哨兵，再看它有没有被勾选。
-    // 旧的 `!key ||` 恒保留旁路一旦回来，勾选某个站点会带出一批没填网址的条目，
-    // 用户读到的是「筛选没生效」——所以两条判据一起钉：映射在、旁路不在。
+    // 恒保留旁路一旦回来（任何一种写法），勾选某个站点就会带出一批没填网址的条目，
+    // 用户读到的是「筛选没生效」——所以判据钉在函数体上，而不是某一种字符串形状。
     expect(SITE_SRC, '站点筛选不再把空网址条目映射到通用桶（它要么恒保留，要么彻底消失）').toMatch(
-      /return selectedSites\.includes\(siteKeyOf\(url\) \|\| GENERIC_SITE_KEY\)/,
+      /const key = siteKeyOf\(url\) \|\| GENERIC_SITE_KEY;/,
     );
-    expect(SITE_SRC, '恒保留旁路回来了：勾了站点仍会带出没填网址的条目').not.toMatch(/return !key \|\|/);
+    const filterFn = /export const matchesSiteFilter = \([\s\S]*?\n};/.exec(SITE_SRC)?.[0] ?? '';
+    expect(filterFn, '未从 siteUtils 抽到 matchesSiteFilter，本条判据成了空转').not.toBe('');
+    expect(filterFn).toMatch(/if \(selectedSites\.length === 0\) return true;/);
+    expect(filterFn.match(/return true;/g) ?? [], 'matchesSiteFilter 里出现了第二处无条件放行').toHaveLength(1);
+    // 折叠主机写法必须两侧同做：条目侧经 `siteKeyOf`，选中侧若还按字面串比对，
+    // 别名串（`127.0.0.1`）就对不上任何桶键、筛出空集
+    expect(SITE_SRC, '选中集不再折叠主机写法：别名串会筛出空集').toMatch(/canonicalSiteHost\(selected/);
     // 牙齿：摘掉空键映射（只按归一键判定），上一条 toMatch 必须抓到
     expect(
-      /return selectedSites\.includes\(siteKeyOf\(url\) \|\| GENERIC_SITE_KEY\)/.test(
+      /const key = siteKeyOf\(url\) \|\| GENERIC_SITE_KEY;/.test(
         SITE_SRC.replace('siteKeyOf(url) || GENERIC_SITE_KEY', 'siteKeyOf(url)'),
       ),
       '空键映射的判据没有牙齿：不映射也算通过',
+    ).toBe(false);
+    // 牙齿：选中侧退回字面比对，折叠判据必须抓到
+    expect(
+      /canonicalSiteHost\(selected/.test(SITE_SRC.replace('canonicalSiteHost(selected)', 'selected')),
+      '选中集折叠的判据没有牙齿',
     ).toBe(false);
   });
 
@@ -357,20 +370,51 @@ describe('无网址候选桶', () => {
     expect(BAR_SRC, '展示集不再由 availableSites 派生').toMatch(
       /const siteOptions = computed\(\(\) =>\s*props\.availableSites\.map/,
     );
-    expect(BAR_SRC, '哨兵键没有被换成本地化文案').toMatch(
-      /label: option\.site === GENERIC_SITE_KEY \? t\('options\.filter\.siteGenericOption'\) : option\.site/,
-    );
+    expect(BAR_SRC, '哨兵键没有被换成本地化文案').toMatch(/option\.site === GENERIC_SITE_KEY/);
+    expect(BAR_SRC, '无网址候选桶的文案没有落在数据上').toMatch(/t\('options\.filter\.siteGenericOption'\)/);
     // 牙齿：把文案分支还原成 hostname，上一条必须抓到
     expect(
-      /label: option\.site === GENERIC_SITE_KEY \? t\('options\.filter\.siteGenericOption'\) : option\.site/.test(
+      /t\('options\.filter\.siteGenericOption'\)/.test(
         BAR_SRC.replace("t('options.filter.siteGenericOption')", 'option.site'),
       ),
       '哨兵文案映射的判据没有牙齿',
     ).toBe(false);
-    // 候选行与省略号兜底读的都是展示字段
+    // 候选行与省略号兜底读的都是展示字段（站点行的 title 另外带上端口分布）
     expect(selectBlock(BAR_SRC, 'v-if="availableSites.length > 0"'), '站点候选行没渲染展示字段').toMatch(
-      /:title="item\.label"/,
+      /:title="item\.title"/,
     );
+  });
+
+  /**
+   * 折叠与端口分布必须留在展示层
+   *
+   * 折叠之后 `127.0.0.1` / `[::1]` 不再是可勾选的独立候选：标签里看不见，就等于用户筛不到、
+   * 也不知道自己勾的 `localhost` 涵盖了什么。所以别名上 `label`（顺带让键入 `127` 也能搜到这一桶），
+   * 端口进 `title`——面板宽度按最长 label 量出，把端口串塞进 label 会让整列候选被最活跃的一桶挤窄。
+   */
+  it('站点候选把折叠的写法与端口分布给回用户', () => {
+    expect(BAR_SRC, '被折叠的环回写法不再出现在候选标签里').toMatch(/t\('options\.filter\.siteWithAliases'/);
+    expect(BAR_SRC, '端口分布不再进候选行 title').toMatch(/t\('options\.filter\.sitePorts'/);
+    // 牙齿：把两个文案调用改名，判据必须跟着落空
+    expect(
+      /t\('options\.filter\.siteWithAliases'/.test(BAR_SRC.replace("t('options.filter.siteWithAliases'", "t('other'")),
+      '别名标签判据没有牙齿',
+    ).toBe(false);
+    expect(
+      /t\('options\.filter\.sitePorts'/.test(BAR_SRC.replace("t('options.filter.sitePorts'", "t('other'")),
+      '端口标题判据没有牙齿',
+    ).toBe(false);
+    // 中英文各有一条，占位符同名：只在一侧加新键会让另一半语言显示成裸占位符
+    for (const [locale, key] of [
+      ['zh-CN', '"options.filter.siteWithAliases"'],
+      ['zh-CN', '"options.filter.sitePorts"'],
+      ['en', '"options.filter.siteWithAliases"'],
+      ['en', '"options.filter.sitePorts"'],
+    ]) {
+      expect(read(`utils/i18n/locales/${locale}/options.json`).includes(key), `${locale} 缺少站点候选文案 ${key}`).toBe(
+        true,
+      );
+    }
   });
 
   it('候选文案在中英文语言包里各有一条', () => {

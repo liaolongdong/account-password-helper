@@ -49,7 +49,8 @@ describe('siteUtils.siteKeyOf', () => {
   });
 
   it('解析失败的畸形网址退化为去路径后的首段，不抛异常', () => {
-    expect(siteKeyOf('not a url /path')).toBe('not a url ');
+    // 折叠主机写法时顺带剥掉首尾空白：站点键是拿来勾选的比对值，带空白就再也输入不进去
+    expect(siteKeyOf('not a url /path')).toBe('not a url');
   });
 });
 
@@ -146,6 +147,77 @@ describe('siteUtils.collectSiteOptions', () => {
 
   it('空列表得到空候选集', () => {
     expect(collectSiteOptions([])).toEqual([]);
+  });
+});
+
+describe('siteUtils 环回别名折叠与端口分布', () => {
+  it('localhost / 127.0.0.1 / [::1] 折成同一个桶（与匹配、排序同一口径）', () => {
+    expect(siteKeyOf('http://localhost:3000')).toBe('localhost');
+    expect(siteKeyOf('127.0.0.1:4000')).toBe('localhost');
+    expect(siteKeyOf('http://[::1]:5173')).toBe('localhost');
+    // 折叠只给环回：同机不同虚拟主机、内网 IP、公网主机各归自己
+    expect(siteKeyOf('myapp.localhost:3000')).toBe('myapp.localhost');
+    expect(siteKeyOf('192.168.1.5:8080')).toBe('192.168.1.5');
+    expect(siteKeyOf('example.com')).toBe('example.com');
+  });
+
+  it('本机在候选集里只占一档，并带出被折叠的写法与端口分布', () => {
+    const options = collectSiteOptions([
+      { url: 'http://localhost:3000' },
+      { url: '127.0.0.1:4000' },
+      { url: 'localhost:*' },
+      { url: 'localhost' },
+    ]);
+
+    expect(options).toEqual([{ site: 'localhost', count: 4, aliases: ['127.0.0.1'], ports: ['3000', '4000', '*'] }]);
+  });
+
+  it('别名与端口是可选字段：单一写法且没写端口的桶不产生噪声', () => {
+    const options = collectSiteOptions([{ url: 'https://example.com/login' }, { url: 'example.com' }]);
+
+    expect(options).toEqual([{ site: 'example.com', count: 2 }]);
+    // 公网桶同样带端口分布：同域名多服务（8443 后台 / 9090 面板）靠它分辨
+    expect(collectSiteOptions([{ url: 'example.com:8443' }, { url: 'https://example.com/' }])).toEqual([
+      { site: 'example.com', count: 2, ports: ['8443'] },
+    ]);
+  });
+
+  it('端口按数值升序，`*` 恒在末位', () => {
+    const options = collectSiteOptions([
+      { url: 'localhost:80' },
+      { url: 'localhost:9090' },
+      { url: 'localhost:*' },
+      { url: 'localhost:3000' },
+    ]);
+
+    expect(options[0].ports).toEqual(['80', '3000', '9090', '*']);
+  });
+
+  it('陈旧或手写的旧键仍能命中：勾 127.0.0.1 得到的是本机整桶，而不是空集', () => {
+    expect(matchesSiteFilter('localhost:3000', ['127.0.0.1'])).toBe(true);
+    expect(matchesSiteFilter('127.0.0.1:4000', ['localhost'])).toBe(true);
+    expect(matchesSiteFilter('myapp.localhost:3000', ['localhost'])).toBe(false);
+  });
+
+  it('裸 `::1`（不带方括号）折进本机桶，但不产出假端口', () => {
+    // 文本口径会把 `::1` 切成主机 `:` + 端口 `1`；不校验来源就会在候选行 title 上报出「端口 1」。
+    // 别名取归一后的主机串：带端口的 `[::1]:5173` 保留方括号，裸写的 `::1` 原样保留。
+    expect(collectSiteOptions([{ url: '::1' }, { url: 'http://[::1]:5173' }])).toEqual([
+      { site: 'localhost', count: 2, aliases: ['::1', '[::1]'], ports: ['5173'] },
+    ]);
+  });
+
+  it('前导零端口归一：`080` 与 `80` 是同一个端口，不该并排出现两个', () => {
+    expect(collectSiteOptions([{ url: 'localhost:080' }, { url: 'localhost:80' }])[0].ports).toEqual(['80']);
+  });
+
+  it('产桶键与判定键同源：同一个网址两侧算出同一个桶', () => {
+    for (const url of ['localhost:3000', '127.0.0.1', 'example.com:8443', '*.localhost', 'not a url:8080', '']) {
+      const options = collectSiteOptions([{ url }]);
+      // 任一侧口径漂移都会变成「候选在列表里、勾了却筛不出」的静默失配
+      expect(options[0].site, url).toBe(siteKeyOf(url) || GENERIC_SITE_KEY);
+      expect(matchesSiteFilter(url, [options[0].site]), url).toBe(true);
+    }
   });
 });
 

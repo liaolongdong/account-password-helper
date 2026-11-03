@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     :title="dialogState.title"
     width="420px"
+    align-center
     :close-on-click-modal="false"
     :close-on-press-escape="!verifying"
     :destroy-on-close="false"
@@ -73,21 +74,20 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
+import type { InputInstance } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { focusAfterDialogOpen } from '@/utils/dialogFocus';
 import { useI18n } from '@/utils/i18n';
 import {
   _getVerifyDialogState,
   _resolveVerifyDialog,
   _rejectVerifyDialog,
 } from '@/utils/masterPasswordVerifyController';
-import { SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
+import { SHAKE_DURATION_MS, MAX_FAIL_BEFORE_HINT } from '@/composables/useAuthFlow';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import CapsLockHint from '@/components/CapsLockHint.vue';
-
-/** 连续错误次数达到此值后显示重置提示 */
-const MAX_FAIL_BEFORE_HINT = 3;
 
 const { t } = useI18n();
 
@@ -115,10 +115,15 @@ const shaking = ref(false);
 const failCount = ref(0);
 
 /** 输入框引用（用于聚焦） */
-const inputRef = ref();
+const inputRef = ref<InputInstance>();
 
 /** 抖动动画持续时间，与 useAuthFlow 保持一致 */
 const shakeDurationMs = SHAKE_DURATION_MS;
+
+/** 聚焦密码输入框 */
+const focusPasswordInput = () => {
+  inputRef.value?.focus();
+};
 
 /** 监听控制器状态，同步弹窗可见性 */
 watch(
@@ -132,10 +137,7 @@ watch(
       shaking.value = false;
       resetCapsLockState();
 
-      nextTick(() => {
-        const input = inputRef.value?.$el?.querySelector?.('.el-input__inner') as HTMLInputElement | undefined;
-        input?.focus();
-      });
+      focusAfterDialogOpen(focusPasswordInput);
     }
   },
 );
@@ -194,10 +196,7 @@ const triggerShake = () => {
     shaking.value = false;
   }, shakeDurationMs);
 
-  nextTick(() => {
-    const input = inputRef.value?.$el?.querySelector?.('.el-input__inner') as HTMLInputElement | undefined;
-    input?.focus();
-  });
+  nextTick(focusPasswordInput);
 };
 
 /** 输入时清除错误 */
@@ -253,7 +252,7 @@ const clearError = () => {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.4;
-  color: var(--el-color-error);
+  color: var(--aph-danger-strong);
 }
 
 /* 忘记密码提示 */

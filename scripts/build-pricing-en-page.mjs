@@ -79,8 +79,11 @@ replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
 
 // hreflang 三条交替声明随 pricing.html 一并继承（双语互指内容相同，无需按语言改写）
 
-// 语言默认值固定为 en
-replaceOnce("return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';", "return 'en';");
+// 语言默认值固定为 en（仍尊重 localStorage 显式选择）
+replaceOnce(
+  /\/\* localStorage 不可用时保持中文缺省 \*\/\n        \}\n        return 'zh';/,
+  "/* localStorage 不可用时保持英文缺省 */\n        }\n        return 'en';",
+);
 
 html = html.replace(
   '<!doctype html>\n',

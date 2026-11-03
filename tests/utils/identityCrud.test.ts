@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import type { IdentityPayload, IdentityRecord } from '@/utils/identity/types';
 
 /**
@@ -28,6 +29,7 @@ vi.mock('@/utils/encryption', () => ({
   encryptData,
   decryptData,
   deriveEncryptionKey,
+  deriveVerifierHash: vi.fn(async (password: string) => `verifier:${password}`),
 }));
 
 const { getSessionDataKey } = vi.hoisted(() => ({
@@ -75,7 +77,13 @@ let localSet: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStore = {};
+  localStore = {
+    [STORAGE_KEYS.MASTER_PASSWORD]: {
+      salt: 'fixture-salt',
+      hashedPassword: 'verifier:master-pw',
+      kdf: 'pbkdf2-sha256',
+    },
+  };
 
   encryptData.mockImplementation(async (data, key) => enc(data, key));
   decryptData.mockImplementation(async (data, key) => dec(data, key));
@@ -140,7 +148,7 @@ describe('saveIdentity', () => {
   });
 
   it('达到条数上限时拒绝新增', async () => {
-    const full: IdentityRecord[] = Array.from({ length: 30 }, (_, i) => ({
+    const full: IdentityRecord[] = Array.from({ length: MAX_IDENTITIES }, (_, i) => ({
       id: `id-${i}`,
       encryptedPayload: enc(JSON.stringify(payload()), SESSION_KEY),
       createTime: 1,
@@ -270,6 +278,18 @@ describe('reencryptAll', () => {
     expect(result.find(r => r.id === 'broken')?.encryptedPayload).toBe('corrupted');
     expect(JSON.parse(dec(result.find(r => r.id === 'ok')!.encryptedPayload, 'NEW'))).toEqual({});
   });
+
+  it('把失败条目回调给换钥编排层，便于只按条数记日志', async () => {
+    const broken: IdentityRecord = { id: 'broken', encryptedPayload: 'corrupted', createTime: 1, updateTime: 1 };
+    const ok: IdentityRecord = { id: 'ok', encryptedPayload: enc('{}', 'OLD'), createTime: 1, updateTime: 1 };
+    const onFailure = vi.fn();
+
+    const result = await reencryptAll([broken, ok], 'OLD', 'NEW', onFailure);
+
+    expect(result).toHaveLength(2);
+    expect(onFailure).toHaveBeenCalledTimes(1);
+    expect(onFailure).toHaveBeenCalledWith(broken);
+  });
 });
 
 describe('replaceAllIdentityRaw', () => {
@@ -309,6 +329,102 @@ describe('replaceAllIdentity（导入写回不丢弃不可解密记录）', () =
     expect(raw.find(r => r.id === 'bad')?.encryptedPayload).toBe('corrupted-not-decryptable');
   });
 
+  it('并发新增把总量推过上限时整批拒绝（不落盘、不截断）', async () => {
+    // 磁盘已有上限条数，导入文件里全是新 id：预览时磁盘还少一条（用户同时在新增），
+    // 合并必须在提交锁内重新按最终条数复核，否则 101 条落盘后连自己的 .aphid 导出都解不开
+    const existing: IdentityRecord[] = Array.from({ length: MAX_IDENTITIES }, (_, i) => ({
+      id: `disk-${i}`,
+      encryptedPayload: enc(JSON.stringify(payload({ name: `disk-${i}` })), SESSION_KEY),
+      createTime: 1,
+      updateTime: 1,
+    }));
+    localStore[STORAGE_KEYS.IDENTITY] = existing;
+    const incoming = Array.from({ length: 2 }, (_, i) => ({
+      id: `imported-${i}`,
+      createTime: 5,
+      updateTime: 5,
+      payload: payload({ name: `imported-${i}` }),
+    }));
+
+    const error = await replaceAllIdentity(incoming).catch((e: unknown) => e);
+    expect(getIdentityCrudErrorCode(error)).toBe('LIMIT_REACHED');
+    const raw = await getAllIdentityRaw();
+    expect(raw).toHaveLength(MAX_IDENTITIES);
+  });
+
+  it('导入期间别人删掉的条目不被复活、别人改过的行以落盘时刻那一版为准', async () => {
+    // 预读：磁盘有 a、b 两条，导入想把两条都换成 updateTime=5 的版本。
+    localStore[STORAGE_KEYS.IDENTITY] = [
+      {
+        id: 'a',
+        encryptedPayload: enc(JSON.stringify(payload({ name: '旧 A' })), SESSION_KEY),
+        createTime: 1,
+        updateTime: 1,
+      },
+      {
+        id: 'b',
+        encryptedPayload: enc(JSON.stringify(payload({ name: '旧 B' })), SESSION_KEY),
+        createTime: 1,
+        updateTime: 1,
+      },
+    ];
+    const incoming = [
+      { id: 'a', createTime: 1, updateTime: 5, payload: payload({ name: '导入 A' }) },
+      { id: 'b', createTime: 1, updateTime: 5, payload: payload({ name: '导入 B' }) },
+    ];
+
+    // 落盘前的那次重读代表「预读到落盘之间别人动过」：b 已被删除，a 被改到 updateTime=9。
+    // 只翻转第 2 次读——第 3 次起是断言里的验证读，必须回到真实落盘结果，否则用例读的是
+    // 自己注入的假数据，怎么改实现都不会红。
+    let identityReads = 0;
+    const plainGet = localGet.getMockImplementation() as (key: string) => Promise<Record<string, unknown>>;
+    localGet.mockImplementation(async (key: string) => {
+      const found = await plainGet(key);
+      if (key !== STORAGE_KEYS.IDENTITY) return found;
+      identityReads += 1;
+      if (identityReads !== 2) return found;
+      return {
+        [STORAGE_KEYS.IDENTITY]: [
+          {
+            id: 'a',
+            encryptedPayload: enc(JSON.stringify(payload({ name: '并发改的 A' })), SESSION_KEY),
+            createTime: 1,
+            updateTime: 9,
+          },
+        ],
+      };
+    });
+
+    await replaceAllIdentity(incoming);
+
+    expect(identityReads, '夹具没走到「锁内重读」那一步，本用例在空跑').toBeGreaterThanOrEqual(2);
+    const raw = await getAllIdentityRaw();
+    expect(
+      raw.map(r => r.id),
+      '期间被删的 b 被导入复活回主列表了——它同时还在回收站里，一处一份就成了双份',
+    ).toEqual(['a']);
+    expect(
+      JSON.parse(dec(raw[0].encryptedPayload, SESSION_KEY)).name,
+      '导入拿预读时的 updateTime 定夺，把别人在窗口内改的那一版（9）回卷成了 5',
+    ).toBe('并发改的 A');
+  });
+
+  it('磁盘记录比入参更新时保留磁盘版本：旧快照不得覆盖并发编辑', async () => {
+    localStore[STORAGE_KEYS.IDENTITY] = [
+      {
+        id: 'x',
+        encryptedPayload: enc(JSON.stringify(payload({ name: '对方刚改的名' })), SESSION_KEY),
+        createTime: 1,
+        updateTime: 9,
+      },
+    ];
+
+    await replaceAllIdentity([{ id: 'x', createTime: 1, updateTime: 3, payload: payload({ name: '我的旧值' }) }]);
+
+    const { entries } = await getAllIdentity();
+    expect(entries[0].payload.name).toBe('对方刚改的名');
+  });
+
   it('入参 id 命中磁盘记录时以新明文为准（覆盖旧密文，不重复保留）', async () => {
     localStore[STORAGE_KEYS.IDENTITY] = [{ id: 'x', encryptedPayload: 'old-cipher', createTime: 1, updateTime: 1 }];
     await replaceAllIdentity([{ id: 'x', createTime: 5, updateTime: 9, payload: payload({ name: '新值' }) }]);
@@ -323,7 +439,7 @@ describe('replaceAllIdentity（导入写回不丢弃不可解密记录）', () =
 
 describe('getIdentityCrudErrorCode（类型化错误码，替代散文匹配）', () => {
   it('saveIdentity 上限错误携带 LIMIT_REACHED', async () => {
-    const full: IdentityRecord[] = Array.from({ length: 30 }, (_, i) => ({
+    const full: IdentityRecord[] = Array.from({ length: MAX_IDENTITIES }, (_, i) => ({
       id: `id-${i}`,
       encryptedPayload: enc(JSON.stringify(payload()), SESSION_KEY),
       createTime: 1,

@@ -580,7 +580,7 @@ defineExpose({ formRef: localFormRef });
 
 .totp-preview__hint {
   font-size: 12px;
-  color: #f56c6c;
+  color: var(--aph-danger-strong);
 }
 
 .totp-tip {
@@ -588,7 +588,7 @@ defineExpose({ formRef: localFormRef });
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.5;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 /* 网址字段的通配条目引导：el-form-item__content 是 flex，需独占一行 */
@@ -622,7 +622,7 @@ defineExpose({ formRef: localFormRef });
 .history-time {
   flex-shrink: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .history-password {

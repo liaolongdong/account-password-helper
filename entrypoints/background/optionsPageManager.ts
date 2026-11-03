@@ -1,4 +1,5 @@
 import { MessageType } from '@/utils/types';
+import { OPTIONS_FIRST_VIEW_PARAM, type OptionsFirstView } from '@/utils/optionsFirstView';
 import { logger } from '@/utils/logger';
 
 /**
@@ -93,13 +94,16 @@ async function findExistingOptionsTabId(optionsUrl: string): Promise<number | un
  * - 并发/连点请求复用进行中的 Promise，均能拿到同一 tabId
  * - 已存在 options 标签页（含加载中）：激活并聚焦其所在窗口
  * - 不存在：创建新标签页并缓存 tabId
+ *
+ * @param firstView 新建标签页时给首屏骨架的同步预判提示；激活已有标签页时无效果。
+ *   并发去重下后到调用方若复用已有 Promise，其提示不会追加到已创建的 URL 上。
  */
-export function openOptionsPage(): Promise<number | undefined> {
+export function openOptionsPage(firstView?: OptionsFirstView): Promise<number | undefined> {
   if (openingPromise) {
     logger.debug('Background: 正在打开选项页面，复用进行中的流程');
     return openingPromise;
   }
-  openingPromise = doOpenOptionsPage().finally(() => {
+  openingPromise = doOpenOptionsPage(firstView).finally(() => {
     openingPromise = null;
   });
   return openingPromise;
@@ -108,10 +112,12 @@ export function openOptionsPage(): Promise<number | undefined> {
 /**
  * 打开选项页面的实际流程（由 openOptionsPage 做并发去重后调用）
  */
-async function doOpenOptionsPage(): Promise<number | undefined> {
+async function doOpenOptionsPage(firstView?: OptionsFirstView): Promise<number | undefined> {
   try {
-    const optionsUrl = chrome.runtime.getURL('options.html');
-    const existingTabId = await findExistingOptionsTabId(optionsUrl);
+    // 匹配已有标签页始终用不带查询参数的基址；查询参数只影响新建标签页的首帧预判
+    const baseUrl = chrome.runtime.getURL('options.html');
+    const optionsUrl = firstView ? `${baseUrl}?${OPTIONS_FIRST_VIEW_PARAM}=${encodeURIComponent(firstView)}` : baseUrl;
+    const existingTabId = await findExistingOptionsTabId(baseUrl);
 
     if (existingTabId !== undefined) {
       try {
@@ -171,8 +177,9 @@ export function waitForTabComplete(tabId: number, timeoutMs: number): Promise<vo
 export function openOptionsAndSendMessage(
   messageType: MessageType,
   data?: unknown,
+  firstView?: OptionsFirstView,
 ): Promise<{ success: boolean; error?: string }> {
-  return openOptionsPage()
+  return openOptionsPage(firstView)
     .then(async (tabId): Promise<{ success: boolean; error?: string }> => {
       if (tabId === undefined) {
         // 选项页未能打开时如实上报失败，与 sendMessage 失败的上报契约保持一致

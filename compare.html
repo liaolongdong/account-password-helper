@@ -31,7 +31,7 @@
     <title>Bitwarden / 1Password 替代方案十维对比 · 开源本地密码管理器</title>
     <meta
       name="description"
-      content="2026 年找 Bitwarden 替代、1Password 替代或更好的 Chrome 自带密码管理器？十个维度对比价格、存储、注册、一键登录、多环境隔离与跨子域名档位、站点规则、TOTP、离线体检、身份信息库、开源，说清各自适合谁。"
+      content="2026 年找 Bitwarden 替代、1Password 替代或更好的 Chrome 自带密码管理器？十个维度对比价格、存储、注册、一键登录、多环境隔离与跨子域名档位、站点规则、TOTP、离线体检、个人信息库、开源，说清各自适合谁。"
     />
     <link
       rel="icon"
@@ -71,7 +71,7 @@
     />
     <meta
       property="og:description"
-      content="十个维度横向对比开源免费的本地密码管理器与 Bitwarden、1Password、Chrome 自带：价格、存储、注册、一键登录、多环境隔离与跨子域名档位、站点规则、TOTP、离线体检、身份信息库、开源，并诚实说明各自适合谁。"
+      content="十个维度横向对比开源免费的本地密码管理器与 Bitwarden、1Password、Chrome 自带：价格、存储、注册、一键登录、多环境隔离与跨子域名档位、站点规则、TOTP、离线体检、个人信息库、开源，并诚实说明各自适合谁。"
     />
     <meta
       property="og:url"
@@ -222,7 +222,7 @@
             "name": "本地密码管理器安全吗？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "账号密码管理助手采用浏览器原生 Web Crypto API，主密码经 PBKDF2（600,000 次迭代）派生密钥，敏感字段逐字段以 AES-256-GCM 认证加密，账号、密码与验证码不上传任何服务器；扩展唯一的对外请求是每 6 小时一次的匿名版本检查，不携带密码库内容或个人标识。忘记主密码无法找回，建议定期用加密备份导出。与任何浏览器扩展一样，不建议存放银行、支付等高敏感凭证。"
+              "text": "账号密码管理助手采用浏览器原生 Web Crypto API，主密码经 PBKDF2（600,000 次迭代）派生密钥，敏感字段逐字段以 AES-256-GCM 认证加密，账号、密码与验证码不上传任何服务器；扩展唯一的对外请求是每 6 小时一次的匿名版本检查，不携带密码库内容或个人标识。忘记主密码默认无法找回（事先登记过离线恢复密钥的除外），建议定期用加密备份导出。与任何浏览器扩展一样，不建议存放银行、支付等高敏感凭证。"
             }
           },
           {
@@ -588,7 +588,7 @@
         <div class="cta">
           <a
             class="btn"
-            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphcmp"
             >免费安装（Chrome 应用商店）</a
           >
           <a
@@ -678,7 +678,7 @@
                   <td><span class="no">否</span></td>
                 </tr>
                 <tr>
-                  <td>身份信息库（证件 / 银行卡，本机加密）</td>
+                  <td>个人信息库（证件 / 银行卡，本机加密）</td>
                   <td class="us"><span class="yes">是</span></td>
                   <td class="partial">身份 / 卡片条目（云端）</td>
                   <td class="partial">身份 / 银行卡（云端）</td>
@@ -721,14 +721,14 @@
                 JSON（只含域名与选择器，绝不含账号密码）并按域名合并导入，回报新增 / 更新 / 忽略。
               </li>
               <li>
-                <b>命令面板</b>：管理页按 Ctrl+K / Cmd+K 唤起（网页上与侧边栏内不提供），按中文 / 拼音 / 首字母检索 27
+                <b>命令面板</b>：管理页按 Ctrl+K / Cmd+K 唤起（网页上与侧边栏内不提供），按中文 / 拼音 / 首字母检索 30
                 条命令，回车直达；需要已解锁的会话，删除与覆盖类命令保留原有二次确认；它不是扩展清单里的命令，因此不出现在
                 chrome://extensions/shortcuts 中。
               </li>
               <li>
-                <b>身份信息库</b>：只在管理页可用的独立加密库（整包
-                AES-256-GCM），存放姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段；敏感字段默认掩码，打开需复验主密码，单字段或整卡复制都受剪贴板限时清除约束，支持拼音搜索，上限
-                30 条。提供 .aphid 加密备份导出 / 导入，另可选明文 .json
+                <b>个人信息库</b>：独立加密库（整包
+                AES-256-GCM），存放姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段；库本身只在管理页打开，但不用自己找回那一页——网页输入框上右键「从个人信息库选择」即可召唤，取完值点提示条的「回到原网页」回到原来那一格（该右键项只跳转，不读字段内容、不回填页面）；敏感字段默认掩码，打开需复验主密码，单字段或整卡复制都受剪贴板限时清除约束，支持拼音搜索，上限
+                100 条。提供 .aphid 加密备份导出 / 导入，另可选明文 .json
                 导出与再导入（需复验主密码并二次确认风险），导入按 id
                 合并；<b>不纳入自动备份</b>，请定期手动导出加密备份。
               </li>
@@ -817,10 +817,10 @@
                 <li>一键登录（勾选协议 + 点击登录，不只填表）</li>
                 <li>精确域名多环境隔离，跨子域名可再放宽为通配条目 / 同主域名两档</li>
                 <li>站点规则：按域名自定义账号 / 密码输入框选择器，兜底识别不准的登录页</li>
-                <li>命令面板：管理页 Ctrl+K / Cmd+K 检索并直达 27 条命令</li>
+                <li>命令面板：管理页 Ctrl+K / Cmd+K 检索并直达 30 条命令</li>
                 <li>内置 TOTP 生成与离线安全体检</li>
                 <li>加密备份（.aph）、回收站与密码修改历史</li>
-                <li>身份信息库：证件号、银行卡等个人信息独立加密，仅管理页可见</li>
+                <li>个人信息库：证件号、银行卡等个人信息独立加密，库在管理页、可从网页输入框右键召唤进入</li>
                 <li>6 款主题 + 中英文双语界面</li>
               </ul>
             </div>
@@ -873,7 +873,7 @@
             <p>
               使用浏览器原生 Web Crypto API，主密码经 PBKDF2（600,000 次迭代）派生密钥，敏感字段 AES-256-GCM
               认证加密，密码数据不出本机、不上传服务器；唯一的对外请求是每 6
-              小时一次的匿名版本检查，不携带密码库内容或个人标识。忘记主密码无法找回，建议定期加密备份；与任何扩展一样，不建议存放银行
+              小时一次的匿名版本检查，不携带密码库内容或个人标识。忘记主密码默认无法找回（事先登记过离线恢复密钥的除外），建议定期加密备份；与任何扩展一样，不建议存放银行
               / 支付等高敏感凭证。
             </p>
           </div>
@@ -910,7 +910,7 @@
           <div class="cta reveal">
             <a
               class="btn"
-              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=aphcmp"
               >从 Chrome 应用商店安装</a
             >
             <a

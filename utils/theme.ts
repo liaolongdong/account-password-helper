@@ -148,8 +148,8 @@ export const THEME_SHADOW_TOKENS: Record<ThemeName, Record<string, string>> = {
  * `tests/architecture/shadowTokenCoverage.test.ts` 会扫 `entrypoints/content/` 强制这点。
  */
 export const SHADOW_NEUTRAL_TOKENS: Record<string, string> = {
-  '--aph-text-muted': '#9ca3af',
-  '--aph-text-placeholder': '#6e7582',
+  '--aph-text-muted': '#616876',
+  '--aph-text-placeholder': '#616876',
 };
 
 /**

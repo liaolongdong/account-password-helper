@@ -6,8 +6,8 @@
  *
  * 与 `.aph` 的一处刻意差异：`records` **保留 `id`**。密码库能剥 id 是因为它有
  * removeDuplicates 兜底且导入常视为新条目；身份库一期无去重工具，最可能的场景是
- * 同一用户重复导入同一份备份（换机/误操作/验证可用性）——若剥 id，30 条 PII 会
- * 变成 60 条重复记录，且 category 与全部字段都在密文里，用户无法肉眼去重。
+ * 同一用户重复导入同一份备份（换机/误操作/验证可用性）——若剥 id，满库 PII 会
+ * 变成两倍的重复记录，且 category 与全部字段都在密文里，用户无法肉眼去重。
  * 故 `.aphid` 以 id 作为跨备份的稳定身份，导入时按 id 合并。
  *
  * 除加密 `.aphid` 外，本模块另提供**可选的明文 JSON 导出/导入**（`buildIdentityPlaintextJson`
@@ -225,7 +225,7 @@ function isIdentityBackupRecord(value: unknown): value is IdentityBackupRecord {
  *
  * 条数上限在逐记录形状校验之前拦截：若先把 `records.every` 跑完再交给 UI 判上限，
  * 恶意/损坏的超大数组会触发一次无界的同步校验与内存分配。合法备份
- * （单次导出不超过全库 30 条上限）恒不触发此分支。
+ * （单次导出不超过 `MAX_IDENTITIES` 条上限）恒不触发此分支。
  */
 export function parseIdentityBackupData(json: unknown): IdentityBackupData {
   const data = json as {

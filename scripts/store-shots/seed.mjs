@@ -1,5 +1,5 @@
 /**
- * 注入商店截图用的占位演示数据：设置主密码 + CSV 批量导入示例账号 + 收藏指定条目 + 轮换指定条目密码。
+ * 注入商店截图用的占位演示数据：设置主密码 + CSV 批量导入示例账号 + 收藏指定条目 + 轮换指定条目密码 + 导入个人信息。
  *
  *   node seed.mjs <path-to-.output/chrome-mv3> [zh|en] [demo.csv]
  *
@@ -9,6 +9,7 @@
  *
  * 不传 demo.csv 时用内联的 example.com 占位账号，不含任何真实凭据；
  * 收藏步骤按用户名定位行（见 FAVORITE_USERS），置顶效果才会在截图里看得出来。
+ * 个人信息走 `.json` 明文导入（见 seedIdentities），保证落盘是加密 payload。
  */
 import { resolve } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -117,6 +118,8 @@ const LABELS = {
     setup: '设置主密码并开始使用',
     import: '导入数据',
     confirm: '确认导入',
+    identityEntry: '打开个人信息库（需要验证主密码）',
+    identityConfirm: '确认导入',
     favorite: '收藏（置顶显示）',
     unfavorite: '取消收藏',
     edit: '编辑',
@@ -129,6 +132,8 @@ const LABELS = {
     import: 'Import data',
     // 确认按钮带条数后缀，如「Import (8 entries)」，故只用前缀
     confirm: 'Import (',
+    identityEntry: 'Open the personal info vault (master password required)',
+    identityConfirm: 'Confirm import',
     favorite: 'Favorite (pinned to top)',
     unfavorite: 'Unfavorite',
     edit: 'Edit',
@@ -138,6 +143,232 @@ const LABELS = {
   },
 };
 const L = LABELS[LANG];
+
+/**
+ * 个人信息演示数据：四类各一条（证件 / 银行卡 / 个人 / 地址），让截图里的类别筛选、
+ * 标题回退链与「默认掩码」都有真实内容可展示。
+ *
+ * **全部是占位值**：姓名用中文习惯的占位名（张三 / 李四 / Alex Example），证件号与卡号
+ * 带明显的 `XXXX` 段，电话用 `138 0000 0000` 这类不可能命中的号，邮箱与网址落在
+ * `example.com`；备注里再写一次「示例」，避免出现任何可被当成真实资料的字符串。
+ *
+ * `updateTime` 逐条递减：列表默认档是「最近修改倒序」，把带机密字段的两条排在上面，
+ * 首屏就能看到掩码，而不是先两张明文卡。
+ */
+const DEMO_IDENTITIES = {
+  zh: [
+    {
+      id: 'uuid-demo-idcard-0001',
+      payload: {
+        category: 'id_card',
+        name: '张三',
+        idNumber: '11010119900307XXXX',
+        phone: '138 0000 0000',
+        remark: '示例证件，占位数据，非真实信息',
+      },
+    },
+    {
+      id: 'uuid-demo-bankcard-001',
+      payload: {
+        category: 'bank_card',
+        name: '张三的储蓄卡',
+        cardNo: '6222 0200 XXXX XXXX',
+        cardBank: '示例银行',
+        cardHolder: '张三',
+        cardExpiry: '12/36',
+        cardCvv: 'XXX',
+        remark: '示例卡，卡号与安全码均为占位',
+      },
+    },
+    {
+      id: 'uuid-demo-person-0001',
+      payload: {
+        category: 'person',
+        name: '李四',
+        phone: '139 0000 0000',
+        email: 'lisi@example.com',
+        customFields: [{ id: 'cf-demo-residence', label: '常用地址', value: '上海', secret: false }],
+      },
+    },
+    {
+      id: 'uuid-demo-address-0001',
+      payload: {
+        category: 'address',
+        name: '收货地址（家）',
+        address: '上海市浦东新区示例路 100 号 1000 室',
+        phone: '137 0000 0000',
+        remark: '示例地址',
+      },
+    },
+  ],
+  en: [
+    {
+      id: 'uuid-demo-idcard-0001',
+      payload: {
+        category: 'id_card',
+        name: 'Alex Example',
+        idNumber: 'XX-0000000XX',
+        phone: '+1 555 0100',
+        remark: 'Sample record — placeholder data, not real',
+      },
+    },
+    {
+      id: 'uuid-demo-bankcard-001',
+      payload: {
+        category: 'bank_card',
+        name: 'Alex Example Debit Card',
+        cardNo: '4000 1234 XXXX 0000',
+        cardBank: 'Example Bank',
+        cardHolder: 'ALEX EXAMPLE',
+        cardExpiry: '12/36',
+        cardCvv: 'XXX',
+        remark: 'Sample card — number and CVV are placeholders',
+      },
+    },
+    {
+      id: 'uuid-demo-person-0001',
+      payload: {
+        category: 'person',
+        name: 'Jordan Example',
+        phone: '+1 555 0101',
+        email: 'jordan@example.com',
+        customFields: [{ id: 'cf-demo-residence', label: 'City', value: 'Shanghai', secret: false }],
+      },
+    },
+    {
+      id: 'uuid-demo-address-0001',
+      payload: {
+        category: 'address',
+        name: 'Home address',
+        address: '1000, 100 Example Road, Pudong, Shanghai',
+        phone: '+1 555 0102',
+        remark: 'Sample address',
+      },
+    },
+  ],
+}[LANG];
+
+/** 固定基线时间戳：让「最近修改倒序」的顺序在两次跑批之间也可复现。 */
+const IDENTITY_BASE_TIME = 1_761_600_000_000;
+
+/**
+ * 明文个人信息 `.json`（`identity.import.*` 收的导出格式）。
+ *
+ * `kind` / `version` / `count` / `exportedAt` 与逐字段上限都由
+ * `parseIdentityBackupData` 校验，这里按它的口径构造，导入才会走成「按 id 合并」。
+ */
+const DEMO_IDENTITIES_JSON = JSON.stringify(
+  {
+    kind: 'aphid',
+    version: 1,
+    exportedAt: IDENTITY_BASE_TIME,
+    count: DEMO_IDENTITIES.length,
+    records: DEMO_IDENTITIES.map((r, i) => ({
+      id: r.id,
+      createTime: IDENTITY_BASE_TIME - (i + 1) * 86_400_000,
+      // 倒序递减：第一条（证件）最新，默认档下带掩码的两条落在首屏
+      updateTime: IDENTITY_BASE_TIME - i * 86_400_000,
+      payload: r.payload,
+    })),
+  },
+  null,
+  2,
+);
+
+/** 在可见弹窗里填主密码并点主按钮（`promptAndVerifyMasterPassword` 那一层）。 */
+const submitMasterPassword = `(() => {
+  const isVisible = (n) => !!(n.offsetWidth || n.offsetHeight || n.getClientRects().length);
+  const dialog = [...document.querySelectorAll('.el-dialog')].filter(isVisible).pop();
+  if (!dialog) return 'no visible dialog';
+  const el = [...dialog.querySelectorAll('input[type=password]')].find(isVisible);
+  if (!el) return 'password input not found';
+  const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
+  d.set.call(el, ${JSON.stringify(MASTER_PASSWORD)});
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  const btn = [...dialog.querySelectorAll('button')].filter(isVisible).find(b => b.classList.contains('el-button--primary'));
+  if (!btn) return 'confirm button not found';
+  btn.click();
+  return 'master password submitted';
+})()`;
+
+/** 关掉个人信息库弹窗：明文只在弹窗打开期间驻留，`@closed` 会 `teardown()`。 */
+const closeIdentityVault = `(() => {
+  const isVisible = (n) => !!(n.offsetWidth || n.offsetHeight || n.getClientRects().length);
+  const dialog = [...document.querySelectorAll('.el-dialog')].filter(isVisible).pop();
+  if (!dialog) return 'no visible dialog';
+  const btn = [...dialog.querySelectorAll('button')].filter(isVisible).pop();
+  if (!btn) return 'no button in dialog';
+  btn.click();
+  return 'vault dialog closed';
+})()`;
+
+/**
+ * 把个人信息演示数据种进库里。
+ *
+ * 刻意走**应用自己的导入链**（开库 → 复验主密码 → 挂文件 → 再复验 → 合并确认），
+ * 而不是 `chrome.storage.local.set({ personal_identity_infos: [...] })`：个人信息是第 4 个
+ * 加密域，落盘形状必须是 `id / encryptedPayload / createTime / updateTime`，明文数组会被
+ * 读侧当坏数据并触发复验失败。走导入同时也把「复验门槛」这条卖点拍成了真实状态。
+ */
+async function seedIdentities(session) {
+  const jsonPath = resolve(tmpdir(), `aph-store-shots-demo-identities-${LANG}.json`);
+  writeFileSync(jsonPath, DEMO_IDENTITIES_JSON, 'utf8');
+
+  const entrySel = `button[title=${JSON.stringify(L.identityEntry)}]`;
+  console.log(
+    'identity vault:',
+    await evalIn(
+      session,
+      `(() => {
+        const btn = document.querySelector(${JSON.stringify(entrySel)});
+        if (!btn) return 'entry not found: ' + ${JSON.stringify(entrySel)};
+        btn.click();
+        return 'opened';
+      })()`,
+    ),
+  );
+  await wait(1500);
+  console.log('identity verify:', await evalIn(session, submitMasterPassword));
+  await wait(2500);
+
+  // 文件输入在弹窗里（`accept=".aphid,.json"`），直接给它挂文件，绕开原生选择器
+  const doc = await session.send('DOM.getDocument', { depth: -1 });
+  const { nodeId } = await session.send('DOM.querySelector', {
+    nodeId: doc.root.nodeId,
+    selector: '.identity-file-input',
+  });
+  if (!nodeId) {
+    throw new Error('找不到库弹窗里的 .identity-file-input：个人信息没能种进去，图 15 会拍成空库');
+  }
+  await session.send('DOM.setFileInputFiles', { nodeId, files: [jsonPath] });
+  await wait(1500);
+  console.log('identity plain verify:', await evalIn(session, submitMasterPassword));
+  await wait(2500);
+  console.log('identity merge:', await evalIn(session, clickPrefix(L.identityConfirm)));
+  await wait(3000);
+
+  const count = await evalIn(
+    session,
+    `(async () => {
+      const r = await chrome.storage.local.get('personal_identity_infos');
+      const rows = r.personal_identity_infos || [];
+      // 只报条数与「是否已加密落盘」，不把 payload 内容回传进程：库里的字段即便全是占位值，
+      // 也不该在日志里再出现一次
+      return rows.length + ' rows, encrypted=' + rows.every((x) => typeof x.encryptedPayload === 'string');
+    })()`,
+  );
+  console.log('identity rows seeded:', count);
+  // 导入链上任何一道门没点开（复验框、明文风险确认），日志里都只会留下一句「clicked button」，
+  // 而图 15 会拍成一张空库——必须在这里就炸掉，别让错图进商店
+  if (!count.startsWith(`${DEMO_IDENTITIES.length} rows, encrypted=true`)) {
+    throw new Error(
+      `个人信息没按预期落盘（期望 ${DEMO_IDENTITIES.length} 条且全部加密），实际：${count}——图 15 会拍成空库`,
+    );
+  }
+  console.log('identity vault:', await evalIn(session, closeIdentityVault));
+  await wait(1200);
+}
 
 /** 按精确文案点击叶子节点（向上回溯到可点击祖先）。「导入数据」是卡片（div）而非 button。 */
 const clickExact = label => `(() => {
@@ -370,4 +601,9 @@ console.log(
     })()`,
   ),
 );
+
+// 个人信息库：放在密码库步骤之后，前面的收藏 / 改密 / 回收站都按密码行的下标与文案定位，
+// 先种个人信息会让首屏多出一张横幅，徒增这些选择器的不确定性
+await seedIdentities(s);
+
 s.close();

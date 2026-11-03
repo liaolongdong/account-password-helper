@@ -487,11 +487,13 @@ const FG_TOKENS = ['--text', '--text-strong', '--text-muted', '--text-secondary'
 const BG_TOKENS = ['--bg', '--bg-soft', '--bg-alt', '--card', '--surface'];
 
 describe('官网暗色档：全站每个对外页面都覆盖', () => {
-  it('页面清单是根目录 8 页 + 博客 12 页，product-site 副本仍在名单外', () => {
+  it('页面清单是根目录 10 页 + 博客 18 页，product-site 副本仍在名单外', () => {
     // 名单本身必须是钉死的断言：publishedPages 由 readdirSync 现取，「长度 > 15」和
     // 「不含 product-site」都由构造方式保证，永远红不了。真正有牙的是这两条等式
     // （新增/删除页面必须来这里点名）加下面那条针对副本文件本身的断言。
     expect(publishedPages.filter(p => !p.includes('/'))).toEqual([
+      'author.en.html',
+      'author.html',
       'compare.en.html',
       'compare.html',
       'en.html',
@@ -501,7 +503,7 @@ describe('官网暗色档：全站每个对外页面都覆盖', () => {
       'privacy.en.html',
       'privacy.html',
     ]);
-    expect(publishedPages.filter(p => p.startsWith('blog/'))).toHaveLength(12);
+    expect(publishedPages.filter(p => p.startsWith('blog/'))).toHaveLength(18);
     // 副本的样式是外链（product-site/assets/css/site.css），页面里没有 `<style>` 主体，
     // 所以「名单外」只能这样验：HTML 与它自己那份 CSS 都不出现 prefers-color-scheme。
     const copy = [read('product-site/index.html'), read('product-site/assets/css/site.css')].join('\n');
@@ -654,16 +656,16 @@ describe('官网全站：实底色不得当文字色（令牌名与字面量都�
  * 所以这两批页面不进 inkPages 的逐字同源名单，改为各自钉三件事：暗档真的翻了值、压得住**本页真实底色**、
  * 且 privacy 的墨色确实比它自己的实底色更压得住底（把墨色抄成实底色时当场变红）。
  */
-describe('privacy 两页与博客 12 页：各自的墨色令牌', () => {
+describe('privacy 两页与博客 18 页：各自的墨色令牌', () => {
   const privacyPages = ['privacy.html', 'privacy.en.html'] as const;
   const blogPages = publishedPages.filter(p => p.startsWith('blog/'));
 
-  it('名单本身没漂：privacy 两页 + 博客 12 页', () => {
+  it('名单本身没漂：privacy 两页 + 博客 18 页', () => {
     // 原来这条写的是 `expect(privacyPages).toEqual(['privacy.html', 'privacy.en.html'])`——
     // 手写字面量和它自己比，永真、无牙。会漂的是它相对 publishedPages 的**覆盖面**：对外清单里
     // 新增或改名一枚 privacy 页，下面那批 `it.each(privacyPages)` 就整批漏测。所以按真源反查。
     expect([...privacyPages].sort()).toEqual(publishedPages.filter(p => p.startsWith('privacy')).sort());
-    expect(blogPages).toHaveLength(12);
+    expect(blogPages).toHaveLength(18);
   });
 
   /**

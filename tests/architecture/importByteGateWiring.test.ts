@@ -87,7 +87,7 @@ describe('身份库导入的字节闸门', () => {
     expectGateBeforeRead(body, 'file.size > MAX_IDENTITY_IMPORT_INPUT_BYTES', 'await file.text()');
   });
 
-  it('身份库上限独立取值且严格小于密码库（30 条 PII 不需要 32 MiB 的口子）', async () => {
+  it('身份库上限独立取值且严格小于密码库（百条量级的 PII 不需要 32 MiB 的口子）', async () => {
     const { MAX_IDENTITY_IMPORT_INPUT_BYTES } = await import('@/utils/identity/constants');
     const { MAX_PASSWORD_IMPORT_INPUT_BYTES } = await import('@/utils/backup/constants');
 

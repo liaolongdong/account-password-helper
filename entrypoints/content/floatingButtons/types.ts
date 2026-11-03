@@ -115,6 +115,13 @@ export interface SettingsPanelViewHandle {
    * 面板 HTML 先渲染、规则后异步读到，故提示需要这个入口在读到后点亮；传 null 收回。
    */
   setSiteFillOverride(entry: FillEntry | null): void;
+  /**
+   * 重新量一次面板几何并刷新底栏滚动摘要
+   *
+   * 摘要读的是布局盒，而悬浮按钮那份在构造期是 `visibility: hidden`（零尺寸），绑定那一次
+   * 只能读出「不用滚」。故展示时必须补一次刷新——那是该宿主唯一的「拿到尺寸」时机。
+   */
+  refresh(): void;
   /** 解绑所有事件（DOM 由调用方移除） */
   destroy(): void;
 }

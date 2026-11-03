@@ -9,7 +9,8 @@
  * 隔离约束（对齐内容脚本规范）：
  * - 使用独立的 closed shadow DOM 宿主（追加到 documentElement），不污染宿主页面样式/DOM；
  * - 不依赖 ElMessage 等 Vue/Element Plus 运行时（内容脚本无该上下文）；
- * - 单例：同一页面仅存在一个气泡，动作完成或关闭即销毁。
+ * - 单例：同一页面仅存在一个气泡，动作完成或关闭即销毁；
+ * - 键盘出口：Esc 收起等价于「稍后再说」（两者都不做任何跳转），但不抢焦点，用户可继续在页面里输入。
  */
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
@@ -18,6 +19,14 @@ import { applyThemeTokensToHost, DEFAULT_THEME, getStoredTheme } from '@/utils/t
 
 let hostEl: HTMLElement | null = null;
 let shadowRoot: ShadowRoot | null = null;
+
+/**
+ * 当前气泡的 Esc 监听清理函数
+ *
+ * 宿主是常驻复用的（`hideFillFailurePrompt` 只清内容不摘宿主），所以键盘监听不能挂在
+ * 影子树上「随子树一起消失」，必须在收起时显式回收，否则收起后每次 Esc 都会命中空气泡。
+ */
+let escapeKeydownCleanup: (() => void) | null = null;
 
 const STYLE = `
   :host { all: initial; }
@@ -76,6 +85,11 @@ const STYLE = `
     color: var(--aph-primary, #409eff);
     border-color: var(--aph-primary-border, #d9ecff);
   }
+  /* 键盘可达：两个按钮要 Tab 得到、也看得见焦点（:focus-visible 只给键盘用户画轮廓） */
+  .aph-ffp__btn:focus-visible {
+    outline: 2px solid var(--aph-primary, #409eff);
+    outline-offset: 2px;
+  }
   @media (prefers-reduced-motion: reduce) {
     .aph-ffp { transition: none; }
   }
@@ -108,10 +122,32 @@ function ensureHost(): void {
 
 /** 隐藏并清空气泡内容（保留宿主以便复用） */
 export function hideFillFailurePrompt(): void {
+  escapeKeydownCleanup?.();
+  escapeKeydownCleanup = null;
+
   if (shadowRoot) {
     const root = shadowRoot.getElementById('aph-ffp-root');
     if (root) root.replaceChildren();
   }
+}
+
+/**
+ * 绑定 Esc 收起
+ *
+ * 绑在 document 捕获阶段而不是影子树内：气泡是 `role="status"` 的礼貌提示，刻意不抢焦点，
+ * 用户此刻的焦点仍停在页面的登录框上，按键路径不经过影子树（口径同内联下拉的 Esc 兜底）。
+ * 页面伪造 Esc 的最坏后果只是这个本来就要用户「稍后再配」的气泡提前收起，不值得按来源收窄。
+ */
+function bindEscapeDismiss(): void {
+  escapeKeydownCleanup?.();
+  const handleKeydown = (e: Event): void => {
+    if (!(e instanceof KeyboardEvent) || e.key !== 'Escape') return;
+    // 输入法合成期间的 Esc 语义是「取消候选词」，必须让位
+    if (e.isComposing) return;
+    hideFillFailurePrompt();
+  };
+  document.addEventListener('keydown', handleKeydown, true);
+  escapeKeydownCleanup = () => document.removeEventListener('keydown', handleKeydown, true);
 }
 
 /**
@@ -168,4 +204,5 @@ export function showFillFailurePrompt(domain: string): void {
   bubble.appendChild(desc);
   bubble.appendChild(actions);
   root.appendChild(bubble);
+  bindEscapeDismiss();
 }

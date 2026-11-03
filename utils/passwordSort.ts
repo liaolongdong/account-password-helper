@@ -1,11 +1,5 @@
 import type { PasswordEntry } from '@/utils/types';
-import {
-  isExactHostMatch,
-  isLocalDevDomain,
-  matchesPortForLocalDev,
-  resolveMatchTier,
-  type DomainMatchMode,
-} from '@/utils/domain';
+import { matchesSiteWithEnv, siteRankWithEnv, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
 
 /**
  * 密码列表排序状态接口
@@ -139,50 +133,51 @@ export function sortPasswordEntries(
 /**
  * 按域名过滤并按侧边栏展示顺序排序密码条目（纯函数）
  *
- * 过滤规则：纳入 `resolveMatchTier` 判定为匹配（tier ≥ 0）的条目——
- * - 本地开发域名（localhost 等）：有端口时按端口过滤，无端口时放行全部，档位不参与
- * - 当前域名为空（如非 http 页面）：仅纳入空 URL 通用条目，档位不参与
- * - 其余按档位分层：`off`（缺省）= 精确主机 + 空 URL；`wildcard` 追加通配条目；
- *   `sameMainDomain` 再追加 apex 与同主域其他子域
+ * 过滤规则：纳入 `resolveMatchTier` 判定为匹配（tier ≥ 0）**且**通过端口门的条目，
+ * 两道门由 `matchesSiteWithEnv` 合成（内部即 `matchesSiteEndpoint`，外加本地页声明的
+ * 环境主机这一并集轴）——
+ * - 当前域名为空（如非 http 页面）：仅纳入空 URL 通用条目，档位与端口不参与
+ * - 主机按档位分层：`off`（缺省）= 精确主机（环回别名视为同一主机）+ 空 URL；`wildcard` 追加
+ *   通配条目；`sameMainDomain` 再追加 apex 与同主域其他子域
+ * - 端口：`strict` 按 `matchesPortScope` 收窄；`loose` 下公网不比端口，而环回主机仍按端点过滤
+ *   （`localhost:*` 逐条覆盖本机所有端口）
  *
  * 排序规则：匹配层级（0 精确 → 4 通用）→ 收藏置顶 → 指定排序字段（与侧边栏展示顺序一致，
  * 结果首条即侧边栏列表第一条）。供 quickFillHandler（填充首条）与
  * getMatchingAccounts（内联下拉列表）共用。
  *
- * 缺省 `off` 时的集合与顺序与引入跨子域之前逐条一致。
+ * 策略两项均取缺省时，**公网主机**的集合与顺序与引入端口隔离之前逐条一致；
+ * 环回主机则比那时更窄——外站条目不再混进本地页面，这正是本模块修掉的那条缺陷。
  *
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
  * @param sort 排序状态，默认侧边栏排序
- * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
- * @param mode 跨子域匹配档位，缺省 `off`（最严格）
+ * @param page 当前页面端口上下文（null 表示取不到，端口门自动放行）
+ * @param policy 站点匹配策略（档位 + 端口范围），必传
+ * @param envHost 本地页声明的环境主机（`fat.example.com`），必传：非环回页面下由
+ *                `matchesSiteWithEnv` 一律失效，传错不会把公网页面的口径放宽
  * @returns 过滤并排序后的新数组（不修改入参数组）
  */
 export function filterAndSortEntriesForDomain(
   passwords: PasswordEntry[],
   domain: string,
   sort: SortState = DEFAULT_SIDEPANEL_SORT,
-  port?: string,
-  mode: DomainMatchMode = 'off',
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null,
 ): PasswordEntry[] {
   const matched = passwords.filter(p => {
-    if (isLocalDevDomain(domain)) {
-      // 本地开发域名：有端口时按端口过滤，无端口时保持原有行为（放行全部）；档位不参与
-      return matchesPortForLocalDev(p.url, port ?? '');
-    }
+    // 无域名（非 http 页面等）：下拉贴在当前页上，展示外站条目没有可填充的目标，只留通用条目
     if (!domain) return !p.url || p.url.trim() === '';
-    return resolveMatchTier(domain, p.url, mode) >= 0;
+    return matchesSiteWithEnv(p.url, domain, page, policy, envHost);
   });
 
-  // 域名优先级即匹配层级：off 档下退化为迁移前的 0/1 二值（4=通用条目仍在其后）
+  // 关联度即排序权重：off 档下退化为迁移前的 0/1 二值（通用条目仍在其后），
+  // 且与侧边栏列表共用 `siteRankOf` 那一阶梯——两个入口的首条必须是同一条。
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!domain) return 0;
-    if (isLocalDevDomain(domain)) {
-      // 本地开发域名不参与档位：与迁移前一致，精确主机为 0，其余（含空 URL 与外站）同为 1 不区分
-      return !!entry.url?.trim() && isExactHostMatch(domain, entry.url) ? 0 : 1;
-    }
-    // 过滤阶段已保证只有匹配（tier ≥ 0）的条目进入此分支
-    return resolveMatchTier(domain, entry.url, mode);
+    // 过滤阶段已保证只有匹配（tier ≥ 0）且通过端口门的条目进入此分支
+    return siteRankWithEnv(entry.url, domain, page, policy, envHost);
   };
 
   return sortPasswordEntries(matched, sort, getDomainPriority);

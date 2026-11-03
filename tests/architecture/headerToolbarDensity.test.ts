@@ -178,3 +178,41 @@ describe('管理页顶部工具条的间距', () => {
     }
   });
 });
+
+/**
+ * scoped 穿透规则与模板类名的耦合守卫
+ *
+ * 起因是一次真实回归：把头部右侧容器 `.header-session` 改名成 `.header-status` 时，
+ * 只改了模板与该容器自身的规则，漏改了两条 `:deep(.header-session .el-button.lock-btn)`。
+ * 选择器不再命中，「立即锁定」按钮静默退回 Element Plus 默认白底——
+ * ESLint / Stylelint / typecheck / 单测 / e2e 全都不会变红（e2e 断言的是行为与文案，不是底色），
+ * 只有人眼能看见。这条守卫把「改名的那一次」变成红灯。
+ *
+ * 判据只取 `:deep()` 规则选择器里的**首个类名**（即本地容器），并跳过 `el-*`：
+ * EP 内部类本就不该出现在模板里，纳入检查只会制造假阳性。
+ */
+describe('scoped 穿透规则指向的容器类名仍在模板里', () => {
+  const src = readSource(HEADER_BAR);
+  const template = src.slice(0, src.indexOf('<script'));
+
+  it('每条 :deep() 规则的根类名都能在模板的静态 class 中找到', () => {
+    const templateClasses = new Set(
+      [...template.matchAll(/class="([^"]+)"/g)].flatMap(match => (match[1] ?? '').split(/\s+/)).filter(Boolean),
+    );
+    expect(templateClasses.size, '模板类名没抓到，本条守卫会空跑').toBeGreaterThan(10);
+
+    // 必须先剥注释：本文件的注释里带 `{}` 与 `xxx.css` 这类字样，
+    // 不剥就会跨注释配出一条假「选择器」，把 `.css` 当成根类名误报（牙齿自检时实测踩到）
+    const cssText = scopedCss(src).replace(/\/\*[\s\S]*?\*\//g, '');
+    const orphans: string[] = [];
+    for (const match of cssText.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
+      const selector = (match[1] ?? '').replace(/\s+/g, ' ').trim();
+      if (!selector.includes(':deep(')) continue;
+      const root = selector.match(/\.([a-zA-Z][\w-]*)/)?.[1];
+      if (!root || root.startsWith('el-')) continue;
+      if (!templateClasses.has(root)) orphans.push(`.${root} ← ${selector}`);
+    }
+
+    expect(orphans, `以下穿透规则的容器类名已从模板消失，样式会静默失效：\n${orphans.join('\n')}`).toEqual([]);
+  });
+});

@@ -1,7 +1,16 @@
 <template>
+  <!--
+    落点有两个方向相反的约束，只能靠「优先右侧、放不下才退到下方」同时满足：
+    - 固定在输入框下方（bottom-start）时，220px 的面板压在输入框正下方，宽屏聚焦主密码那一刻
+      会把「确认密码」与「密码提示」整块盖住（实测盖 72px / 126px）——而那正是第一次建主密码、
+      最需要看见下面两格的时刻。
+    - 固定在右侧（right）时，320–640px 视口放不下，文档被撑出横向滚动条，规则面板还被切掉一半。
+    所以首选 right，交给 floating-ui 的 fallback 在放不下时退到 bottom-start，两侧都不越界。
+  -->
   <el-popover
     :visible="visible"
     placement="right"
+    :fallback-placements="['bottom-start', 'top-start']"
     :width="220"
     :show-arrow="true"
     popper-class="password-rules-popover"
@@ -113,7 +122,7 @@ defineEmits<{
 :global(.password-rules-popover .rules-hint) {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 :global(.password-rules-popover .password-rules-list) {
@@ -131,11 +140,11 @@ defineEmits<{
   align-items: center;
   font-size: 12px;
   line-height: 1.4;
-  color: #909399;
+  color: var(--aph-text-muted);
   transition: color 0.25s ease;
 }
 
 :global(.password-rules-popover .password-rules-list li.passed) {
-  color: #67c23a;
+  color: var(--aph-success-strong);
 }
 </style>

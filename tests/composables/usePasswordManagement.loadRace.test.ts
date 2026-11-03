@@ -47,6 +47,8 @@ const deferred = <T>(): { promise: Promise<T>; resolve: (value: T) => void } => 
   return { promise, resolve };
 };
 
+type LoadedPasswords = { entries: PasswordEntry[]; undecryptableCount: number };
+
 describe('usePasswordManagement 的整表加载代际守卫', () => {
   let scope: EffectScope;
   let mgmt: ReturnType<typeof usePasswordManagement>;
@@ -59,7 +61,7 @@ describe('usePasswordManagement 的整表加载代际守卫', () => {
     });
     vi.spyOn(StorageUtils, 'isSessionValid').mockResolvedValue(true);
     vi.spyOn(StorageUtils, 'getMasterPasswordValidityHours').mockResolvedValue(24);
-    getAll = vi.spyOn(StorageUtils, 'getAllPasswords');
+    getAll = vi.spyOn(StorageUtils, 'getAllPasswordsDetailed');
 
     scope = effectScope();
     mgmt = scope.run(() => usePasswordManagement({ validityForm: ref({ validityHours: 1 }) }))!;
@@ -72,8 +74,57 @@ describe('usePasswordManagement 的整表加载代际守卫', () => {
     delete (globalThis as Record<string, unknown>).ElMessageBox;
   });
 
+  it('读取挂起后清空会话，旧结果不回填明文或坏记录计数，新解锁仍可加载', async () => {
+    mgmt.passwords.value = [makeEntry('visible')];
+    mgmt.undecryptableCount.value = 3;
+    const started = deferred<void>();
+    const pending = deferred<LoadedPasswords>();
+    getAll.mockImplementationOnce(async () => {
+      started.resolve();
+      return pending.promise;
+    });
+    const loading = mgmt.loadPasswords();
+    await started.promise;
+    mgmt.clearPasswordState();
+    expect(mgmt.passwords.value).toEqual([]);
+    expect(mgmt.undecryptableCount.value).toBe(0);
+    expect(mgmt.tableLoading.value).toBe(false);
+    pending.resolve(structuredClone({ entries: [makeEntry('stale')], undecryptableCount: 2 }));
+    await loading;
+    expect(mgmt.passwords.value).toEqual([]);
+    expect(mgmt.undecryptableCount.value).toBe(0);
+
+    getAll.mockResolvedValueOnce(structuredClone({ entries: [makeEntry('fresh')], undecryptableCount: 1 }));
+    await mgmt.loadPasswords();
+    expect(mgmt.passwords.value.map(entry => entry.id)).toEqual(['fresh']);
+    expect(mgmt.undecryptableCount.value).toBe(1);
+  });
+
+  it('锁定后旧加载失败不弹错误，也不关闭新一轮的 loading', async () => {
+    const started = deferred<void>();
+    const failure = deferred<void>();
+    getAll.mockImplementationOnce(async () => {
+      started.resolve();
+      await failure.promise;
+      throw new Error('stale failure');
+    });
+    const old = mgmt.loadPasswords();
+    await started.promise;
+    mgmt.clearPasswordState();
+    const pending = deferred<LoadedPasswords>();
+    getAll.mockReturnValueOnce(pending.promise);
+    const fresh = mgmt.loadPasswords();
+    failure.resolve();
+    await old;
+    expect(ElMessage.error).not.toHaveBeenCalled();
+    expect(mgmt.tableLoading.value).toBe(true);
+    pending.resolve(structuredClone({ entries: [makeEntry('fresh')], undecryptableCount: 0 }));
+    await fresh;
+    expect(mgmt.passwords.value.map(entry => entry.id)).toEqual(['fresh']);
+  });
+
   it('两次重叠加载只由最新一次读取并提交，被取代的那次不熄灭遮罩', async () => {
-    const pending = deferred<PasswordEntry[]>();
+    const pending = deferred<LoadedPasswords>();
     getAll.mockImplementation(() => pending.promise);
 
     const first = mgmt.loadPasswords();
@@ -85,7 +136,7 @@ describe('usePasswordManagement 的整表加载代际守卫', () => {
     // （修复前：两次读取都会发生，晚完成的那次还能把列表盖回旧快照）
     expect(getAll).toHaveBeenCalledTimes(1);
 
-    pending.resolve([makeEntry('fresh')]);
+    pending.resolve({ entries: [makeEntry('fresh')], undecryptableCount: 0 });
     await first;
     // 被取代的那次收尾时不得熄灭仍在加载的遮罩
     expect(mgmt.tableLoading.value).toBe(true);
@@ -101,7 +152,7 @@ describe('usePasswordManagement 的整表加载代际守卫', () => {
     // 本地已有列表（快路径的前提之一），且与 oldValue 对齐
     mgmt.passwords.value = storedOld.map(entry => ({ ...entry }));
 
-    const pending = deferred<PasswordEntry[]>();
+    const pending = deferred<LoadedPasswords>();
     getAll.mockReturnValue(pending.promise);
     const loading = mgmt.loadPasswords();
     expect(StorageUtils.isMetadataOnlyChange(storedOld, storedNew)).toBe(true);
@@ -109,7 +160,10 @@ describe('usePasswordManagement 的整表加载代际守卫', () => {
     // 修复前：判据命中即就地修补并返回 true，watcher 据此跳过整表重载
     await expect(mgmt.patchMetadataOnlyFromStorage({ oldValue: storedOld, newValue: storedNew })).resolves.toBe(false);
 
-    pending.resolve(storedNew.map(entry => ({ ...entry })));
+    pending.resolve({
+      entries: storedNew.map(entry => ({ ...entry })),
+      undecryptableCount: 0,
+    });
     await loading;
     expect(mgmt.passwords.value[0].tag).toBe('个人');
   });

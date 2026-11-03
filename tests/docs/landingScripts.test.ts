@@ -33,6 +33,8 @@ const ROOT = path.resolve(__dirname, '../..');
 const STATIC_PAGES = [
   'index.html',
   'en.html',
+  'author.html',
+  'author.en.html',
   'compare.html',
   'compare.en.html',
   'pricing.html',

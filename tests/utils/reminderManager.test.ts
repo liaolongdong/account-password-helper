@@ -4,18 +4,19 @@ import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 
 // Mock chrome.storage.local
 const mockStorage: Record<string, unknown> = {};
+const mockGet = vi.fn(async (keys: string | string[]) => {
+  const keyList = Array.isArray(keys) ? keys : [keys];
+  const result: Record<string, unknown> = {};
+  for (const key of keyList) {
+    if (key in mockStorage) {
+      result[key] = mockStorage[key];
+    }
+  }
+  return result;
+});
 const mockChromeStorage = {
   local: {
-    get: vi.fn(async (keys: string | string[]) => {
-      const keyList = Array.isArray(keys) ? keys : [keys];
-      const result: Record<string, unknown> = {};
-      for (const key of keyList) {
-        if (key in mockStorage) {
-          result[key] = mockStorage[key];
-        }
-      }
-      return result;
-    }),
+    get: mockGet,
     set: vi.fn(async (items: Record<string, unknown>) => {
       Object.assign(mockStorage, items);
     }),
@@ -29,6 +30,8 @@ const {
   getReminders,
   setReminder,
   removeReminders,
+  pauseReminders,
+  resumeReminders,
   getDueReminders,
   markNotified,
   getReminderForEntry,
@@ -102,6 +105,45 @@ describe('reminderManager', () => {
 
       const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { username: string }>;
       expect(stored['entry-1'].username).toBe(`${'u'.repeat(PASSWORD_FIELD_LIMITS.username - 1)}🙂`);
+    });
+  });
+
+  describe('pauseReminders / resumeReminders', () => {
+    it('软删除暂停提醒：到期也不进入待通知列表，恢复后重新生效', async () => {
+      const now = Date.now();
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      await setReminder('entry-1', 'user1', 1);
+      // 把它改成已到期，证明暂停是唯一阻断因素
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { remindAt: number }>;
+      stored['entry-1'].remindAt = now - 1000;
+      expect(await getDueReminders(now)).toHaveLength(1);
+
+      await pauseReminders(['entry-1']);
+      expect(await getDueReminders(now)).toHaveLength(0);
+      expect((stored['entry-1'] as { paused?: boolean }).paused).toBe(true);
+
+      await resumeReminders(['entry-1']);
+      expect(await getDueReminders(now)).toHaveLength(1);
+      expect((stored['entry-1'] as { paused?: boolean }).paused).toBe(false);
+      vi.restoreAllMocks();
+    });
+
+    it('只翻转点名条目；未暂停/不存在的 id 不产生无谓写入', async () => {
+      await setReminder('entry-1', 'user1', 30);
+      await setReminder('entry-2', 'user2', 30);
+      const setSpy = mockChromeStorage.local.set;
+      setSpy.mockClear();
+
+      await pauseReminders(['entry-1', 'ghost']);
+
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { paused?: boolean }>;
+      expect(stored['entry-1'].paused).toBe(true);
+      expect(stored['entry-2'].paused).toBeUndefined();
+      expect(setSpy).toHaveBeenCalledTimes(1);
+
+      setSpy.mockClear();
+      await pauseReminders(['entry-1']);
+      expect(setSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -241,5 +283,38 @@ describe('reminderManager', () => {
       expect(stored['valid-2']).toBeDefined();
       expect(stored['orphan-1']).toBeUndefined();
     });
+  });
+});
+
+/**
+ * 提醒写入的失败路径与并发（存量评审 S2）
+ *
+ * 旧实现读失败降级为空表后继续整包写回：一次 storage 抖动就会把盘上所有提醒抹掉，
+ * 而调用方收到成功。现在写入路径严格读取并串行提交。
+ */
+describe('提醒写入的失败路径与并发', () => {
+  it('整包读取失败时 fail-closed：不写入、向上抛错，绝不把读失败当成空表覆盖', async () => {
+    mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] = {
+      old: { entryId: 'old', username: 'old-user', remindAt: 1, createdAt: 1, notified: false },
+    };
+    mockGet.mockImplementationOnce(async () => {
+      throw new Error('synthetic storage read failure');
+    });
+
+    const { setReminder, getReminders } = await import('@/utils/storage/reminderManager');
+    await expect(setReminder('new', 'new-user', 3)).rejects.toThrow('synthetic storage read failure');
+
+    const stored = (await getReminders()) as Record<string, unknown>;
+    expect(Object.keys(stored)).toEqual(['old']);
+  });
+
+  it('并发设置两条提醒都要落盘：shared 租约不互斥写者，提交锁负责串行', async () => {
+    delete mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS];
+    const { setReminder, getReminders } = await import('@/utils/storage/reminderManager');
+
+    await Promise.all([setReminder('a', 'user-a', 1), setReminder('b', 'user-b', 2)]);
+
+    const stored = (await getReminders()) as Record<string, unknown>;
+    expect(Object.keys(stored).sort()).toEqual(['a', 'b']);
   });
 });

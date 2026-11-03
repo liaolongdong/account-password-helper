@@ -154,7 +154,10 @@ describe('updatePasswordInSession 防抖 flush', () => {
     await vi.advanceTimersByTimeAsync(1500);
     await Promise.all([first, second]);
 
-    expect(localSet).toHaveBeenCalledTimes(1);
+    // 只数密码键的写入次数：填充批次还会另写一次评价引导的首次填充锚点，
+    // 那是独立的键，不构成「密码数组被写了两次」
+    const passwordWrites = localSet.mock.calls.filter(([items]) => STORAGE_KEYS.PASSWORDS in (items as object));
+    expect(passwordWrites).toHaveLength(1);
     const saved = localStore[STORAGE_KEYS.PASSWORDS] as Array<Record<string, unknown>>;
     expect(saved[0].lastUsedAt).toBe(200);
     expect(saved[0].favorite).toBe(true);

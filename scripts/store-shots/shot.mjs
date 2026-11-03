@@ -9,7 +9,7 @@
  * 结果可复现、无 PII，尺寸能精确落在 1280x800（@2x 输出 2560x1600）。
  */
 import sharp from 'sharp';
-import { closeTab, listTargets, Session, evalIn, newTab } from './cdp.mjs';
+import { BROWSER_VERSION_URL, closeTab, listTargets, Session, evalIn, newTab } from './cdp.mjs';
 
 export { closeTab, listTargets, Session, evalIn, newTab };
 
@@ -34,7 +34,7 @@ let EXT_ID = null;
  * 所以不能写死常量；调用方后续用 extId() 取用。
  */
 export async function initExtension(extensionDir) {
-  const ver = await (await fetch('http://127.0.0.1:9333/json/version')).json();
+  const ver = await (await fetch(BROWSER_VERSION_URL)).json();
   const s = await Session.attach(ver.webSocketDebuggerUrl);
   try {
     const r = await s.send('Extensions.loadUnpacked', { path: extensionDir });

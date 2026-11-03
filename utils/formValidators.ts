@@ -5,13 +5,14 @@
  */
 import type { FormRules } from 'element-plus';
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
-import { splitWildcardHost } from '@/utils/domain';
+import { splitHostAndPortDecl, splitWildcardHost } from '@/utils/domain';
 
 /**
  * 创建 URL/域名格式校验器
  *
  * 支持完整 URL（https://example.com）和纯域名（example.com / localhost）格式。
- * 纯域名形态额外接受最左通配条目（`*.qq.com`），用于跨子域匹配的适用范围声明。
+ * 纯域名形态额外接受最左通配条目（`*.qq.com`）与端口通配（`localhost:*`），
+ * 前者是跨子域的适用范围声明，后者是跨端口的适用范围声明。
  * 空值通过校验（选填字段）。
  *
  * @param t 国际化翻译函数
@@ -26,9 +27,18 @@ export function createUrlValidator(t: (key: string) => string) {
     const trimmed = value.trim();
     try {
       if (trimmed.includes('://')) {
-        const url = new URL(trimmed);
+        let hostname = '';
+        try {
+          hostname = new URL(trimmed).hostname;
+        } catch {
+          // 带 `:*` 端口通配的 URL 不是合法端口，WHATWG 解析必然抛错：退化为文本口径取主机，
+          // 其余抛错形态（`https://`、含空格的主机）仍由外层 catch 判为无效网址
+          const decl = splitHostAndPortDecl(trimmed);
+          if (!decl.anyPort) throw new Error('unparsable url');
+          hostname = decl.host;
+        }
         // 剥掉最左通配段后仍为空（`https://*.`）即无有效主机；非通配输入 rest 恒等于 hostname
-        if (!splitWildcardHost(url.hostname).rest) {
+        if (!splitWildcardHost(hostname).rest) {
           callback(new Error(t('form.invalidUrl')));
           return;
         }
@@ -37,8 +47,10 @@ export function createUrlValidator(t: (key: string) => string) {
         // `*.`、`*.*.x`、`a.*.x` 之类非法形态被同一个正则拒掉，
         // 不为通配条目另立第二套域名口径
         const { rest } = splitWildcardHost(trimmed);
+        // 端口组同时接受数字端口与 `:*` 端口通配（见 `splitHostAndPortDecl`）：
+        // 非法形态（`:*` 后再接端口、六位端口）由这一条锚定正则拒掉，不另立第二套口径
         const domainPattern =
-          /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})(:\d{1,5})?$/;
+          /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})(:\d{1,5}|:\*)?$/;
         if (!domainPattern.test(rest)) {
           callback(new Error(t('form.invalidUrlExample')));
           return;

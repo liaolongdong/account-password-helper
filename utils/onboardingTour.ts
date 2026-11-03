@@ -73,6 +73,13 @@ export interface TourStep {
   prefer: TourPlacementSide;
   /** 是否带第三行提示（决定 i18n 守卫要不要校验该步骤的 `tip` 文案） */
   hasTip?: boolean;
+  /**
+   * 卡内主动作
+   *
+   * `recovery`：把「登记离线恢复密钥」直接摆到「留退路」这一步里，点击后由入口组件打开
+   * 既有的恢复设置弹窗；不点即继续/跳过，仍可在安全设置里补登记。
+   */
+  action?: 'recovery';
 }
 
 /** 聚光框相对锚点的外扩间距（px） */
@@ -105,6 +112,10 @@ export const SIDEPANEL_STEP_ID = 'sidepanel';
  * 侧边栏叫出来形成「存 → 取」闭环（`welcome.desc` 那句「日常用侧边栏就够了」就在这一步兑现），
  * 然后是日常会用到的检索、导入、自动化与体检，最后收尾在个性化。
  * `empty` 与 `search` 互斥（空库时前者存在、有数据时后者存在），由锚点存在性自动二选一。
+ * `retreat` 也刻意不带锚点：它同时指向「数据管理」和「安全设置」两个菜单，
+ * 圈住其中一个就会把另一条退路说丢，这一步要的是读字而不是看按钮；卡内的
+ * `action: 'recovery'` 则把「现在登记恢复密钥」这颗按钮直接放进来，设置完成后的
+ * 第一段引导即可完成登记，不点就继续/跳过。
  */
 export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'welcome', anchor: null, prefer: 'center' },
@@ -113,6 +124,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'empty', anchor: 'empty', prefer: 'top' },
   { id: 'search', anchor: 'search', prefer: 'bottom' },
   { id: 'data', anchor: 'data', prefer: 'bottom', hasTip: true },
+  { id: 'retreat', anchor: null, prefer: 'center', hasTip: true, action: 'recovery' },
   { id: 'settings', anchor: 'settings', prefer: 'bottom' },
   { id: 'health', anchor: 'health', prefer: 'bottom' },
   { id: 'personalize', anchor: 'personalize', prefer: 'top' },

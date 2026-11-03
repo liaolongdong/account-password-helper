@@ -3,6 +3,7 @@
     :model-value="modelValue"
     :title="t('options.header.clipboard')"
     width="500px"
+    align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -148,7 +149,7 @@ const handleSave = async (): Promise<void> => {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.4;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .dialog-body-scroll {

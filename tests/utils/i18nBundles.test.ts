@@ -49,6 +49,7 @@ const BUNDLE_NAMESPACES = {
     'onboarding',
     'options',
     'popup',
+    'recovery',
     'session',
     'sidepanel',
     'strength',
@@ -75,6 +76,7 @@ const SIDEPANEL_GRAPH_FILES = [
   'components/sidepanel/PasswordListItem.vue',
   'components/sidepanel/SidepanelHeader.vue',
   'components/sidepanel/SidepanelAuthView.vue',
+  'components/sidepanel/EnvPickerBar.vue',
   'components/TotpCode.vue',
   'components/BrandLogo.vue',
   'composables/useSidepanelData.ts',
@@ -119,7 +121,7 @@ const POPUP_GRAPH_FILES = [
 ];
 
 /**
- * 身份信息库（Identity Vault）依赖图源文件
+ * 个人信息库（Personal Info Vault）依赖图源文件
  *
  * 两弹窗 + composable 使用 t() 的 key 均需落在 options bundle（全命名空间）内；
  * 动态 key（如 `t(\`identity.category.${x}\`)`）由「整命名空间注册」策略覆盖，无需提取。
@@ -164,6 +166,18 @@ const GUIDE_GRAPH_FILES = ['components/options/GuideView.vue', 'utils/guideNav.t
  * 并反向要求每个词条都有消费者。
  */
 const ABOUT_GRAPH_FILES = ['components/options/AboutDrawer.vue'];
+
+/** 离线恢复仅在管理页加载，错误映射与共用保存/文件输入也必须纳入扫描。 */
+const RECOVERY_GRAPH_FILES = [
+  'components/options/RecoverySettingsDialog.vue',
+  'components/options/RecoveryResetDialog.vue',
+  'components/options/RecoveryKitSaveStep.vue',
+  'components/options/RecoveryKeyInput.vue',
+  'components/options/ChangeMasterPasswordDialog.vue',
+  'components/options/PasswordVerifyView.vue',
+  'composables/useRecoveryOperation.ts',
+  'utils/recoveryUi.ts',
+];
 
 /** 读取指定语言的某命名空间语言包 */
 function readNamespace(locale: (typeof LOCALES)[number], ns: string): Record<string, string> {
@@ -255,6 +269,28 @@ describe('i18n 语言包命名空间拆分', () => {
 });
 
 describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
+  it('离线恢复依赖图 key 在 options bundle 内，且真实注册覆盖中英文', async () => {
+    const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.options);
+    for (const file of RECOVERY_GRAPH_FILES) {
+      for (const key of extractI18nKeys(file)) {
+        expect(bundleKeys.has(key), `${file} 的 ${key} 未被 options 覆盖`).toBe(true);
+      }
+    }
+    await import('@/utils/i18n/bundles/options');
+    const { t, currentLocale } = await import('@/utils/i18n');
+    const previous = currentLocale.value;
+    try {
+      for (const locale of LOCALES) {
+        currentLocale.value = locale;
+        for (const [key, value] of Object.entries(readNamespace(locale, 'recovery'))) {
+          expect(t(key), `${locale} 未注册 ${key}`).toBe(value);
+        }
+      }
+    } finally {
+      currentLocale.value = previous;
+    }
+  });
+
   it('侧边栏首屏依赖图使用的 key 全部在 sidepanel bundle 内', () => {
     const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.sidepanel);
     for (const file of SIDEPANEL_GRAPH_FILES) {
@@ -328,12 +364,12 @@ describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
       }
     }
     // 反向对照：抽屉独有那段命名空间的每个 key 都该有消费者，写了没人用要变红。
-    // 这一条同时兜住「抽取器失配导致的永真」——23 个词条全部要求命中，提取不到 key
+    // 这一条同时兜住「抽取器失配导致的永真」——29 个词条全部要求命中，提取不到 key
     // 时这里必然整排报错，而不是让上面那条覆盖校验静默空转。
     const declared = Object.keys(readNamespace('zh-CN', 'options')).filter(k => k.startsWith('options.about.'));
     const orphan = declared.filter(k => !used.has(k));
     expect(orphan, `语言包里这些 options.about.* 没有任何消费者: ${orphan.join(', ')}`).toEqual([]);
-    expect(declared.length, 'options.about.* 词条数与抽屉条目数不符（新增文案未进抽屉）').toBe(23);
+    expect(declared.length, 'options.about.* 词条数与抽屉条目数不符（新增文案未进抽屉）').toBe(29);
   });
 });
 
@@ -380,6 +416,7 @@ describe('侧边栏扫描清单认领完整性', () => {
       ...ONBOARDING_GRAPH_FILES,
       ...GUIDE_GRAPH_FILES,
       ...ABOUT_GRAPH_FILES,
+      ...RECOVERY_GRAPH_FILES,
     ];
     const missing = listed.filter(file => !existsSync(path.join(ROOT, file)));
     expect(missing, `扫描清单指向不存在的文件（重命名或删除后未同步）: ${missing.join(', ')}`).toEqual([]);

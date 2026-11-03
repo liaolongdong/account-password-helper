@@ -1,13 +1,52 @@
-import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
+import type { PasswordEntry, PingResponse, FillResult, FillFailureReason } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t, currentLocale } from '@/utils/i18n';
 import { buildShareCard, hasShareCardPassword } from '@/utils/shareCard';
-import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
+import { fillTotpInFrames, getFillableDocuments, getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import { lazyImport } from '@/utils/lazyImport';
 import { ensureContentScriptReady, type ContentScriptProbeResult } from '@/utils/contentScriptReadiness';
 import type { Ref } from 'vue';
+
+/**
+ * 填充失败原因 → 账号密码填充文案 key。
+ *
+ * `FillResult.message` 由 content script 的 `tl()` 产出，而 `currentLiteLocale` 初值为
+ * `zh-CN`、要等异步 `getStoredLocale()` 才切档，透传它会让英文界面收到中文串；
+ * 因此这里只认结构化的 `reason`，文案一律由侧边栏自己的语言包出。
+ * 旧版本 content script 不带 `reason`，落到 `fill.fillFailed` 兜底。
+ */
+const FILL_FAILURE_KEYS: Record<FillFailureReason, string> = {
+  no_form: 'fill.noLoginForm',
+  no_totp_input: 'fill.noLoginForm',
+  nothing_filled: 'fill.fillIncomplete',
+  fill_error: 'fill.fillFailed',
+};
+
+/** 同上，验证码填充一支：`nothing_filled` 的出路是手动输入而不是刷新页面 */
+const TOTP_FAILURE_KEYS: Record<FillFailureReason, string> = {
+  no_form: 'fill.noTotpInput',
+  no_totp_input: 'fill.noTotpInput',
+  nothing_filled: 'fill.totpFillManual',
+  fill_error: 'fill.totpFillFailed',
+};
+
+/**
+ * 按失败原因取文案 key，对跨上下文不可信的 `reason` 做运行时收窄。
+ *
+ * `reason` 来自 content script 消息，声明类型是 `FillFailureReason` 但运行时不受保证；
+ * 非枚举值会索引到 `undefined` 再进 `t()`，令面向用户的失败提示退化成裸 key。
+ * 只认自有属性命中，否则回落到兜底 key。
+ * @param map 原因 → 文案 key 映射
+ * @param reason content script 回传的失败原因（不可信）
+ * @param fallbackKey 未命中时的兜底文案 key
+ * @returns 命中的文案 key 或兜底 key
+ */
+const pickFailureKey = (map: Record<FillFailureReason, string>, reason: unknown, fallbackKey: string): string =>
+  typeof reason === 'string' && Object.prototype.hasOwnProperty.call(map, reason)
+    ? map[reason as FillFailureReason]
+    : fallbackKey;
 
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
 let clipboardClearTimer: ReturnType<typeof setTimeout> | null = null;
@@ -24,8 +63,30 @@ let copiedPasswordSnapshot: string | null = null;
  * 增加锁屏态（Windows 冷盘）首屏关键路径的文件冷读数量
  */
 const getTotpModule = lazyImport(() => import('@/utils/totp'));
+/**
+ * 取一个「还活得够久」的动态码。
+ *
+ * `generateTOTP` 按当前 Unix 时间片算码，而从点击到码真正落地之间隔着若干异步跳：
+ * 填充链路要走 `tabs.query` → 取可填 frame → 必要时注入 content script → 发送并复检，
+ * 复制链路还要等用户去粘贴。在时间窗末尾点一下，剩余可能只有几百毫秒——码在写入或
+ * 粘贴之前就翻篇了，回执却照样报「已填充」「已复制」，用户是在登录被拒之后才发现
+ * 表单里那个码早就死了。显示侧本来就有倒计时（`TotpCode.vue` 剩余 ≤5s 会标
+ * `is-expiring`），唯独这两条取码路径此前一次都没读过它。
+ *
+ * 所以剩余不足 `TOTP_MIN_REMAINING_SECONDS` 时等到下一片再算：最多等约 2 秒，
+ * 换来的是码落地后仍有近乎整个周期的寿命。刻意不采用「临发前再算一次」那种写法——
+ * 它只是把同一个几百毫秒的窗口往后挪一点，边界上照样踩空。
+ */
+const TOTP_MIN_REMAINING_SECONDS = 2;
+
 const generateTotpCode = async (secret: string): Promise<string> => {
   const mod = await getTotpModule();
+  const remaining = mod.getTotpRemaining(mod.getTotpPeriod(secret));
+  if (remaining <= TOTP_MIN_REMAINING_SECONDS) {
+    // 多等 200ms 跨过整点边界：`getTotpRemaining` 是按秒向下取整的，
+    // 只等 remaining 秒可能仍然落在旧的一片里
+    await new Promise<void>(resolve => setTimeout(resolve, remaining * 1000 + 200));
+  }
   return mod.generateTOTP(secret);
 };
 
@@ -232,36 +293,6 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     return false;
   };
 
-  /**
-   * 向所有 frame 发送 TOTP 验证码填充消息，返回首个成功响应（均失败时返回首个响应以展示提示）
-   * @param tabId 标签页ID
-   * @param frameIds 所有 frame ID 列表
-   * @param code 本地计算得到的动态验证码
-   * @returns FillResult 或 null
-   */
-  const fillTotpInAllFrames = async (tabId: number, frameIds: number[], code: string): Promise<FillResult | null> => {
-    const results = await Promise.allSettled(
-      frameIds.map(frameId =>
-        chrome.tabs.sendMessage(tabId, { type: MessageType.FILL_TOTP, data: { code } }, { frameId }),
-      ),
-    );
-
-    let firstResponse: FillResult | null = null;
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        const response = result.value as FillResult | undefined;
-        if (response?.success) {
-          return response;
-        }
-        if (response && !firstResponse) {
-          firstResponse = response;
-        }
-      }
-    }
-
-    return firstResponse;
-  };
-
   // ==================== 填充密码 ====================
 
   /**
@@ -283,7 +314,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       const tabId = tab.id;
       const autoLogin = options?.autoLogin ?? false;
 
-      // 获取「顶层 + 同主域名」可填充 frame 集合：检测（PING）与填充（FILL）复用同一集合，
+      // 获取「顶层 + 同主域名」可填充 frame 集合：检测（PING）与字段等待复用同一集合，
       // 既命中同站 iframe 内嵌登录表单，又避免向跨域第三方 iframe 广播明文凭证
       const frameIds = await getFillableFrameIds(tabId);
 
@@ -315,17 +346,30 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
         }
       }
 
-      // 步骤4: 向可填充 frame 集合发送填充消息，取第一个成功的响应
+      // 步骤4: 向可填充「文档」集合发送填充消息，取第一个成功的响应。
+      // 接收者绑文档而不是 frameId：上面的 PING / 字段等待期间若 frame 导航，
+      // 复用同一 frameId 的新文档不会拿到明文（sendToAuthorizedDocument 抛「接收端不存在」）。
       const fillData = {
         username: password.username,
         password: password.password,
         autoLogin,
       };
-      const response = await fillPasswordInFrames(tabId, frameIds, fillData);
+      const documents = await getFillableDocuments(tabId);
+      const response = await fillPasswordInFrames(tabId, documents, fillData);
 
       // 步骤5: 根据响应显示结果
       if (response && response.success) {
-        ElMessage.success(response.message || t('fill.fillSuccess'));
+        // 站点规则写的要标出来源：规则绕过全部启发式判据，落点合不合意只有用户能判断，
+        // 一句「已填充」把配置错误掩盖成成功，比一次带来源的提示更难排查。
+        ElMessage.success(
+          t(
+            response.outcome === 'unverified'
+              ? 'fill.fillCheck'
+              : response.viaSiteRule
+                ? 'fill.fillSuccessRule'
+                : 'fill.fillSuccess',
+          ),
+        );
         // 填充成功时，刷新 lastUsedAt（"最近使用"排序依据）和 favoriteUsedAt（LRU 依据）
         const now = Date.now();
         if (passwords?.value) {
@@ -363,15 +407,13 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           data: { tabId },
         });
       } else {
-        const rawMsg = response?.message || '';
-        // 优先用结构化 reason 判断（跨语言稳定）；字符串匹配保留作旧版本 content script 兜底
-        const isNoForm = response?.reason === 'no_form' || rawMsg.includes('未检测到登录表单');
-        const errorMsg = isNoForm ? t('fill.noLoginForm') : rawMsg;
-        ElMessage.warning(errorMsg);
+        ElMessage.warning(t(pickFailureKey(FILL_FAILURE_KEYS, response?.reason, 'fill.fillFailed')));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('填充密码失败:', error);
-      if (error.message && error.message.includes('Could not establish connection')) {
+      // MV3 里跨 frame 投递失败没有结构化错误码，只能按 Chrome 的固定文案识别，
+      // 因此收窄到 Error 而不是把 catch 面放宽成 any
+      if (error instanceof Error && error.message.includes('Could not establish connection')) {
         ElMessage.error(t('fill.connectFailed'));
       } else {
         ElMessage.error(t('fill.fillFailed'));
@@ -389,23 +431,21 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
   // ==================== 填充 / 复制 TOTP 验证码 ====================
 
   /**
-   * 填充条目的 TOTP 两步验证码到当前页面
+   * 向授权文档发送 TOTP 验证码填充消息，返回首个成功响应（均失败时返回首个送达响应以展示提示）
    *
-   * 本地计算当前动态码 → 确保 content script 就绪 → 向可填充 frame 集合发送 FILL_TOTP。
-   * @param password 目标密码条目
+   * 委托 `fillTotpInFrames`：接收者绑定文档而不是 frameId（见该函数注释）。
+   * @param tabId 标签页ID
+   * @param code 本地计算得到的动态验证码
+   * @returns FillResult 或 null
    */
+  const fillTotpInAllFrames = async (tabId: number, code: string): Promise<FillResult | null> => {
+    const { result, firstResponse } = await fillTotpInFrames(tabId, code);
+    return result ?? firstResponse;
+  };
+
   const fillTotp = async (password: PasswordEntry) => {
     if (!password.totp || !password.totp.trim()) {
       ElMessage.warning(t('fill.noTotpConfigured'));
-      return;
-    }
-
-    let code: string;
-    try {
-      code = await generateTotpCode(password.totp);
-    } catch (error) {
-      logger.error('生成验证码失败:', error);
-      ElMessage.error(t('fill.totpGenerateFailed'));
       return;
     }
 
@@ -430,17 +470,30 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
         return;
       }
 
-      const response = await fillTotpInAllFrames(tabId, frameIds, code);
+      // 往返都通了才算码：见本函数 JSDoc，等到的寿命要留给投递，不能被注入过程花回去
+      let code: string;
+      try {
+        code = await generateTotpCode(password.totp);
+      } catch (error) {
+        logger.error('生成验证码失败:', error);
+        ElMessage.error(t('fill.totpGenerateFailed'));
+        return;
+      }
+
+      const response = await fillTotpInAllFrames(tabId, code);
       if (response && response.success) {
-        ElMessage.success(response.message || t('fill.totpFillSuccess'));
+        // 与账号密码填充同口径：write-after 复检未通过（outcome==='unverified'）时不再乐观
+        // 报「填充成功」，改为「已填充，请核对」。动态码时效极短，误报成功会让用户
+        // 在码过期后才发觉表单其实未填入，最不该给用户虚假确定感。
+        ElMessage.success(t(response.outcome === 'unverified' ? 'fill.totpFillCheck' : 'fill.totpFillSuccess'));
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,
           data: { tabId },
         });
       } else {
-        ElMessage.warning(response?.message || t('fill.noTotpInput'));
+        ElMessage.warning(t(pickFailureKey(TOTP_FAILURE_KEYS, response?.reason, 'fill.totpFillFailed')));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('填充验证码失败:', error);
       ElMessage.error(t('fill.totpFillFailed'));
     }

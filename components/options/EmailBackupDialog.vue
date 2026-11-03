@@ -314,7 +314,7 @@ const handleClose = () => {
 .auto-backup-tip {
   margin-top: 6px;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .backup-type-tip {
@@ -328,7 +328,7 @@ const handleClose = () => {
 
 .last-backup-info {
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-muted);
 }
 
 .dialog-footer {

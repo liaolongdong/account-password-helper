@@ -3,12 +3,12 @@ title: 用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + 
 description: 不引任何加密库，只用浏览器原生 Web Crypto API 构建可审计的加密体系：密钥派生、字段级加密、会话生命周期与换钥的完整实现。
 tags: Web Crypto,加密,密码管理器,安全,Chrome扩展
 date: 2026-08-28
-modified: 2026-10-13
+modified: 2026-10-27
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
 
-![从主密码到密文：加密管线全流程](imgs/02-flowchart-security-pipeline.png)
+![从主密码到密文：加密管线全流程](imgs/02-flowchart-security-pipeline.webp)
 
 给密码管理器写加密模块，第一反应往往是引入一个加密库。但如果你做的是浏览器扩展，有个更好的选择：**什么都不引，直接用浏览器原生的 Web Crypto API**。
 
@@ -78,11 +78,11 @@ image: imgs/blog-cover-03-webcrypto.png
 安全的另一面是自知之明：
 
 - 本工具定位是开发、测试与日常登录场景，**不建议在任何浏览器扩展中存放银行、支付类高敏感凭证**；
-- 主密码遗忘无法找回，请启用加密备份（.aph 文件）；
+- 主密码遗忘默认无法找回：请启用加密备份（.aph 文件），并在「安全设置」里登记离线恢复密钥作为第二退路；
 - 加密实现全部开源，欢迎审计、欢迎提 Issue——对一个密码管理器来说，被人逐行读代码不是冒犯，是信任的来源。
 
 源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。如果你也在做本地优先的安全工具，评论区聊聊你踩过的坑。
 
 ---
 
-_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（2878 项自动化测试，含加密与换钥路径）。_
+_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（4654 项自动化测试，含加密与换钥路径）。_

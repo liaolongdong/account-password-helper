@@ -18,6 +18,11 @@ import { textOf } from './i18n';
  *   落点恰好是 0 —— 那正是「弹窗把列表归零」这条误判的来源。
  *   例外：`position: fixed` 浮层里的触发器（第 4 条抽屉内那颗「编辑」）文档滚动搬不动，
  *   那一步没有 `expectInView` 是刻意的，不是漏加。
+ *   **但「在视口内」只挡住一半**：`locator.click()` 在动作前还会经 CDP 的
+ *   `DOM.scrollIntoViewIfNeeded` 预滚一次，那一步不经过页面 JS，钩子抓不到，元素已经
+ *   在视口内也可能被搬到别处去（第 4 条实测：本机 14 轮里 6 轮从 300 跳到 660 或 268）。
+ *   第 4 条因此改用 {@link clickInView}（坐标点击，不预滚）。第 1、2、3 条同样按绝对位置判定，
+ *   理论上一样暴露，只是至今没观测到——再出现「读数各不相同」这种签名，照第 4 条改法办。
  *
  * 1. **弹窗开着与关掉，列表都停在用户读到的那一行**。这条钉的是「什么都没动」这个终态。
  *    曾经这里断言的是「归零之后还回来」，三组对照把它撤了：起点 40（按钮可见）用自动化点击
@@ -30,10 +35,10 @@ import { textOf } from './i18n';
  *    面板同时飘出视口。
  * 3. **保存后列表停在刚存的那一条**。`revealRow` 主动把那一行 `scrollIntoView`，与第 1 条
  *    「谁都别动」是两回事：这条要的是定位之后没有别的东西再把位置搬走。
- *    起点取 800：那一条保存后按默认序落到首行（文档坐标 335..380）。判据只到「高亮行整个进
+ *    起点取 1020：那一条保存后按默认序落到首行（文档坐标 645..708）。判据只到「高亮行整个进
  *    视口」，不钉落点 —— 默认可用平滑滚动，落点是动画终态，具体值本机探针读到过 138、行
  *    `y=195`（与 `block: 'center'` 的理论落点 ≈147.5 同量级），但那是量具不是契约。
- *    反面：若不定位而留在 800，同一行的 `rectTop` 是 `335 − 800 = −465`，整个移出视口上沿
+ *    反面：若不定位而留在 1020，同一行的 `rectTop` 是 `645 − 1020 = −375`，整个移出视口上沿
  *    —— 两种结果在读数上直接对立，断言才有牙。
  * 4. **详情抽屉里再开一层弹窗，位置不掉**。三段位置（抽屉可见 / 弹窗可见 / 弹窗关闭后）都由
  *    本用例自己各采一次。Element Plus 的 `useLockscreen` 让后开的弹窗没抢到锁滚类
@@ -64,6 +69,11 @@ import { textOf } from './i18n';
  *    `.cp-overlay { overflow: auto; overscroll-behavior: contain }`），与第 5 条同构。
  *    只此一条：先写过「遮罩 + 列表各一条」，把列表那条摘掉重跑三段位移全部照旧绿，
  *    故按实测的承重位置收掉 —— 详见该条用例的注释。
+ *    **已知引擎差异**：本机 Chrome for Testing 155 上「落点 2（底部提示条）」恒红（`150 → 950`），
+ *    CI 的 Playwright Chromium 恒绿。探针实测：滚轮落点自身不可滚时，新引擎不再向祖先问
+ *    `overscroll-behavior`，直接把滚动交给文档；给 `.cp-panel` 补一份 `contain` 已验证**无效**
+ *    （已回退）。这不是本轮引入的回归，也不要在 CSS 上继续找解 —— 要覆盖新引擎得在 wheel 事件层兜，
+ *    那属于交互改动。判红绿以 CI 为准（本机与 CI 不是同一个引擎，见 `e2e/README.md`）。
  *
  * 六条都把视口压到 420px 高：列表因此真的可滚（不然「scrollTop 没变」是空断言），
  * 30 个站点候选也才装得下面板放不下（不然滚不到底，越界滚动这一格就无从发生），
@@ -78,17 +88,24 @@ ${Array.from({ length: TOTAL }, (_, i) => `e2e-si-${String(i + 1).padStart(3, '0
 `;
 
 /**
- * 三个起点各按实测几何取，共同约束是「本用例接下来要点的触发器整个在视口内」
+ * 四个起点各按实测几何取，共同约束是「本用例接下来要点的触发器整个在视口内」
  *
- * 文档坐标（视口 420 高、30 行、行距 45）：头部「添加密码」按钮 68..100，站点筛选 170..202，
- * 表格首行 335..380，第 12 行 830..875，可滚范围 1718−420=1298。
+ * 文档坐标（视口 420 高、30 行、行距 63；本机 macOS / Chrome for Testing 155 一侧的读数，
+ * CI 的 Playwright Chromium 整体矮约 10 像素，取值按两边都能过算）：头部 0..168，
+ * 安全起步清单 192..442，站点筛选 479..513，表格 582..2535，首行 645..708，
+ * 第 12 行 1338..1401，可滚范围 2568−420=2148。
+ *
+ * 这份账本在 `aefa606`（安全起步清单，表头下方多出 250 高一块卡片）之后整体下移过一轮，
+ * 旧值 68..100 / 170..202 / 335..380 / 830..875 已不成立——`expectInView` 挡的就是这种漂移。
  */
-/** 第 1、5 条：让头部的按钮（「添加密码」/「数据管理」，同一行 68..100）留在视口内的同时，文档确实滚了一段 */
+/** 第 1、5 条：让头部的按钮（「添加密码」/「数据管理」）留在视口内的同时，文档确实滚了一段 */
 const ADD_TOP = 40;
-/** 第 2、4 条：站点筛选与首行都还在视口内 */
+/** 第 2 条：站点筛选还在视口内，浮层按下方空间不足翻到输入框上方 */
 const START_TOP = 150;
-/** 第 3 条：深处的第 12 行整行可见，而首行已移出视口上沿（rectTop −465） */
-const DEEP_TOP = 800;
+/** 第 4 条：首行（645..708）整个进视口，其「查看详情」按钮底沿两侧平台都 <420 */
+const DETAIL_TOP = 300;
+/** 第 3 条：深处的第 12 行整行可见（318..381），而首行已移出视口上沿（rectTop −375） */
+const DEEP_TOP = 1020;
 
 const docTop = (page: Page): Promise<number> => page.evaluate(() => document.documentElement.scrollTop);
 
@@ -113,6 +130,24 @@ async function expectInView(page: Page, trigger: Locator, label: string): Promis
     0,
   );
   expect(box!.y + box!.height, `${label} 超出视口下沿：同上`).toBeLessThanOrEqual(viewport!.height);
+}
+
+/**
+ * 先证明触发器整个在视口内，再用真坐标点它
+ *
+ * 这条不是给 `expectInView` 加保险，是换掉量具：`locator.click()` 在每次动作前都会经 CDP 的
+ * `DOM.scrollIntoViewIfNeeded` 预滚一次，而那一步**不经过页面 JS**——把
+ * `Element.prototype.scroll/scrollTo/scrollBy/scrollIntoView`、`scrollTop` 的 setter 和
+ * `window.scroll` 全钩上，一次也抓不到，`expectInView` 更挡不住。本机实测 14 轮里 6 轮被它把
+ * 文档从 300 搬到 660（首行贴顶，正好是那颗按钮的文档坐标滚到视口顶部）或搬到 268，
+ * 于是「抽屉弄丢位置」读到的一直是夹具自己搬的那一下。`page.mouse.click` 按坐标派发输入、
+ * 不做预滚动，既把产品行为还原出来，也更接近真用户的一次点击。
+ */
+async function clickInView(page: Page, trigger: Locator, label: string): Promise<void> {
+  await expectInView(page, trigger, label);
+  const box = await trigger.boundingBox();
+  expect(box, `${label} 量不到位置`).not.toBeNull();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
 }
 
 /** 取那一行的用户名（首格），并自证取到的确实是合成用户名，而不是序号列或空串 */
@@ -227,7 +262,7 @@ test.describe('弹窗与浮层的滚动隔离', () => {
     const highlighted = page.locator('tr.el-table__row.new-item');
     await expect(highlighted, '保存后没有高亮行：定位链路自己就断了').toBeVisible();
     // 轮询到「进了视口」为止，而不是睡一个定值再读：默认可用平滑滚动（`scrollBehavior()`），
-    // 实测从 800 平滑到居中要跑 ≈370ms，慢机器上更久 —— 定值等待会把动画中途读成终态
+    // 实测从千像素级的深处平滑到居中要跑 ≈370ms，慢机器上更久 —— 定值等待会把动画中途读成终态
     // （真机抓到过一次 `y = −77.7`，即动画跑到一半）。不定位的话这条永远不成立，判据照旧有牙。
     await expect
       .poll(
@@ -258,30 +293,37 @@ test.describe('弹窗与浮层的滚动隔离', () => {
    * 落在视口外 —— 本用例里那道 `expectInView` 挡的是首行的「查看详情」，抽屉里那颗「编辑」在
    * fixed 浮层内、本就可见，正常走不到那条路。撤销还原逻辑之后这条判据在本机红过 1 次（16 次里，
    * 失败值 0），此后 15 次连续干净，原因未能复现到可以指名。
+   *
+   * **上面那一句已被本轮推翻，留在这里记着走过的弯**：这条间歇红的读数落在 650 / 660 / 464 /
+   * 268 / 258 这类**各不相同的中间值**上，不是 0。逐帧探针量到跳变发生在一帧之内
+   * （`scroll-behavior: auto`），而钩住 `Element.prototype.scroll/scrollTo/scrollBy/scrollIntoView`、
+   * `scrollTop` 的 setter 与 `window.scroll` 之后**一次脚本滚动都没抓到**——唯一的赋值落在
+   * `.el-overlay` / `.el-drawer` 自己身上，那是 EP 重置容器，不动文档。搬动文档的是
+   * `locator.click()` 动作前的 `DOM.scrollIntoViewIfNeeded`（660 那一档正是「把那颗按钮滚到
+   * 视口顶部」的落点：本机 14 轮里 6 轮命中）。所以触发点击换成 {@link clickInView}，
+   * 读数仍由本用例自己采——产品若真把列表搬走，照样红。
    */
   test('抽屉里再开编辑弹窗，列表位置不掉', async ({ optionsPage: page }) => {
-    await scrollDocTo(page, START_TOP, '文档滚不到起点，测量前提不成立');
+    await scrollDocTo(page, DETAIL_TOP, '文档滚不到起点，测量前提不成立');
     const detailBtn = page
       .locator('tr.el-table__row')
       .first()
       .getByRole('button', { name: textOf('options.detail.viewDetail') });
-    await expectInView(page, detailBtn, '首行的查看详情按钮');
-
-    await detailBtn.click();
+    await clickInView(page, detailBtn, '首行的查看详情按钮');
     const drawer = page.getByRole('dialog').filter({ hasText: textOf('options.detail.title') });
     await expect(drawer).toBeVisible();
-    await expect.poll(() => docTop(page), { message: '抽屉自己就把位置弄丢了' }).toBe(START_TOP);
+    await expect.poll(() => docTop(page), { message: '抽屉自己就把位置弄丢了' }).toBe(DETAIL_TOP);
 
     await drawer.getByRole('button', { name: textOf('common.edit') }).click();
     const dialog = page.getByRole('dialog').filter({ hasText: textOf('options.form.editTitle') });
     await expect(dialog).toBeVisible();
     // 定点采样证明这条路径上没有归零：弹窗刚可见时锁还在（抽屉的 cleanup 是 200ms 延时），
-    // 此刻读数已是 150；等 cleanup 把锁摘掉仍是 150。
-    await expect.poll(() => docTop(page), { timeout: 2_000, message: '弹窗开着时列表位置掉了' }).toBe(START_TOP);
+    // 此刻读数已是 DETAIL_TOP；等 cleanup 把锁摘掉仍是同一个值。
+    await expect.poll(() => docTop(page), { timeout: 2_000, message: '弹窗开着时列表位置掉了' }).toBe(DETAIL_TOP);
 
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
-    await expect.poll(() => docTop(page), { timeout: 2_000, message: '关掉嵌套弹窗后没停在原位' }).toBe(START_TOP);
+    await expect.poll(() => docTop(page), { timeout: 2_000, message: '关掉嵌套弹窗后没停在原位' }).toBe(DETAIL_TOP);
   });
 
   /**

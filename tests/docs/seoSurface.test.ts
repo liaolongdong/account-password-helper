@@ -8,7 +8,7 @@
  *    不指向不存在的文件；`product-site/` 是 qoder.zone 的副本，已 `noindex`，所以刻意不在 sitemap 里。
  * 2. **日期口径**：`lastmod` 表示该页**正文**最近一次实质修改的日期。页面自己声明了修改日期
  *    （落地页 JSON-LD `dateModified`、隐私页「最后更新」、博客 front-matter `modified`）时，
- *    sitemap 必须与自述一致；博客索引取五篇文章的 `max(modified)`。
+ *    sitemap 必须与自述一致；博客索引取八篇文章的 `max(modified)`。
  *    没有自述日期的页面（pricing / compare 两份）本文件不校验日期，只校验不能是未来日期。
  * 3. **隐私口径**：站页正文不出现被禁的绝对化表达（「绝不出浏览器」/ `Passwords Never Leave the
  *    Browser` / `100% offline` 一类）——这类词在商店审核侧已被判过，网站与 README 保持同一口径。
@@ -52,9 +52,10 @@ const COPY_SURFACES = [
   'README.md',
   'README.en.md',
   'llms.txt',
+  'llms-full.txt',
   '.github/ISSUE_TEMPLATE/feature_request.yml',
   ...readdirSync(path.join(ROOT, 'blog'))
-    .filter(f => f.endsWith('.html'))
+    .filter(f => f.endsWith('.html') || f.endsWith('.xml'))
     .map(f => `blog/${f}`),
   ...readdirSync(path.join(ROOT, 'imgs/blog-covers'))
     .filter(f => /^blog-cover-.+\.svg$/.test(f))
@@ -171,6 +172,8 @@ describe('官网 SEO 表面一致性', () => {
 
   it('sitemap 覆盖根目录每个公开页面，且没有多余条目', () => {
     expect(ROOT_PAGES, '根目录公开页名单变了，本守卫与 sitemap 都需要一并确认').toEqual([
+      'author.en.html',
+      'author.html',
       'compare.en.html',
       'compare.html',
       'en.html',
@@ -208,6 +211,27 @@ describe('官网 SEO 表面一致性', () => {
     }
   });
 
+  it('SoftwareApplication 声明 datePublished，且不晚于 dateModified', () => {
+    // 只补 datePublished，不加 aggregateRating：后者要求真实评分来源与可见展示，伪造的星级
+    // 既违反 Google 的结构化数据政策，也会被 AI 爬虫原样引用成一条不存在的口碑。
+    const values: string[] = [];
+    for (const file of ['index.html', 'en.html']) {
+      const html = readPage(file);
+      const published = /"datePublished":\s*"(\d{4}-\d{2}-\d{2})"/.exec(html);
+      const modified = /"dateModified":\s*"(\d{4}-\d{2}-\d{2})"/.exec(html);
+      expect(published, `${file} 缺少 datePublished`).not.toBeNull();
+      expect(modified, `${file} 缺少 dateModified`).not.toBeNull();
+      expect(
+        new Date(published![1]).getTime() <= new Date(modified![1]).getTime(),
+        `${file} 的 datePublished 晚于 dateModified`,
+      ).toBe(true);
+      // 取值口径必须写在页内注释里，否则下一个读到 "2026-05-23" 的人无法判断它是不是编的
+      expect(html, `${file} 没有交代 datePublished 从哪来`).toContain('git log -1 --format=%ci v1.0.0');
+      values.push(published![1]);
+    }
+    expect(values[0], '中英两页的 datePublished 不同源').toBe(values[1]);
+  });
+
   it('隐私页的 lastmod 等于页内「最后更新」', () => {
     for (const file of ['privacy.html', 'privacy.en.html']) {
       const body = bodyOf(file);
@@ -224,9 +248,9 @@ describe('官网 SEO 表面一致性', () => {
     }
   });
 
-  it('博客文章的 lastmod 等于 front-matter 的 modified，索引页取五篇的最大值', () => {
+  it('博客文章的 lastmod 等于 front-matter 的 modified，索引页取八篇的最大值', () => {
     const articles = entries.filter(e => /\/blog\/\d\d-/.test(e.loc));
-    expect(articles, 'sitemap 里没有博客文章条目').toHaveLength(10);
+    expect(articles, 'sitemap 里没有博客文章条目').toHaveLength(16);
 
     const modifiedByLang: Record<'zh' | 'en', string[]> = { zh: [], en: [] };
     for (const { loc, lastmod } of articles) {
@@ -244,7 +268,7 @@ describe('官网 SEO 表面一致性', () => {
     for (const indexLoc of [`${SITE}/blog/`, `${SITE}/blog/index.en.html`]) {
       const entry = entries.find(e => e.loc === indexLoc);
       expect(entry, `sitemap 缺少博客索引 ${indexLoc}`).toBeDefined();
-      expect(entry!.lastmod, `${indexLoc} 应等于五篇文章最新的 modified`).toBe(newestIso);
+      expect(entry!.lastmod, `${indexLoc} 应等于八篇文章最新的 modified`).toBe(newestIso);
     }
   });
 

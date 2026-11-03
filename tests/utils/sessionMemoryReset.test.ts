@@ -54,13 +54,17 @@ const seedLiveSession = async (keys: Record<string, string>) => {
     [keys.PASSWORD_EXPIRY]: Date.now() + 60 * 60 * 1000,
     [keys.VALIDITY_HOURS]: 24,
   });
-  await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.DATA_KEY]: 'session-data-key' });
+  // 配对标识必须一起播种：明文密钥缓存只有在与盘上包裹密钥配对时才可信
+  await chrome.storage.session.set({
+    [SESSION_MEMORY_KEYS.DATA_KEY]: 'session-data-key',
+    [SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]: 'wrapped-key-material',
+  });
 };
 
 /** 模拟「其他上下文」清除了会话：只动 storage，不触碰本上下文内存镜像 */
 const clearSessionElsewhere = async (keys: Record<string, string>) => {
   await chrome.storage.local.remove([keys.WRAPPED_DATA_KEY, keys.PASSWORD_EXPIRY, keys.VALIDITY_HOURS]);
-  await chrome.storage.session.remove(SESSION_MEMORY_KEYS.DATA_KEY);
+  await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
 };
 
 describe('resetSessionMemoryState（跨上下文清除会话）', () => {

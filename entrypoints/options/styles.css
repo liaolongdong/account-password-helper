@@ -16,6 +16,55 @@
   margin: 0 32px 10px;
 }
 
+/* 坏记录提示：与列表信息同一条左右基线，避免贴着头部或表格 */
+.undecryptable-alert {
+  margin: 0 32px 12px;
+}
+
+/*
+ * 主内容区的左右基线：搜索条与密码列表在窄屏会把自己从 32px 降到 16px，
+ * 上面这两条纯文字行原本没有对应断点，视口 <768px 时会比它们各宽出 16px。
+ */
+@media (width <= 768px) {
+  .password-list-info {
+    margin: 0 16px 10px;
+  }
+
+  .undecryptable-alert {
+    margin: 0 16px 12px;
+  }
+}
+
+/*
+ * 备份轻提醒的进出场：卡片高度由内容决定，CSS 无法在 `auto` 与 0 之间插值，
+ * 所以外层套一层 `grid-template-rows: 1fr → 0fr` 的壳来收放高度（子项必须
+ * `min-height: 0`，否则 grid 项的自动最小尺寸会顶住不收）。只淡出不收高度的话，
+ * 动画结束时下方内容会整块往上跳一次，比没有动画更扎眼。
+ * 时长取 `--aph-duration-mid`，与仓库其余一次性横幅同一档。
+ */
+.backup-nudge-shell {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.backup-nudge-shell > * {
+  min-height: 0;
+}
+
+.backup-nudge-enter-active,
+.backup-nudge-leave-active {
+  overflow: hidden;
+  transition:
+    grid-template-rows var(--aph-duration-mid) ease-in-out,
+    opacity var(--aph-duration-mid) ease-in-out;
+}
+
+.backup-nudge-enter-from,
+.backup-nudge-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
 /* 弹窗样式 */
 .dialog-footer {
   display: flex;
@@ -36,7 +85,9 @@
   border: 1px solid var(--aph-primary-border);
   border-radius: 6px;
   box-shadow: none;
-  transition: all 0.2s ease;
+  transition:
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease;
 }
 
 :deep(.el-input--large .el-input__wrapper:hover) {
@@ -52,7 +103,9 @@
   border: 1px solid var(--aph-primary-border);
   border-radius: 6px;
   box-shadow: none;
-  transition: all 0.2s ease;
+  transition:
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease;
 }
 
 :deep(.el-input .el-input__wrapper:hover) {
@@ -65,30 +118,41 @@
 }
 
 /* 按钮优化 */
-:deep(.el-button--large.el-button--primary) {
+
+/* 大号实心主按钮：与下面那条 `.el-button--primary` 同理，`link` / `text` 变体必须排除在外，
+   否则同色实底压同色文字直接看不见。今天仓库里还没有 large + primary + link 的组合，
+   但两条规则是同一族，留一条不一致就是给下一次埋雷。 */
+:deep(.el-button--large.el-button--primary:not(.is-link, .is-text)) {
   padding: 12px 24px;
   font-size: 16px;
   font-weight: 500;
   background: var(--aph-primary);
   border: 1px solid var(--aph-primary);
   border-radius: 6px;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
-:deep(.el-button--large.el-button--primary:hover) {
+:deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover) {
   background: var(--aph-primary-hover);
   border-color: var(--aph-primary-hover);
   box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 30%);
   transform: translateY(-1px);
 }
 
-:deep(.el-button--primary) {
+/* 实心主按钮刷成主题色实底。
+   `link` / `text` 变体的文字本身就是主色，被这条规则刷上同色实底会变成「蓝字压蓝底」而彻底看不见
+   （锁屏的「使用离线恢复密钥」就是这样被抹掉的），因此把它们排除在外。 */
+:deep(.el-button--primary:not(.is-link, .is-text)) {
   font-weight: 400;
   background: var(--aph-primary);
   border: 1px solid var(--aph-primary);
 }
 
-:deep(.el-button--primary:hover) {
+:deep(.el-button--primary:not(.is-link, .is-text):hover) {
   background: var(--aph-primary-hover);
   border-color: var(--aph-primary-hover);
 }
@@ -96,7 +160,13 @@
 :deep(.el-button) {
   font-weight: 400;
   border-radius: 6px;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    opacity var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
 :deep(.el-button:hover) {
@@ -169,6 +239,7 @@
 }
 
 /* 链接按钮优化 */
+
 :deep(.el-button--info.is-link) {
   font-weight: 400;
   color: var(--aph-primary);
@@ -185,4 +256,31 @@
 
 :deep(.el-button--danger.is-link:hover) {
   color: #f78989;
+}
+
+/*
+ * ==================== 减弱动效档（必须留在文件末尾） ====================
+ *
+ * 媒体查询**不增加特异性**：同一个选择器只要在本块之后再次出现并带上位移，后写的规则就赢，
+ * 这里的撤销会当场变成死规则——而 `prefers-reduced-motion` 写在前面的那次翻车，守卫按
+ * 「文件里有没有减弱档」判是绿的，真机减弱档下按钮照样上浮。
+ * 所以本块必须排在所有基规则之后，别把它挪回上面去。
+ * （`tests/architecture/reducedMotionCoverage.test.ts` 的层叠判据会当场拦住。）
+ */
+@media (prefers-reduced-motion: reduce) {
+  .backup-nudge-enter-active,
+  .backup-nudge-leave-active {
+    transition: none;
+  }
+
+  /*
+   * 同一档里也撤掉全局按钮那 1px 悬浮上浮。它原先靠 `reducedMotionCoverage` 的
+   * 「整文件豁免」留在减弱档之外；这个文件一旦有了减弱档，就不该再一边声明尊重系统设置、
+   * 一边留两条不受它管的位移——那条豁免因此必须随之删掉。撤掉上浮后按钮仍有提亮与投影
+   * 两条反馈在动，不是「按下去什么都看不见」那一形（那才是登记表该留的情形）。
+   */
+  :deep(.el-button--large.el-button--primary:not(.is-link, .is-text):hover),
+  :deep(.el-button:hover) {
+    transform: none;
+  }
 }

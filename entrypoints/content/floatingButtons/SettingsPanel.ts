@@ -97,6 +97,10 @@ export class SettingsPanel {
 
     this.overlay?.classList.add('visible');
     this.panel?.classList.add('visible');
+
+    // 构造期面板是 visibility: hidden（零尺寸），底栏那次初算只能读出「不用滚」；
+    // 这里是这份宿主唯一「拿到尺寸」的时刻，摘要与淡出必须补一次
+    this.viewHandle?.refresh();
   }
 
   /**

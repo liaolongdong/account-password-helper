@@ -2,7 +2,8 @@
  * 修改主密码（rekey）的原子写入与回滚回归测试
  *
  * 背景：`changeMasterPassword` 的收尾是**一次** `chrome.storage.local.set()` 把
- * 「四块数据密文 + 新校验哈希 + 新会话密钥材料」同时落地。这一步之所以设计成单次原子写，
+ * 「五块数据密文（密码 / 密码回收站 / 历史 / 个人信息 / 个人信息回收站）+ 新校验哈希 +
+ * 新会话密钥材料」同时落地。这一步之所以设计成单次原子写，
  * 是因为各上下文的 storage 监听器会在「新密文已落盘、会话密钥仍是旧值」的中间状态里
  * 用旧密钥解新密文、全部失败并把列表清空。对应的失败处理同样关键：
  * - 写盘失败必须把原错误如实上抛（弹窗据此提示用户），并且**主动清会话**——
@@ -20,35 +21,55 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import type { EncryptedPasswordEntry } from '@/utils/types';
 
-const { prepareSessionRekey, clearSession } = vi.hoisted(() => ({
+const { prepareSessionRekey, publishSessionRekey, clearSession } = vi.hoisted(() => ({
   prepareSessionRekey: vi.fn<(dataKey: string, validityHours: number) => Promise<Record<string, unknown>>>(),
+  publishSessionRekey: vi.fn<(dataKey: string, prepared: Record<string, unknown>) => Promise<boolean>>(),
   clearSession: vi.fn<() => Promise<void>>(),
 }));
 
 vi.mock('@/utils/sessionManager-storage', async importOriginal => {
   const actual = await importOriginal<typeof import('@/utils/sessionManager-storage')>();
-  return { ...actual, prepareSessionRekey, clearSession };
+  return { ...actual, prepareSessionRekey, publishSessionRekey, clearSession };
 });
 
-const { deriveEncryptionKey, deriveVerifierHash } = vi.hoisted(() => ({
+const {
+  deriveEncryptionKey,
+  deriveVerifierHash,
+  encryptPasswordEntry,
+  decryptPasswordEntry,
+  encryptData,
+  decryptData,
+} = vi.hoisted(() => ({
   deriveEncryptionKey: vi.fn<(password: string) => Promise<string>>(),
   deriveVerifierHash: vi.fn<(password: string, salt: string) => Promise<string>>(),
+  encryptPasswordEntry: vi.fn(),
+  decryptPasswordEntry: vi.fn(),
+  encryptData: vi.fn(),
+  decryptData: vi.fn(),
 }));
 
 vi.mock('@/utils/encryption', () => ({
   deriveEncryptionKey,
   deriveVerifierHash,
-  encryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>, _s: string, key: string) => ({
+  encryptPasswordEntry,
+  decryptPasswordEntry,
+  encryptData,
+  decryptData,
+}));
+
+/** 回显型加密桩：`clearAllMocks` 只清调用记录、不还原 `mockImplementation`，故每个用例前都要重设。 */
+const stubEncryptionEcho = (): void => {
+  encryptPasswordEntry.mockImplementation(async (entry: Record<string, unknown>, _s: string, key: string) => ({
     ...entry,
     password: `cipher:${key}`,
-  })),
-  decryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>, _s: string, key: string) => ({
+  }));
+  decryptPasswordEntry.mockImplementation(async (entry: Record<string, unknown>, _s: string, key: string) => ({
     ...entry,
     password: `plain:${key}`,
-  })),
-  encryptData: vi.fn(async (data: string, key?: string) => `enc:${key ?? ''}:${data}`),
-  decryptData: vi.fn(async (data: string) => data.replace(/^enc:/, '')),
-}));
+  }));
+  encryptData.mockImplementation(async (data: string, key?: string) => `enc:${key ?? ''}:${data}`);
+  decryptData.mockImplementation(async (data: string) => data.replace(/^enc:/, ''));
+};
 
 vi.mock('@/utils/storage/masterPassword', () => ({
   verifyMasterPassword: vi.fn(async () => true),
@@ -82,6 +103,7 @@ let localRemove: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  stubEncryptionEcho();
   prepareSessionRekey.mockImplementation(async (dataKey, validityHours) => ({
     [SESSION_STORAGE_KEYS.WRAP_KEY]: `wrap:${dataKey}`,
     [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: `wrapped:${dataKey}`,
@@ -89,6 +111,9 @@ beforeEach(() => {
     [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
   }));
   clearSession.mockResolvedValue(undefined);
+  // 新契约：发布回执「是否真的采纳」。桩返回 undefined 会被调用方读成「没采纳」，
+  // 于是每次改密都被判成需要重新解锁——那是桩的口径没跟上，不是产品的行为。
+  publishSessionRekey.mockResolvedValue(true);
   deriveEncryptionKey.mockImplementation(async (password: string) => `key:${password}`);
   deriveVerifierHash.mockImplementation(async (password: string) => `verifier:${password}`);
 
@@ -97,8 +122,13 @@ beforeEach(() => {
     [STORAGE_KEYS.TRASH]: [],
     [STORAGE_KEYS.PASSWORD_HISTORY]: [],
     [STORAGE_KEYS.IDENTITY]: [],
+    [STORAGE_KEYS.IDENTITY_TRASH]: [],
     [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'old-verifier', salt: 'the-salt', kdf: 'pbkdf2-sha256' },
     [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: 24,
+    // 会话键基线：提交前的守卫靠比对这几项发现「期间有人锁定/重建了会话」
+    [SESSION_STORAGE_KEYS.WRAP_KEY]: 'baseline-wrap',
+    [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: 'baseline-wrapped',
+    [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: 1_600_000_000_000,
   };
 
   localSet = vi.fn(async (items: Record<string, unknown>) => {
@@ -110,7 +140,16 @@ beforeEach(() => {
   vi.stubGlobal('chrome', {
     storage: {
       local: {
-        get: vi.fn(async (key: string) => (key in storageData ? { [key]: storageData[key] } : {})),
+        // 真实 `chrome.storage.local.get` 同时接受单键与键数组；提交前的会话键守卫正是按数组读，
+        // 桩若只认单键会让那条比对永远读到「两边都是空」，守卫形同未测。
+        get: vi.fn(async (keys: string | string[]) => {
+          const list = Array.isArray(keys) ? keys : [keys];
+          const found: Record<string, unknown> = {};
+          for (const key of list) {
+            if (key in storageData) found[key] = storageData[key];
+          }
+          return found;
+        }),
         set: localSet,
         remove: localRemove,
       },
@@ -124,10 +163,10 @@ beforeEach(() => {
 });
 
 describe('原子写入成功时的载荷形状', () => {
-  it('四块数据 + 校验哈希 + 会话密钥材料在同一次 set 里落盘', async () => {
+  it('五块数据 + 校验哈希 + 会话密钥材料在同一次 set 里落盘', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
     expect(localSet).toHaveBeenCalledTimes(1);
     const payload = localSet.mock.calls[0][0] as Record<string, unknown>;
@@ -136,6 +175,7 @@ describe('原子写入成功时的载荷形状', () => {
       STORAGE_KEYS.TRASH,
       STORAGE_KEYS.PASSWORD_HISTORY,
       STORAGE_KEYS.IDENTITY,
+      STORAGE_KEYS.IDENTITY_TRASH,
       STORAGE_KEYS.MASTER_PASSWORD,
       ...SESSION_WRITE_KEYS,
     ]) {
@@ -148,10 +188,10 @@ describe('原子写入成功时的载荷形状', () => {
   it('准备会话密钥发生在写盘之前，且落盘的校验值由新密码派生', async () => {
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw');
+    await changeMasterPassword('old-pw', 'New-pw#1');
 
-    expect(prepareSessionRekey).toHaveBeenCalledWith('key:new-pw', 24);
-    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:new-pw' });
+    expect(prepareSessionRekey).toHaveBeenCalledWith('key:New-pw#1', 24);
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
   });
 });
 
@@ -163,14 +203,14 @@ describe('写盘失败：回滚与会话清理', () => {
     localSet.mockRejectedValueOnce(error);
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toBe(error);
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toBe(error);
   });
 
   it('磁盘仍是旧密文与旧校验值：失败的 rekey 不留半成品', async () => {
     localSet.mockRejectedValueOnce(writeError());
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw').catch(() => undefined);
+    await changeMasterPassword('old-pw', 'New-pw#1').catch(() => undefined);
 
     const entries = storageData[STORAGE_KEYS.PASSWORDS] as { password: string }[];
     expect(entries[0]?.password).toBe('cipher');
@@ -178,15 +218,16 @@ describe('写盘失败：回滚与会话清理', () => {
       hashedPassword: 'old-verifier',
       salt: 'the-salt',
     });
-    // 会话密钥材料同样没落盘（磁盘上的登录态仍是旧的一套）
-    expect(storageData).not.toHaveProperty(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
+    // 会话密钥材料同样没落盘：磁盘上仍是基线那套旧登录态，而不是 prepareSessionRekey 备好的新键
+    expect(storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]).toBe('baseline-wrapped');
+    expect(storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]).toBe(1_600_000_000_000);
   });
 
   it('清会话恰好一次：内存/storage.session 已是新密钥，必须强制重新解锁', async () => {
     localSet.mockRejectedValueOnce(writeError());
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw').catch(() => undefined);
+    await changeMasterPassword('old-pw', 'New-pw#1').catch(() => undefined);
 
     expect(clearSession).toHaveBeenCalledTimes(1);
   });
@@ -197,7 +238,7 @@ describe('写盘失败：回滚与会话清理', () => {
     clearSession.mockRejectedValueOnce(new Error('clearSession unavailable'));
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toBe(error);
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toBe(error);
     expect(clearSession).toHaveBeenCalledTimes(1);
   });
 
@@ -205,14 +246,19 @@ describe('写盘失败：回滚与会话清理', () => {
     localSet.mockRejectedValueOnce(writeError());
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await changeMasterPassword('old-pw', 'new-pw').catch(() => undefined);
+    await changeMasterPassword('old-pw', 'New-pw#1').catch(() => undefined);
 
     expect(localRemove).not.toHaveBeenCalled();
   });
 });
 
-describe('写盘之前的失败：不写、不清会话', () => {
-  it('旧钥解不开某条密码：直接抛出，storage 未被触碰', async () => {
+describe('被携带的不可解条数必须外传（评审报告 P2-2）', () => {
+  /**
+   * 单条解不开时，默认整笔中止；用户知情后可放行，那条记录**原样留在库里**——
+   * 仍是旧数据密钥的密文，新主密码永远读不出。此前这个计数只进日志，弹窗一律报
+   * 「修改成功」，为「旧密码疑似泄露」而改密的人拿不到完整的密钥轮换却毫不知情。
+   */
+  it('知情放行一条坏记录：结果里带上条数，供界面点名', async () => {
     const enc = await import('@/utils/encryption');
     vi.mocked(enc.decryptPasswordEntry).mockImplementation(async entry => {
       if ((entry as unknown as { id: string }).id === 'p1') throw new Error('bad key');
@@ -220,7 +266,29 @@ describe('写盘之前的失败：不写、不清会话', () => {
     });
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('old-pw', 'new-pw')).rejects.toThrow('bad key');
+    await expect(changeMasterPassword('old-pw', 'New-pw#1', undefined, true)).resolves.toMatchObject({
+      relockRequired: false,
+      carriedUndecryptable: 1,
+    });
+
+    expect(localSet).toHaveBeenCalledTimes(1);
+    const entries = storageData[STORAGE_KEYS.PASSWORDS] as { id: string; password: string }[];
+    expect(entries[0]?.password, '被携带的记录保持旧钥密文（不重加密、不删除）').toBe('cipher');
+  });
+});
+
+describe('写盘之前的失败：不写、不清会话', () => {
+  it('旧钥解不开某条密码：按稳定错误码中止，storage 未被触碰', async () => {
+    const enc = await import('@/utils/encryption');
+    vi.mocked(enc.decryptPasswordEntry).mockImplementation(async entry => {
+      if ((entry as unknown as { id: string }).id === 'p1') throw new Error('bad key');
+      return entry as never;
+    });
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toMatchObject({
+      code: 'UNDECRYPTABLE_RECORDS',
+    });
 
     expect(localSet).not.toHaveBeenCalled();
     expect(clearSession, '会话密钥尚未准备，无需回滚，也不该被顺带清掉').not.toHaveBeenCalled();
@@ -232,10 +300,114 @@ describe('写盘之前的失败：不写、不清会话', () => {
     vi.mocked(masterPassword.verifyMasterPassword).mockResolvedValueOnce(false);
     const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
 
-    await expect(changeMasterPassword('wrong-old', 'new-pw')).rejects.toThrow('当前密码验证失败');
+    await expect(changeMasterPassword('wrong-old', 'New-pw#1')).rejects.toMatchObject({ code: 'WRONG_PASSWORD' });
 
     expect(deriveEncryptionKey).not.toHaveBeenCalled();
     expect(localSet).not.toHaveBeenCalled();
     expect(clearSession).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 提交点之后才失败的两种情形，语义必须与「写盘失败」区分开：
+ * - 会话材料发布失败：新密文与新校验哈希已经生效，只能告诉调用方「改密已成功、需要重新解锁」，
+ *   若照旧抛出，弹窗会显示「写入失败」，用户继续用旧密码解锁必然失败；
+ * - 只剩旧版遗留 blob 清理失败：一致性不受影响，保持成功语义，不得反向推翻已提交的事实。
+ */
+describe('提交成功之后的失败：不得伪装成未提交', () => {
+  /**
+   * 「没采纳」不等于「抛错」，但后果必须一样。
+   *
+   * `publishSessionRekey` 原先在不采纳时静默 `return`（返回 undefined），调用方只看 throw，
+   * 于是「别的上下文在提交与发布之间把库锁了」这一路会回执 `relockRequired:false`：
+   * UI 说「改密成功且保持解锁」，而这次换钥刚把会话材料写回盘上，等于把用户按下的立即锁定复活。
+   * 现在回执 `false` 与抛错走同一收尾：清会话一次、报需要重新解锁、新钥密文保留。
+   */
+  it('发布回执未采纳（false）时同样强制重新解锁，而不是谎报保持解锁', async () => {
+    publishSessionRekey.mockResolvedValueOnce(false);
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#9')).resolves.toMatchObject({ relockRequired: true });
+
+    expect(clearSession).toHaveBeenCalledTimes(1);
+    const payload = localSet.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload[STORAGE_KEYS.MASTER_PASSWORD]).toBeTruthy();
+  });
+
+  it('发布新会话密钥失败时返回 relock-required，并把已提交的新密钥留在盘上', async () => {
+    publishSessionRekey.mockRejectedValueOnce(new Error('session readback failed'));
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toMatchObject({ relockRequired: true });
+
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
+    expect(clearSession, '发布失败必须清会话，避免留下新钥/旧库不一致的解锁态').toHaveBeenCalledTimes(1);
+  });
+
+  it('仅旧版遗留清理失败时仍报告改密成功，不清会话', async () => {
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+    localRemove.mockRejectedValueOnce(new Error('remove unavailable'));
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toMatchObject({
+      relockRequired: false,
+      carriedUndecryptable: 0,
+    });
+
+    expect(clearSession).not.toHaveBeenCalled();
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'verifier:New-pw#1' });
+  });
+});
+
+describe('并发锁定与提交守卫', () => {
+  /**
+   * 会话键也纳入提交前的比对。
+   *
+   * `clearSession` 刻意不在租约内（它同时是恢复流程自己的提交步骤），所以「用户点了立即锁定」
+   * 与「换钥正在收尾」之间只能靠读数比对兜住：比对不过就必须整笔作废，
+   * 否则那批早已准备好的新会话键会把用户刚清掉的会话复活成有效状态。
+   */
+  it('换钥期间发生的锁定会作废整笔提交，而不是把会话复活', async () => {
+    prepareSessionRekey.mockImplementation(async (dataKey, validityHours) => {
+      delete storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+      delete storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      return {
+        [SESSION_STORAGE_KEYS.WRAP_KEY]: `wrap:${dataKey}`,
+        [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: `wrapped:${dataKey}`,
+        [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: 1_700_000_000_000,
+        [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
+      };
+    });
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).rejects.toMatchObject({ code: 'REKEY_CONCURRENT_WRITE' });
+    expect(localSet).not.toHaveBeenCalled();
+    expect(publishSessionRekey).not.toHaveBeenCalled();
+    expect(clearSession).toHaveBeenCalled();
+    expect(storageData[STORAGE_KEYS.MASTER_PASSWORD]).toMatchObject({ hashedPassword: 'old-verifier' });
+  });
+
+  /**
+   * 锁定发生在「基线读数之前」也必须被挡住。
+   *
+   * 基线是在整轮全库重加密**之后**才取的，所以重加密期间完成的锁定只会让两侧同为空，
+   * 漂移比对判不出任何变化，那批早已备好的新会话键照样落盘并把用户刚清掉的会话复活成
+   * 24 小时登录态。修好后：基线里没有包裹好的数据密钥即视为已锁——不准备、不发布会话材料，
+   * 改密本身照旧提交，但收尾必须按 `relock-required` 改口，让用户用新主密码重新解锁。
+   */
+  it('基线读取之前就已锁定：不备新会话键、不复活登录态，改密仍提交并提示重新解锁', async () => {
+    delete storageData[SESSION_STORAGE_KEYS.WRAP_KEY];
+    delete storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+    delete storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+
+    await expect(changeMasterPassword('old-pw', 'New-pw#1')).resolves.toMatchObject({ relockRequired: true });
+
+    expect(prepareSessionRekey, '已锁状态不该为它准备会话材料').not.toHaveBeenCalled();
+    expect(publishSessionRekey).not.toHaveBeenCalled();
+    const payload = localSet.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload, '整包提交里不得混进会话键').not.toHaveProperty(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
+    expect(payload).toHaveProperty(STORAGE_KEYS.MASTER_PASSWORD);
+    expect(storageData[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]).toBeUndefined();
+    expect(storageData[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]).toBeUndefined();
   });
 });

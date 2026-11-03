@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PasswordEntry } from '@/utils/types';
+import type { DomainMatchConfig, PasswordEntry } from '@/utils/types';
 import type { DomainMatchMode } from '@/utils/domain';
+import { parsePagePortContext } from '@/utils/domain';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
+import { resetEnvBindingMirror, setEnvBinding } from '@/entrypoints/background/environmentBinding';
 
 /**
  * passwordCache.applyMetadataOnlyUpdate 单元测试
@@ -17,12 +19,15 @@ import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
  * 会话模块 mock 掉：getSessionDataKey 返回 null 使快照持久化提前返回，
  * 避免测试触碰真实加密链路。
  *
- * 另覆盖跨子域匹配档位的后台侧契约：档位镜像的读取/复位次数，以及
- * getMatchingAccounts 按档位放行条目并逐条下发 tier（内容脚本据此呈现来源标识）。
+ * 另覆盖站点匹配策略（跨子域档位 + 端口范围）的后台侧契约：策略镜像的读取/复位次数，以及
+ * getMatchingAccounts 按策略放行条目并逐条下发 tier（内容脚本据此呈现来源标识）。
  *
  * 还钉住内联下拉下发口径的两件事：一次响应的条目上界（超出部分只报总数、
  * 不为被截断的条目生成 favicon dataURL），以及主密码存在性只在锁定分支才被读一次。
  */
+
+/** 页面端口上下文夹具：必须由完整 URL 解析，手写对象会绕开 80/443 默认端口口径 */
+const page = (url: string) => parsePagePortContext(url);
 
 const sessionMocks = vi.hoisted(() => ({
   isSessionValid: vi.fn(async () => true),
@@ -38,9 +43,10 @@ vi.mock('@/utils/sessionManager-storage', () => ({
 
 const configMocks = vi.hoisted(() => ({
   getSidepanelSortConfig: vi.fn(async () => null),
-  // 返回类型显式声明为完整档位：`as const` 会把 mock 的入参收窄成 'off'，
-  // 让 setMode('wildcard') 这类合法切档在类型检查阶段就报 TS2322
-  getDomainMatchConfig: vi.fn(async (): Promise<{ mode: DomainMatchMode }> => ({ mode: 'off' })),
+  // 返回类型显式声明为完整策略：`as const` 会把 mock 的入参收窄成缺省档位，
+  // 让 setMode('wildcard') 这类合法切档在类型检查阶段就报 TS2322；
+  // portScope 恒取 `loose`（本文件不测端口轴），它不参与主机匹配，集合与顺序仍只由档位决定
+  getDomainMatchConfig: vi.fn(async (): Promise<DomainMatchConfig> => ({ mode: 'off', portScope: 'loose' })),
 }));
 
 vi.mock('@/utils/storage/configManager', async importOriginal => {
@@ -78,13 +84,15 @@ vi.mock('@/utils/storage/masterPassword', async importOriginal => {
 import {
   applyMetadataOnlyUpdate,
   consumePendingTotp,
-  getCachedDomainMatchMode,
+  getCachedSitePolicy,
   getDecryptedEntryById,
   getCachedPasswords,
   getInlineTotpCode,
   getMatchingAccounts,
   INLINE_MAX_RESULT_ROWS,
+  getCachedSortConfig,
   invalidatePasswordCache,
+  refreshSidepanelSortCache,
   resetCredentialAccessBarrierForStartup,
   resetDomainMatchModeMirror,
   sortMatchesForDomain,
@@ -177,7 +185,7 @@ describe('浏览器启动重锁凭据边界', () => {
     const sendMessage = vi.spyOn(chrome.tabs, 'sendMessage');
     const checks = Promise.all([
       getCachedPasswords(),
-      getMatchingAccounts('example.com'),
+      getMatchingAccounts('example.com', page('https://example.com')),
       getDecryptedEntryById('secret'),
       getInlineTotpCode('secret'),
       consumePendingTotp(1, 'example.com'),
@@ -207,13 +215,81 @@ describe('getMatchingAccounts 下发给内容脚本的字段口径', () => {
     const legacy = { ...makePasswordEntry({ id: 'legacy', url: '' }), username: undefined } as unknown as PasswordEntry;
     updatePasswordCache([legacy], '*', true);
 
-    const { accounts } = await getMatchingAccounts('example.com');
+    const { accounts } = await getMatchingAccounts('example.com', page('https://example.com'));
 
     expect(accounts).toHaveLength(1);
     expect(accounts[0]!.username).toBe('');
     expect(accounts[0]!.tag).toBe('');
     expect(accounts[0]!.remark).toBe('');
     expect(accounts[0]!.url).toBe('');
+  });
+});
+
+describe('getMatchingAccounts 的环境绑定（本地页）', () => {
+  /** 本机端点、被绑定环境的条目、以及一条与两者都无关的外站条目 */
+  const vault = () => [
+    makePasswordEntry({ id: 'local', url: 'localhost:3000' }),
+    makePasswordEntry({ id: 'fat', url: 'fat.example.com' }),
+    makePasswordEntry({ id: 'foreign', url: 'github.com' }),
+  ];
+
+  beforeEach(async () => {
+    resetEnvBindingMirror();
+    await chrome.storage.session.clear();
+  });
+
+  // 绑定表与内存镜像都是模块级状态：不清就会顺着文件顺序漏给后面的用例，
+  // 让「localhost 页面」那些既有断言莫名多出一条远端条目。
+  afterEach(async () => {
+    resetEnvBindingMirror();
+    await chrome.storage.session.clear();
+  });
+
+  it('未绑定时该环境的条目不进下拉：本地页不因「同是开发机」捞远端凭证', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
+    expect(accounts.map(a => a.id)).toEqual(['local']);
+  });
+
+  it('绑定后条目进下拉、按精确层级下发，并带来源主机', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
+    expect(accounts.map(a => a.id).sort()).toEqual(['fat', 'local']);
+    expect(accounts.find(a => a.id === 'fat')).toMatchObject({ tier: 0, envHost: 'fat.example.com' });
+    // 本机条目不打环境标签：徽章只说「这条为什么出现在这里」，本机那条没有「为什么」要解释
+    expect(accounts.find(a => a.id === 'local')!.envHost).toBeUndefined();
+  });
+
+  it('别名写法读到同一份绑定（127.0.0.1 与 localhost 是同一端点）', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('127.0.0.1', page('http://127.0.0.1:3000'));
+    expect(accounts.some(a => a.id === 'fat')).toBe(true);
+  });
+
+  it('换端口即另一份作用域：5173 的 dev server 不会带上 3000 的绑定', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:5173'));
+    expect(accounts.map(a => a.id)).toEqual([]);
+  });
+
+  it('公网页面即使带着同名条目也不受影响：绑定只在环回页面参与判定', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(vault(), '*', true);
+    await setEnvBinding('localhost', '3000', 'fat.example.com');
+
+    const { accounts } = await getMatchingAccounts('uat.example.com', page('https://uat.example.com/'));
+    expect(accounts.map(a => a.id)).toEqual([]);
   });
 });
 
@@ -247,7 +323,7 @@ describe('getMatchingAccounts 的关键词检索（内联下拉的拼音档）',
 
   /** 取某个关键词下的命中 id 序列（省略关键词即全量口径） */
   const idsOf = async (keyword?: string): Promise<string[]> => {
-    const { accounts } = await getMatchingAccounts('example.com', '', keyword);
+    const { accounts } = await getMatchingAccounts('example.com', page('https://example.com'), keyword);
     return accounts.map(a => a.id);
   };
 
@@ -289,12 +365,12 @@ describe('getMatchingAccounts 的关键词检索（内联下拉的拼音档）',
   });
 
   it('检索不改变 crossDomainCount 的口径：本站有账号时恒为 0', async () => {
-    const { crossDomainCount } = await getMatchingAccounts('example.com', '', 'zzzz-无匹配');
+    const { crossDomainCount } = await getMatchingAccounts('example.com', page('https://example.com'), 'zzzz-无匹配');
     expect(crossDomainCount).toBe(0);
   });
 });
 
-describe('跨子域档位镜像与 tier 下发', () => {
+describe('站点匹配策略镜像与 tier 下发', () => {
   /** 同一主域下的多环境夹具：精确 / 通配 / apex / 兄弟子域 / 前缀碰撞 */
   const QQ_ENTRIES: PasswordEntry[] = [
     makePasswordEntry({ id: 'exact', url: 'mail.qq.com' }),
@@ -304,9 +380,9 @@ describe('跨子域档位镜像与 tier 下发', () => {
     makePasswordEntry({ id: 'collide', url: 'evil-qq.com' }),
   ];
 
-  /** 设置档位并复位镜像，模拟 storage.onChanged 的处理结果 */
+  /** 切档位（端口轴本文件恒取 loose，不参与主机匹配）并复位镜像，模拟 storage.onChanged 的处理结果 */
   const setMode = async (mode: DomainMatchMode): Promise<void> => {
-    configMocks.getDomainMatchConfig.mockResolvedValue({ mode });
+    configMocks.getDomainMatchConfig.mockResolvedValue({ mode, portScope: 'loose' });
     resetDomainMatchModeMirror();
   };
 
@@ -315,31 +391,45 @@ describe('跨子域档位镜像与 tier 下发', () => {
     updatePasswordCache(QQ_ENTRIES, '*', true);
   });
 
-  it('档位镜像在同一份缓存上只读一次，复位后才重新读取', async () => {
-    configMocks.getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+  it('策略镜像在同一份缓存上只读一次，复位后才重新读取', async () => {
+    configMocks.getDomainMatchConfig.mockResolvedValue({ mode: 'off', portScope: 'loose' });
     resetDomainMatchModeMirror();
 
-    expect(await getCachedDomainMatchMode()).toBe('off');
-    expect(await getCachedDomainMatchMode()).toBe('off');
+    expect(await getCachedSitePolicy()).toEqual({ mode: 'off', portScope: 'loose' });
+    expect(await getCachedSitePolicy()).toEqual({ mode: 'off', portScope: 'loose' });
     expect(configMocks.getDomainMatchConfig).toHaveBeenCalledTimes(1);
 
     await setMode('wildcard');
-    expect(await getCachedDomainMatchMode()).toBe('wildcard');
+    expect(await getCachedSitePolicy()).toEqual({ mode: 'wildcard', portScope: 'loose' });
     expect(configMocks.getDomainMatchConfig).toHaveBeenCalledTimes(2);
   });
 
-  it('invalidatePasswordCache 一并复位档位镜像（锁定/数据变更后重新读取）', async () => {
+  it('invalidatePasswordCache 一并复位策略镜像（锁定/数据变更后重新读取）', async () => {
     await setMode('off');
-    expect(await getCachedDomainMatchMode()).toBe('off');
+    expect(await getCachedSitePolicy()).toEqual({ mode: 'off', portScope: 'loose' });
 
     invalidatePasswordCache();
-    configMocks.getDomainMatchConfig.mockResolvedValue({ mode: 'sameMainDomain' });
-    expect(await getCachedDomainMatchMode()).toBe('sameMainDomain');
+    configMocks.getDomainMatchConfig.mockResolvedValue({ mode: 'sameMainDomain', portScope: 'loose' });
+    expect(await getCachedSitePolicy()).toEqual({ mode: 'sameMainDomain', portScope: 'loose' });
+  });
+
+  it('排序配置单独变化：明文缓存原地保留，只换排序镜像与快照', async () => {
+    // 走全量失效会让下一次 GET_INITIAL_DATA / 内联查询重做整库读取 + 最多 5N 次
+    // 字段解密（2000 条量级数百毫秒），而本次变更只影响「条目怎么排」
+    updatePasswordCache([makePasswordEntry({ id: 'keep-me' })], '*', true);
+    configMocks.getSidepanelSortConfig.mockResolvedValue({ prop: 'updateTime', order: 'descending' } as never);
+
+    await refreshSidepanelSortCache();
+
+    // 明文缓存原地保留：下一次查询命中内存快路径，不再整库解密
+    expect((await getCachedPasswords())?.passwords.map(e => e.id)).toEqual(['keep-me']);
+    // 排序镜像换成新配置（快照内嵌的排序随之外刷新）
+    expect(await getCachedSortConfig()).toEqual({ prop: 'updateTime', order: 'descending' });
   });
 
   it('off 档：内联下拉仅精确 host，与放宽前一致', async () => {
     await setMode('off');
-    const { accounts } = await getMatchingAccounts('mail.qq.com');
+    const { accounts } = await getMatchingAccounts('mail.qq.com', page('https://mail.qq.com'));
 
     expect(accounts.map(a => a.id)).toEqual(['exact']);
     expect(accounts[0]!.tier).toBe(0);
@@ -347,7 +437,7 @@ describe('跨子域档位镜像与 tier 下发', () => {
 
   it('空态计数：off 档把同主域候选数一并下发给内容脚本', async () => {
     await setMode('off');
-    const empty = await getMatchingAccounts('chat.qq.com');
+    const empty = await getMatchingAccounts('chat.qq.com', page('https://chat.qq.com'));
 
     expect(empty.accounts).toHaveLength(0);
     // 精确 / 通配 / apex / 兄弟子域四条都属同主域候选，前缀碰撞的 evil-qq.com 不算
@@ -356,7 +446,7 @@ describe('跨子域档位镜像与 tier 下发', () => {
 
   it('面板有结果时不遍历全库算计数（恒为 0，深链据此不渲染）', async () => {
     await setMode('off');
-    const { accounts, crossDomainCount } = await getMatchingAccounts('mail.qq.com');
+    const { accounts, crossDomainCount } = await getMatchingAccounts('mail.qq.com', page('https://mail.qq.com'));
 
     expect(accounts).toHaveLength(1);
     expect(crossDomainCount).toBe(0);
@@ -364,7 +454,7 @@ describe('跨子域档位镜像与 tier 下发', () => {
 
   it('放宽到最宽档后同主域条目进入可见集，深链失去意义', async () => {
     await setMode('sameMainDomain');
-    const widened = await getMatchingAccounts('chat.qq.com');
+    const widened = await getMatchingAccounts('chat.qq.com', page('https://chat.qq.com'));
 
     expect(widened.accounts.map(a => a.id).sort()).toEqual(['apex', 'exact', 'sibling', 'wild']);
     expect(widened.crossDomainCount).toBe(0);
@@ -372,7 +462,7 @@ describe('跨子域档位镜像与 tier 下发', () => {
 
   it('wildcard 档：仅额外放行通配条目，tier 按层级下发', async () => {
     await setMode('wildcard');
-    const { accounts } = await getMatchingAccounts('mail.qq.com');
+    const { accounts } = await getMatchingAccounts('mail.qq.com', page('https://mail.qq.com'));
 
     expect(accounts.map(a => [a.id, a.tier])).toEqual([
       ['exact', 0],
@@ -382,7 +472,7 @@ describe('跨子域档位镜像与 tier 下发', () => {
 
   it('sameMainDomain 档：精确 → 通配 → apex → 兄弟子域，前缀碰撞仍被排除', async () => {
     await setMode('sameMainDomain');
-    const { accounts } = await getMatchingAccounts('mail.qq.com');
+    const { accounts } = await getMatchingAccounts('mail.qq.com', page('https://mail.qq.com'));
 
     expect(accounts.map(a => [a.id, a.tier])).toEqual([
       ['exact', 0],
@@ -392,7 +482,7 @@ describe('跨子域档位镜像与 tier 下发', () => {
     ]);
   });
 
-  it('本地开发域名按端口过滤，tier 一律下发 0（不参与档位语义）', async () => {
+  it('本地端点先过主机门再按端口过滤，外站条目不进下拉', async () => {
     await setMode('sameMainDomain');
     updatePasswordCache(
       [
@@ -404,19 +494,15 @@ describe('跨子域档位镜像与 tier 下发', () => {
       true,
     );
 
-    const { accounts } = await getMatchingAccounts('localhost', '3000');
-    // 8080 被端口口径挡掉；无端口的 remote 按既有行为放行，但不获跨子域放行（tier 0）
-    expect(accounts.map(a => [a.id, a.tier])).toEqual([
-      ['p3000', 0],
-      ['remote', 0],
-    ]);
+    const { accounts } = await getMatchingAccounts('localhost', page('http://localhost:3000'));
+    // 8080 被端口口径挡掉；外站 remote 被主机门挡掉——改前它因「未写端口」被判成本站且下发 tier 0
+    expect(accounts.map(a => [a.id, a.tier])).toEqual([['p3000', 0]]);
 
-    // 当前页无端口时放行全部条目（既有行为）：外站条目按 0 下发，不渲染来源标识
-    const all = await getMatchingAccounts('localhost', '');
+    // 当前页无端口时同主机的其它端口条目照常放行（既有行为），外站条目仍不进本站
+    const all = await getMatchingAccounts('localhost', page('http://localhost'));
     expect(all.accounts.map(a => [a.id, a.tier])).toEqual([
       ['p3000', 0],
       ['p8080', 0],
-      ['remote', 0],
     ]);
   });
 });
@@ -445,9 +531,9 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
 
   beforeEach(() => {
     masterPasswordMocks.hasMasterPassword.mockResolvedValue(true);
-    // 档位实现值会被前面的 describe 留下（mockResolvedValue 不随 clearAllMocks 复位），
-    // 本组用例只关心「上界切在哪」，显式钉回缺省档避免跨 describe 串味
-    configMocks.getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+    // 策略实现值会被前面的 describe 留下（mockResolvedValue 不随 clearAllMocks 复位），
+    // 本组用例只关心「上界切在哪」，显式钉回缺省策略避免跨 describe 串味
+    configMocks.getDomainMatchConfig.mockResolvedValue({ mode: 'off', portScope: 'loose' });
     resetDomainMatchModeMirror();
   });
 
@@ -455,10 +541,13 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
     const entries = buildEntries(OVER_CAP_TOTAL);
     updatePasswordCache(entries, '*', true);
 
-    const response = await getMatchingAccounts('example.com');
+    const response = await getMatchingAccounts('example.com', page('https://example.com'));
     // 期望顺序由同一份排序函数（侧边栏与内联共用的那条路径）独立算出，
     // 断言「截断保留了正确的头部」而不是「截断保留了输入顺序」
-    const expectedOrder = (await sortMatchesForDomain(entries, 'example.com', '')).slice(0, INLINE_MAX_RESULT_ROWS);
+    const expectedOrder = (await sortMatchesForDomain(entries, 'example.com', page('https://example.com'))).slice(
+      0,
+      INLINE_MAX_RESULT_ROWS,
+    );
 
     expect(response.accounts.map(a => a.id)).toEqual(expectedOrder.map(e => e.id));
     expect(response.totalMatched).toBe(OVER_CAP_TOTAL);
@@ -467,7 +556,7 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
   it('被截断的条目不再产出 favicon dataURL（消息体的主要成本）', async () => {
     updatePasswordCache(buildEntries(OVER_CAP_TOTAL), '*', true);
 
-    await getMatchingAccounts('example.com');
+    await getMatchingAccounts('example.com', page('https://example.com'));
 
     // 每条都要取图的上界：`fetchFaviconDataUrl` 的调用次数即「真正下发出去的行数」
     expect(fetchFaviconDataUrl).toHaveBeenCalledTimes(INLINE_MAX_RESULT_ROWS);
@@ -477,7 +566,7 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
     const hitCount = INLINE_MAX_RESULT_ROWS + 10;
     updatePasswordCache(buildEntries(OVER_CAP_TOTAL, hitCount), '*', true);
 
-    const response = await getMatchingAccounts('example.com', '', 'alp');
+    const response = await getMatchingAccounts('example.com', page('https://example.com'), 'alp');
 
     // 未命中的 10 条不该被算进 totalMatched，否则尾部的「还有 N 条」读数会虚高
     expect(response.totalMatched).toBe(hitCount);
@@ -489,12 +578,12 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
     const small = buildEntries(3);
     updatePasswordCache(small, '*', true);
 
-    const all = await getMatchingAccounts('example.com');
+    const all = await getMatchingAccounts('example.com', page('https://example.com'));
     expect(all.accounts).toHaveLength(3);
     expect(all.totalMatched).toBe(3);
 
     // 检索后一条不剩：总数与列表同为 0，而不是留下「还有 3 条」的错误读数
-    const none = await getMatchingAccounts('example.com', '', 'zzzz-无匹配');
+    const none = await getMatchingAccounts('example.com', page('https://example.com'), 'zzzz-无匹配');
     expect(none.accounts).toEqual([]);
     expect(none.totalMatched).toBe(0);
   });
@@ -516,9 +605,9 @@ describe('getMatchingAccounts 读取主密码配置的时机', () => {
   it('会话有效的正常检索（含带关键词的防抖检索）一趟都不读主密码配置', async () => {
     masterPasswordMocks.hasMasterPassword.mockResolvedValue(true);
 
-    const response = await getMatchingAccounts('example.com');
+    const response = await getMatchingAccounts('example.com', page('https://example.com'));
     expect(response.locked).toBe(false);
-    await getMatchingAccounts('example.com', '', 'a');
+    await getMatchingAccounts('example.com', page('https://example.com'), 'a');
 
     expect(masterPasswordMocks.hasMasterPassword).not.toHaveBeenCalled();
   });
@@ -528,7 +617,10 @@ describe('getMatchingAccounts 读取主密码配置的时机', () => {
     sessionMocks.isSessionValid.mockResolvedValueOnce(false);
     masterPasswordMocks.hasMasterPassword.mockResolvedValueOnce(true);
 
-    expect(await getMatchingAccounts('example.com')).toEqual({ locked: true, accounts: [] });
+    expect(await getMatchingAccounts('example.com', page('https://example.com'))).toEqual({
+      locked: true,
+      accounts: [],
+    });
     expect(masterPasswordMocks.hasMasterPassword).toHaveBeenCalledTimes(1);
   });
 
@@ -537,7 +629,7 @@ describe('getMatchingAccounts 读取主密码配置的时机', () => {
     sessionMocks.isSessionValid.mockResolvedValueOnce(false);
     masterPasswordMocks.hasMasterPassword.mockResolvedValueOnce(false);
 
-    expect(await getMatchingAccounts('example.com')).toEqual({
+    expect(await getMatchingAccounts('example.com', page('https://example.com'))).toEqual({
       locked: true,
       noMasterPassword: true,
       accounts: [],

@@ -5,8 +5,10 @@
  * 过滤判定，使其可被单元测试独立覆盖，同时作为侧边栏「搜索范围」与「能否填充当前页」
  * 的唯一判据来源，避免这两处在侧边栏内部各自演化出分歧。
  *
- * 域名匹配语义完全复用 `utils/domain.ts` 的 `resolveMatchTier`（档位化分层匹配），
- * 缺省 `off` 档与既有的当前域名精确过滤行为一致。
+ * 域名匹配语义完全复用 `utils/domain.ts` 的 `matchesSiteWithEnv`（内部即 `matchesSiteEndpoint`
+ * 的主机门 ∧ 端口门，外加本地页环境绑定的并集轴），本模块不再自行判定任何主机或端口规则；
+ * 策略里两项的缺省值合起来对**公网主机**即「端口隔离功能存在之前」的行为，逐条一致，
+ * 对环回主机则比那时更窄（外站条目不再混进本地页面）。
  *
  * 作用边界：本模块只服务侧边栏。内联下拉与一键填充走
  * `utils/passwordSort.ts` 的 `filterAndSortEntriesForDomain`，两者仅在「当前页无域名」
@@ -15,7 +17,7 @@
  * 就是它的降级形态；而下拉需要贴在当前页上，展示外站条目没有可填充的目标。
  */
 import type { PasswordEntry } from '@/utils/types';
-import { isLocalDevDomain, matchesPortForLocalDev, resolveMatchTier, type DomainMatchMode } from '@/utils/domain';
+import { matchesSiteWithEnv, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
 import { filterByKeyword, type KeywordMatcher } from '@/utils/keywordMatch';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { parseTags } from '@/utils/tagUtils';
@@ -32,8 +34,21 @@ export type SearchScope = 'site' | 'all';
 export interface ScopeContext {
   /** 当前标签页 hostname，空串表示新标签页等无域名场景 */
   domain: string;
-  /** 当前标签页端口，仅本地开发域名参与过滤 */
-  port: string;
+  /**
+   * 当前标签页的端口上下文（由 `tab.url` 一次解析得到，见 `parsePagePortContext`）
+   *
+   * 刻意不再单独存 `URL.port`：端口隔离要同时知道「有效端口」与「页面是否在默认端口」，
+   * 而原始 port 可由这两者反推（见 `rawPortOf`），并列存放就是两个事实来源。
+   */
+  page: PagePortContext | null;
+  /**
+   * 本地页声明的环境主机（`fat.example.com`），未声明为 null
+   *
+   * 必传而不是可选：这一轴决定「另一个主机的凭证能不能填进眼前这一页」，
+   * 少传一处就会出现「侧边栏能填、内联下拉不能填」的分叉。非环回页面由
+   * `matchesSiteWithEnv` 内部一律失效，所以传错方向也是安全的（只会当没绑定）。
+   */
+  envHost: string | null;
 }
 
 /** 列表级过滤条件（三者为叠加关系） */
@@ -57,26 +72,22 @@ export interface ListFilterOptions {
  * 判定条目是否属于「本站」范围
  *
  * 同时充当「该条目能否填充到当前页」的判据：填充依赖当前页面存在对应输入框，
- * 域名不匹配的条目填充必然失败，故两者共用同一判定。
+ * 域名或端口不匹配的条目填充必然失败（或把另一个服务上的凭证填进眼前这个登录框），
+ * 故两者共用同一判定。
  *
- * 匹配规则（与内联下拉 / 一键填充同源，均经 `resolveMatchTier`）：
- * - 无域名（新标签页等）→ 放行全部，与 `filterAndSortEntriesForDomain` 的
- *   「只留空 URL 通用条目」刻意不同：侧边栏此刻是全库浏览入口，没有「当前站」可收敛
- * - 本地开发域名（localhost / 127.0.0.1）→ 按端口过滤，当前页无端口时放行全部，档位不参与
- * - 其余按档位判定：`off`（缺省）= 精确 hostname + 空 URL；`wildcard` 追加通配条目；
- *   `sameMainDomain` 再追加主域名与同主域其他子域
+ * 匹配规则全部下沉到 `utils/domain.ts` 的 `matchesSiteWithEnv`（真实端点 ∧ 策略，或绑定端点 ∧ 策略），
+ * 与内联下拉 / 一键填充同源；本模块只保留「当前页无域名」这一支的侧边栏语义：
+ * 此刻没有「本站」可收敛，全库列表本身就是它的降级形态，故放行全部。
  *
  * @param entry - 待判定的密码条目
  * @param ctx - 当前标签页域名上下文
- * @param mode - 跨子域匹配档位，缺省 `off`（最严格，等价迁移前口径）
+ * @param policy - 站点匹配策略（档位 + 端口范围），**必传**：这两轴漏传都会静默退化成最宽松口径，
+ *                 而缺陷只在非默认档下暴露，让编译器拦住比靠自觉可靠
  * @returns 是否属于本站范围
  */
-export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, mode: DomainMatchMode = 'off'): boolean {
+export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, policy: EffectiveSitePolicy): boolean {
   if (!ctx.domain) return true;
-  if (isLocalDevDomain(ctx.domain)) {
-    return matchesPortForLocalDev(entry.url, ctx.port);
-  }
-  return resolveMatchTier(ctx.domain, entry.url, mode) >= 0;
+  return matchesSiteWithEnv(entry.url, ctx.domain, ctx.page, policy, ctx.envHost);
 }
 
 /**
@@ -88,17 +99,17 @@ export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, mode: 
  * @param entries - 全量条目（如侧边栏缓存的完整密码列表）
  * @param scope - 搜索范围
  * @param ctx - 当前标签页域名上下文
- * @param mode - 跨子域匹配档位，缺省 `off`
+ * @param policy - 站点匹配策略，必传（理由同 `matchesSiteScope`）
  * @returns 范围内的条目副本
  */
 export function filterEntriesByScope(
   entries: readonly PasswordEntry[],
   scope: SearchScope,
   ctx: ScopeContext,
-  mode: DomainMatchMode = 'off',
+  policy: EffectiveSitePolicy,
 ): PasswordEntry[] {
   if (scope === 'all') return [...entries];
-  return entries.filter(entry => matchesSiteScope(entry, ctx, mode));
+  return entries.filter(entry => matchesSiteScope(entry, ctx, policy));
 }
 
 /**

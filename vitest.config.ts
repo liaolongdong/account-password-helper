@@ -1,5 +1,10 @@
+import { createRequire } from 'node:module';
 import { defineConfig } from 'vitest/config';
 import { WxtVitest } from 'wxt/testing';
+
+// WxtVitest 不加载 WXT 的 Vue module；复用该 module 已安装的官方插件，不新增依赖。
+const vueModuleRequire = createRequire(import.meta.resolve('@wxt-dev/module-vue'));
+const { default: vue } = await import(vueModuleRequire.resolve('@vitejs/plugin-vue'));
 
 /**
  * Vitest 配置
@@ -13,7 +18,7 @@ import { WxtVitest } from 'wxt/testing';
  * 加密相关测试无需任何 polyfill。
  */
 export default defineConfig({
-  plugins: [WxtVitest()],
+  plugins: [WxtVitest(), vue()],
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

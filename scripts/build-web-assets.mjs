@@ -212,6 +212,10 @@ function collectReferences(repoPath) {
 /**
  * 补上运行期拼名的截图引用：中英文两版都要，缺一个就判失败。
  *
+ * 页面运行期已经切到 WebP 伴生图（`shotFile()` 把 .png 映射成 .webp），
+ * 但 `file: 'screen-*.png'` 仍是唯一真源；这里按同一条规则推导出 28 张 WebP，
+ * 避免部署包只带 JSON-LD 引用到的 6 张 PNG、轮播第 2–14 屏 404。
+ *
  * @param {string} repoPath 页面仓库相对路径
  * @param {Set<string>} queue 闭包集合（就地追加）
  * @param {string[]} errors 错误收集器
@@ -220,8 +224,8 @@ function collectTemplatedShots(repoPath, queue, errors) {
   const source = readFileSync(path.join(REPO_ROOT, repoPath), 'utf8');
   if (!source.includes(SHOT_TEMPLATE_MARKER)) return;
   for (const match of source.matchAll(SHOT_FILE_PATTERN)) {
-    const file = match[1];
-    for (const variant of [file, file.replace(/\.png$/, '-en.png')]) {
+    const webp = match[1].replace(/\.png$/, '.webp');
+    for (const variant of [webp, webp.replace(/\.webp$/, '-en.webp')]) {
       const candidate = `assets/cws-store/${variant}`;
       if (!existsSync(path.join(REPO_ROOT, candidate))) {
         errors.push(`${repoPath} 的图库拼不出 ${candidate}（缺文件）`);

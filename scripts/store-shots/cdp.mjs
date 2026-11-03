@@ -1,4 +1,17 @@
-const HOST = 'http://127.0.0.1:9333';
+/**
+ * CDP HTTP 端点。
+ *
+ * 端口可由 `SHOT_CDP_PORT` 覆盖（默认仍是 9333，跑批命令不必改）。这不是可有可无的
+ * 便利开关：同机上另一个 checkout 的验证脚本也会起 `--remote-debugging-port=9333`
+ * 的 Chrome，并按 9333 找「它的」浏览器——谁的批在跑，另一批的命令就会打到别人的
+ * 实例上（实测两边都出现过 target 被关、整批挂死在 `Runtime.evaluate` 超时）。
+ * 并行跑批时给每一路单独一个端口。
+ */
+const PORT = Number(process.env.SHOT_CDP_PORT || 9333);
+const HOST = `http://127.0.0.1:${PORT}`;
+
+/** 浏览器级端点：`initExtension` 要用它拿 `webSocketDebuggerUrl`，端口只能有这一份真源。 */
+export const BROWSER_VERSION_URL = `${HOST}/json/version`;
 
 export async function listTargets() {
   const res = await fetch(`${HOST}/json`);

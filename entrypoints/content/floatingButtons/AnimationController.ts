@@ -2,6 +2,7 @@
  * 动画控制器 - 管理悬浮按钮的动画效果
  */
 
+import { prefersReducedMotion } from '@/utils/a11y';
 import type { AnimationState, AnimationOptions } from '@/entrypoints/content/floatingButtons/types';
 
 export class AnimationController {
@@ -119,12 +120,23 @@ export class AnimationController {
 
   /**
    * 按钮点击反馈动画
+   *
+   * 旧实现是「内联写 `transform: scale(0.95)` + 100ms 后清掉」：`.btn` 的过渡是 0.25s，
+   * 100ms 时缩放才走到一半就被撤掉，按压读起来像一次抖动；而内联样式还会盖住
+   * `.btn:hover` 的放大。现在只负责加类，播放与复位都交给 styles.ts 里的 `btn-press`
+   * 关键帧（动画结束后元素本就回到当前状态，类无需清理）。
+   *
+   * 减弱档下直接返回：媒体查询已把该动画设为 `none`，此时摘类再强制一次布局是纯开销。
+   * 结果不落缓存，用户中途在系统设置里切换也会在下一次点击跟随。
+   *
+   * @param button 被点击的按钮
    */
   buttonClickFeedback(button: HTMLElement): void {
-    button.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-      button.style.transform = '';
-    }, 100);
+    if (prefersReducedMotion()) return;
+    // 动画还在播时重复加同名类不会重播，先摘类并读一次布局属性强制重排以重启动画
+    button.classList.remove('click-feedback');
+    void button.offsetWidth;
+    button.classList.add('click-feedback');
   }
 
   /**

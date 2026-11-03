@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isValidCssSelector,
   normalizeSiteRuleDomain,
+  resolveSiteRuleForHosts,
   SITE_RULE_DOMAIN_MAX_LENGTH,
   SITE_RULE_SELECTOR_MAX_LENGTH,
 } from '@/utils/storage/siteRules';
@@ -84,10 +85,40 @@ describe('isValidCssSelector（选择器语法与长度预算）', () => {
     expect(isValidCssSelector('   ')).toBe(false);
   });
 
+  it('接受带宿主链的作用域选择器，并拒绝空段/超深链', () => {
+    expect(isValidCssSelector('my-login >>> input[type="password"]')).toBe(true);
+    expect(isValidCssSelector('outer-host >>> inner-host >>> #password')).toBe(true);
+    expect(isValidCssSelector('my-login >>> ')).toBe(false);
+    expect(isValidCssSelector(' >>> input')).toBe(false);
+    expect(isValidCssSelector('a >>> b >>> c >>> d >>> e >>> f >>> g >>> h >>> i')).toBe(false);
+  });
+
   it('非字符串输入返回 false 而不抛异常', () => {
     expect(isValidCssSelector(undefined)).toBe(false);
     expect(isValidCssSelector(null)).toBe(false);
     expect(isValidCssSelector(42)).toBe(false);
     expect(isValidCssSelector(['input'])).toBe(false);
+  });
+});
+
+describe('resolveSiteRuleForHosts（页面 host / hostname 解析）', () => {
+  const portRule = { domain: 'localhost:3000' };
+  const hostRule = { domain: 'localhost' };
+
+  it('含端口的精确 host 优先于 hostname 规则', () => {
+    expect(
+      resolveSiteRuleForHosts({ 'localhost:3000': portRule, localhost: hostRule }, 'localhost:3000', 'localhost'),
+    ).toBe(portRule);
+  });
+
+  it('端口不匹配时回退到 hostname 规则（无端口规则覆盖所有端口）', () => {
+    expect(
+      resolveSiteRuleForHosts({ 'localhost:3000': portRule, localhost: hostRule }, 'localhost:4000', 'localhost'),
+    ).toBe(hostRule);
+  });
+
+  it('大小写与尾部点不影响匹配，未知域名返回 undefined', () => {
+    expect(resolveSiteRuleForHosts({ 'example.com': hostRule }, 'EXAMPLE.COM.', 'example.com')).toBe(hostRule);
+    expect(resolveSiteRuleForHosts({}, 'other.example', 'other.example')).toBeUndefined();
   });
 });

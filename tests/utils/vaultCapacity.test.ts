@@ -15,6 +15,7 @@ import type { EncryptedPasswordEntry, PasswordEntry, TrashedPasswordEntry } from
  */
 
 vi.mock('@/utils/encryption', () => ({
+  deriveVerifierHash: vi.fn(async (password: string) => `verifier:${password}`),
   deriveEncryptionKey: vi.fn(async () => 'mock-data-key'),
   encryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>) => ({ ...entry, encrypted: true })),
   decryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>) => ({ ...entry, encrypted: false })),
@@ -58,7 +59,13 @@ const newEntry = (): Omit<PasswordEntry, 'id' | 'order'> => ({
 });
 
 beforeEach(() => {
-  storageData = {};
+  storageData = {
+    [STORAGE_KEYS.MASTER_PASSWORD]: {
+      salt: 'fixture-salt',
+      hashedPassword: 'verifier:master-password',
+      kdf: 'pbkdf2-sha256',
+    },
+  };
   localGet.mockClear();
   localSet.mockClear();
   vi.stubGlobal('chrome', {

@@ -73,18 +73,58 @@ export const SHORTCUT_LABEL_KEYS = {
 } as const satisfies Record<ShortcutCommandId, string>;
 
 /**
+ * 应用内快捷键（**不经** `chrome.commands` 注册，由扩展自己的页面监听）
+ *
+ * 命令面板的 `⌘K / Ctrl+K` 是 `useCommandPalette` 挂在 window 上的页面级按键，只在密码管理页
+ * 生效。它刻意不并进上面的 `SHORTCUT_COMMANDS`：那张表是 manifest 命令的清单，与
+ * `wxt.config.ts` 的 `suggested_key` 逐字对账，而 `useShortcuts` 会拿
+ * `chrome.commands.getAll()` 给每一行标「已生效 / 未生效」——页面级按键 `getAll()` 永远读不到，
+ * 混进去只会得到一条**假的「未生效」**，那比不写更糟。
+ *
+ * 这份清单的存在本身是一条口径声明：本扩展一共有 5 个快捷键，其中 4 个可在浏览器管理页改键、
+ * 1 个不能。此前 ⌘K 在「快捷键一览」里完全缺席，用户想了解能按什么键时找不到它，
+ * 而它是使用频率最高的那一个。
+ *
+ * 展示落点目前只有 Options 的快捷键弹窗：侧边栏帮助弹窗与「使用指引」页列的是全局命令，
+ * 把「仅管理页生效」的按键放进那两个入口会传达错误信息。
+ */
+export interface InAppShortcutMeta {
+  /** 稳定标识 */
+  readonly id: 'commandPalette';
+  /** 非 Apple 平台展示值（与 `useCommandPalette` 实际接受的按键一致） */
+  readonly defaultShortcut: string;
+  /** Apple 平台展示值 */
+  readonly defaultShortcutMac: string;
+  /** 展示文案的 i18n key（options 命名空间） */
+  readonly labelKey: string;
+}
+
+/** 应用内快捷键清单（有序） */
+export const IN_APP_SHORTCUTS: readonly InAppShortcutMeta[] = [
+  {
+    id: 'commandPalette',
+    defaultShortcut: 'Ctrl+K',
+    defaultShortcutMac: 'Command+K',
+    labelKey: 'options.shortcuts.label.commandPalette',
+  },
+];
+
+/**
  * 取当前平台应展示的兜底按键（manifest `suggested_key` 原值，尚未格式化）
  *
  * 必须与浏览器实际注册的平台分支保持一致：若固定返回 `default`，Apple 平台用户
  * 会在「未生效」预警行看到 `Ctrl⇧P`，与同一弹窗内已绑定行的 `⌘⇧P` 风格并存，
  * 且展示值与 manifest 声明不符，属于向用户传达了错误信息。
  *
- * @param meta - 命令静态元信息
+ * @param meta - 命令静态元信息（只需带两个平台按键字段：manifest 命令与应用内快捷键共用）
  * @param isMac - 是否 Apple 平台，默认取 `isMacPlatform()` 的同步嗅探结果；
  *   显式传参仅供测试驱动两个分支，生产调用方无需传入
  * @returns 当前平台对应的默认按键字面值
  */
-export function resolveDefaultShortcut(meta: ShortcutCommandMeta, isMac: boolean = isMacPlatform()): string {
+export function resolveDefaultShortcut(
+  meta: Pick<ShortcutCommandMeta, 'defaultShortcut' | 'defaultShortcutMac'>,
+  isMac: boolean = isMacPlatform(),
+): string {
   return isMac ? meta.defaultShortcutMac : meta.defaultShortcut;
 }
 

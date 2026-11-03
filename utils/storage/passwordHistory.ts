@@ -2,6 +2,23 @@ import type { PasswordHistoryRecord } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { getPasswordHistoryConfig } from '@/utils/storage/configManager';
+import { withVaultMutation } from './vaultWriteLock';
+
+/**
+ * 历史域整包覆写锁。
+ *
+ * `withVaultMutation` 是 shared 租约（只挡独占换钥，不互斥写者），而历史写入全是
+ * 「读整包 → 改 → 写整包」：两个来源交错时后写者会带旧快照把对方的快照/删除回卷。
+ * 这把独立提交锁把历史域的读改写串起来（跨扩展上下文同样成立）。
+ *
+ * 命名上刻意区分两层：`*Internal` 只假定**调用方已持本域的锁**，公开入口与 `*WithinLease`
+ * 都自己取这把历史锁——同名词下不再嵌套同一把锁，避免死锁。`*WithinLease` 相对公开版的差别
+ * 只在**不再嵌套 vault 租约**（调用方已持有 shared 租约），历史锁一把都不能少：否则回收站与
+ * 换钥路径会从这把锁外面写同一个整包，把本域的回卷缺陷原样留下。
+ */
+function withHistoryCommit<T>(operation: () => Promise<T>): Promise<T> {
+  return navigator.locks.request('aph-password-history-commit', { mode: 'exclusive' }, () => operation());
+}
 
 /** 每条密码条目最多保留的历史记录数（默认值，实际从用户配置动态读取） */
 const DEFAULT_MAX_HISTORY_PER_ENTRY = 3;
@@ -45,6 +62,25 @@ async function writeAllHistory(records: PasswordHistoryRecord[]): Promise<void> 
  * @param encryptedOldPassword 旧密码密文（直接从 storage 读取的加密态值）
  */
 export async function snapshotPasswordHistory(entryId: string, encryptedOldPassword: string): Promise<void> {
+  return withVaultMutation(() =>
+    withHistoryCommit(() => snapshotPasswordHistoryInternal(entryId, encryptedOldPassword)),
+  );
+}
+
+/**
+ * 租约内版本：调用方**必须已经持有** `withVaultMutation` 的 shared 租约。
+ *
+ * 公开版会再取一次租约；Web Locks 写者优先，排队中的独占（重置 / 清空数据）会把这次嵌套请求挡成
+ * `VAULT_BUSY`，于是旧口令的历史快照静默丢失——密码已经改了，历史里没有它。
+ *
+ * @param entryId 密码条目 ID
+ * @param encryptedOldPassword 旧密码密文
+ */
+export function snapshotPasswordHistoryWithinLease(entryId: string, encryptedOldPassword: string): Promise<void> {
+  return withHistoryCommit(() => snapshotPasswordHistoryInternal(entryId, encryptedOldPassword));
+}
+
+async function snapshotPasswordHistoryInternal(entryId: string, encryptedOldPassword: string): Promise<void> {
   try {
     // 读取用户配置：禁用时跳过快照
     const config = await getPasswordHistoryConfig();
@@ -103,6 +139,10 @@ export async function getPasswordHistory(entryId: string): Promise<PasswordHisto
  * @param entryId 密码条目 ID
  */
 export async function deleteHistoryByEntryId(entryId: string): Promise<void> {
+  return withVaultMutation(() => withHistoryCommit(() => deleteHistoryByEntryIdInternal(entryId)));
+}
+
+async function deleteHistoryByEntryIdInternal(entryId: string): Promise<void> {
   try {
     const allHistory = await readAllHistory();
     const filtered = allHistory.filter(r => r.entryId !== entryId);
@@ -117,9 +157,31 @@ export async function deleteHistoryByEntryId(entryId: string): Promise<void> {
 /**
  * 批量删除多个条目的历史记录
  *
+ * 自取租约与历史提交锁，调用方不需要持有任何锁；已经持有租约的调用方（回收站）
+ * 请改用 `deleteHistoryByEntryIdsWithinLease`，否则会嵌套取一次租约。
+ *
  * @param entryIds 要清理的条目 ID 列表
  */
 export async function deleteHistoryByEntryIds(entryIds: string[]): Promise<void> {
+  return withVaultMutation(() => withHistoryCommit(() => deleteHistoryByEntryIdsInternal(entryIds)));
+}
+
+/**
+ * 租约内版本：调用方**必须已经持有** `withVaultMutation` 的 shared 租约。
+ *
+ * 公开版会再取一次租约，而 Web Locks 是写者优先——一旦有一个排队独占（`withVaultKeyTransitionQueued`，
+ * 即重置/清空数据）停在前面，临界区内的这次嵌套请求就当场 `VAULT_BUSY`。回收站的
+ * 「已摘条目 → 清历史」两步之间被挡下，就会留下「条目离开回收站、历史密文无人回收」的半提交。
+ * 整条链路必须在同一把租约里走完，所以这里免掉的只有租约；本域的历史提交锁照取，
+ * 少一把就等于让回收站与改密快照从锁外回卷同一个整包。
+ *
+ * @param entryIds 要清理的条目 ID 列表
+ */
+export async function deleteHistoryByEntryIdsWithinLease(entryIds: string[]): Promise<void> {
+  return withHistoryCommit(() => deleteHistoryByEntryIdsInternal(entryIds));
+}
+
+async function deleteHistoryByEntryIdsInternal(entryIds: string[]): Promise<void> {
   if (!entryIds.length) return;
   try {
     const idSet = new Set(entryIds);
@@ -129,7 +191,10 @@ export async function deleteHistoryByEntryIds(entryIds: string[]): Promise<void>
       await writeAllHistory(filtered);
     }
   } catch (error) {
+    // 上抛，不吞：调用方（回收站的彻底删除 / 清空）据此决定「条目还留在回收站里等重试」还是报失败。
+    // 吞掉就是向用户谎报「已彻底删除」，而那些旧口令密文从此没人认领——它们还会被换钥重加密、被备份导出带走。
     logger.error('批量删除条目历史记录失败:', error);
+    throw error;
   }
 }
 
@@ -146,6 +211,10 @@ export async function getAllHistoryRaw(): Promise<PasswordHistoryRecord[]> {
  * @param records 重新加密后的历史记录数组
  */
 export async function replaceAllHistory(records: PasswordHistoryRecord[]): Promise<void> {
+  return withVaultMutation(() => withHistoryCommit(() => replaceAllHistoryInternal(records)));
+}
+
+async function replaceAllHistoryInternal(records: PasswordHistoryRecord[]): Promise<void> {
   try {
     await writeAllHistory(records);
   } catch (error) {

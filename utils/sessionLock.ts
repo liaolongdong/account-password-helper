@@ -23,9 +23,26 @@ import { logger } from '@/utils/logger';
  */
 export async function lockSession(): Promise<void> {
   await StorageUtils.clearSession();
+  // 回执要看，不能只发不管：后台若在清理自己的会话密钥材料时失败，其它上下文会短时仍持有
+  // 旧数据密钥——紧随其后的换钥/恢复一提交，它们读到的是一片「解不开」的记录。
+  // 未送达重试一次；仍失败只记 warn：本函数的职责是密钥销毁 + 失效通知，
+  // 绝不因通知通道的问题把调用方的锁定流程拖停（各上下文仍会经 storage.onChanged 感知）。
+  if (await broadcastInvalidate()) return;
+  if (await broadcastInvalidate()) return;
+  logger.warn('lockSession: 后台失效广播两次未取到成功回执，其它上下文可能短暂持有旧数据密钥');
+}
+
+/**
+ * 发送一次失效广播
+ * @returns 后台明确报告失败或通道不可用时为 false
+ */
+async function broadcastInvalidate(): Promise<boolean> {
   try {
-    await chrome.runtime.sendMessage({ type: MessageType.INVALIDATE_PASSWORD_CACHE });
+    const response = (await chrome.runtime.sendMessage({ type: MessageType.INVALIDATE_PASSWORD_CACHE })) as
+      { success?: boolean } | undefined;
+    return response?.success !== false;
   } catch {
     logger.debug('lockSession: 后台密码缓存失效广播未送达（后台可能未就绪）');
+    return false;
   }
 }

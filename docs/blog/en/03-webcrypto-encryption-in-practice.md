@@ -3,12 +3,12 @@ title: Web Crypto for a Real Password Manager
 description: No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
-modified: 2026-10-13
+modified: 2026-10-27
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
 
-![From master password to ciphertext: the full encryption pipeline](imgs/02-flowchart-security-pipeline.png)
+![From master password to ciphertext: the full encryption pipeline](imgs/02-flowchart-security-pipeline.webp)
 
 When building the encryption module for a password manager, the instinct is to pull in a crypto library. But if you're building a browser extension, there's a better option: **import nothing, and build directly on the browser-native Web Crypto API**.
 
@@ -78,11 +78,11 @@ At v3.0 the project switched licenses from MIT to GPL-3.0 — deliberately. A pa
 The other side of security is knowing your limits:
 
 - This tool is positioned for development, testing, and everyday logins. **Do not store banking or payment credentials in any browser extension.**
-- A forgotten master password cannot be recovered. Enable encrypted backups (.aph files).
+- A forgotten master password cannot be recovered by default. Enable encrypted backups (.aph files) and enroll an offline recovery key as a second way back.
 - The entire encryption implementation is open source. Audits and issues welcome — for a password manager, being read line by line isn't an intrusion; it's the source of trust.
 
 Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). If you're building local-first security tools too, share the traps you've hit in the comments.
 
 ---
 
-_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (2878 automated tests, including encryption and re-key paths)._
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (4654 automated tests, including encryption and re-key paths)._

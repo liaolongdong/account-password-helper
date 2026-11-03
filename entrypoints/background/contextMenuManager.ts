@@ -5,6 +5,7 @@
  *
  * 菜单结构（显式单父项，见 buildMenuItems）：
  * - 可编辑元素（editable）：父项「填充账号密码」→ 填充用户名 / 填充密码 / 填充两步验证码 / 生成并填充强密码
+ *   / 从个人信息库选择（仅导航：打开管理页身份库，不读取字段值）
  * - 页面空白处（page）：父项「账号密码管理助手」→ 打开侧边栏 / 打开密码管理页
  *
  * 为何自建父项：同一上下文只有一个可见顶级项时 Chrome 不再按扩展全名折叠，
@@ -13,7 +14,7 @@
  *
  * 填充语义与一键填充一致：按当前标签页域名匹配最优条目（侧边栏展示顺序首条），
  * 多条匹配时取第一条。明文仅经 tabs.sendMessage 定向下发到右键发生的 frame，
- * 下发前经 isFrameFillable 门控（与 FILL_BY_ID 同一道防线）。
+ * 下发前把接收者绑定到当前文档（getFillableDocuments + sendToAuthorizedDocument，与 FILL_BY_ID 同一道防线）。
  *
  * 「生成并填充强密码」不受会话门控约束：它只用 Web Crypto 现场生成随机密码，
  * 不读取任何密文/明文条目，而注册新账号（最高频的生成场景）往往正是会话已锁状态。
@@ -31,18 +32,19 @@ import { logger } from '@/utils/logger';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { MessageType, type ContextMenuFillAction, type PasswordEntry } from '@/utils/types';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
-import { isFrameFillable } from '@/utils/frameFill';
+import { getFillableDocuments, sendToAuthorizedDocument } from '@/utils/frameFill';
 import { generatePassword } from '@/utils/passwordGenerator';
 import {
   notifyFailure,
   showBadgeFeedback,
   showPageNotice,
   extractHostname,
-  extractPortFromUrl,
   UNLOCK_NOTIFICATION_ID,
 } from './quickFillHandler';
+import { parsePagePortContext } from '@/utils/domain';
+import { resolveSourceTabId } from '@/utils/sourceTab';
 import { tryOpenInlineDropdown } from './inlineDropdownHandler';
-import { openOptionsPage } from './optionsPageManager';
+import { openOptionsAndSendMessage, openOptionsPage } from './optionsPageManager';
 import { openSidePanelAndRespond } from './sidePanelManager';
 import {
   ensureCredentialAccessAfterStartupRelock,
@@ -61,6 +63,8 @@ const MENU_IDS = {
   fillPassword: 'aph-cm-fill-password',
   fillTotp: 'aph-cm-fill-totp',
   generatePassword: 'aph-cm-generate-password',
+  separatorIdentity: 'aph-cm-separator-identity',
+  identityPick: 'aph-cm-identity',
   openSidepanel: 'aph-cm-open-sidepanel',
   openOptions: 'aph-cm-open-options',
 } as const;
@@ -102,6 +106,19 @@ function buildMenuItems(): chrome.contextMenus.CreateProperties[] {
       id: MENU_IDS.generatePassword,
       parentId: MENU_IDS.parentFill,
       title: tl('cm.generatePassword'),
+      contexts: ['editable'],
+    },
+    // 分隔符把「填充动作」与「导航到身份库」分开；身份项只读会话，不读右键目标与字段值
+    {
+      id: MENU_IDS.separatorIdentity,
+      parentId: MENU_IDS.parentFill,
+      type: 'separator',
+      contexts: ['editable'],
+    },
+    {
+      id: MENU_IDS.identityPick,
+      parentId: MENU_IDS.parentFill,
+      title: tl('cm.identityPick'),
       contexts: ['editable'],
     },
     { id: MENU_IDS.parentPage, title: tl('cm.parentPage'), contexts: ['page'] },
@@ -240,7 +257,7 @@ export function resolveContextMenuFill(
  * 处理填充类菜单项点击：会话门控 → 域名匹配 → 解析明文 → 定向下发 → 反馈
  *
  * 'generate' 跳过会话门控与条目解析（不读取任何凭证），其余动作与一键填充共用
- * 启动重锁屏障、会话校验、`isFrameFillable` 三道防线。
+ * 启动重锁屏障、会话校验、文档绑定门控三道防线。
  *
  * @param action 填充动作
  * @param tab 右键发生的标签页
@@ -294,7 +311,7 @@ async function handleContextMenuFill(
       passwords = (await getOrWarmCache())?.passwords ?? [];
     }
 
-    const matched = await sortMatchesForDomain(passwords, hostname, extractPortFromUrl(tab.url));
+    const matched = await sortMatchesForDomain(passwords, hostname, parsePagePortContext(tab.url));
 
     // 解析明文值：TOTP 单独处理（需异步计算动态码），其余经纯函数解析
     if (action === 'totp') {
@@ -320,19 +337,22 @@ async function handleContextMenuFill(
     }
   }
 
-  // 安全：仅顶层或与顶层同主域名的 frame 可接收明文（与 FILL_BY_ID 同一道防线）
-  if (!(await isFrameFillable(tabId, frameId))) {
+  // 安全：明文只投递给「右键那一刻所在的那个文档」。
+  // 取条目、算动态码期间该 frame 若导航到新站，复用同一 frameId 的新文档不会拿到凭据
+  // （sendToAuthorizedDocument 抛「接收端不存在」）。跨域 frame 依旧整体拒绝。
+  const documents = await getFillableDocuments(tabId);
+  const target = documents.find(d => d.frameId === (frameId ?? 0));
+  if (!target) {
     await notifyContextMenuFailure(tabId, tl('cm.frameNotFillable'));
     return;
   }
 
   let response: { success?: boolean; message?: string } | undefined;
   try {
-    response = await chrome.tabs.sendMessage(
-      tabId,
-      { type: MessageType.CONTEXT_MENU_FILL, data: { action, value } },
-      { frameId: frameId ?? 0 },
-    );
+    response = (await sendToAuthorizedDocument(tabId, target, {
+      type: MessageType.CONTEXT_MENU_FILL,
+      data: { action, value },
+    })) as { success?: boolean; message?: string } | undefined;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     // 页面导航/扩展更新后 content script 未注入，引导刷新（与一键填充一致）
@@ -375,6 +395,39 @@ async function handleContextMenuFill(
 }
 
 /**
+ * 从个人信息库选择：只导航，不读取右键目标与字段值
+ *
+ * 身份库的明文与解密都留在管理页，本入口只负责把用户送到 Options 的身份库；
+ * 会话失效时按既有三层反馈提示解锁（通知可点击直达），不静默丢弃意图。
+ * 不复用填充路径的 `isFrameFillable`：本路径既不下发明文也不读取条目。
+ *
+ * 来源标签页取 `onClicked` 递交的 `tab`（浏览器盖章，非页面自报）并经协议白名单收窄，
+ * 库内据此给出「回到原网页」出口——右键恰恰是字段提示没出现的那一类场景，
+ * 少了这个数，用户取完值仍要自己找回刚才那一格。
+ *
+ * @param tab 右键发生的标签页（同时是失败反馈的落点与回程的来源）
+ */
+async function handleIdentityPick(tab: chrome.tabs.Tab | undefined): Promise<void> {
+  const tabId = tab?.id;
+  if (!isSessionActiveSync()) {
+    const valid = await isSessionValid();
+    if (!valid) {
+      await notifyContextMenuFailure(tabId, tl('cm.identityLocked'), UNLOCK_NOTIFICATION_ID);
+      return;
+    }
+  }
+
+  const sourceTabId = resolveSourceTabId(tab?.id, tab?.url);
+  const response = await openOptionsAndSendMessage(
+    MessageType.OPEN_OPTIONS_AND_IDENTITY,
+    sourceTabId === undefined ? undefined : { sourceTabId },
+  );
+  if (!response.success) {
+    await notifyContextMenuFailure(tabId, tl('cm.identityPickFailed'));
+  }
+}
+
+/**
  * 右键菜单点击统一分发
  *
  * @param info 菜单点击信息（含菜单项 ID 与右键发生的 frameId）
@@ -401,6 +454,10 @@ async function handleContextMenuClick(
     }
     if (info.menuItemId === MENU_IDS.openOptions) {
       await openOptionsPage();
+      return;
+    }
+    if (info.menuItemId === MENU_IDS.identityPick) {
+      await handleIdentityPick(tab);
       return;
     }
     const action = FILL_ACTION_BY_MENU_ID[String(info.menuItemId)];

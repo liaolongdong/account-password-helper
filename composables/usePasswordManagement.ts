@@ -1,4 +1,4 @@
-import { ref, computed, watch, nextTick, onScopeDispose, type Ref } from 'vue';
+import { ref, reactive, computed, watch, nextTick, onScopeDispose, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry, PasswordEntryWithUI, PasswordFormModel } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
@@ -31,14 +31,19 @@ import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
 import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
+import { restoreFromTrash } from '@/utils/storage/trashManager';
 
 /**
- * 删除动画时长：行淡出后再落盘（沿用原实现的 1s 节奏，不改变观感）
+ * 删除动画时长：行淡出后再落盘
  *
  * 导出供回归测试复用：测试里写死同一个数字，实现调整节奏后只会「多推进」而不会失败，
  * 动画与落盘的时序契约就静默失守了。
+ *
+ * 与 `PasswordTable.vue` 里 `.del-item` 的 `animation: fade-out var(--aph-duration-mid)`
+ * 是同一节奏（0.2s）。两边不一致时后果是有界的：定时器晚于动画，行由 `forwards` 保持透明
+ * 直到摘除；定时器早于动画，行在中途被摘掉、少显示剩下那一小段。都不会把行留在页面上。
  */
-export const DELETE_ANIMATION_MS = 1000;
+export const DELETE_ANIMATION_MS = 200;
 
 /**
  * 保存 / 收藏 / 创建副本后目标行的高亮时长
@@ -47,6 +52,14 @@ export const DELETE_ANIMATION_MS = 1000;
  * 测试里写死数字会让「实现把 6 秒改成 600 毫秒」静默通过。
  */
 export const ROW_HIGHLIGHT_MS = 6000;
+
+/**
+ * 删除回执上「撤销」的可用窗口（毫秒）
+ *
+ * 与回收站的软删除语义一致：窗口内撤销等价于「刚移入回收站又恢复」，
+ * 超时后回执消失，用户仍可走「数据管理 → 回收站」的既有恢复路径。
+ */
+export const UNDO_DELETE_WINDOW_MS = 5000;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
 const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
@@ -80,6 +93,32 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   // 状态
   const passwords = ref<PasswordEntry[]>([]);
+  /**
+   * 原始存储条数与成功解密条数的差。
+   *
+   * 管理页此前只拿 entries，坏记录会让列表静默变短、备份静默漏条。用原始条数做差
+   * 不需要再解密一遍，也不会把坏记录误当成「空库」。
+   */
+  const undecryptableCount = ref(0);
+
+  /** 备份前确认「坏记录不会进入备份」；没有坏记录时零交互放行。 */
+  const confirmIncompleteBackup = async (): Promise<boolean> => {
+    if (undecryptableCount.value <= 0) return true;
+    try {
+      await ElMessageBox.confirm(
+        t('options.backup.undecryptableWarning', { count: undecryptableCount.value }),
+        t('options.backup.undecryptableTitle'),
+        {
+          type: 'warning',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+        },
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
   /** 当前排序状态（由 el-table @sort-change 驱动更新） */
   const currentSort = ref<SortState>({ ...DEFAULT_SORT });
   const showImportDialog = ref(false);
@@ -130,6 +169,16 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    * 新建态与 SidePanel 快速添加恒为空对象，容量口径分毫不动。
    */
   const editingFieldLengths = ref<InitialFieldLengths>({});
+
+  /**
+   * 编辑态的并发基线（打开弹窗那一刻读到的 `updateTime`）
+   *
+   * 敏感编辑是「读整包 → 解密 → 改 → 再加密 → 落盘」，中间可达数百毫秒；期间另一张
+   * 管理页标签或网页自动保存可能已经改过同一行。把基线透给存储层做提交锁内对账：
+   * 撞车时存储层抛 `UPDATE_CONFLICT`，这里提示并随列表刷新把基线推进到最新版本，
+   * 用户重试即针对新基线，既不会静默覆盖对方，也不会反复撞同一堵墙。
+   */
+  const editingBaselineTime = ref<number | null>(null);
 
   const passwordFormRules = computed<FormRules>(() => ({
     ...createPasswordFormRules(t, editingFieldLengths.value),
@@ -424,12 +473,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (generation !== loadGeneration) return;
       if (!sessionValid) {
         passwords.value = [];
+        undecryptableCount.value = 0;
         return;
       }
 
-      const entries = await StorageUtils.getAllPasswords();
+      const loaded = await StorageUtils.getAllPasswordsDetailed();
       if (generation !== loadGeneration) return;
-      passwords.value = entries;
+      passwords.value = loaded.entries;
+      undecryptableCount.value = loaded.undecryptableCount;
+      syncEditingBaseline();
 
       // 初始化每条记录的密码显隐状态
       passwords.value.forEach(p => {
@@ -442,6 +494,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (generation !== loadGeneration) return;
       validityForm.value.validityHours = validityHours;
     } catch (error: unknown) {
+      // 已被 clearPasswordState / 新一轮加载作废的旧请求：不把过期失败弹成用户可见错误，
+      // 否则锁定后仍会为一次注定丢弃的读取报「加载失败」。
+      if (generation !== loadGeneration) return;
       logger.error('加载密码列表失败:', error);
       const message = error instanceof Error ? error.message : t('message.unknownError');
       ElMessage.error(t('message.loadListFailedDetail', { message }));
@@ -450,6 +505,20 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       // 只有最新一次加载负责收尾：被取代的那次提前返回时不得熄灭仍在加载的遮罩
       if (generation === loadGeneration) tableLoading.value = false;
     }
+  };
+
+  /**
+   * 锁定/过期时的同步清态：作废在途加载 + 清空明文列表。
+   *
+   * `loadPasswords` 的代际只在「新加载启动」时推进；锁定发生时若只 `passwords = []`，
+   * 一次仍在 await 中的旧读取完成后会把明文与坏记录计数原样回填，等于「锁了但没锁」。
+   * 这里同步递增代际，旧请求在下一个 await 边界全部让位，也不得熄灭新一轮的 loading。
+   */
+  const clearPasswordState = (): void => {
+    loadGeneration++;
+    passwords.value = [];
+    undecryptableCount.value = 0;
+    tableLoading.value = false;
   };
 
   /**
@@ -503,6 +572,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       logger.debug(`Options: 仅元数据变更命中，但本地列表缺少 ${missed} 条存储中的条目，回退整表重载`);
       return false;
     }
+    // 修补同样可能推进本行的 updateTime（填充类使用痕迹），基线跟着走
+    syncEditingBaseline();
     logger.debug('Options: 外部写入命中仅元数据变更，已就地修补列表');
     return true;
   };
@@ -553,6 +624,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const openPasswordDialog = (prefillUrl = '') => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
+    editingBaselineTime.value = null;
     editingFieldLengths.value = {};
     passwordForm.value = { ...EMPTY_PASSWORD_FORM, url: prefillUrl };
     showPasswordDialog.value = true;
@@ -562,6 +634,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const editPassword = (password: PasswordEntry) => {
     isEditingPassword.value = true;
     editingPasswordId.value = password.id;
+    editingBaselineTime.value = password.updateTime;
     editingFieldLengths.value = {
       username: password.username.length,
       password: password.password.length,
@@ -580,9 +653,24 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 重置密码表单
+  /**
+   * 列表刷新后把编辑基线推进到当前行的最新版本。
+   *
+   * 只跟 `updateTime`、不碰表单：用户在弹窗里的输入原样保留，重试时针对新版本提交；
+   * 若期间对方又改过一次，存储层会再次拒绝——冲突提示因此始终与实际落盘状态一致。
+   * 由整表加载与就地元数据修补两条路径显式调用（而不是 watch 全列表：批量标签编辑
+   * 那类 O(n) 遍历守卫会被额外的整表扫描污染）。
+   */
+  const syncEditingBaseline = () => {
+    if (!isEditingPassword.value) return;
+    const latest = passwords.value.find(entry => entry.id === editingPasswordId.value)?.updateTime;
+    if (typeof latest === 'number') editingBaselineTime.value = latest;
+  };
+
   const resetPasswordForm = () => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
+    editingBaselineTime.value = null;
     editingFieldLengths.value = {};
     passwordForm.value = { ...EMPTY_PASSWORD_FORM };
   };
@@ -592,6 +680,92 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   /** 各行尚未到点的高亮定时器，按条目 ID 保存，重复定位时重置而不是叠加 */
   const rowHighlights = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** 删除回执的撤销窗口状态：只持有条目 id、展示计数与重置序号，不持有任何条目内容 */
+  const undoDeleteState = reactive({
+    visible: false,
+    ids: [] as string[],
+    count: 0,
+    /** 每次新回执递增；组件据此重置自己的 5 秒计时器与进度条 */
+    token: 0,
+  });
+
+  /** 删除请求序号：确认瞬间递增，保证先发起的删除晚完成时不会覆盖更新的回执 */
+  let deleteRequestSequence = 0;
+  let lastUndoSequence = 0;
+
+  /** 收起删除回执并清空待撤销 id */
+  const dismissUndo = (): void => {
+    undoDeleteState.visible = false;
+    undoDeleteState.ids = [];
+    undoDeleteState.count = 0;
+  };
+
+  /**
+   * 删除成功后展示回执
+   *
+   * ids 必须来自确认瞬间的快照，不能到点再读选择集。计时器由回执组件独占，
+   * 父层不再并存第二只时钟；sequence 让并发删除按发起顺序而不是完成顺序更新回执。
+   */
+  const showUndoDelete = (ids: string[], sequence: number): void => {
+    if (!ids.length || sequence < lastUndoSequence) return;
+    lastUndoSequence = sequence;
+    // 回执仍在窗口内时合并，而不是用后一批覆盖前一批：连续快速删除两条时，
+    // 两条都应能被同一次「撤销」找回，而不是第一条悄无声息地失去入口。
+    const merged = undoDeleteState.visible ? [...new Set([...undoDeleteState.ids, ...ids])] : [...ids];
+    undoDeleteState.ids = merged;
+    undoDeleteState.count = merged.length;
+    undoDeleteState.token += 1;
+    undoDeleteState.visible = true;
+  };
+
+  /** 回执文案：单条与批量分开，避免「已将 1 条移入回收站」这类生硬表达 */
+  const undoDeleteMessage = computed(() =>
+    undoDeleteState.count === 1
+      ? t('options.undoDelete.messageSingle')
+      : t('options.undoDelete.messageBatch', { count: undoDeleteState.count }),
+  );
+
+  /**
+   * 撤销刚完成的删除
+   *
+   * 与「数据管理 → 回收站 → 恢复」复用同一条落盘链路；窗口内恢复失败时不假装成功，
+   * 容量不足给出与回收站恢复一致的提示，其余失败引导用户去回收站手动恢复。
+   */
+  const undoDelete = async (): Promise<void> => {
+    const ids = [...undoDeleteState.ids];
+    // 先清空状态再 await：双击「撤销」时第二次调用看到空 id 直接返回，不会重复恢复
+    undoDeleteState.visible = false;
+    undoDeleteState.ids = [];
+    undoDeleteState.count = 0;
+    if (!ids.length) return;
+
+    try {
+      const result = await restoreFromTrash(ids);
+      const handled = result.restored + result.skippedExisting;
+      if (handled === 0) {
+        ElMessage.warning(t('options.trash.restoreMissing'));
+      } else if (handled < ids.length) {
+        ElMessage.warning(
+          t('options.undoDelete.partial', {
+            restored: handled,
+            missing: ids.length - handled,
+          }),
+        );
+      } else {
+        ElMessage.success(t('options.undoDelete.restored'));
+      }
+      await loadPasswords();
+    } catch (error) {
+      logger.error('撤销删除失败:', error);
+      ElMessage.error(
+        isVaultCapacityError(error)
+          ? t('options.capacity.restoreBlocked', { max: MAX_PASSWORD_ENTRIES })
+          : t('options.undoDelete.restoreFailed'),
+      );
+      await loadPasswords();
+    }
+  };
 
   onScopeDispose(() => {
     revealGeneration++;
@@ -676,7 +850,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           updateTime: Date.now(),
         };
         await runLocalOperation(async () => {
-          await StorageUtils.updatePassword(editingPasswordId.value, updatedFields);
+          await StorageUtils.updatePassword(
+            editingPasswordId.value,
+            updatedFields,
+            undefined,
+            editingBaselineTime.value === null ? undefined : { expectedUpdateTime: editingBaselineTime.value },
+          );
         });
         // 就地更新：filteredPasswords computed 会自动重新排序
         const entry = passwords.value.find(p => p.id === editingPasswordId.value);
@@ -710,6 +889,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       showPasswordDialog.value = false;
       resetPasswordForm();
     } catch (error) {
+      // 并发冲突：弹窗与用户输入原样保留（关掉会把没保存的编辑吞掉），
+      // 同时刷新列表——下方 watcher 会把编辑基线推进到最新版本，用户按提示重试即可。
+      if ((error as { code?: unknown })?.code === 'UPDATE_CONFLICT') {
+        logger.warn('保存密码被并发写者拒绝：条目已在其他窗口修改');
+        ElMessage.error(t('form.updateConflict'));
+        void loadPasswords();
+        return;
+      }
       logger.error('保存密码失败:', error);
       // 上限拒绝单独成文：泛化的「保存失败」会让用户反复重试同一次添加，
       // 而真实原因是条目总数已到位，需要的是先清理再添加。
@@ -767,11 +954,17 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    *
    * @returns 是否真正删除成功（失败时由调用方把动画期间摘掉的行插回原位）
    */
-  const commitDelete = async (runDelete: () => Promise<void>, failureMessage: string): Promise<boolean> => {
+  const commitDelete = async (
+    runDelete: () => Promise<void>,
+    failureMessage: string,
+    undoIds: string[] = [],
+    undoSequence = 0,
+  ): Promise<boolean> => {
     try {
       await runLocalOperation(runDelete);
       await loadPasswords();
-      ElMessage.success(t('form.movedToTrash'));
+      if (undoIds.length) showUndoDelete(undoIds, undoSequence || ++deleteRequestSequence);
+      else ElMessage.success(t('form.movedToTrash'));
       return true;
     } catch (error) {
       logger.error('移入回收站失败:', error);
@@ -821,20 +1014,24 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       return;
     }
 
+    // 在确认瞬间分配序号：并发删除时先发起的那一笔即使晚完成，也不会覆盖更新的回执
+    const undoSequence = ++deleteRequestSequence;
     const delItem = findPasswordRow(id);
     // 行未渲染（被当前筛选/搜索条件排除等）时同样要执行删除：原实现只在命中 DOM 行的
     // 分支里落盘，用户确认后既无提示也无删除，表现为「点了没反应」
     if (!delItem) {
-      await commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed'));
+      await commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed'), [id], undoSequence);
       return;
     }
 
     delItem.classList.add('del-item');
     setTimeout(() => {
       const restoreRow = detachRow(delItem);
-      void commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed')).then(deleted => {
-        if (!deleted) restoreRow();
-      });
+      void commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed'), [id], undoSequence).then(
+        deleted => {
+          if (!deleted) restoreRow();
+        },
+      );
     }, DELETE_ANIMATION_MS);
   };
 
@@ -860,6 +1057,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
     // 确认瞬间一次性快照选择集：淡出动画（DELETE_ANIMATION_MS）期间用户仍可勾选/取消，
     // 到点时才读 selectedIds 会让「动画里的行」与「真正被删的 id」分叉，误删新选中项
+    const undoSequence = ++deleteRequestSequence;
     const idsToDelete = [...selectedIds.value];
     const patchDelItems: HTMLElement[] = [];
     idsToDelete.forEach((id: string) => {
@@ -871,7 +1069,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     });
     setTimeout(() => {
       const restoreRows = patchDelItems.map(delItem => detachRow(delItem));
-      void commitDelete(() => StorageUtils.deletePasswords(idsToDelete), t('form.batchDeleteFailed')).then(deleted => {
+      void commitDelete(
+        () => StorageUtils.deletePasswords(idsToDelete),
+        t('form.batchDeleteFailed'),
+        idsToDelete,
+        undoSequence,
+      ).then(deleted => {
         if (deleted) {
           // 只摘掉本次真正删除的 id，保留动画期间新勾选的项
           const deletedSet = new Set(idsToDelete);
@@ -1063,9 +1266,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const backupToEmail = async (email: string, encrypted: boolean) => {
     try {
       if (passwords.value.length === 0) {
-        ElMessage.warning(t('message.noDataToBackup'));
+        ElMessage.warning(
+          undecryptableCount.value > 0
+            ? t('options.backup.noReadableData', { count: undecryptableCount.value })
+            : t('message.noDataToBackup'),
+        );
         return;
       }
+      if (!(await confirmIncompleteBackup())) return;
 
       const masterPassword = await promptAndVerifyMasterPassword(
         t('session.verifyTitle'),
@@ -1162,6 +1370,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   return {
     // 状态
     passwords,
+    undecryptableCount,
+    confirmIncompleteBackup,
     showImportDialog,
     showPasswordDialog,
     showEmailBackupDialog,
@@ -1170,6 +1380,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     selectedIds,
     isEditingPassword,
     editingPasswordId,
+    editingBaselineTime,
     passwordForm,
     passwordFormRules,
     passwordFormLoading,
@@ -1192,6 +1403,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tagArray,
     // 方法
     loadPasswords,
+    clearPasswordState,
     patchMetadataOnlyFromStorage,
     handleSortChange,
     restoreSortConfig,
@@ -1209,6 +1421,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     copyPassword,
     deletePassword,
     batchDelete,
+    undoDeleteState,
+    undoDeleteMessage,
+    undoDelete,
+    dismissUndo,
     batchEditTags,
     batchExportSelected,
     handlePasswordsImported,

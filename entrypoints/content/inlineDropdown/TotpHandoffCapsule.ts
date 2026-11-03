@@ -20,6 +20,7 @@ import { logger } from '@/utils/logger';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
+import { attachHostEventIsolation } from './eventIsolation';
 
 /** 填入图标（与内联面板活码胶囊一致） */
 const FILL_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="m7 8 5 5 5-5"/><path d="M5 21h14"/></svg>`;
@@ -113,6 +114,18 @@ const capsuleStyles = `
 
 .aph-handoff-close:hover {
   color: #6b7280;
+}
+
+/*
+ * 减弱动效：入场那 3px 上浮关掉，淡入保留——它是「胶囊出现在哪个输入框上」的唯一
+ * 过渡线索，全关会让突然出现读起来像页面闪烁。口径与内联下拉的减弱档一致：重列
+ * transition、只摘掉位移。可见态那条归零的位移本就是空操作，不用再覆盖。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .aph-handoff {
+    transition: box-shadow 0.15s ease, opacity 0.2s ease;
+    transform: none;
+  }
 }
 `;
 
@@ -244,6 +257,9 @@ export class TotpHandoffCapsule {
     this.shadowRoot.appendChild(this.capsuleEl);
 
     document.body.appendChild(this.shadowHost);
+    // 宿主级事件隔离：胶囊多浮于页面登录弹窗内（验证码框场景），pointerdown/mousedown
+    // 泄漏到 document 会被弹窗「点击外部关闭」误判为外部交互；与内联面板同一防线
+    attachHostEventIsolation(this.shadowHost);
     applyThemeTokensToHost(this.shadowHost, this.currentTheme);
 
     // 语言切换时就地刷新胶囊 tooltip（含初始化异步加载完成后的首次通知）

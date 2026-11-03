@@ -24,10 +24,10 @@ import { useI18n } from '@/utils/i18n';
  * 只做一件事：把「这一屏还有多少行没渲染」说清楚，并把用户的展开意图交给父组件。
  * 预算状态仍由 `PasswordHealthDialog` 持有，因此它不持有任何响应式状态。
  *
- * 为什么用裸 `button` 而不是 `el-button link`：管理页全局样式给所有
- * `.el-button--primary` 强加了实心主色背景，link 型按钮必须在**每个**弹窗里逐层
- * `:deep()` 抵消才可见（见 `PasswordHealthDialog` 里的同类修正）。这里自带一处
- * scoped 样式即可，不必再依赖父组件的 `:deep()` 恰好覆盖到子组件内部的节点。
+ * 为什么用裸 `button` 而不是 `el-button link`：管理页全局曾给所有 `.el-button--primary`
+ * 强加实心主色背景，link 型按钮要在每个弹窗里逐层 `:deep()` 抵消才可见——那条规则现已排除
+ * `link` / `text` 变体，但「主色文字对 surface-2 在六档主题下不足 WCAG AA」这一层仍然成立，
+ * 所以这里自带一处 scoped 样式走中性文本色，不再依赖父组件的 `:deep()` 恰好覆盖到子组件节点。
  */
 defineProps<{
   /** 预算之外尚未渲染的行数；`<= 0` 时整个组件不渲染 */

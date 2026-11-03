@@ -7,6 +7,7 @@
 export const STORAGE_KEYS = {
   PASSWORDS: 'account_passwords',
   MASTER_PASSWORD: 'master_password_config',
+  RECOVERY_CONFIG: 'offline_recovery_config',
   SETTINGS: 'app_settings',
   MASTER_PASSWORD_VALIDITY: 'master_password_validity',
   SORT_CONFIG: 'password_sort_config',
@@ -55,6 +56,14 @@ export const STORAGE_KEYS = {
   PASSWORD_HISTORY_CONFIG: 'password_history_config',
   /** 身份信息库条目（个人信息收藏夹，整块加密存储） */
   IDENTITY: 'personal_identity_infos',
+  /**
+   * 身份信息库回收站（软删除，30 天 TTL 自动清理）
+   *
+   * 落盘形状 = `IdentityRecord` 四键 + `deletedAt`，密文原样搬移（与密码库 TRASH 同一口径）。
+   * 注意不能复用密码库的 `TRASH` 键：两侧条目形状不同，且 at-rest 安全网按
+   * `encrypted` 标志扫描密码形状，混入身份形状会被误判为明文残留。
+   */
+  IDENTITY_TRASH: 'personal_identity_infos_trash',
   /** 身份信息库列表排序档位（仅存枚举值，不含任何 PII，故明文单键） */
   IDENTITY_SORT_MODE: 'identity_sort_mode',
   /**
@@ -73,6 +82,8 @@ export const STORAGE_KEYS = {
   IDENTITY_MANUAL_ORDER: 'identity_manual_order',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
+  /** 健康评分趋势快照（只存分数与四类计数，不含任何条目内容或明文） */
+  HEALTH_HISTORY: 'password_health_history',
   /** 用户语言偏好（'zh-CN' | 'en'） */
   LOCALE: 'app_locale',
   /** 站点级填充规则（域名 → 自定义选择器/穿透开关） */
@@ -86,12 +97,24 @@ export const STORAGE_KEYS = {
   /** 内联填充首次引导气泡已展示标记（终生仅展示一次） */
   INLINE_FILL_HINT_SHOWN: 'inline_fill_hint_shown',
   /**
+   * 个人信息提示的「开关在哪」首次说明已展示标记（终生仅展示一次）
+   *
+   * 只存一个布尔，不含站点、字段名或库内内容，因此不构成隐私面。
+   */
+  IDENTITY_HINT_TIP_SHOWN: 'identity_hint_tip_shown',
+  /**
    * 新手引导（聚光引导）状态
    *
    * 仅存 `{ seen, outcome, finishedAt }` 三个标记位，不含任何账号、密码、
    * 站点或步骤内容，因此本键不构成隐私面。自动弹出终生仅一次。
    */
   ONBOARDING_TOUR: 'onboarding_tour_state',
+  /** 安全起步清单暂不提醒时间（只存时间戳，不含账号数据） */
+  ACTIVATION_CHECKLIST: 'activation_checklist',
+  /** 已读过「本次更新」的扩展版本（只存版本号字符串，不含账号数据） */
+  WHATS_NEW_SEEN_VERSION: 'whats_new_seen_version',
+  /** 一次性评价引导状态（只存首次成功填充、永久关闭与延后截止时间戳，不含账号数据） */
+  REVIEW_PROMPT_STATE: 'review_prompt_state',
 };
 
 /**
@@ -103,6 +126,8 @@ export const STORAGE_KEYS = {
 export const SESSION_MEMORY_KEYS = {
   /** 会话期派生的 AES-256-GCM 数据密钥（hex） */
   DATA_KEY: 'session_data_key',
+  /** 将内存态密钥绑定到已提交的包裹密钥，拒绝换钥前的迟到缓存。 */
+  DATA_KEY_WRAPPED: 'session_data_key_wrapped',
   /** 侧边栏打开请求记录（{ at: epoch 毫秒, trigger: 触发源 }），用于量化「用户点击 → 渲染进程 timeOrigin」耗时与打开路径归因 */
   SIDEPANEL_OPEN_REQUESTED_AT: 'sidepanel_open_requested_at',
   /** 侧边栏资源预热上次执行时间戳（epoch 毫秒），跨 SW 生命周期保持节流窗口有效 */
@@ -161,4 +186,30 @@ export const SESSION_MEMORY_KEYS = {
    * sessionStorage 自身的作用域边界，同站导航后新文档可解回、跨站与跨标签页不可。
    */
   PENDING_CIPHER_KEYS: 'pending_cipher_keys',
+  /**
+   * 本地开发页的环境绑定（`"<host>:<port>"` → `{ env, at }` 聚合对象）
+   *
+   * 用户在侧边栏芯片上声明「这个 localhost:3000 页面其实是 fat.example.com 环境的前端」，
+   * 后台据此把该环境的条目并入本站判定。只存主机名，不含任何凭证。
+   *
+   * 选 storage.session 而不是 storage.local 是刻意的安全取舍：绑定等于「让另一个主机的
+   * 凭证可被填进眼前这一页」，这类授权不该活过浏览器重启。落盘的话，一次为临时联调点的
+   * 「prod」会在下次开机后仍然把线上账号摆在本地页首位。
+   */
+  ENV_BINDINGS: 'env_bindings',
+  /**
+   * 本会话内已确认过「把线上环境账号带到本地页」的环境主机（字符串数组）
+   *
+   * 与 ENV_BINDINGS 同生命周期：确认只对这一次开机有效，下次再选 prod 仍需确认。
+   */
+  ENV_PROD_ACKS: 'env_prod_acks',
+  /**
+   * 本次浏览器会话内是否已关掉「会话内备份轻提醒」（单个布尔）
+   *
+   * 关的是这一次开机，不是永久：横幅说的是「你还没有退路」，而落盘一个永久关闭标记
+   * 等于替用户决定以后都不必再被提醒。选 `storage.session` 也顺带解决了刷新——
+   * 页面文档级标记一刷新就没了，用户每次重载都要重新关掉同一条提醒。
+   * 只有一个布尔，不含站点、条目数或任何库内数据，不构成隐私面。
+   */
+  BACKUP_NUDGE_DISMISSED: 'backup_nudge_dismissed',
 };

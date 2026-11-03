@@ -18,6 +18,12 @@
       href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
     />
     <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="Account Password Helper · Blog"
+      href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml"
+    />
+    <link
       rel="icon"
       type="image/png"
       sizes="32x32"
@@ -129,6 +135,21 @@
       "@type": "ListItem",
       "position": 5,
       "url": "https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 6,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 7,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 8,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html"
     }
   ]
 }
@@ -215,6 +236,22 @@
       .topbar .spacer {
         flex: 1;
       }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        font-size: 14px;
+        color: #ffffff;
+        text-decoration: none;
+        background: var(--accent);
+        border-radius: 6px;
+        transform: translateY(-200%);
+      }
+      .skip-link:focus-visible {
+        transform: translateY(0);
+      }
       main {
         max-width: 960px;
         margin: 0 auto;
@@ -291,12 +328,13 @@
     </style>
   </head>
   <body>
-    <nav class="topbar">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <nav class="topbar" aria-label="Blog navigation">
       <a href="https://liaolongdong.github.io/account-password-helper/en.html">← Product site & demo</a>
       <span class="spacer"></span>
       <a href="https://liaolongdong.github.io/account-password-helper/blog/">中文</a>
     </nav>
-    <main>
+    <main id="main" tabindex="-1">
       <h1>Engineering Blog</h1>
       <p class="subtitle">Product thinking and engineering deep-dives from Account Password Helper: local-first security, MV3 performance in practice, and Web Crypto internals.</p>
       <div class="grid">
@@ -340,11 +378,35 @@
           <span class="card-meta">2026-09-22 · Read article →</span>
         </div>
       </a>
+      <a class="card" href="06-chrome-password-manager-guide.en.html">
+        <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-06-chrome-password-manager.png" alt="Chrome Password Manager: Which One to Use?" loading="lazy" />
+        <div class="card-body">
+          <h2>Chrome Password Manager: Which One to Use?</h2>
+          <p>Built-in Chrome, cloud managers and local-first tools fit different users. Compare environment isolation, encryption, migration and offline use before choosing.</p>
+          <span class="card-meta">2026-10-19 · Read article →</span>
+        </div>
+      </a>
+      <a class="card" href="07-multi-environment-accounts.en.html">
+        <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-07-multi-environment-accounts.png" alt="Managing Dev, Test and Prod Accounts Safely" loading="lazy" />
+        <div class="card-body">
+          <h2>Managing Dev, Test and Prod Accounts Safely</h2>
+          <p>Four accounts for one system — how do you stop a test credential from landing in production? A practical guide to host matching, naming, dedupe and team handoff.</p>
+          <span class="card-meta">2026-10-19 · Read article →</span>
+        </div>
+      </a>
+      <a class="card" href="08-totp-two-factor-guide.en.html">
+        <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-08-totp-two-factor.png" alt="TOTP 2FA: How It Works and Where to Store It" loading="lazy" />
+        <div class="card-body">
+          <h2>TOTP 2FA: How It Works and Where to Store It</h2>
+          <p>What TOTP is, why codes change every 30 seconds, and what to check before moving secrets from a phone authenticator into a browser extension.</p>
+          <span class="card-meta">2026-10-19 · Read article →</span>
+        </div>
+      </a>
       </div>
     </main>
     <footer class="footer">
       <p>Account Password Helper · Open source (GPL-3.0)</p>
-      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml">RSS feed</a></p>
       <p>Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></p>
     </footer>
   </body>

@@ -10,7 +10,7 @@
  * ---
  *
  * 背景：身份信息库刻意做成「只在 Options 页存在」的平行数据域，独立性是首要需求
- * （见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
+ * （见 `docs/ARCHITECTURE.md`「27. 个人信息库」的「定位与独立性」）。
  * 但 `utils/storageKeys.ts` 同时被 sidepanel / popup / options 依赖，往 `STORAGE_KEYS`
  * 加 `IDENTITY` 键后，该共享 chunk 的字节必然变化（属内容变化非行为变化）。
  *
@@ -177,6 +177,13 @@ describe.skipIf(!hasOutput)('身份库独立性 — 首屏产物闭包不含 ide
  * 工作树构建为 33 文件 / 276,818 B 与 43 文件 / 292,895 B——请求数各少 1，字节各 +0.06%/+0.07%
  * （重切带来的压缩开销），首屏没有变厚。所以红的是**按基名计数的口径**，不是预算本身；
  * `total` 跟着实际读数往下收，新增一个 eager 文件仍然会红，牙没磨钝。
+ *
+ * **2026-10-24 读数（popup 登记 `vaultWriteLock`、`total` 43 → 44 的依据）**：离线恢复让
+ * `sessionManager-storage` 静态引用换钥互斥锁（`createSession` / `migrateLegacySession` /
+ * `ensurePasswordsEncryptedAtRest` 三条解锁路径都在锁内提交），而 popup 本来就 eager 引
+ * `sessionManager-storage`，于是 439 B 的锁模块跟着进了首屏 HTML。这里登记而不是改成动态
+ * `import()`：懒加载会把一次请求压到「用户点解锁」那一刻，比现在多 439 B 更糟；sidepanel
+ * 不 eager 引 `sessionManager-storage`，所以它的清单与 `total` 不变。
  */
 const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases: Readonly<Record<string, number>> }> = {
   'sidepanel.html': {
@@ -215,7 +222,7 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
     },
   },
   'popup.html': {
-    total: 43,
+    total: 44,
     bases: {
       popup: 1,
       'rolldown-runtime': 1,
@@ -242,6 +249,7 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
       plaintextCacheCleanup: 1,
       browserStartupRelock: 1,
       'sessionManager-storage': 1,
+      vaultWriteLock: 1,
       facades: 1,
       masterPassword: 1,
       concurrency: 1,

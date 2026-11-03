@@ -19,7 +19,8 @@
  *    嵌套一层的 open 影子树也能被显式选择器命中；
  * 3. closed 影子树对扩展不可见（`el.shadowRoot` 为 null），即使配置了选择器也拿不到；
  * 4. 穿透开关（全局配置或该站点规则任一关闭）会把查询根收回到文档主树：选择器仍在
- *    light DOM 生效，但不再跨进 open 影子树——开关语义与选项页文案一致。
+ *    light DOM 生效，但不再跨进 open 影子树——开关语义与选项页文案一致；
+ * 5. 总闸在运行中翻转时立即重检测（改透明度/拖动位置这类不翻转的写入不得重检测）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FormDetector } from '@/entrypoints/content/FormDetector';
@@ -203,6 +204,67 @@ describe('FormDetector 的 Shadow DOM 边界', () => {
     expect(view.passwordFields[0].id).toBe('deep-pwd');
   });
 
+  it('作用域选择器不会命中主文档同 tag 的输入框', async () => {
+    document.body.innerHTML = '<input id="search"><div id="main"></div>';
+    const host = document.createElement('div');
+    host.id = 'shadow-host';
+    document.getElementById('main')!.appendChild(host);
+    const openRoot = attachShadowTree(host, 'open', '<input type="password">');
+    const shadowPassword = openRoot.querySelector<HTMLInputElement>('input')!;
+    const searchInput = document.getElementById('search') as HTMLInputElement;
+
+    installChromeMock(makeConfig(), {
+      [DOMAIN]: {
+        domain: DOMAIN,
+        // 没有宿主链时裸 `input` 会先在 document 命中搜索框；这里显式带宿主链，
+        // 钉住「作用域选择器必须解析到影子树」这条回归。
+        customSelectors: { username: '', password: '#shadow-host >>> input' },
+      },
+    });
+    detector = await createDetector();
+
+    (detector as any).detectForms();
+    const view = detector as any;
+
+    expect(view.passwordFields).toHaveLength(1);
+    expect(view.passwordFields[0]).toBe(shadowPassword);
+    expect(view.passwordFields[0]).not.toBe(searchInput);
+  });
+
+  it('裸选择器跨 shadow 根歧义时 fail-closed，不拿 document 命中覆盖字段', async () => {
+    document.body.innerHTML = '<input id="search"><div id="main"></div>';
+    const host = document.createElement('div');
+    host.id = 'shadow-host';
+    document.getElementById('main')!.appendChild(host);
+    attachShadowTree(host, 'open', '<input type="password">');
+
+    installChromeMock(makeConfig(), {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '', password: 'input' } },
+    });
+    detector = await createDetector();
+
+    (detector as any).detectForms();
+
+    // 主文档与影子树各有一个可见 input：规则无法判断属于哪个根，宁可不覆盖
+    expect((detector as any).passwordFields).toHaveLength(0);
+  });
+
+  it('作用域选择器在穿透总闸关闭时同样被拒绝', async () => {
+    document.body.innerHTML = '<div id="main"></div>';
+    const host = document.createElement('div');
+    host.id = 'shadow-host';
+    document.getElementById('main')!.appendChild(host);
+    attachShadowTree(host, 'open', '<input type="password">');
+
+    installChromeMock(makeConfig({ penetrateShadow: false }), {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '', password: '#shadow-host >>> input' } },
+    });
+    detector = await createDetector();
+
+    (detector as any).detectForms();
+    expect((detector as any).passwordFields).toHaveLength(0);
+  });
+
   it('closed 影子树即便配置了选择器也无法命中', async () => {
     document.body.innerHTML = '<div id="main"></div>';
     const host = document.createElement('div');
@@ -288,5 +350,54 @@ describe('FormDetector 的 Shadow DOM 边界', () => {
 
     expect((detector as any).usernameFields[0].id).toBe('light-user');
     expect((detector as any).passwordFields).toHaveLength(0);
+  });
+
+  it('运行中翻转总闸立刻重检测，不必刷新页面', async () => {
+    const { openRoot } = buildShadowOnlyDom();
+    openRoot.host.insertAdjacentHTML('beforebegin', '<input id="light-user" type="text">');
+    const config = makeConfig();
+    installChromeMock(config, {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#light-user', password: '#shadow-pwd' } },
+    });
+    detector = await createDetector();
+    (detector as any).detectForms();
+    expect((detector as any).passwordFields).toHaveLength(1);
+
+    // 两份监听器都收得到这次变更：站点规则那份只认 site_rules，让它一并跑一遍，
+    // 免得测试和 addListener 的注册顺序绑死。
+    const addListener = (globalThis as any).chrome.storage.onChanged.addListener;
+    const fire = (newValue: Record<string, unknown>) =>
+      addListener.mock.calls.forEach(([fn]: [(changes: unknown, area: string) => void]) =>
+        fn({ [STORAGE_KEYS.FLOATING_BUTTON_CONFIG]: { newValue } }, 'local'),
+      );
+
+    fire({ ...config, penetrateShadow: false });
+    await settle();
+    expect((detector as any).passwordFields).toHaveLength(0);
+
+    // 开回来必须看得见——总闸是双向的，只做「关掉」这一半会漏掉重新开启的路径
+    fire(config);
+    await settle();
+    expect((detector as any).passwordFields).toHaveLength(1);
+  });
+
+  it('总闸没翻转时不重检测（拖动位置/改透明度都在写这份配置）', async () => {
+    const { openRoot } = buildShadowOnlyDom();
+    openRoot.host.insertAdjacentHTML('beforebegin', '<input id="light-user" type="text">');
+    const config = makeConfig();
+    installChromeMock(config, {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#light-user', password: '#shadow-pwd' } },
+    });
+    detector = await createDetector();
+    (detector as any).detectForms();
+    const detectSpy = vi.spyOn(detector as any, 'detectForms');
+
+    const addListener = (globalThis as any).chrome.storage.onChanged.addListener;
+    addListener.mock.calls.forEach(([fn]: [(changes: unknown, area: string) => void]) =>
+      fn({ [STORAGE_KEYS.FLOATING_BUTTON_CONFIG]: { newValue: { ...config, opacity: 0.5 } } }, 'local'),
+    );
+    await settle();
+
+    expect(detectSpy).not.toHaveBeenCalled();
   });
 });

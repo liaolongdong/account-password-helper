@@ -23,16 +23,19 @@ import {
   applyMetadataOnlyUpdate,
   consumeMetadataFlushMarker,
   isMetadataOnlyChange,
+  refreshSidepanelSortCache,
   clearAllPendingTotp,
   resetCredentialAccessBarrierForStartup,
   resetDomainMatchModeMirror,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
+import { refreshActionIcon, setActionIconState } from './actionIcon';
 import { UNLOCK_NOTIFICATION_ID } from './quickFillHandler';
 import {
   decidePasswordBackupReminder,
   isBackupRelevantIdentityChange,
   isBackupRelevantPasswordChange,
+  isKeyRotationBatch,
 } from '@/utils/backup/changeDetection';
 import {
   markBrowserStartupRelockCurrentSessionReady,
@@ -247,6 +250,9 @@ async function setupTrashCleanupAlarm() {
 
 /**
  * 执行回收站过期清理
+ *
+ * 密码库与身份库两个回收站共用本闹钟（同一 30 天保留期口径），
+ * 各自独立容错——一侧清理失败不阻断另一侧。
  */
 async function performTrashCleanup() {
   try {
@@ -254,6 +260,12 @@ async function performTrashCleanup() {
     await cleanExpiredTrash();
   } catch (error) {
     logger.error('Background: 回收站过期清理失败:', error);
+  }
+  try {
+    const { cleanExpiredIdentityTrash } = await import('@/utils/storage/identityTrashManager');
+    await cleanExpiredIdentityTrash();
+  } catch (error) {
+    logger.error('Background: 身份回收站过期清理失败:', error);
   }
 }
 
@@ -337,12 +349,21 @@ async function setupAutoBackupAlarm() {
  * 写入的是另外三个键，不在 `relevantKeys` 内，因此本函数触发的 `onChanged`
  * 不会再回到这里，无自激循环。失败只记 warn：提醒退化回纯时间驱动，不影响任何数据。
  *
+ * 换钥匙（修改主密码）单独排除在外：那一批写入会把五个加密域整库重加密，逐字段比对
+ * 必然判成「内容变了」，但备份文件与当前主密码无关，用户并没有真的欠一次备份。
+ * 判据与理由见 `isKeyRotationBatch` 的注释。
+ *
  * @param changes `storage.onChanged` 的变更集
  */
 async function recordBackupRelevantChanges(changes: Record<string, chrome.storage.StorageChange>): Promise<void> {
   try {
     const StorageUtils = await _getStorageUtils();
     const now = Date.now();
+
+    if (isKeyRotationBatch(changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY], changes[STORAGE_KEYS.MASTER_PASSWORD])) {
+      logger.debug('Background: 该批变更来自换钥匙（rekey），内容未变，不刷新待备份时间戳');
+      return;
+    }
 
     const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
     if (passwordsChange && isBackupRelevantPasswordChange(passwordsChange.oldValue, passwordsChange.newValue)) {
@@ -352,6 +373,11 @@ async function recordBackupRelevantChanges(changes: Record<string, chrome.storag
 
     const identityChange = changes[STORAGE_KEYS.IDENTITY];
     if (identityChange && isBackupRelevantIdentityChange(identityChange.oldValue, identityChange.newValue)) {
+      // 只比对主列表 IDENTITY，与密码库同口径（其 recordBackupRelevantChanges 只读
+      // PASSWORDS、从不读 TRASH）：软删/恢复都改变主列表活动条目，本分支已覆盖；
+      // 而彻底删除/清空/TTL 自动清理只动 IDENTITY_TRASH、活动条目不变，`.aphid` 备份
+      // 又不含回收站——若为回收站单独刷新时间戳，会点亮「重新导出也无法消除」的假提醒
+      //（备份内容与上次一致却判为未备份），违背本模块「只在有内容可备时出声」的契约。
       await StorageUtils.setLastIdentityChangeAt(now);
       logger.debug('Background: 检测到与备份相关的身份信息变更，已记录时间戳');
     }
@@ -390,6 +416,16 @@ async function performAutoBackup() {
     const rawPasswords = pwResult[STORAGE_KEYS.PASSWORDS] as unknown[] | undefined;
     const passwordCount = rawPasswords?.length ?? 0;
 
+    /*
+     * 这里**故意只看密码库**，不是漏了个人信息库——别顺手把 IDENTITY 加进来。
+     * 本函数是「邮箱备份提醒」的通道：`utils/emailBackup.ts` 递出去的是
+     * `passwords_*.csv` 或 `.aph`，作用域只覆盖密码库，`.aphid`（个人信息库）根本不在
+     * 这条通道里。给一个只存证件/银行卡的用户发「请用邮箱备份」，是在引导他做一件
+     * 备不到自己数据的动作，比不提醒更糟。
+     * 个人信息库的欠备份状态由管理页横幅承担（两库结论见 `decideBackupChipState`
+     * 的 `perVault`，另一库也欠时点名「下一份」），那是能直接指到 `.aphid` 导出入口的面。
+     * 想给身份库加站外提醒，前提是先有一条带 `.aphid` 的定时通道——属产品决策，不是 bug。
+     */
     if (passwordCount === 0) {
       logger.info('Background: 无密码数据，跳过备份提醒');
       return;
@@ -670,6 +706,11 @@ export function setupBackgroundServices(): void {
     }
   });
 
+  // SW 每次启动对齐工具栏图标与会话状态：Chrome 的默认档位始终是 manifest 里的解锁态钥匙，
+  // 而会话材料是落盘的——浏览器重启后仍「有材料但已过期」或「已锁定」时，不刷新就会留下
+  // 「库是锁着的、图标却是钥匙」的错相。fire-and-forget，不阻塞其余初始化。
+  void refreshActionIcon();
+
   // 监听通知点击事件
   chrome.notifications.onClicked.addListener(notificationId => {
     if (notificationId === 'extension-update-available') {
@@ -762,12 +803,16 @@ export function setupBackgroundServices(): void {
           invalidatePasswordCache();
           void warmPasswordCache();
         } else {
-          // 纯排序配置变更：密码数据未变，覆盖式重建快照（读新 sortConfig）
-          // 避免全量解密回温；同事件内伴随会话键变更时不保留重建（锁定/清除
-          // 语义优先 fail-locked 删快照），其回温时机由下方会话分支自行处理
+          // 纯排序配置变更：密码数据未变，排序镜像 + 快照原地刷新（读新 sortConfig），
+          // 明文缓存保留——走全量失效会让下一次打开侧边栏重做整库解密（2000 条数百毫秒）。
+          // 同事件内伴随会话键变更时按锁定/清除语义 fail-locked 删快照并全量失效。
           const hasSessionKeyChange =
             SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY in changes || SESSION_STORAGE_KEYS.PASSWORD_EXPIRY in changes;
-          invalidatePasswordCache(STORAGE_KEYS.SIDEPANEL_SORT_CONFIG in changes && !hasSessionKeyChange);
+          if (STORAGE_KEYS.SIDEPANEL_SORT_CONFIG in changes && !hasSessionKeyChange) {
+            void refreshSidepanelSortCache();
+          } else {
+            invalidatePasswordCache();
+          }
         }
       }
 
@@ -784,13 +829,18 @@ export function setupBackgroundServices(): void {
       }
 
       // 会话状态变化时同步 SW 保活闹钟（统一常驻，幂等；会话创建/清除均收敛到保活）
-      const sessionKeys = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      const sessionKeys: string[] = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
       const sessionKeyChanges = Object.entries(changes).filter(([key]) => sessionKeys.includes(key));
 
       if (sessionKeyChanges.length > 0) {
         // 检测会话键是否被删除（clearSession 从任意上下文调用都会触发 storage 变化）
         // 这是通用安全网：覆盖手动清除（弹窗）、自动过期、锁定按钮等所有清除路径
         const sessionRemoved = sessionKeyChanges.some(([, change]) => change.newValue === undefined);
+
+        // 工具栏图标跟随会话材料出现 / 消失：本分支天然覆盖全部锁定与解锁入口
+        // （弹窗手动锁定、倒计时到期、浏览器重启重锁、闲置锁定、设置与验证主密码、换钥），
+        // 因为它们最终都要么清除要么写入这两个键，无需在每个入口逐个接线
+        setActionIconState(sessionRemoved ? 'locked' : 'unlocked');
 
         if (sessionRemoved) {
           // 会话被清除：重置 BG 的会话内存镜像与验证缓存，防止 isSessionValid() 依据

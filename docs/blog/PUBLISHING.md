@@ -22,7 +22,7 @@
 > 英文标题即 `en/*.md` front matter 里的 `title`，会被 `gen:blog` 原样写进 `<title>` 与 `og:title`。
 > `<title>` 还会追加 ` | Account Password Helper`（26 个字符）品牌后缀，因此 front matter 的 `title`
 > 建议控制在 45 字符内，整条 `<title>` 才不会被搜索结果截断。中文侧后缀 ` | 账号密码管理助手` 是 11 个字符，
-> 但全角按像素算更宽，标题同样不宜超过 40 个汉字。2026-10-02 已把五篇英文标题统一收紧到 35～42 字符。
+> 但全角按像素算更宽，标题同样不宜超过 40 个汉字。2026-10-02 已把八篇英文标题统一收紧到 35～42 字符。
 > 改标题时同步更新本表。
 
 发布后的规范链接（canonical）：
@@ -34,10 +34,10 @@
 
 ## 平台操作要点
 
-### 掘金（中文五篇）
+### 掘金（中文八篇）
 
 1. 登录后「创作者中心 → 写文章」，把 Markdown 正文粘贴（掘金支持 Markdown 导入）。
-2. **图片必须重新上传**：掘金不允许外链图床，把文中 `imgs/*.png` 逐张上传本地文件（`imgs/` 目录下均有），上传后替换文中链接。
+2. **图片必须重新上传**：掘金不允许外链图床，把文中 `imgs/*.webp` 逐张上传本地文件（站点正文已切 WebP；同名 `.png` 源文件仍保留在 `imgs/`，平台不接受 WebP 时用 PNG），上传后替换文中链接。
 3. 分类与标签（每篇选 1 分类 + 3-5 标签）：
    - 01：前端 / 开源、浏览器扩展、密码管理器
    - 02：前端 / Chrome 扩展、性能优化、Manifest V3
@@ -48,14 +48,14 @@
    > 项目完全开源（GPL-3.0）：[GitHub](https://github.com/liaolongdong/account-password-helper) · [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) · [官网与英文博客](https://liaolongdong.github.io/account-password-helper/)
 5. 投稿后把掘金链接回填到本文档下方「已发布」表。
 
-### 知乎（中文五篇，发"文章"非"回答"）
+### 知乎（中文八篇，发"文章"非"回答"）
 
 1. 「写文章」粘贴正文；知乎对外链图片会自动转存，但建议直接上传本地图保证清晰度。
 2. 话题标签：浏览器插件、密码管理、前端开发、信息安全、开源项目。
 3. 知乎对引流外链较宽容但反感硬广，引流段放在文末并注明"开源免费、无付费推广"。
 4. 可顺手在相关问题下发摘要回答并引用文章，如「有哪些好用的开源密码管理器？」。
 
-### Dev.to（英文五篇）
+### Dev.to（英文八篇）
 
 1. 新建文章，粘贴 `en/*.md` 正文（Dev.to 使用带 front matter 的 Markdown，可直接复用，`canonical_url` 必填）：
    ```yaml
@@ -76,7 +76,7 @@
 
 | 渠道                        | 语言 | 说明                                                                                                                                                                                               |
 | --------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hacker News（Show HN）      | 英文 | 选周二至周四太平洋时间上午 8-10 点，标题用 `Show HN: Account Password Helper – a local-first, open-source password manager Chrome extension`，正文首条评论自述动机；五篇英文博客可作为评论佐证链接 |
+| Hacker News（Show HN）      | 英文 | 选周二至周四太平洋时间上午 8-10 点，标题用 `Show HN: Account Password Helper – a local-first, open-source password manager Chrome extension`，正文首条评论自述动机；八篇英文博客可作为评论佐证链接 |
 | r/SideProject、r/opensource | 英文 | 允许自荐，配封面图 + GitHub 链接                                                                                                                                                                   |
 | 微信公众号                  | 中文 | 通过 `baoyu-post-to-wechat` 技能或公众号后台排版发布（代码块需转截图或用 mdnice 排版）                                                                                                             |
 | 少数派                      | 中文 | 适合 01 产品故事篇，投稿矩阵/邮件                                                                                                                                                                  |
@@ -84,10 +84,10 @@
 ## 发布节奏建议（Stacked Launch）
 
 1. **D0**：推送 `main`，确认 GitHub Pages 博客上线、sitemap 提交到 Google Search Console。
-2. **D1（周二~周四）**：上午掘金 + 知乎发布中文五篇（间隔 1-2 小时避免被判批量）。
-3. **D1 晚**：Dev.to 发布英文五篇。
+2. **D1（周二~周四）**：上午掘金 + 知乎发布中文八篇（间隔 1-2 小时避免被判批量）。
+3. **D1 晚**：Dev.to 发布英文八篇。
 4. **D2**：Show HN + r/SideProject；Blog 入口已就绪——GitHub README（中英「核心特性」末尾）与官网页脚均已链接 `/blog/`。
-5. **D3+**：微信公众号同步中文五篇；把各平台链接回填到下方表格。
+5. **D3+**：微信公众号同步中文八篇；把各平台链接回填到下方表格。
 
 ## 已发布链接登记
 

@@ -6,7 +6,8 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
  *
  * 覆盖：
  * - getDefaultFloatingButtonConfig：默认填充方式为「内联」的规范态组合
- *   （fillMode: 'inline' + autoShowSidepanel: false）；
+ *   （fillMode: 'inline' + autoShowSidepanel: false），以及新增可选布尔
+ *   `identityHintEnabled` 在默认表里就是开、存量缺键时按开合并；
  * - freezeLegacyFillDefaults（升级钩子）：
  *   - storage 无键（从未保存过偏好）→ 补写历史默认值冻结旧行为；
  *   - 已有完整配置 → 原样保留不写入；
@@ -36,13 +37,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-import { freezeLegacyFillDefaults, getDefaultFloatingButtonConfig } from '@/utils/storage/configManager';
+import {
+  freezeLegacyFillDefaults,
+  getFloatingButtonConfig,
+  getDefaultFloatingButtonConfig,
+} from '@/utils/storage/configManager';
 
 describe('getDefaultFloatingButtonConfig', () => {
   it('默认填充方式为内联的规范态组合（fillMode=inline + autoShowSidepanel=false）', () => {
     const defaults = getDefaultFloatingButtonConfig();
     expect(defaults.fillMode).toBe('inline');
     expect(defaults.autoShowSidepanel).toBe(false);
+  });
+
+  it('个人信息字段提示默认开，且存量配置缺该键时按开合并', async () => {
+    expect(getDefaultFloatingButtonConfig().identityHintEnabled).toBe(true);
+
+    // 老用户存储里没有这个键：读出来必须补成开，而不是 undefined（判定侧写的是 `!== false`，
+    // 但面板与 Options 的展示读的是合并结果，默认表漏写会让开关莫名是关）
+    store[STORAGE_KEYS.FLOATING_BUTTON_CONFIG] = { visible: true, fillMode: 'inline' };
+    await expect(getFloatingButtonConfig()).resolves.toMatchObject({ identityHintEnabled: true });
   });
 });
 
