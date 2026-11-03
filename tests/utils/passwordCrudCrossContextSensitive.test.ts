@@ -103,6 +103,11 @@ afterEach(() => {
 const rows = (): EncryptedPasswordEntry[] => store[STORAGE_KEYS.PASSWORDS] as EncryptedPasswordEntry[];
 const rowOf = (): Record<string, unknown> => rows()[0] as unknown as Record<string, unknown>;
 
+/** 历史整包（键名与 `passwordHistory.ts` 共用）；没写过就是 undefined */
+const historyRows = (): Array<{ entryId: string; password: string; changedAt: number }> =>
+  (store[STORAGE_KEYS.PASSWORD_HISTORY] as
+    Array<{ entryId: string; password: string; changedAt: number }> | undefined) ?? [];
+
 /** 起一个独立的模块实例，代表一个扩展上下文（自己的内存写队列，共享同一份 storage 与真提交锁） */
 async function createContext(): Promise<{
   updatePassword: (
@@ -190,6 +195,49 @@ describe('跨上下文的敏感编辑', () => {
     ]);
 
     expect(['p1', 'p2']).toContain(strip(rowOf().password));
+  });
+
+  it('被冲突拒掉的提交不得在历史里留下孤儿快照', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    // B 先落盘推进版本，A 手里还是打开弹窗那一刻的基线 → A 必须被拒
+    await tabB.updatePassword('a', { remark: 'B 改的备注' } as Partial<PasswordEntry>);
+    const before = historyRows().length;
+
+    await expect(
+      tabA.updatePassword('a', { password: 'p-A' } as Partial<PasswordEntry>, undefined, { expectedUpdateTime: 1 }),
+    ).rejects.toMatchObject({ code: 'UPDATE_CONFLICT' });
+
+    expect(historyRows(), '提交被拒、什么都没写，历史却先记了一笔：每次冲突重试都会污染该条目的历史').toHaveLength(
+      before,
+    );
+  });
+
+  it('历史快照存的是被这次编辑取代的那一份密文，不是事务开头读到的那一份', async () => {
+    const tabA = await createContext();
+
+    // 让锁内那次重读返回一个「比预读更新」的行：预读的密文是 enc:p0，落盘时盘上已经是 enc:p9。
+    // 被这次编辑真正取代的是 enc:p9；拿预读的 enc:p0 进历史，等于把对方那把口令永久漏出历史。
+    let passwordsReads = 0;
+    const localGet = chrome.storage.local.get as ReturnType<typeof vi.fn>;
+    const readStore = localGet.getMockImplementation() as (keys: string | string[]) => Promise<Record<string, unknown>>;
+    localGet.mockImplementation(async (keys: string | string[]) => {
+      const list = Array.isArray(keys) ? keys : [keys];
+      const found = await readStore(list);
+      if (!list.includes(STORAGE_KEYS.PASSWORDS)) return found;
+      passwordsReads += 1;
+      if (passwordsReads > 1) {
+        found[STORAGE_KEYS.PASSWORDS] = [{ ...cipherRow(), password: 'enc:p9', updateTime: 555 }];
+      }
+      return found;
+    });
+
+    await tabA.updatePassword('a', { password: 'p-new' } as Partial<PasswordEntry>);
+
+    const stored = historyRows().map(record => record.password);
+    expect(stored, '历史里没有本次真正覆盖掉的那把旧密文').toContain('enc:p9');
+    expect(stored, '历史里出现了事务开头的过期密文：快照基准用错了行').not.toContain('enc:p0');
   });
 
   it('条目在期间被删除时以删除为准，不用本次编辑把它复活', async () => {

@@ -345,12 +345,9 @@ async function updatePasswordInternal(
     const enc = await _getEncryption();
     const currentPlain = await enc.decryptPasswordEntry(current as EncryptedPasswordEntry, masterPassword ?? '', key);
 
-    // 旧密文快照必须在 lease 释放前结算，不能在换钥完成后迟到写回；失败仍非致命，但要留痕。
-    if ('password' in updates && updates.password !== currentPlain.password) {
-      await snapshotPasswordHistoryWithinLease(id, current.password).catch(error =>
-        logger.error('保存旧密码历史快照失败:', error),
-      );
-    }
+    // 调用方这次到底改没改口令：拿它自己载入的明文比，判据与落盘基准无关，留在锁外算。
+    // 「要不要写历史」也在锁外定；「写哪一份密文进历史」必须在锁内定——见下面 snapshot 那两行。
+    const passwordChanged = 'password' in updates && updates.password !== currentPlain.password;
 
     // 显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
     const updatedPlain: PasswordEntry = {
@@ -365,7 +362,7 @@ async function updatePasswordInternal(
 
     // 提交锁内的对账结论：true = 带基线的调用方要改的敏感字段已被别人改过，本次不得覆盖
     let conflictDetected = false;
-    await commitPasswordRows(list => {
+    await commitPasswordRows(async list => {
       const at = list.findIndex(p => p.id === id);
       // 解密→再加密之间可达数百毫秒，期间另一来源删掉这条时，本次写不得把它复活
       if (at === -1) return null;
@@ -377,10 +374,38 @@ async function updatePasswordInternal(
         conflictDetected = true;
         return null;
       }
+      // 旧密文快照排在删除判定与冲突拒绝之后：本次真正落盘时才写历史，被拒的提交不许在历史里
+      // 留下重复条目。存的是 `latest.password`——真正被这次编辑取代的那一份密文；拿事务开头的
+      // `current.password` 快照，会在并发改密时把对方那把口令永久漏出历史（评审 2026-11-02 Q1）。
+      // 失败仍非致命，但要留痕，且必须在 lease 释放前结算。
+      if (passwordChanged) {
+        await snapshotPasswordHistoryWithinLease(id, String(latest.password ?? '')).catch(error =>
+          logger.error('保存旧密码历史快照失败:', error),
+        );
+      }
       // 字段级回填不看 `editedElsewhere`：没有基线的调用方无从对账，但「不拿旧明文盖掉对方
       // 已经落盘的字段」这条仍然成立，而那正是 Q1 的丢数据路径。无并发时 latest 就是 current，
       // 取过来与取自己这份完全一致，不改变任何既有行为。
       const next = [...list];
+      if (latest.encrypted !== true) {
+        // at-rest 迁移窗口里的未迁移行：字段在盘上还是明文。从这一行现算再整体加密——
+        // 既保住对方并发写入的明文值，也保证落盘的是「五个敏感字段齐作密文」的完整行。
+        // 不能走下面的密文回填：把明文值搬进 `encrypted: true` 的行会被迁移按标记跳过，
+        // 明文就永久冻在盘上（`decryptPasswordEntry` 对未加密行是原样返回，不报错，挡不住）。
+        const freshPlain = await enc.decryptPasswordEntry(
+          list[at] as EncryptedPasswordEntry,
+          masterPassword ?? '',
+          key,
+        );
+        const mergedPlain = {
+          ...freshPlain,
+          ...updates,
+          updateTime: updates.updateTime ?? Date.now(),
+        } as PasswordEntry;
+        next[at] = (await enc.encryptPasswordEntry(mergedPlain, masterPassword ?? '', key)) as
+          PasswordEntry | EncryptedPasswordEntry;
+        return next;
+      }
       const nextRow = { ...reEncrypted };
       for (const field of SENSITIVE_FIELDS) {
         if (!(field in updates)) nextRow[field] = latest[field];
