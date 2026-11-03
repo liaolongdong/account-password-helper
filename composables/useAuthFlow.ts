@@ -347,6 +347,12 @@ export function useAuthFlow(options: {
     // 设置竞态防护标志，阻止后续的 checkAuth 覆盖状态
     sessionExpiredByBroadcast.value = true;
 
+    // 会话已经结束：先销毁输入框里可能残留的主密码明文，再走任何分支。
+    // 这里不能沿用 checkAuth 的 `wasVerifyVisible` 条件——那是「重新问一次认证状态」，
+    // 保留正在输入的内容是对的；而本函数是会话终止事件，明文继续留在两级响应式状态里
+    // 并显示在屏幕上，等于扩大了凭据的存活时间。
+    verifyForm.value.password = '';
+
     // 调用外部清理回调（如清除密码列表，防止加密数据残留显示）
     options.onSessionExpired?.();
 
@@ -362,10 +368,8 @@ export function useAuthFlow(options: {
 
     // 提示语的显示门槛是「本次解锁连续输错 N 次」；页面不重新挂载，所以重新进入解锁视图时
     // 必须先归零再切视图，否则上一轮的失败会累加到这一轮，让提示语早于阈值出现。
-    const wasVerifyVisible = showPasswordVerify.value;
     verifyFailCount.value = 0;
     showMasterPasswordSetup.value = false;
-    if (!wasVerifyVisible) verifyForm.value.password = '';
     showPasswordVerify.value = true;
     isAuthenticated.value = false;
 

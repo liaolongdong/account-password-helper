@@ -177,6 +177,34 @@ test.describe('认证屏与主内容区版式', () => {
     await page.locator('.setup-header').click();
     await page.waitForTimeout(200);
 
+    // 宽屏反向对照：窄屏那条只证明「不撑出横向滚动」，证明不了「不压住别的字段」。
+    // 落点被从 right 统一改成 bottom-start 之后，220px 的规则面板就压在输入框正下方——
+    // 聚焦主密码那一刻，「确认密码」与「密码提示」两个表单项被整块盖住（实测盖 72px / 126px），
+    // 而这是用户第一次建立主密码、最需要看见下面两格的时刻。宽屏同样不许盖住任何表单项。
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForTimeout(300);
+    await page.getByPlaceholder(textOf('auth.setupPasswordPlaceholder')).focus();
+    await page.waitForTimeout(300);
+    const covered = await page.evaluate(() => {
+      const pop = document.querySelector<HTMLElement>('.password-rules-popover');
+      if (!pop) return ['<量不到规则面板>'];
+      const pr = pop.getBoundingClientRect();
+      return [...document.querySelectorAll<HTMLElement>('.el-form-item')]
+        .map((item, index) => {
+          const r = item.getBoundingClientRect();
+          const both = {
+            x: Math.min(pr.right, r.right) - Math.max(pr.left, r.left),
+            y: Math.min(pr.bottom, r.bottom) - Math.max(pr.top, r.top),
+          };
+          const label = item.querySelector('label')?.textContent?.trim() ?? `第 ${index + 1} 项`;
+          return both.x > 0 && both.y > 0 ? `${label}（压 ${Math.round(Math.min(both.y, r.height))}px）` : '';
+        })
+        .filter(Boolean);
+    });
+    expect(covered, `宽屏聚焦主密码时规则面板压住了其他表单项：${covered.join('、')}`).toEqual([]);
+    await page.locator('.setup-header').click();
+    await page.waitForTimeout(200);
+
     await page.setViewportSize({ width: 1440, height: 800 });
     await page.waitForTimeout(300);
     const align = await measureAlignment(page, '.setup-header', '.form-card');
@@ -241,11 +269,18 @@ test.describe('认证屏与主内容区版式', () => {
     // 「收起」是这条信息条的隐私出口：提示语明文躺在本机，旁人窥屏时要能当场收掉。
     // 收起后内容必须真的从屏上消失（不是只变颜色），且能再展开回来。
     const hintText = page.locator('.verify-hint-inline__text');
+    const toggle = page.locator('.verify-hint-inline__toggle');
     await expect(hintText).toHaveText('最喜欢的数字和符号组合');
-    await page.locator('.verify-hint-inline__toggle').click();
+    // 展开态：aria-controls 指向那节点，且指向的东西真在 DOM 里（悬空引用会被 axe 判违规）
+    await expect(toggle).toHaveAttribute('aria-controls', 'verify-hint-text');
+    await expect(page.locator('#verify-hint-text')).toHaveCount(1);
+    await toggle.click();
     await expect(hintText).toHaveCount(0);
-    await page.locator('.verify-hint-inline__toggle').click();
+    // 收起态：节点摘走了，属性也必须整个消失，而不是留一个指向空 id 的关联
+    await expect(toggle).not.toHaveAttribute('aria-controls');
+    await toggle.click();
     await expect(hintText).toHaveText('最喜欢的数字和符号组合');
+    await expect(toggle).toHaveAttribute('aria-controls', 'verify-hint-text');
 
     // 700 视口下错误行与提示语条都在场（最坏情况），仍不该出现滚动条。
     // 上一版这里恒定多 32px：`min-height:100vh` 加了上下 16px padding 却没配 `box-sizing`。

@@ -49,6 +49,19 @@ export async function snapshotPasswordHistory(entryId: string, encryptedOldPassw
   return withVaultMutation(() => snapshotPasswordHistoryInternal(entryId, encryptedOldPassword));
 }
 
+/**
+ * 租约内版本：调用方**必须已经持有** `withVaultMutation` 的 shared 租约。
+ *
+ * 公开版会再取一次租约；Web Locks 写者优先，排队中的独占（重置 / 清空数据）会把这次嵌套请求挡成
+ * `VAULT_BUSY`，于是旧口令的历史快照静默丢失——密码已经改了，历史里没有它。
+ *
+ * @param entryId 密码条目 ID
+ * @param encryptedOldPassword 旧密码密文
+ */
+export function snapshotPasswordHistoryWithinLease(entryId: string, encryptedOldPassword: string): Promise<void> {
+  return snapshotPasswordHistoryInternal(entryId, encryptedOldPassword);
+}
+
 async function snapshotPasswordHistoryInternal(entryId: string, encryptedOldPassword: string): Promise<void> {
   try {
     // 读取用户配置：禁用时跳过快照
@@ -132,6 +145,20 @@ export async function deleteHistoryByEntryIds(entryIds: string[]): Promise<void>
   return withVaultMutation(() => deleteHistoryByEntryIdsInternal(entryIds));
 }
 
+/**
+ * 租约内版本：调用方**必须已经持有** `withVaultMutation` 的 shared 租约。
+ *
+ * 公开版会再取一次租约，而 Web Locks 是写者优先——一旦有一个排队独占（`withVaultKeyTransitionQueued`，
+ * 即重置/清空数据）停在前面，临界区内的这次嵌套请求就当场 `VAULT_BUSY`。回收站的
+ * 「已摘条目 → 清历史」两步之间被挡下，就会留下「条目离开回收站、历史密文无人回收」的半提交。
+ * 整条链路必须在同一把租约里走完，所以这里不提供嵌套取锁的版本。
+ *
+ * @param entryIds 要清理的条目 ID 列表
+ */
+export async function deleteHistoryByEntryIdsWithinLease(entryIds: string[]): Promise<void> {
+  return deleteHistoryByEntryIdsInternal(entryIds);
+}
+
 async function deleteHistoryByEntryIdsInternal(entryIds: string[]): Promise<void> {
   if (!entryIds.length) return;
   try {
@@ -142,7 +169,10 @@ async function deleteHistoryByEntryIdsInternal(entryIds: string[]): Promise<void
       await writeAllHistory(filtered);
     }
   } catch (error) {
+    // 上抛，不吞：调用方（回收站的彻底删除 / 清空）据此决定「条目还留在回收站里等重试」还是报失败。
+    // 吞掉就是向用户谎报「已彻底删除」，而那些旧口令密文从此没人认领——它们还会被换钥重加密、被备份导出带走。
     logger.error('批量删除条目历史记录失败:', error);
+    throw error;
   }
 }
 
