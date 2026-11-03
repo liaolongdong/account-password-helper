@@ -340,12 +340,20 @@ async function persistAutoSavePassword(data: AutoSavePasswordData): Promise<{ su
       ? data.remark || tl('cs.save.autoSaveRemark')
       : existingEntry.remark || data.remark || tl('cs.save.autoSaveRemark');
 
-    await updatePassword(existingEntry.id, {
-      password: data.password,
-      tag: newTag,
-      remark: newRemark,
-      updateTime: Date.now(),
-    });
+    // 带上本次读取的 updateTime 作为并发基线：若在「解密比对 → 落盘」窗口里
+    // 另一张管理页标签刚保存过这条，本次自动保存必须被拒并提示，而不是静默覆盖
+    // 用户刚改好的凭据（两侧都是凭据写入，无法判断谁更新）。
+    await updatePassword(
+      existingEntry.id,
+      {
+        password: data.password,
+        tag: newTag,
+        remark: newRemark,
+        updateTime: Date.now(),
+      },
+      undefined,
+      { expectedUpdateTime: existingEntry.updateTime },
+    );
     return { success: true, message: tl('bg.autoSave.updated') };
   } else {
     await savePassword({

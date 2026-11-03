@@ -12,6 +12,10 @@
  * 字段白名单、逐字段类型与长度上限（对象/数组/布尔不再被 `String()` 悄悄变成
  * "[object Object]"/"true"），时间戳须为有限数（缺失回退当前时间），空用户名条目丢弃。
  *
+ * 密码是唯一「不修剪首尾空白」的文本字段：备份是忘记密码时的唯一凭据，恢复必须逐字符
+ * 还原；对凭据做归一化会让一把导得出去的密码再也登不上原站，而调用方只看到「导入成功」。
+ * 其余展示型字段（用户名/网址/标签/TOTP 密钥）沿用 trim，与表单录入口径一致。
+ *
  * 违规统一抛 {@link PasswordBackupError}（携带机器可读 `code`），由调用方映射为
  * 面向用户的 i18n 文案。
  */
@@ -43,6 +47,26 @@ export class PasswordBackupError extends Error {
 
 /** 导入后的条目形状（与既有 parseCSV/parseJSON/importEncryptedBackup 契约一致） */
 export type ImportedPasswordEntry = Omit<PasswordEntry, 'id' | 'order'>;
+
+/**
+ * 读取受限文本字段（凭据口径）：仅接受字符串或有限数，**原样保留首尾空白与换行**。
+ *
+ * 供 password 使用——密码逐字符取用，任何归一化都是不可逆改写。
+ * 长度按原始串校验（不按 trim 后），否则「实际超长、修剪后合规」的凭据会被静默截断。
+ */
+export function readBoundedCredential(value: unknown, max: number): string {
+  if (value === undefined || value === null) return '';
+  let str: string;
+  if (typeof value === 'string') {
+    str = value;
+  } else if (typeof value === 'number' && Number.isFinite(value)) {
+    str = String(value);
+  } else {
+    throw new PasswordBackupError('INVALID_ENTRY');
+  }
+  if (str.length > max) throw new PasswordBackupError('INVALID_ENTRY');
+  return str;
+}
 
 /**
  * 读取受限文本字段：仅接受字符串或有限数（其余类型视为损坏/伪造，抛 INVALID_ENTRY）。
@@ -107,7 +131,7 @@ export function validateAndBoundEntries(rows: unknown): ImportedPasswordEntry[] 
     const row = raw as Record<string, unknown>;
     const entry: ImportedPasswordEntry = {
       username: readBoundedText(row.username, MAX_USERNAME_LEN),
-      password: readBoundedText(row.password, MAX_PASSWORD_LEN),
+      password: readBoundedCredential(row.password, MAX_PASSWORD_LEN),
       url: readBoundedText(row.url, MAX_URL_LEN),
       tag: readBoundedText(row.tag, MAX_TAG_LEN),
       remark: readBoundedText(row.remark, MAX_REMARK_LEN),

@@ -38,6 +38,7 @@ vi.mock('@/utils/sessionManager-storage', () => ({
 
 vi.mock('@/utils/frameFill', () => ({
   getFillableFrameIds: vi.fn(async () => [0]),
+  getFillableDocuments: vi.fn(async () => [{ tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' }]),
   fillPasswordInFrames: vi.fn(async () => ({ success: true })),
   isFrameFillable: vi.fn(async () => true),
 }));

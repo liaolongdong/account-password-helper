@@ -22,7 +22,15 @@ const { isSessionValid, getAllPasswords, getDomainMatchConfig, updatePassword, s
   isSessionValid: vi.fn<() => Promise<boolean>>(),
   getAllPasswords: vi.fn<() => Promise<PasswordEntry[]>>(),
   getDomainMatchConfig: vi.fn<() => Promise<DomainMatchConfig>>(),
-  updatePassword: vi.fn<(id: string, updates: Partial<PasswordEntry>) => Promise<void>>(),
+  updatePassword:
+    vi.fn<
+      (
+        id: string,
+        updates: Partial<PasswordEntry>,
+        masterPassword?: string,
+        baseline?: { expectedUpdateTime: number },
+      ) => Promise<void>
+    >(),
   savePassword: vi.fn<(entry: Omit<PasswordEntry, 'id' | 'order'>) => Promise<PasswordEntry>>(),
 }));
 
@@ -795,12 +803,18 @@ describe('autoSavePassword 标签与备注落盘口径', () => {
 
     await autoSavePassword(makePayload({ tag: 'x9', tagEdited: true }));
 
-    expect(updatePassword).toHaveBeenCalledWith('a', {
-      password: NEW_PASSWORD,
-      tag: 'x9',
-      remark: '旧备注',
-      updateTime: expect.any(Number),
-    });
+    expect(updatePassword).toHaveBeenCalledWith(
+      'a',
+      {
+        password: NEW_PASSWORD,
+        tag: 'x9',
+        remark: '旧备注',
+        updateTime: expect.any(Number),
+      },
+      undefined,
+      // 并发基线：本次读取到的 updateTime，落盘前在提交锁内与最新行对账
+      { expectedUpdateTime: expect.any(Number) },
+    );
   });
 });
 
@@ -951,12 +965,17 @@ describe('autoSavePassword / checkCredentialStatus 的端口归属', () => {
 
     await autoSavePassword(makePayload({ url: 'example.com:8443', protocol: 'https:' }));
 
-    expect(updatePassword).toHaveBeenCalledWith('p8443', {
-      password: NEW_PASSWORD,
-      tag: 'x1',
-      remark: tl('cs.save.autoSaveRemark'),
-      updateTime: expect.any(Number),
-    });
+    expect(updatePassword).toHaveBeenCalledWith(
+      'p8443',
+      {
+        password: NEW_PASSWORD,
+        tag: 'x1',
+        remark: tl('cs.save.autoSaveRemark'),
+        updateTime: expect.any(Number),
+      },
+      undefined,
+      { expectedUpdateTime: expect.any(Number) },
+    );
     expect(savePassword).not.toHaveBeenCalled();
   });
 

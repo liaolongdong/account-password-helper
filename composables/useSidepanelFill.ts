@@ -3,7 +3,7 @@ import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t, currentLocale } from '@/utils/i18n';
 import { buildShareCard, hasShareCardPassword } from '@/utils/shareCard';
-import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
+import { fillTotpInFrames, getFillableDocuments, getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import { lazyImport } from '@/utils/lazyImport';
 import { ensureContentScriptReady, type ContentScriptProbeResult } from '@/utils/contentScriptReadiness';
@@ -293,36 +293,6 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     return false;
   };
 
-  /**
-   * 向所有 frame 发送 TOTP 验证码填充消息，返回首个成功响应（均失败时返回首个响应以展示提示）
-   * @param tabId 标签页ID
-   * @param frameIds 所有 frame ID 列表
-   * @param code 本地计算得到的动态验证码
-   * @returns FillResult 或 null
-   */
-  const fillTotpInAllFrames = async (tabId: number, frameIds: number[], code: string): Promise<FillResult | null> => {
-    const results = await Promise.allSettled(
-      frameIds.map(frameId =>
-        chrome.tabs.sendMessage(tabId, { type: MessageType.FILL_TOTP, data: { code } }, { frameId }),
-      ),
-    );
-
-    let firstResponse: FillResult | null = null;
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        const response = result.value as FillResult | undefined;
-        if (response?.success) {
-          return response;
-        }
-        if (response && !firstResponse) {
-          firstResponse = response;
-        }
-      }
-    }
-
-    return firstResponse;
-  };
-
   // ==================== 填充密码 ====================
 
   /**
@@ -344,7 +314,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       const tabId = tab.id;
       const autoLogin = options?.autoLogin ?? false;
 
-      // 获取「顶层 + 同主域名」可填充 frame 集合：检测（PING）与填充（FILL）复用同一集合，
+      // 获取「顶层 + 同主域名」可填充 frame 集合：检测（PING）与字段等待复用同一集合，
       // 既命中同站 iframe 内嵌登录表单，又避免向跨域第三方 iframe 广播明文凭证
       const frameIds = await getFillableFrameIds(tabId);
 
@@ -376,13 +346,16 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
         }
       }
 
-      // 步骤4: 向可填充 frame 集合发送填充消息，取第一个成功的响应
+      // 步骤4: 向可填充「文档」集合发送填充消息，取第一个成功的响应。
+      // 接收者绑文档而不是 frameId：上面的 PING / 字段等待期间若 frame 导航，
+      // 复用同一 frameId 的新文档不会拿到明文（sendToAuthorizedDocument 抛「接收端不存在」）。
       const fillData = {
         username: password.username,
         password: password.password,
         autoLogin,
       };
-      const response = await fillPasswordInFrames(tabId, frameIds, fillData);
+      const documents = await getFillableDocuments(tabId);
+      const response = await fillPasswordInFrames(tabId, documents, fillData);
 
       // 步骤5: 根据响应显示结果
       if (response && response.success) {
@@ -458,15 +431,18 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
   // ==================== 填充 / 复制 TOTP 验证码 ====================
 
   /**
-   * 填充条目的 TOTP 两步验证码到当前页面
+   * 向授权文档发送 TOTP 验证码填充消息，返回首个成功响应（均失败时返回首个送达响应以展示提示）
    *
-   * 确保 content script 就绪 → 取可填 frame → **最后一步才算码**并立刻发送 FILL_TOTP。
-   * 取码必须排在所有跨入口往返之后（与 `fillPassword` 步骤4 组装明文的口径一致）：
-   * 等窗逻辑只保证「算出来那一刻还剩 ≥2 秒」，而查 tab、取 frame、必要时注入 content script
-   * 可达数百毫秒到秒级，把取码放在它们前面就等于把刚等到的那 2 秒预算又花回去，
-   * 时间窗边界上照样填进旧码；顺带也让密钥派生出的明文少在内存里走一段。
-   * @param password 目标密码条目
+   * 委托 `fillTotpInFrames`：接收者绑定文档而不是 frameId（见该函数注释）。
+   * @param tabId 标签页ID
+   * @param code 本地计算得到的动态验证码
+   * @returns FillResult 或 null
    */
+  const fillTotpInAllFrames = async (tabId: number, code: string): Promise<FillResult | null> => {
+    const { result, firstResponse } = await fillTotpInFrames(tabId, code);
+    return result ?? firstResponse;
+  };
+
   const fillTotp = async (password: PasswordEntry) => {
     if (!password.totp || !password.totp.trim()) {
       ElMessage.warning(t('fill.noTotpConfigured'));
@@ -504,7 +480,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
         return;
       }
 
-      const response = await fillTotpInAllFrames(tabId, frameIds, code);
+      const response = await fillTotpInAllFrames(tabId, code);
       if (response && response.success) {
         // 与账号密码填充同口径：write-after 复检未通过（outcome==='unverified'）时不再乐观
         // 报「填充成功」，改为「已填充，请核对」。动态码时效极短，误报成功会让用户

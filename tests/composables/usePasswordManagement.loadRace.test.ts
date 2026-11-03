@@ -74,6 +74,55 @@ describe('usePasswordManagement 的整表加载代际守卫', () => {
     delete (globalThis as Record<string, unknown>).ElMessageBox;
   });
 
+  it('读取挂起后清空会话，旧结果不回填明文或坏记录计数，新解锁仍可加载', async () => {
+    mgmt.passwords.value = [makeEntry('visible')];
+    mgmt.undecryptableCount.value = 3;
+    const started = deferred<void>();
+    const pending = deferred<LoadedPasswords>();
+    getAll.mockImplementationOnce(async () => {
+      started.resolve();
+      return pending.promise;
+    });
+    const loading = mgmt.loadPasswords();
+    await started.promise;
+    mgmt.clearPasswordState();
+    expect(mgmt.passwords.value).toEqual([]);
+    expect(mgmt.undecryptableCount.value).toBe(0);
+    expect(mgmt.tableLoading.value).toBe(false);
+    pending.resolve(structuredClone({ entries: [makeEntry('stale')], undecryptableCount: 2 }));
+    await loading;
+    expect(mgmt.passwords.value).toEqual([]);
+    expect(mgmt.undecryptableCount.value).toBe(0);
+
+    getAll.mockResolvedValueOnce(structuredClone({ entries: [makeEntry('fresh')], undecryptableCount: 1 }));
+    await mgmt.loadPasswords();
+    expect(mgmt.passwords.value.map(entry => entry.id)).toEqual(['fresh']);
+    expect(mgmt.undecryptableCount.value).toBe(1);
+  });
+
+  it('锁定后旧加载失败不弹错误，也不关闭新一轮的 loading', async () => {
+    const started = deferred<void>();
+    const failure = deferred<void>();
+    getAll.mockImplementationOnce(async () => {
+      started.resolve();
+      await failure.promise;
+      throw new Error('stale failure');
+    });
+    const old = mgmt.loadPasswords();
+    await started.promise;
+    mgmt.clearPasswordState();
+    const pending = deferred<LoadedPasswords>();
+    getAll.mockReturnValueOnce(pending.promise);
+    const fresh = mgmt.loadPasswords();
+    failure.resolve();
+    await old;
+    expect(ElMessage.error).not.toHaveBeenCalled();
+    expect(mgmt.tableLoading.value).toBe(true);
+    pending.resolve(structuredClone({ entries: [makeEntry('fresh')], undecryptableCount: 0 }));
+    await fresh;
+    expect(mgmt.passwords.value.map(entry => entry.id)).toEqual(['fresh']);
+  });
+
   it('两次重叠加载只由最新一次读取并提交，被取代的那次不熄灭遮罩', async () => {
     const pending = deferred<LoadedPasswords>();
     getAll.mockImplementation(() => pending.promise);

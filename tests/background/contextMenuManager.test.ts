@@ -55,8 +55,20 @@ vi.mock('@/utils/sessionManager-storage', () => ({
   isSessionActiveSync: vi.fn(() => true),
 }));
 
+/** 文档绑定投递的桩：右键填充的「定向下发」契约现在由 sendToAuthorizedDocument 承载 */
+const mockedSend = vi.hoisted(() => vi.fn(async () => ({ success: true })));
+const mockedFrameFillable = vi.hoisted(() => vi.fn(async () => true));
+const mockedDocuments = vi.hoisted(() =>
+  vi.fn(async () => [
+    { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
+    { tabId: 1, frameId: 2, documentId: 'doc-2', topDocumentId: 'doc-0' },
+  ]),
+);
+
 vi.mock('@/utils/frameFill', () => ({
-  isFrameFillable: vi.fn(async () => true),
+  isFrameFillable: (...args: unknown[]) => mockedFrameFillable(...(args as [])),
+  getFillableDocuments: (...args: unknown[]) => mockedDocuments(...(args as [])),
+  sendToAuthorizedDocument: (...args: unknown[]) => mockedSend(...(args as [])),
 }));
 
 vi.mock('@/utils/passwordGenerator', () => ({
@@ -78,7 +90,7 @@ import {
   getInlineTotpCode,
   recordPendingTotpIfEligible,
 } from '@/entrypoints/background/passwordCache';
-import { isFrameFillable } from '@/utils/frameFill';
+
 import { isSessionActiveSync, isSessionValid } from '@/utils/sessionManager-storage';
 import { updatePasswordInSession } from '@/utils/storage/passwordCrud';
 import { MessageType, type PasswordEntry } from '@/utils/types';
@@ -94,7 +106,7 @@ const mockedCached = vi.mocked(getCachedPasswords);
 const mockedSort = vi.mocked(sortMatchesForDomain);
 const mockedTotp = vi.mocked(getInlineTotpCode);
 const mockedPending = vi.mocked(recordPendingTotpIfEligible);
-const mockedFrameFillable = vi.mocked(isFrameFillable);
+
 const mockedUpdate = vi.mocked(updatePasswordInSession);
 const mockedOpenSidePanel = vi.mocked(openSidePanelAndRespond);
 const mockedOpenOptionsAndSendMessage = vi.mocked(openOptionsAndSendMessage);
@@ -163,12 +175,15 @@ const armHappyPath = (entries: PasswordEntry[]) => {
   mockedEnsure.mockResolvedValue(true);
   mockedCached.mockResolvedValue({ isAuthenticated: true, passwords: entries } as never);
   mockedSort.mockImplementation(async passwords => passwords as PasswordEntry[]);
-  mockedFrameFillable.mockResolvedValue(true);
+  mockedDocuments.mockResolvedValue([
+    { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
+    { tabId: 1, frameId: 2, documentId: 'doc-2', topDocumentId: 'doc-0' },
+  ]);
   mockedSessionActive.mockReturnValue(true);
   mockedSessionValid.mockResolvedValue(true);
   mockedOpenInline.mockResolvedValue('opened');
   mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: true });
-  sendMessageSpy.mockResolvedValue({ success: true } as never);
+  mockedSend.mockResolvedValue({ success: true });
 };
 
 /** chrome.tabs.sendMessage  spies（fakeBrowser 桩非 vi.fn，需 spy 包装） */
@@ -245,10 +260,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-username', frameId: 2 } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 2, documentId: 'doc-2', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'username', value: 'user-a' } },
-        { frameId: 2 },
       ),
     );
     await vi.waitFor(() => expect(mockedBadge).toHaveBeenCalledWith(true));
@@ -260,10 +275,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-password' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'password', value: 'pass-a' } },
-        { frameId: 0 },
       ),
     );
   });
@@ -276,7 +291,7 @@ describe('填充类菜单点击分发', () => {
     await vi.waitFor(() =>
       expect(mockedOpenInline).toHaveBeenCalledWith(1, { useContextMenuTarget: true, frameId: 2 }),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
     expect(mockedNotifyFailure).not.toHaveBeenCalled();
   });
 
@@ -289,7 +304,7 @@ describe('填充类菜单点击分发', () => {
     await vi.waitFor(() =>
       expect(mockedOpenInline).toHaveBeenCalledWith(1, { useContextMenuTarget: true, frameId: undefined }),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
     expect(mockedNotifyFailure).not.toHaveBeenCalled();
   });
 
@@ -308,7 +323,7 @@ describe('填充类菜单点击分发', () => {
         'unlock-required',
       ),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('旧标签页未注入 content script 时按「刷新页面」指引反馈，不误导用户去验证主密码', async () => {
@@ -332,10 +347,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-generate-password' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'generate', value: 'Gen@rated123' } },
-        { frameId: 0 },
       ),
     );
     expect(mockedCached).not.toHaveBeenCalled();
@@ -347,14 +362,14 @@ describe('填充类菜单点击分发', () => {
   });
 
   it('跨域 frame 门控拒绝时提示且不下发明文', async () => {
-    mockedFrameFillable.mockResolvedValue(false);
+    mockedDocuments.mockResolvedValueOnce([]);
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username', frameId: 3 } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
       expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.frameNotFillable', 'cm.title', undefined),
     );
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('无匹配条目时提示 noMatch，并同时走页面内提示条兜底', async () => {
@@ -366,11 +381,11 @@ describe('填充类菜单点击分发', () => {
       expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.noMatch', 'cm.title', undefined),
     );
     expect(mockedPageNotice).toHaveBeenCalledWith(1, 'bg.quickFill.noMatch');
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('content script 未注入（Receiving end does not exist）时引导刷新页面', async () => {
-    sendMessageSpy.mockRejectedValue(new Error('Could not establish connection. Receiving end does not exist.'));
+    mockedSend.mockRejectedValueOnce(new Error('Could not establish connection. Receiving end does not exist.'));
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
 
@@ -380,7 +395,7 @@ describe('填充类菜单点击分发', () => {
   });
 
   it('content 端返回失败时透传其失败原因', async () => {
-    sendMessageSpy.mockResolvedValue({ success: false, message: 'cs.cm.noTarget' } as never);
+    mockedSend.mockResolvedValueOnce({ success: false, message: 'cs.cm.noTarget' } as never);
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
 
@@ -394,10 +409,10 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-totp' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      expect(mockedSend).toHaveBeenCalledWith(
         1,
+        { tabId: 1, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
         { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'totp', value: '123456' } },
-        { frameId: 0 },
       ),
     );
     expect(mockedTotp).toHaveBeenCalledWith('entry-b');
@@ -409,7 +424,7 @@ describe('填充类菜单点击分发', () => {
     listener({ menuItemId: 'aph-cm-fill-totp' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.noTotpEntry', 'cm.title', undefined));
-    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('账密填充成功且条目配置 2FA 时记录待接力标记并更新最近使用时间', async () => {

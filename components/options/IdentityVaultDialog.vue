@@ -489,7 +489,7 @@ import {
   resolveExportEntries,
 } from '@/utils/identity/backup';
 import type { IdentityBackupData } from '@/utils/identity/backup';
-import { replaceAllIdentity } from '@/utils/storage/identityCrud';
+import { getIdentityCrudErrorCode, replaceAllIdentity } from '@/utils/storage/identityCrud';
 import { getIdentityTrashCount } from '@/utils/storage/identityTrashManager';
 import { TRASH_RETENTION_DAYS } from '@/utils/storage/trashRetention';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
@@ -1030,23 +1030,27 @@ const applyImportedData = async (data: IdentityBackupData, plaintext: boolean): 
     },
   );
 
-  // 确认到写回之间可能有其他 Options 标签页改动：写回前重新读取磁盘当前态作为 merge 基，
-  // 避免用陈旧内存快照整体覆盖并发编辑（否则 replaceAll 会丢掉期间新增/修改的条目）
+  // 确认到写回之间可能有其他标签页/设备导入的改动：重读磁盘与逐 id 择优合并、
+  // 容量复核与整体写回都在存储层的同一个提交锁事务里完成（`replaceAllIdentity`），
+  // 因此这里只递交导入文件里的记录，不再用陈旧内存快照预先合并。
   await load();
-  const merged = mergeIdentityRecords(rows.value, data.records);
-  if (merged.records.length > MAX_IDENTITIES) {
-    ElMessage.error(t('identity.import.limitReached', { max: MAX_IDENTITIES }));
-    return;
+  try {
+    await replaceAllIdentity(data.records);
+  } catch (error) {
+    // 并发新增把总量推过上限：整批拒绝（不截断、不静默丢条），提示用户先清理再导入
+    if (getIdentityCrudErrorCode(error) === 'LIMIT_REACHED') {
+      ElMessage.error(t('identity.import.limitReached', { max: MAX_IDENTITIES }));
+      return;
+    }
+    throw error;
   }
-
-  await replaceAllIdentity(merged.records);
   // 导入绕开 create/update/remove，这里补上会话内即时信号：`LAST_IDENTITY_CHANGE_AT`
   // 由 Service Worker 的 storage.onChanged 异步写入，紧随其后的 load() 大概率读不到，
   // 只靠落盘时间戳会让「刚导入完却看不见提醒」成为下一次开弹窗才自愈的假阴性。
   // 导入的子集文件不等于全库备份，故此处只置「待备份」，不做反向的 markBackupDone。
   markBackupPending();
   await load();
-  ElMessage.success(t('identity.import.importSuccess', { count: merged.added + merged.updated }));
+  ElMessage.success(t('identity.import.importSuccess', { count: preview.added + preview.updated }));
 };
 
 /** 导入：按扩展名分支——.aphid 走主密码解密导入，.json 走明文双门槛回导，共用同一写回流程 */

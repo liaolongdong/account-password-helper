@@ -170,6 +170,16 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    */
   const editingFieldLengths = ref<InitialFieldLengths>({});
 
+  /**
+   * 编辑态的并发基线（打开弹窗那一刻读到的 `updateTime`）
+   *
+   * 敏感编辑是「读整包 → 解密 → 改 → 再加密 → 落盘」，中间可达数百毫秒；期间另一张
+   * 管理页标签或网页自动保存可能已经改过同一行。把基线透给存储层做提交锁内对账：
+   * 撞车时存储层抛 `UPDATE_CONFLICT`，这里提示并随列表刷新把基线推进到最新版本，
+   * 用户重试即针对新基线，既不会静默覆盖对方，也不会反复撞同一堵墙。
+   */
+  const editingBaselineTime = ref<number | null>(null);
+
   const passwordFormRules = computed<FormRules>(() => ({
     ...createPasswordFormRules(t, editingFieldLengths.value),
     totp: [{ validator: totpValidator, trigger: 'blur' }],
@@ -471,6 +481,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (generation !== loadGeneration) return;
       passwords.value = loaded.entries;
       undecryptableCount.value = loaded.undecryptableCount;
+      syncEditingBaseline();
 
       // 初始化每条记录的密码显隐状态
       passwords.value.forEach(p => {
@@ -483,6 +494,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (generation !== loadGeneration) return;
       validityForm.value.validityHours = validityHours;
     } catch (error: unknown) {
+      // 已被 clearPasswordState / 新一轮加载作废的旧请求：不把过期失败弹成用户可见错误，
+      // 否则锁定后仍会为一次注定丢弃的读取报「加载失败」。
+      if (generation !== loadGeneration) return;
       logger.error('加载密码列表失败:', error);
       const message = error instanceof Error ? error.message : t('message.unknownError');
       ElMessage.error(t('message.loadListFailedDetail', { message }));
@@ -491,6 +505,20 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       // 只有最新一次加载负责收尾：被取代的那次提前返回时不得熄灭仍在加载的遮罩
       if (generation === loadGeneration) tableLoading.value = false;
     }
+  };
+
+  /**
+   * 锁定/过期时的同步清态：作废在途加载 + 清空明文列表。
+   *
+   * `loadPasswords` 的代际只在「新加载启动」时推进；锁定发生时若只 `passwords = []`，
+   * 一次仍在 await 中的旧读取完成后会把明文与坏记录计数原样回填，等于「锁了但没锁」。
+   * 这里同步递增代际，旧请求在下一个 await 边界全部让位，也不得熄灭新一轮的 loading。
+   */
+  const clearPasswordState = (): void => {
+    loadGeneration++;
+    passwords.value = [];
+    undecryptableCount.value = 0;
+    tableLoading.value = false;
   };
 
   /**
@@ -544,6 +572,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       logger.debug(`Options: 仅元数据变更命中，但本地列表缺少 ${missed} 条存储中的条目，回退整表重载`);
       return false;
     }
+    // 修补同样可能推进本行的 updateTime（填充类使用痕迹），基线跟着走
+    syncEditingBaseline();
     logger.debug('Options: 外部写入命中仅元数据变更，已就地修补列表');
     return true;
   };
@@ -594,6 +624,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const openPasswordDialog = (prefillUrl = '') => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
+    editingBaselineTime.value = null;
     editingFieldLengths.value = {};
     passwordForm.value = { ...EMPTY_PASSWORD_FORM, url: prefillUrl };
     showPasswordDialog.value = true;
@@ -603,6 +634,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const editPassword = (password: PasswordEntry) => {
     isEditingPassword.value = true;
     editingPasswordId.value = password.id;
+    editingBaselineTime.value = password.updateTime;
     editingFieldLengths.value = {
       username: password.username.length,
       password: password.password.length,
@@ -621,9 +653,24 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 重置密码表单
+  /**
+   * 列表刷新后把编辑基线推进到当前行的最新版本。
+   *
+   * 只跟 `updateTime`、不碰表单：用户在弹窗里的输入原样保留，重试时针对新版本提交；
+   * 若期间对方又改过一次，存储层会再次拒绝——冲突提示因此始终与实际落盘状态一致。
+   * 由整表加载与就地元数据修补两条路径显式调用（而不是 watch 全列表：批量标签编辑
+   * 那类 O(n) 遍历守卫会被额外的整表扫描污染）。
+   */
+  const syncEditingBaseline = () => {
+    if (!isEditingPassword.value) return;
+    const latest = passwords.value.find(entry => entry.id === editingPasswordId.value)?.updateTime;
+    if (typeof latest === 'number') editingBaselineTime.value = latest;
+  };
+
   const resetPasswordForm = () => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
+    editingBaselineTime.value = null;
     editingFieldLengths.value = {};
     passwordForm.value = { ...EMPTY_PASSWORD_FORM };
   };
@@ -803,7 +850,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           updateTime: Date.now(),
         };
         await runLocalOperation(async () => {
-          await StorageUtils.updatePassword(editingPasswordId.value, updatedFields);
+          await StorageUtils.updatePassword(
+            editingPasswordId.value,
+            updatedFields,
+            undefined,
+            editingBaselineTime.value === null ? undefined : { expectedUpdateTime: editingBaselineTime.value },
+          );
         });
         // 就地更新：filteredPasswords computed 会自动重新排序
         const entry = passwords.value.find(p => p.id === editingPasswordId.value);
@@ -837,6 +889,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       showPasswordDialog.value = false;
       resetPasswordForm();
     } catch (error) {
+      // 并发冲突：弹窗与用户输入原样保留（关掉会把没保存的编辑吞掉），
+      // 同时刷新列表——下方 watcher 会把编辑基线推进到最新版本，用户按提示重试即可。
+      if ((error as { code?: unknown })?.code === 'UPDATE_CONFLICT') {
+        logger.warn('保存密码被并发写者拒绝：条目已在其他窗口修改');
+        ElMessage.error(t('form.updateConflict'));
+        void loadPasswords();
+        return;
+      }
       logger.error('保存密码失败:', error);
       // 上限拒绝单独成文：泛化的「保存失败」会让用户反复重试同一次添加，
       // 而真实原因是条目总数已到位，需要的是先清理再添加。
@@ -1320,6 +1380,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     selectedIds,
     isEditingPassword,
     editingPasswordId,
+    editingBaselineTime,
     passwordForm,
     passwordFormRules,
     passwordFormLoading,
@@ -1342,6 +1403,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tagArray,
     // 方法
     loadPasswords,
+    clearPasswordState,
     patchMetadataOnlyFromStorage,
     handleSortChange,
     restoreSortConfig,

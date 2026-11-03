@@ -989,6 +989,13 @@ export function useSidepanelData() {
           return null;
         }
         const crud = await (crudPromise ?? getPasswordCrudModule());
+        // 二次弃赛点：上面这次 await 本身就是一个窗口（chunk 冷读可到数百毫秒），
+        // 期间快照/BG 路径可能已胜出并完成首屏提交 —— 不在这里再查一次，本条最重的
+        // 全库读取与最多 5N 次字段解密照样跑完再把结果丢弃，白与首屏渲染抢 CPU 和 IPC。
+        if (raceWinner) {
+          logger.debug(`SidePanel: 本地路径弃赛（${raceWinner} 已胜出，crud chunk 就绪后复查），跳过全量解密`);
+          return null;
+        }
         const [sortConfigResult, loadedPasswords] = await Promise.all([
           getSidepanelSortConfig().catch(() => null),
           crud.getAllPasswords(),

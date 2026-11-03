@@ -6,7 +6,8 @@ import {
   type PendingCipherKeyResponse,
   type RuntimeMessage,
 } from '@/utils/types';
-import { PostMessageType, isSameMainDomain } from '@/utils/domain';
+import { isSameMainDomain } from '@/utils/domain';
+import type { DelegatedSavePromptResponse } from '@/utils/types';
 import type {
   PendingCredentials,
   SavePromptControls,
@@ -671,9 +672,9 @@ export class LoginAutoSave {
   /**
    * 将保存确认弹窗委托给顶层 frame 渲染
    *
-   * 通过 window.top.postMessage 将凭证数据发送给顶层 frame 的 content script，
-   * 由顶层 frame 调用 showSavePasswordPrompt 在页面右上角正常渲染弹窗。
-   * 用户操作结果通过 postMessage 回传，由当前实例执行保存/忽略/不再提示。
+   * 通过 Background 认证通道将凭证定向顶层文档，宿主页面不能旁听或伪造确认。
+   * Background 校验会话、两端文档与一次性请求后，沿原请求通道返回决定。
+   * 当前实例保持保存/忽略/不再提示的既有行为。
    *
    * @param pending 待确认的凭证数据
    * @param precheck 预检查得出的展示信息，随 promptData 一同跨帧透传（接收方会再次校验）
@@ -694,8 +695,6 @@ export class LoginAutoSave {
       return;
     }
 
-    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
     const promptData: SavePromptData = {
       username: pending.username,
       password: pending.password,
@@ -706,61 +705,34 @@ export class LoginAutoSave {
       risk: precheck.risk,
       targetNote: precheck.targetNote,
     };
-
-    /** 超时定时器 ID，用于 30s 后自动清理监听器 */
-    const timeoutId = setTimeout(() => {
-      window.removeEventListener('message', handleResult);
-      logger.warn('[LoginAutoSave] 顶层 frame 未响应委托请求，已超时清理');
-    }, PENDING_MAX_AGE_MS);
-
-    /** 接收顶层 frame 回传的用户操作结果 */
-    const handleResult = (event: MessageEvent): void => {
-      // 仅接受同主域名顶层 frame 的响应
-      if (!isSameMainDomain(event.origin, location.origin)) return;
-      if (event.data?.type !== PostMessageType.SAVE_PROMPT_RESULT || event.data?.requestId !== requestId) {
-        return;
-      }
-
-      clearTimeout(timeoutId);
-      window.removeEventListener('message', handleResult);
-
-      const { action, editedData } = event.data as {
-        action: 'save' | 'dismiss' | 'neverAsk';
-        editedData?: { tag: string; remark: string; tagEdited: boolean; remarkEdited: boolean };
-      };
-
-      switch (action) {
-        case 'save':
-          this.handleSave({
-            ...pending,
-            tag: editedData?.tag ?? pending.tag,
-            remark: editedData?.remark ?? pending.remark,
-            tagEdited: editedData?.tagEdited ?? false,
-            remarkEdited: editedData?.remarkEdited ?? false,
-          });
-          break;
-        case 'dismiss':
+    // 凭据与确认只经扩展通道流转。原请求通道绑定本 document，导航不会将回执交给新文档。
+    this.clearPending();
+    const token = this.pendingToken;
+    void (async () => {
+      try {
+        const response = (await chrome.runtime.sendMessage({
+          type: MessageType.DELEGATE_SAVE_PROMPT,
+          data: promptData,
+        })) as DelegatedSavePromptResponse | undefined;
+        if (this.sessionExpired || token !== this.pendingToken) return;
+        if (!response?.success) {
+          showNativeNotification(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
+          return;
+        }
+        const decision = response.decision;
+        if (decision.action === 'save') {
+          await this.handleSave({ ...pending, ...decision.editedData });
+        } else if (decision.action === 'neverAsk') {
+          await this.handleNeverAsk(pending);
+        } else {
           this.handleDismiss();
-          break;
-        case 'neverAsk':
-          this.handleNeverAsk(pending);
-          break;
+        }
+      } catch {
+        if (!this.sessionExpired && token === this.pendingToken) {
+          showNativeNotification(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
+        }
       }
-    };
-
-    window.addEventListener('message', handleResult);
-
-    try {
-      window.top!.postMessage({ type: PostMessageType.SHOW_SAVE_PROMPT, requestId, data: promptData }, topOrigin);
-      // postMessage 成功后立即清除 sessionStorage 中的待确认凭证，
-      // 防止 iframe 导航后 checkPendingCredentials 重入触发第二次弹窗导致闪烁
-      this.clearPending();
-    } catch {
-      // postMessage 失败（极端情况），清理监听器和超时定时器后回退到通知
-      clearTimeout(timeoutId);
-      window.removeEventListener('message', handleResult);
-      showNativeNotification(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
-    }
+    })();
   }
 
   /**

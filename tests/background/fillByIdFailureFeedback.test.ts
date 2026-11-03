@@ -20,7 +20,6 @@ import { type Mock, beforeEach, afterEach, describe, expect, it, vi } from 'vite
 import { setupMessageRouter } from '@/entrypoints/background/messageRouter';
 import { getDecryptedEntryById } from '@/entrypoints/background/passwordCache';
 import { showPageNotice } from '@/entrypoints/background/quickFillHandler';
-import { isFrameFillable } from '@/utils/frameFill';
 import { MessageType } from '@/utils/types';
 import { tl } from '@/utils/i18n-lite';
 
@@ -87,8 +86,13 @@ vi.mock('@/utils/storage/passwordCrud', () => ({
   METADATA_FIELDS: [],
 }));
 
+const mockedAuthorize = vi.hoisted(() => vi.fn());
+const mockedSendToDoc = vi.hoisted(() => vi.fn());
+
 vi.mock('@/utils/frameFill', () => ({
   isFrameFillable: vi.fn(async () => true),
+  authorizeSenderDocument: (...args: unknown[]) => mockedAuthorize(...(args as [])),
+  sendToAuthorizedDocument: (...args: unknown[]) => mockedSendToDoc(...(args as [])),
 }));
 
 /** 构造内容脚本发送方上下文（frameId 显式给出，0 表示顶层 frame） */
@@ -97,6 +101,7 @@ const contentSender = (tabId: number, frameId: number): chrome.runtime.MessageSe
     id: chrome.runtime.id,
     tab: { id: tabId, url: 'https://example.com/login' },
     frameId,
+    documentId: 'doc-' + frameId,
   }) as chrome.runtime.MessageSender;
 
 /** 无 tab 上下文的发送方（扩展内部页面 / 无法归属来源） */
@@ -132,14 +137,22 @@ const sendFillById = (
 
 const mockedShowPageNotice = vi.mocked(showPageNotice);
 const mockedGetEntry = vi.mocked(getDecryptedEntryById);
-const mockedIsFrameFillable = vi.mocked(isFrameFillable);
+// 直接用 hoisted 桩：文档授权/投递的契约由它们承载，isFrameFillable 保留仅为兼容旧断言形状
+const mockedIsFrameFillable = mockedAuthorize;
+const mockedSend = mockedSendToDoc;
 
 /** 填充指令的下发记录（同时承担「提示条是否真的送达页面」的判据） */
 let sendSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedIsFrameFillable.mockResolvedValue(true);
+  mockedIsFrameFillable.mockImplementation(async (sender: chrome.runtime.MessageSender) => ({
+    tabId: sender.tab!.id!,
+    frameId: sender.frameId!,
+    documentId: sender.documentId!,
+    topDocumentId: sender.documentId!,
+  }));
+  mockedSend.mockResolvedValue(undefined as never);
   mockedGetEntry.mockResolvedValue(null);
   sendSpy = vi.spyOn(chrome.tabs, 'sendMessage').mockResolvedValue(undefined as never);
 });
@@ -159,7 +172,7 @@ describe('FILL_BY_ID 被后台拒绝时的页面反馈', () => {
 
     expect(mockedShowPageNotice).toHaveBeenCalledWith(1, tl('bg.router.frameDenied'));
     expect(sendResponse).toHaveBeenCalledWith({ success: false, message: tl('bg.router.frameDenied') });
-    expect(sendSpy).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
     expect(mockedGetEntry).not.toHaveBeenCalled();
   });
 
@@ -172,7 +185,7 @@ describe('FILL_BY_ID 被后台拒绝时的页面反馈', () => {
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledTimes(1));
 
     expect(mockedShowPageNotice).toHaveBeenCalledWith(2, tl('bg.router.sessionOrAccount'));
-    expect(sendSpy).not.toHaveBeenCalled();
+    expect(mockedSend).not.toHaveBeenCalled();
   });
 
   it('缺失 tabId（非页面上下文发起）：只回告发起方，不补发提示条', () => {
@@ -190,7 +203,7 @@ describe('FILL_BY_ID 被后台拒绝时的页面反馈', () => {
 describe('FILL_BY_ID 下发异常时的页面反馈', () => {
   it('目标 frame 未注入：补发固定文案，异常原文不进提示条', async () => {
     mockedGetEntry.mockResolvedValue({ id: 'entry-1', username: 'u', password: 'p' } as never);
-    sendSpy.mockRejectedValue(new Error('Could not establish connection. Receiving end https://evil.example/'));
+    mockedSend.mockRejectedValue(new Error('Could not establish connection. Receiving end https://evil.example/'));
     const listener = captureListener();
     const sendResponse = vi.fn();
 
@@ -206,7 +219,7 @@ describe('FILL_BY_ID 下发异常时的页面反馈', () => {
 
   it('导航/刷新竞态（接收端已不存在）：保持静默，不在新页面补发', async () => {
     mockedGetEntry.mockResolvedValue({ id: 'entry-1', username: 'u', password: 'p' } as never);
-    sendSpy.mockRejectedValue(new Error('Receiving end does not exist.'));
+    mockedSend.mockRejectedValue(new Error('Receiving end does not exist.'));
     const listener = captureListener();
     const sendResponse = vi.fn();
 
@@ -221,7 +234,7 @@ describe('FILL_BY_ID 下发异常时的页面反馈', () => {
 describe('FILL_BY_ID 成功时不产生多余反馈', () => {
   it('填充成功：不补发提示条，仍回传内容脚本结果', async () => {
     mockedGetEntry.mockResolvedValue({ id: 'entry-1', username: 'u', password: 'p' } as never);
-    sendSpy.mockResolvedValue({ success: true, message: 'ok' } as never);
+    mockedSend.mockResolvedValue({ success: true, message: 'ok' } as never);
     const listener = captureListener();
     const sendResponse = vi.fn();
 
@@ -229,10 +242,10 @@ describe('FILL_BY_ID 成功时不产生多余反馈', () => {
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: true, message: 'ok' }));
 
     expect(mockedShowPageNotice).not.toHaveBeenCalled();
-    expect(sendSpy).toHaveBeenCalledWith(
+    expect(mockedSend).toHaveBeenCalledWith(
       9,
+      { tabId: 9, frameId: 0, documentId: 'doc-0', topDocumentId: 'doc-0' },
       { type: MessageType.FILL_PASSWORD, data: expect.any(Object) },
-      { frameId: 0 },
     );
   });
 });

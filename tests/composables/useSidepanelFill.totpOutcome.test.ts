@@ -37,9 +37,13 @@ vi.mock('@/utils/i18n', () => ({
   currentLocale: { value: 'zh-CN' },
 }));
 
+/** 文档绑定投递的桩：用例通过它控制 FILL_TOTP 的回执（outcome / reason 分档） */
+const fillTotpInFrames = vi.hoisted(() => vi.fn());
+
 vi.mock('@/utils/frameFill', () => ({
   getFillableFrameIds: vi.fn(async () => [0]),
   fillPasswordInFrames: vi.fn(),
+  fillTotpInFrames: (...args: unknown[]) => fillTotpInFrames(...args),
 }));
 
 vi.mock('@/utils/contentScriptReadiness', () => ({
@@ -107,8 +111,9 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
     elMessage = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
     Object.assign(globalThis, { ElMessage: elMessage });
 
-    // FILL_TOTP 的响应由用例通过 sendMessage 的返回值控制（取首个成功响应）
+    // FILL_TOTP 的响应由用例通过 fillTotpInFrames 的返回值控制（取首个成功响应）
     sendMessage.mockReset();
+    fillTotpInFrames.mockReset().mockResolvedValue({ result: null, firstResponse: null });
 
     (chrome as any).tabs = {
       query: vi.fn(async () => [{ id: TAB_ID }]),
@@ -132,7 +137,7 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
   };
 
   it('写后复检未通过（unverified）时上报「请核对」而非乐观的「填充成功」', async () => {
-    sendMessage.mockResolvedValue(fillResultWith('unverified'));
+    fillTotpInFrames.mockResolvedValue({ result: fillResultWith('unverified'), firstResponse: null });
     const fill = await useFill();
 
     await fill.fillTotp(entryWithTotp());
@@ -142,7 +147,7 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
   });
 
   it('写后复检通过（verified）时仍上报「填充成功」', async () => {
-    sendMessage.mockResolvedValue(fillResultWith('verified'));
+    fillTotpInFrames.mockResolvedValue({ result: fillResultWith('verified'), firstResponse: null });
     const fill = await useFill();
 
     await fill.fillTotp(entryWithTotp());
@@ -152,7 +157,7 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
   });
 
   it('老版 content script 不带 outcome 时默认乐观上报「填充成功」（保持既有兜底行为）', async () => {
-    sendMessage.mockResolvedValue(fillResultWith(undefined));
+    fillTotpInFrames.mockResolvedValue({ result: fillResultWith(undefined), firstResponse: null });
     const fill = await useFill();
 
     await fill.fillTotp(entryWithTotp());
@@ -162,7 +167,7 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
   });
 
   it('填充成功先弹层、后发隐藏消息（分档未改动副作用时序）', async () => {
-    sendMessage.mockResolvedValue(fillResultWith('unverified'));
+    fillTotpInFrames.mockResolvedValue({ result: fillResultWith('unverified'), firstResponse: null });
     const runtimeSend = (chrome as any).runtime.sendMessage as Mock;
     const fill = await useFill();
 
@@ -180,10 +185,12 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
   it('多 frame 聚合时取首个成功响应的 outcome（顶层 unverified 优先于 iframe verified）', async () => {
     // fillTotpInAllFrames 按 frameIds 顺序返回首个 success；outcome 已升级为用户可见文案，
     // 误选出的代价从「不可见」变成「给用户错误确定感」，故对选中策略补显式守卫。
+    // 聚合语义已收敛进 fillTotpInFrames（文档绑定 + 取首个成功）：这里桩出「首个成功 = unverified」
     (getFillableFrameIds as Mock).mockResolvedValueOnce([0, 1]);
-    sendMessage.mockImplementation((_tabId: number, _msg: unknown, opts: { frameId: number }) =>
-      Promise.resolve(fillResultWith(opts.frameId === 0 ? 'unverified' : 'verified')),
-    );
+    fillTotpInFrames.mockResolvedValue({
+      result: fillResultWith('unverified'),
+      firstResponse: fillResultWith('verified'),
+    });
     const fill = await useFill();
 
     await fill.fillTotp(entryWithTotp());
@@ -192,7 +199,7 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
   });
 
   it('content script 回传非法 reason 时降级到兜底文案，不把裸 key 弹给用户', async () => {
-    sendMessage.mockResolvedValue(fillFailureWith('bogus_reason'));
+    fillTotpInFrames.mockResolvedValue({ result: null, firstResponse: fillFailureWith('bogus_reason') });
     const fill = await useFill();
 
     await fill.fillTotp(entryWithTotp());
@@ -201,7 +208,7 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
   });
 
   it('合法 reason 仍命中对应文案（白名单收窄未误伤枚举值）', async () => {
-    sendMessage.mockResolvedValue(fillFailureWith('no_totp_input'));
+    fillTotpInFrames.mockResolvedValue({ result: null, firstResponse: fillFailureWith('no_totp_input') });
     const fill = await useFill();
 
     await fill.fillTotp(entryWithTotp());

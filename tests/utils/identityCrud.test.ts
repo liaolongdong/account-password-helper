@@ -329,6 +329,45 @@ describe('replaceAllIdentity（导入写回不丢弃不可解密记录）', () =
     expect(raw.find(r => r.id === 'bad')?.encryptedPayload).toBe('corrupted-not-decryptable');
   });
 
+  it('并发新增把总量推过上限时整批拒绝（不落盘、不截断）', async () => {
+    // 磁盘已有上限条数，导入文件里全是新 id：预览时磁盘还少一条（用户同时在新增），
+    // 合并必须在提交锁内重新按最终条数复核，否则 101 条落盘后连自己的 .aphid 导出都解不开
+    const existing: IdentityRecord[] = Array.from({ length: MAX_IDENTITIES }, (_, i) => ({
+      id: `disk-${i}`,
+      encryptedPayload: enc(JSON.stringify(payload({ name: `disk-${i}` })), SESSION_KEY),
+      createTime: 1,
+      updateTime: 1,
+    }));
+    localStore[STORAGE_KEYS.IDENTITY] = existing;
+    const incoming = Array.from({ length: 2 }, (_, i) => ({
+      id: `imported-${i}`,
+      createTime: 5,
+      updateTime: 5,
+      payload: payload({ name: `imported-${i}` }),
+    }));
+
+    const error = await replaceAllIdentity(incoming).catch((e: unknown) => e);
+    expect(getIdentityCrudErrorCode(error)).toBe('LIMIT_REACHED');
+    const raw = await getAllIdentityRaw();
+    expect(raw).toHaveLength(MAX_IDENTITIES);
+  });
+
+  it('磁盘记录比入参更新时保留磁盘版本：旧快照不得覆盖并发编辑', async () => {
+    localStore[STORAGE_KEYS.IDENTITY] = [
+      {
+        id: 'x',
+        encryptedPayload: enc(JSON.stringify(payload({ name: '对方刚改的名' })), SESSION_KEY),
+        createTime: 1,
+        updateTime: 9,
+      },
+    ];
+
+    await replaceAllIdentity([{ id: 'x', createTime: 1, updateTime: 3, payload: payload({ name: '我的旧值' }) }]);
+
+    const { entries } = await getAllIdentity();
+    expect(entries[0].payload.name).toBe('对方刚改的名');
+  });
+
   it('入参 id 命中磁盘记录时以新明文为准（覆盖旧密文，不重复保留）', async () => {
     localStore[STORAGE_KEYS.IDENTITY] = [{ id: 'x', encryptedPayload: 'old-cipher', createTime: 1, updateTime: 1 }];
     await replaceAllIdentity([{ id: 'x', createTime: 5, updateTime: 9, payload: payload({ name: '新值' }) }]);

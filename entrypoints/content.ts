@@ -2,10 +2,8 @@ import { defineContentScript } from '#imports';
 import { FormDetector } from '@/entrypoints/content/FormDetector';
 import { LoginAutoSave } from '@/entrypoints/content/LoginAutoSave';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from '@/entrypoints/content/floatingButtons';
-import { showSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
-import type { SavePromptData, SavePromptEditedData } from '@/entrypoints/content/types';
+import { setupSavePromptDelegation } from '@/entrypoints/content/savePromptDelegation';
 import { rememberContextMenuTarget } from '@/entrypoints/content/contextMenuTarget';
-import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { MessageType, type RuntimeMessage } from '@/utils/types';
 import { cancelActiveSelectorPick, startSelectorPick, stopSelectorPick } from '@/entrypoints/content/selectorPicker';
 import { logger } from '@/utils/logger';
@@ -110,46 +108,10 @@ export default defineContentScript({
         logger.error('FloatingButtonManager 初始化失败:', error);
       });
 
-      // 监听来自 iframe 的保存弹窗委托请求
-      // iframe 中的 LoginAutoSave 捕获凭证后，通过 postMessage 委托顶层 frame 渲染弹窗，
-      // 确保弹窗出现在整个页面右上角而非被限制在 iframe 小视口内
-      ctx.addEventListener(window, 'message', event => {
-        // 安全校验：仅接受同主域名 iframe 的委托请求
-        if (!isSameMainDomain(event.origin, location.origin)) return;
-        if (event.data?.type !== PostMessageType.SHOW_SAVE_PROMPT) return;
-
-        const { requestId, data } = event.data as {
-          requestId: string;
-          data: SavePromptData;
-        };
-        const source = event.source as Window | null;
-        if (!source) return;
-
-        showSavePasswordPrompt(
-          data,
-          // onSave：回传编辑后的标签和备注
-          (editedData: SavePromptEditedData) => {
-            source.postMessage(
-              { type: PostMessageType.SAVE_PROMPT_RESULT, requestId, action: 'save', editedData },
-              { targetOrigin: event.origin },
-            );
-          },
-          // onDismiss
-          () => {
-            source.postMessage(
-              { type: PostMessageType.SAVE_PROMPT_RESULT, requestId, action: 'dismiss' },
-              { targetOrigin: event.origin },
-            );
-          },
-          // onNeverAsk
-          () => {
-            source.postMessage(
-              { type: PostMessageType.SAVE_PROMPT_RESULT, requestId, action: 'neverAsk' },
-              { targetOrigin: event.origin },
-            );
-          },
-        );
-      });
+      // 保存确认只接受 Background 定向消息，宿主 window.postMessage 不再是入口。
+      const stopSaveDelegation = setupSavePromptDelegation();
+      ctx.onInvalidated(stopSaveDelegation);
+      ctx.addEventListener(window, 'beforeunload', stopSaveDelegation);
     }
 
     // 统一清理逻辑：销毁各实例注册的事件监听器、MutationObserver 与注入 UI。

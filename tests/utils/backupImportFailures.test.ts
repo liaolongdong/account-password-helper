@@ -25,6 +25,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PasswordEntry } from '@/utils/types';
 import { BackupImportUserError, exportEncryptedBackup, importEncryptedBackup } from '@/utils/backupExport';
+import { validateAndBoundEntries } from '@/utils/backup/parseBackupEntries';
 import { registerMessages, currentLocale, t, type Messages } from '@/utils/i18n';
 import zhBackup from '@/utils/i18n/locales/zh-CN/backup.json';
 import enBackup from '@/utils/i18n/locales/en/backup.json';
@@ -128,11 +129,13 @@ afterEach(() => {
 });
 
 /** 跑一次真实导出，取回落盘字节（导出侧自带 round-trip 自检，走到下载即已可信） */
-const exportBytes = async (): Promise<Uint8Array> => {
-  await exportEncryptedBackup(SOURCE_ENTRIES, MASTER_PASSWORD);
+const exportBytesWith = async (entries: PasswordEntry[]): Promise<Uint8Array> => {
+  await exportEncryptedBackup(entries, MASTER_PASSWORD);
   if (!capturedBlobBytes) throw new Error('导出未产出文件，无法取回字节');
   return capturedBlobBytes();
 };
+
+const exportBytes = (): Promise<Uint8Array> => exportBytesWith(SOURCE_ENTRIES);
 
 vi.mock('@/utils/storage/configManager', () => ({
   markVerifiedBackupAt: vi.fn(async () => undefined),
@@ -347,5 +350,128 @@ describe('失败文案的中英文一致性', () => {
 
     expect((err as Error).message).toBe('Invalid backup file format');
     expect((err as Error).message).not.toBe('backup.invalidFile');
+  });
+});
+
+/**
+ * 密码字节保真（存量评审 S5）
+ *
+ * 备份是「忘记密码时的唯一凭据」，恢复必须逐字符还原：解析侧此前对 password 也
+ * 执行 trim()，首尾空白被吃掉后同一把密码再也登不上原站，而导出侧的 round-trip 自检
+ * 只比 version/count，报「备份可用」。以下两条把这两点一起钉住。
+ */
+describe('密码字段的空白不得被修剪', () => {
+  it('解析保留 password 首尾空白，其余文本字段仍按原口径归一', () => {
+    const parsed = validateAndBoundEntries([
+      {
+        username: '  alice  ',
+        password: ' pad-me-not ',
+        url: ' https://example.com ',
+        tag: '  work ',
+        remark: '\n多行备注\n',
+        totp: '  JBSW ',
+      },
+    ]);
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].password).toBe(' pad-me-not ');
+    // 非凭据字段的归一化行为保持不变
+    expect(parsed[0].username).toBe('alice');
+    expect(parsed[0].url).toBe('https://example.com');
+    expect(parsed[0].tag).toBe('work');
+    expect(parsed[0].totp).toBe('JBSW');
+    // 备注沿用既有归一化口径（trim）：本次修的只是「凭据不得被改写」
+    expect(parsed[0].remark).toBe('多行备注');
+  });
+
+  it('真实 .aph 往返：密码（含首尾空白）与备注原样回来，导出自检不得放行改写字段', async () => {
+    const source: PasswordEntry[] = [
+      {
+        id: 'ws-1',
+        username: 'alice',
+        password: ' pad-me-not ',
+        url: 'https://example.com',
+        tag: '',
+        remark: '\n多行备注\n',
+        totp: '',
+        createTime: 1,
+        updateTime: 1,
+        order: 0,
+      },
+    ];
+    const bytes = await exportBytesWith(source);
+    const imported = await importEncryptedBackup(fakeFile(bytes), MASTER_PASSWORD);
+
+    expect(imported[0].password, '恢复后的密码必须与导出时逐字符相同').toBe(' pad-me-not ');
+    expect(imported[0].remark).toBe('多行备注');
+  });
+});
+
+/**
+ * 自检口径必须与解析器一致（评审复核 I2）
+ *
+ * 库里可能存在「带首尾空白的历史/外部条目」或「用户名为空的脏行」——它们能导出、
+ * 也会被解析器按既有口径归一/丢弃。若自检拿源值原样比对，这类用户的整库备份会
+ * 永远报「自检未通过」，而用户没有任何修复入口；反过来若跳过比对，就是谎报可用。
+ */
+describe('导出自检的归一口径', () => {
+  it('源条目含首尾空白与非凭据脏值时，自检仍通过且密码逐字符保真', async () => {
+    const source: PasswordEntry[] = [
+      {
+        id: 'ws',
+        username: ' spaced-user ',
+        password: ' keep  me ',
+        url: ' https://example.com ',
+        tag: ' 工作 ',
+        remark: '\n备注\n',
+        totp: ' JBSW ',
+        createTime: 1,
+        updateTime: 2,
+        order: 0,
+      },
+    ];
+    const bytes = await exportBytesWith(source);
+    const imported = await importEncryptedBackup(fakeFile(bytes), MASTER_PASSWORD);
+
+    expect(imported).toHaveLength(1);
+    expect(imported[0].password, '凭据必须逐字符回来').toBe(' keep  me ');
+    expect(imported[0].username).toBe('spaced-user');
+    expect(imported[0].url).toBe('https://example.com');
+  });
+
+  it('库里有用户名为空的脏行时，自检不因下标错位误报整批漂移', async () => {
+    const source: PasswordEntry[] = [
+      {
+        id: 'blank',
+        username: '   ',
+        password: 'p-blank',
+        url: '',
+        tag: '',
+        remark: '',
+        totp: '',
+        createTime: 1,
+        updateTime: 1,
+        order: 0,
+      },
+      {
+        id: 'ok',
+        username: 'real-user',
+        password: 'p-real',
+        url: 'https://example.com',
+        tag: 't',
+        remark: 'r',
+        totp: '',
+        createTime: 5,
+        updateTime: 6,
+        order: 1,
+      },
+    ];
+    const bytes = await exportBytesWith(source);
+    const imported = await importEncryptedBackup(fakeFile(bytes), MASTER_PASSWORD);
+
+    // 解析器丢弃空用户名行（既有口径），有效条目必须原样、按序回来，且自检未误判
+    expect(imported.map(e => e.username)).toEqual(['real-user']);
+    expect(imported[0].password).toBe('p-real');
+    expect(imported[0].createTime).toBe(5);
   });
 });

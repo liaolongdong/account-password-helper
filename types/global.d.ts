@@ -72,3 +72,23 @@ declare namespace chrome.sidePanel {
    */
   export function close(options?: CloseOptions): Promise<void>;
 }
+
+/**
+ * chrome.tabs.sendMessage / sendScript 的 documentId 投递目标类型补充
+ * Chrome 132+ 起 `MessageOptions` 支持 `documentId`（把消息投递到指定文档实例，
+ * 文档导航后旧 documentId 不再命中），当前 @types/chrome 的接口尚未收录。
+ * 本仓所有明文凭据投递都改用它绑定接收文档，见 utils/frameFill.ts。
+ * 官方文档: https://developer.chrome.com/docs/extensions/reference/api/tabs#type-MessageOptions
+ */
+declare namespace chrome.tabs {
+  export interface MessageOptions {
+    /**
+     * The ID of the document to send the message to. Must be a document ID obtained from
+     * `webNavigation.getAllFrames` or `MessageSender.documentId`. When `frameId` is also
+     * provided, both must match the same document; the message is not delivered if the
+     * frame has since navigated to a new document.
+     * @since Chrome 132
+     */
+    documentId?: string;
+  }
+}

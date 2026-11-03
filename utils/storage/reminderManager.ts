@@ -14,6 +14,31 @@ import { logger } from '@/utils/logger';
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 
 /**
+ * 提醒表整包覆写锁：所有「读整包 → 改 → 写整包」的写入（设置/移除/暂停/恢复/
+ * 标记已通知/清理孤立）都必须在这把锁内完成，且一律用严格读取。
+ *
+ * 提醒写入全是「读整包 Record → 改一格 → 写整包」，且公开入口都在 vault shared
+ * 租约内（shared 不互斥写者）：两个来源交错时，后写者会拿旧快照覆盖对方刚写入的提醒。
+ * 这把独立提交锁把提醒域的读改写串起来（跨扩展上下文同样成立），与
+ * `passwordHistory` 的提交锁同一口径——同名词下不再嵌套同一把锁，避免死锁。
+ */
+function withReminderCommit<T>(operation: () => Promise<T>): Promise<T> {
+  return navigator.locks.request('aph-password-reminder-commit', { mode: 'exclusive' }, () => operation());
+}
+
+/**
+ * 写入路径专用的严格读取。
+ *
+ * 展示路径（{@link getReminders}）读失败降级为空表是「列表暂时为空」；写入路径若沿用
+ * 同一降级，`reminders[entryId] = {...}` 后整包写回会把盘上其余提醒一并抹掉，且调用方
+ * 收到成功——读失败必须 fail-closed 上抛，一次设置失败远好过静默清库。
+ */
+async function readRemindersForWrite(): Promise<ReminderStore> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORD_REMINDERS);
+  return (result[STORAGE_KEYS.PASSWORD_REMINDERS] as ReminderStore | undefined) ?? {};
+}
+
+/**
  * 单条密码的到期提醒配置
  */
 export interface PasswordReminder {
@@ -74,22 +99,24 @@ export async function getReminders(): Promise<ReminderStore> {
  * @param daysFromNow 从现在起 N 天后提醒
  */
 export async function setReminder(entryId: string, username: string, daysFromNow: number): Promise<void> {
-  const reminders = await getReminders();
-  const now = Date.now();
+  await withReminderCommit(async () => {
+    const reminders = await readRemindersForWrite();
+    const now = Date.now();
 
-  reminders[entryId] = {
-    entryId,
-    // 按码点截断：直接 `slice` 的切点落在代理对中间时，会留下孤立代理字符，
-    // 通知正文里渲染成替换符（`🙂` 被切成两半）
-    username: Array.from(username).slice(0, PASSWORD_FIELD_LIMITS.username).join(''),
-    remindAt: now + daysFromNow * 24 * 60 * 60 * 1000,
-    createdAt: now,
-    notified: false,
-  };
+    reminders[entryId] = {
+      entryId,
+      // 按码点截断：直接 `slice` 的切点落在代理对中间时，会留下孤立代理字符，
+      // 通知正文里渲染成替换符（`🙂` 被切成两半）
+      username: Array.from(username).slice(0, PASSWORD_FIELD_LIMITS.username).join(''),
+      remindAt: now + daysFromNow * 24 * 60 * 60 * 1000,
+      createdAt: now,
+      notified: false,
+    };
 
-  await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
-  // 只记 entryId：账号名属敏感标识，不入日志（removeReminders 亦以 entryId 定位）
-  logger.debug(`ReminderManager: 已设置提醒 [${entryId}] ${daysFromNow} 天后`);
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+    // 只记 entryId：账号名属敏感标识，不入日志（removeReminders 亦以 entryId 定位）
+    logger.debug(`ReminderManager: 已设置提醒 [${entryId}] ${daysFromNow} 天后`);
+  });
 }
 
 /**
@@ -108,19 +135,21 @@ export async function removeReminders(entryIds: Iterable<string>): Promise<void>
   const ids = entryIds instanceof Set ? entryIds : new Set(entryIds);
   if (ids.size === 0) return;
 
-  const reminders = await getReminders();
-  let removed = 0;
-  for (const id of ids) {
-    if (id in reminders) {
-      delete reminders[id];
-      removed += 1;
+  await withReminderCommit(async () => {
+    const reminders = await readRemindersForWrite();
+    let removed = 0;
+    for (const id of ids) {
+      if (id in reminders) {
+        delete reminders[id];
+        removed += 1;
+      }
     }
-  }
-  if (removed === 0) return;
+    if (removed === 0) return;
 
-  await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
-  // 只记数量：entryId 虽不敏感，但批量场景逐个列出会显著放大日志体积
-  logger.debug(`ReminderManager: 已移除 ${removed} 条提醒`);
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+    // 只记数量：entryId 虽不敏感，但批量场景逐个列出会显著放大日志体积
+    logger.debug(`ReminderManager: 已移除 ${removed} 条提醒`);
+  });
 }
 
 /**
@@ -148,18 +177,20 @@ export async function pauseReminders(entryIds: Iterable<string>): Promise<void> 
   const ids = entryIds instanceof Set ? entryIds : new Set(entryIds);
   if (ids.size === 0) return;
   try {
-    const reminders = await getReminders();
-    let changed = false;
-    for (const id of ids) {
-      const reminder = reminders[id];
-      if (reminder && !reminder.paused) {
-        reminder.paused = true;
-        changed = true;
+    await withReminderCommit(async () => {
+      const reminders = await readRemindersForWrite();
+      let changed = false;
+      for (const id of ids) {
+        const reminder = reminders[id];
+        if (reminder && !reminder.paused) {
+          reminder.paused = true;
+          changed = true;
+        }
       }
-    }
-    if (!changed) return;
-    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
-    logger.debug(`ReminderManager: 已暂停 ${ids.size} 条提醒`);
+      if (!changed) return;
+      await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+      logger.debug(`ReminderManager: 已暂停 ${ids.size} 条提醒`);
+    });
   } catch (error) {
     logger.error('ReminderManager: 暂停提醒失败:', error);
   }
@@ -177,18 +208,20 @@ export async function resumeReminders(entryIds: Iterable<string>): Promise<void>
   const ids = entryIds instanceof Set ? entryIds : new Set(entryIds);
   if (ids.size === 0) return;
   try {
-    const reminders = await getReminders();
-    let changed = false;
-    for (const id of ids) {
-      const reminder = reminders[id];
-      if (reminder?.paused) {
-        reminder.paused = false;
-        changed = true;
+    await withReminderCommit(async () => {
+      const reminders = await readRemindersForWrite();
+      let changed = false;
+      for (const id of ids) {
+        const reminder = reminders[id];
+        if (reminder?.paused) {
+          reminder.paused = false;
+          changed = true;
+        }
       }
-    }
-    if (!changed) return;
-    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
-    logger.debug(`ReminderManager: 已恢复 ${ids.size} 条提醒`);
+      if (!changed) return;
+      await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+      logger.debug(`ReminderManager: 已恢复 ${ids.size} 条提醒`);
+    });
   } catch (error) {
     logger.error('ReminderManager: 恢复提醒失败:', error);
   }
@@ -200,11 +233,13 @@ export async function resumeReminders(entryIds: Iterable<string>): Promise<void>
  * @param entryId PasswordEntry ID
  */
 export async function markNotified(entryId: string): Promise<void> {
-  const reminders = await getReminders();
-  if (!(entryId in reminders)) return;
+  await withReminderCommit(async () => {
+    const reminders = await readRemindersForWrite();
+    if (!(entryId in reminders)) return;
 
-  reminders[entryId].notified = true;
-  await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+    reminders[entryId].notified = true;
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
+  });
 }
 
 /**
@@ -216,20 +251,21 @@ export async function markNotified(entryId: string): Promise<void> {
  * @param validEntryIds 当前有效的 PasswordEntry ID 集合
  */
 export async function cleanOrphanReminders(validEntryIds: Set<string>): Promise<void> {
-  const reminders = await getReminders();
-  let changed = false;
+  await withReminderCommit(async () => {
+    const reminders = await readRemindersForWrite();
+    let changed = false;
 
-  for (const entryId of Object.keys(reminders)) {
-    if (!validEntryIds.has(entryId)) {
-      delete reminders[entryId];
-      changed = true;
+    for (const entryId of Object.keys(reminders)) {
+      if (!validEntryIds.has(entryId)) {
+        delete reminders[entryId];
+        changed = true;
+      }
     }
-  }
 
-  if (changed) {
+    if (!changed) return;
     await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
     logger.debug('ReminderManager: 已清理孤立提醒');
-  }
+  });
 }
 
 /**
