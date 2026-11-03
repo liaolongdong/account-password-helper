@@ -101,13 +101,9 @@ const assertOutsideCommitSection = (observed: boolean[], label: string): void =>
   );
 };
 
-
 describe('探针的运行前提', () => {
   it('宿主必须提供真实 navigator.locks，否则本文件的临界区断言全是空跑', () => {
-    expect(
-      hasRealWebLocks(),
-      '探针依赖真 Web Locks 的持有/排队语义；缺环境时宁可当场失败，不允许静默绿',
-    ).toBe(true);
+    expect(hasRealWebLocks(), '探针依赖真 Web Locks 的持有/排队语义；缺环境时宁可当场失败，不允许静默绿').toBe(true);
   });
 });
 
@@ -120,7 +116,7 @@ describe('身份库写路径的临界区范围', () => {
     assertOutsideCommitSection(heldAt.verify, 'verifyMasterPassword');
     assertOutsideCommitSection(heldAt.derive, 'deriveEncryptionKey（600k 迭代 PBKDF2）');
     assertOutsideCommitSection(heldAt.encrypt, 'encryptData');
-    expect((store[STORAGE_KEYS.IDENTITY] as IdentityRecord[])).toHaveLength(2);
+    expect(store[STORAGE_KEYS.IDENTITY] as IdentityRecord[]).toHaveLength(2);
   });
 
   it('整包替换（导入备份）：逐条加密全程不得占着提交锁', async () => {
@@ -177,8 +173,29 @@ describe('整包覆写型写入的锁覆盖', () => {
     expect(commitAt, '重读与 set 这段落回提交锁外：漂移检测挡不住「读后写前」的整包交错').toBeGreaterThan(-1);
     expect(readAt - commitAt, 'withVaultCommit 与这段之间隔得太远，多半不是同一层包裹').toBeLessThan(400);
 
+    // 只断言「先重读、后 set」挡不住把 set 挪出临界区这种改法，所以再用花括号配平求出
+    // 回调区间，确认重读与 set 同在其中。
+    const bodyOpen = src.indexOf('{', commitAt);
+    let depth = 0;
+    let commitEnd = -1;
+    for (let i = bodyOpen; i < src.length; i++) {
+      if (src[i] === '{') depth += 1;
+      else if (src[i] === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          commitEnd = i;
+          break;
+        }
+      }
+    }
+    expect(commitEnd, '定位不到 withVaultCommit 回调的闭合花括号：本守卫需同步').toBeGreaterThan(bodyOpen);
+
     const setAt = src.indexOf('await chrome.storage.local.set(payload)', readAt);
     expect(setAt, '迁移的整包 set 找不到：本守卫需同步').toBeGreaterThan(readAt);
+    expect(
+      readAt > commitAt && readAt < commitEnd && setAt > commitAt && setAt < commitEnd,
+      '重读与 set 必须同在提交锁回调区间内：只保证先后顺序挡不住把 set 挪出临界区',
+    ).toBe(true);
   });
 });
 
@@ -216,6 +233,6 @@ describe('收窄临界区后既有错误口径不变', () => {
 
     const code = await errorCodeOf(() => saveIdentity(payload('超限'), 'master-pw'));
     expect(code).toBe('LIMIT_REACHED');
-    expect((store[STORAGE_KEYS.IDENTITY] as IdentityRecord[])).toHaveLength(MAX_IDENTITIES);
+    expect(store[STORAGE_KEYS.IDENTITY] as IdentityRecord[]).toHaveLength(MAX_IDENTITIES);
   });
 });

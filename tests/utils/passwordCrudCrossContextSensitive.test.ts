@@ -152,22 +152,28 @@ describe('跨上下文的敏感编辑', () => {
   it('条目在期间被删除时以删除为准，不用本次编辑把它复活', async () => {
     const tabA = await createContext();
 
-    // 事务已经读到行；落盘前该行被别的来源删掉
+    // 事务已经读到行；落盘前那次重读报告「条目已不存在」。只对 PASSWORDS 的读计数并翻转——
+    // 任意一次 get 都推进游标的话，将来进锁前多插一次读就会让本用例绿着空跑，不再覆盖这一支。
     const localGet = chrome.storage.local.get as ReturnType<typeof vi.fn>;
-    let once = true;
+    let passwordsReads = 0;
     localGet.mockImplementation(async (keys: string | string[]) => {
       const list = Array.isArray(keys) ? keys : [keys];
       const found: Record<string, unknown> = {};
+      const asksPasswords = list.includes(STORAGE_KEYS.PASSWORDS);
+      if (asksPasswords) passwordsReads += 1;
       for (const key of list) {
-        if (key === STORAGE_KEYS.PASSWORDS && !once) continue;
+        if (key === STORAGE_KEYS.PASSWORDS && passwordsReads > 1) continue;
         if (key in store) found[key] = store[key];
       }
-      once = false;
       return found;
     });
 
     await tabA.updatePassword('a', { remark: 'r1' } as Partial<PasswordEntry>);
     expect(rows()).toHaveLength(1);
     expect(strip(rowOf().remark)).toBe('r0');
+    expect(
+      passwordsReads,
+      'PASSWORDS 读次数变了（当前实现应为「早退读 + 锁内重读」共 2 次）：本用例的锁内删除分支可能已不被覆盖',
+    ).toBe(2);
   });
 });
