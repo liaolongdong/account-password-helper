@@ -194,24 +194,6 @@ export function registrableScope(hostname: string): string {
   return getMainDomain(hostname);
 }
 
-// ── postMessage 跨 frame 通信 ──
-
-/**
- * postMessage 通信消息类型常量
- * 用于 iframe 与顶层 frame 之间的保存弹窗委托通信
- *
- * 这里曾有一个 `SHOW_NOTIFICATION`（委托渲染提示）：枚举值是包内公开可得的字符串，
- * 宿主页面脚本可自造载荷冒充扩展在页面右上角说话，已改走 `chrome.runtime` 消息
- * （`MessageType.DELEGATE_PAGE_NOTICE`）由后台盖章转发。
- * 保留的两个类型只在同主域名 frame 之间流转，且接收侧对 `event.origin` 做了校验。
- */
-export const PostMessageType = {
-  /** iframe → 顶层 frame：委托显示保存确认弹窗 */
-  SHOW_SAVE_PROMPT: 'APH_SHOW_SAVE_PROMPT',
-  /** 顶层 frame → iframe：回传用户操作结果 */
-  SAVE_PROMPT_RESULT: 'APH_SAVE_PROMPT_RESULT',
-} as const;
-
 // ── 主域名提取 ──
 
 /**

@@ -90,7 +90,9 @@ import {
   getInlineTotpCode,
   getMatchingAccounts,
   INLINE_MAX_RESULT_ROWS,
+  getCachedSortConfig,
   invalidatePasswordCache,
+  refreshSidepanelSortCache,
   resetCredentialAccessBarrierForStartup,
   resetDomainMatchModeMirror,
   sortMatchesForDomain,
@@ -409,6 +411,20 @@ describe('站点匹配策略镜像与 tier 下发', () => {
     invalidatePasswordCache();
     configMocks.getDomainMatchConfig.mockResolvedValue({ mode: 'sameMainDomain', portScope: 'loose' });
     expect(await getCachedSitePolicy()).toEqual({ mode: 'sameMainDomain', portScope: 'loose' });
+  });
+
+  it('排序配置单独变化：明文缓存原地保留，只换排序镜像与快照', async () => {
+    // 走全量失效会让下一次 GET_INITIAL_DATA / 内联查询重做整库读取 + 最多 5N 次
+    // 字段解密（2000 条量级数百毫秒），而本次变更只影响「条目怎么排」
+    updatePasswordCache([makePasswordEntry({ id: 'keep-me' })], '*', true);
+    configMocks.getSidepanelSortConfig.mockResolvedValue({ prop: 'updateTime', order: 'descending' } as never);
+
+    await refreshSidepanelSortCache();
+
+    // 明文缓存原地保留：下一次查询命中内存快路径，不再整库解密
+    expect((await getCachedPasswords())?.passwords.map(e => e.id)).toEqual(['keep-me']);
+    // 排序镜像换成新配置（快照内嵌的排序随之外刷新）
+    expect(await getCachedSortConfig()).toEqual({ prop: 'updateTime', order: 'descending' });
   });
 
   it('off 档：内联下拉仅精确 host，与放宽前一致', async () => {

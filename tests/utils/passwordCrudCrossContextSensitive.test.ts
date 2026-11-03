@@ -1,13 +1,18 @@
 /**
  * 两个上下文并发做敏感编辑时，不得互相抹掉对方的字段（评审 2026-11-02 Q1）
  *
- * `updatePassword` 的敏感路径把「解密 → 合并 → 重加密」整段放进提交锁，落盘基准是锁内重读到的那一行，
- * 不是事务开头那份快照。2026-11-02 评审 Q1 之前，锁内只把 5 个元数据字段回填过来，
- * `username`/`password`/`url`/`remark`/`totp` 全都来自那份**旧明文快照**并被重新加密写回。
+ * 敏感编辑的加解密都在提交锁外做（锁内只排「重读 → 逐字段对账 → 单次 `set`」），代价是手里这份
+ * 明文可能已经过期。落盘因此按字段收口：本次没写到的敏感字段与元数据一律取锁内重读到的那一行，
+ * 而且这一步不看调用方有没有带基线。2026-11-02 评审 Q1 之前是整行拿**事务开头那份旧明文**
+ * 重新加密写回，`username`/`password`/`url`/`remark`/`totp` 全都来自那份旧明文快照。
  *
  * 于是两张管理页标签（或标签与 SW）同时编辑同一条：一个改密码、一个改备注，后落盘的那个会拿
  * 自己的旧快照把前者的字段整片盖掉，而**两边都收到「保存成功」**。同上下文内不会翻车，因为
  * `queuePasswordWrite` 已经把它自己排队了；跨上下文没有那把内存队列，只有提交锁。
+ *
+ * 带 `expectedUpdateTime` 基线的调用方（编辑弹窗、网页自动保存）还多一层保护：改过任一敏感字段
+ * 而行又被别人改过时，本次按 `UPDATE_CONFLICT` 拒绝——手里只有密文，判不出对方改的是不是同一
+ * 字段，静默覆盖任一方都是不可逆的凭据丢失。下面两条基线用例锁的就是这层。
  *
  * 这里用两个独立求值的模块实例模拟两个上下文（各自的内存队列互不知情，共享同一份 storage 与
  * 同一把真 `navigator.locks`），这是本仓唯一能证伪这条的路径。
@@ -98,14 +103,33 @@ afterEach(() => {
 const rows = (): EncryptedPasswordEntry[] => store[STORAGE_KEYS.PASSWORDS] as EncryptedPasswordEntry[];
 const rowOf = (): Record<string, unknown> => rows()[0] as unknown as Record<string, unknown>;
 
+/** 历史整包（键名与 `passwordHistory.ts` 共用）；没写过就是 undefined */
+const historyRows = (): Array<{ entryId: string; password: string; changedAt: number }> =>
+  (store[STORAGE_KEYS.PASSWORD_HISTORY] as
+    Array<{ entryId: string; password: string; changedAt: number }> | undefined) ?? [];
+
 /** 起一个独立的模块实例，代表一个扩展上下文（自己的内存写队列，共享同一份 storage 与真提交锁） */
 async function createContext(): Promise<{
-  updatePassword: (id: string, updates: Partial<PasswordEntry>) => Promise<void>;
+  updatePassword: (
+    id: string,
+    updates: Partial<PasswordEntry>,
+    masterPassword?: string,
+    baseline?: { expectedUpdateTime: number },
+  ) => Promise<void>;
 }> {
   vi.resetModules();
   const crud = await import('@/utils/storage/passwordCrud');
   return { updatePassword: crud.updatePassword };
 }
+
+const errorCodeOf = async (fn: () => Promise<unknown>): Promise<string | undefined> => {
+  try {
+    await fn();
+  } catch (error) {
+    return (error as { code?: string })?.code;
+  }
+  return undefined;
+};
 
 describe('跨上下文的敏感编辑', () => {
   it('两个上下文各改一个敏感字段：两处改动都必须落盘', async () => {
@@ -137,7 +161,31 @@ describe('跨上下文的敏感编辑', () => {
     expect(written.favorite).toBe(true);
   });
 
-  it('同一条目同一字段被两处并发修改时，仍是后写者胜（本次不引入冲突拒绝，那属于需要拍板的口径）', async () => {
+  it('带基线的敏感编辑撞上别人的新版本：按 UPDATE_CONFLICT 拒绝，且不覆盖对方', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    // B 先落盘（updateTime 随之前进），A 手里仍是打开编辑弹窗那一刻的基线
+    await tabB.updatePassword('a', { password: 'p-B' } as Partial<PasswordEntry>);
+    const code = await errorCodeOf(() =>
+      tabA.updatePassword('a', { password: 'p-A' } as Partial<PasswordEntry>, undefined, { expectedUpdateTime: 1 }),
+    );
+
+    expect(code, '行已被别人改过，本次敏感写必须被拒而不是静默覆盖').toBe('UPDATE_CONFLICT');
+    expect(strip(rowOf().password), '被拒的一方不得把对方的新密码盖回去').toBe('p-B');
+  });
+
+  it('基线对得上时照常落盘（冲突拒绝不许误伤单窗口编辑）', async () => {
+    const tabA = await createContext();
+
+    await tabA.updatePassword('a', { remark: '只有我在改' } as Partial<PasswordEntry>, undefined, {
+      expectedUpdateTime: 1,
+    });
+
+    expect(strip(rowOf().remark)).toBe('只有我在改');
+  });
+
+  it('不带基线时同一字段被两处并发修改仍是后写者胜：没有令牌可对账，只能按字段合并兜住别人改过的其它字段', async () => {
     const tabA = await createContext();
     const tabB = await createContext();
 
@@ -147,6 +195,49 @@ describe('跨上下文的敏感编辑', () => {
     ]);
 
     expect(['p1', 'p2']).toContain(strip(rowOf().password));
+  });
+
+  it('被冲突拒掉的提交不得在历史里留下孤儿快照', async () => {
+    const tabA = await createContext();
+    const tabB = await createContext();
+
+    // B 先落盘推进版本，A 手里还是打开弹窗那一刻的基线 → A 必须被拒
+    await tabB.updatePassword('a', { remark: 'B 改的备注' } as Partial<PasswordEntry>);
+    const before = historyRows().length;
+
+    await expect(
+      tabA.updatePassword('a', { password: 'p-A' } as Partial<PasswordEntry>, undefined, { expectedUpdateTime: 1 }),
+    ).rejects.toMatchObject({ code: 'UPDATE_CONFLICT' });
+
+    expect(historyRows(), '提交被拒、什么都没写，历史却先记了一笔：每次冲突重试都会污染该条目的历史').toHaveLength(
+      before,
+    );
+  });
+
+  it('历史快照存的是被这次编辑取代的那一份密文，不是事务开头读到的那一份', async () => {
+    const tabA = await createContext();
+
+    // 让锁内那次重读返回一个「比预读更新」的行：预读的密文是 enc:p0，落盘时盘上已经是 enc:p9。
+    // 被这次编辑真正取代的是 enc:p9；拿预读的 enc:p0 进历史，等于把对方那把口令永久漏出历史。
+    let passwordsReads = 0;
+    const localGet = chrome.storage.local.get as ReturnType<typeof vi.fn>;
+    const readStore = localGet.getMockImplementation() as (keys: string | string[]) => Promise<Record<string, unknown>>;
+    localGet.mockImplementation(async (keys: string | string[]) => {
+      const list = Array.isArray(keys) ? keys : [keys];
+      const found = await readStore(list);
+      if (!list.includes(STORAGE_KEYS.PASSWORDS)) return found;
+      passwordsReads += 1;
+      if (passwordsReads > 1) {
+        found[STORAGE_KEYS.PASSWORDS] = [{ ...cipherRow(), password: 'enc:p9', updateTime: 555 }];
+      }
+      return found;
+    });
+
+    await tabA.updatePassword('a', { password: 'p-new' } as Partial<PasswordEntry>);
+
+    const stored = historyRows().map(record => record.password);
+    expect(stored, '历史里没有本次真正覆盖掉的那把旧密文').toContain('enc:p9');
+    expect(stored, '历史里出现了事务开头的过期密文：快照基准用错了行').not.toContain('enc:p0');
   });
 
   it('条目在期间被删除时以删除为准，不用本次编辑把它复活', async () => {

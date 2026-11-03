@@ -30,6 +30,7 @@ import {
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { issuePendingCipherKey } from './pendingCipherKeyStore';
+import { cancelSavePromptDelegations, delegateSavePrompt, decideSavePrompt } from './savePromptDelegation';
 import { handleQuickAddPassword } from './quickAddHandler';
 import { handleQuickFill, deliverPageNotice, showPageNotice } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
@@ -38,7 +39,7 @@ import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock }
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { normalizeSiteRuleDomain, SITE_RULE_SELECTOR_MAX_LENGTH } from '@/utils/storage/siteRules';
 import { normalizeEntryId } from '@/utils/generateId';
-import { isFrameFillable } from '@/utils/frameFill';
+import { authorizeSenderDocument, isFrameFillable, sendToAuthorizedDocument } from '@/utils/frameFill';
 import { isSameMainDomain, normalizeToHostname, parsePagePortContext, type PagePortContext } from '@/utils/domain';
 import { getEnvBinding, setEnvBinding } from './environmentBinding';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
@@ -160,8 +161,10 @@ async function handleGetInitialData(_domain?: string) {
  * 处理 FILL_BY_ID：按条目 ID 从缓存取明文，复用 FILL_PASSWORD 下发到发起填充的 frame
  *
  * 安全：明文仅在此刻经 FILL_PASSWORD 瞬时下发到内容脚本所在 frame（与侧边栏填充暴露面一致），
- * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页；下发前经 isFrameFillable 校验，
- * 仅顶层或与顶层同主域名的 frame 可接收，跨域 iframe（如第三方广告位）会被拒绝，防止越权骗取顶层站点凭证。
+ * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页；下发前把接收者绑定到
+ * 授权那一刻的文档身份（`authorizeSenderDocument` + `sendToAuthorizedDocument`），
+ * 仅顶层或与顶层同主域名的 frame 可接收，跨域 iframe（如第三方广告位）会被拒绝，
+ * 防止越权骗取顶层站点凭证；检查与发送之间该 frame 若已导航到新文档，新文档不继承资格。
  * 拒绝与失败只补发固定文案的页面提示条：载荷取自 `tl()`，不含条目内容，也不含任何页面可控文本。
  *
  * @param data FILL_BY_ID 载荷（条目 ID 与是否自动登录）
@@ -169,12 +172,18 @@ async function handleGetInitialData(_domain?: string) {
  * @param frameId 发起请求的 frame ID（用于精确回填含表单的 frame）
  * @returns 填充结果或失败信息
  */
-async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: number, frameId: number | undefined) {
-  // 安全：仅允许顶层或与顶层同主域名的 frame 接收明文凭证，
-  // 避免跨域 iframe 伪造登录框骗取顶层站点账密（与侧边栏 getFillableFrameIds 同一道防线）
+async function handleFillById(
+  data: { id: string; autoLogin?: boolean },
+  tabId: number,
+  sender: chrome.runtime.MessageSender,
+) {
+  // 安全：仅允许发起请求的那个文档接收明文凭证。
+  // 与旧的 isFrameFillable 相比，这里把「同主域名判定」与「具体文档实例」绑在一起：
+  // 解密、元数据落盘等 await 期间即便该 frame 导航到新站，新文档也不会继承接收资格。
   // 拒绝即补发提示条：内联面板点击后立刻收起，而这条路径 content script 从未收到填充指令，
   // 页面侧「找不到表单」的就地引导也不会触发——不补发就是用户眼里的「点了没反应」。
-  if (!(await isFrameFillable(tabId, frameId))) {
+  const target = await authorizeSenderDocument(sender);
+  if (!target) {
     void showPageNotice(tabId, tl('bg.router.frameDenied'));
     return { success: false, message: tl('bg.router.frameDenied') };
   }
@@ -186,13 +195,12 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
     return { success: false, message: tl('bg.router.sessionOrAccount') };
   }
 
-  const fillMessage = {
+  const fillMessage: RuntimeMessage = {
     type: MessageType.FILL_PASSWORD,
     data: { username: entry.username, password: entry.password, autoLogin: data.autoLogin },
   };
-  // 显式定向发起 frame：frameId 缺失时回退顶层（0）而非广播全帧，
-  // 与上方 isFrameFillable「仅顶层或同主域名 frame 可接收」的门控语义保持一致
-  const result = await chrome.tabs.sendMessage(tabId, fillMessage, { frameId: frameId ?? 0 });
+  // 定向授权时的那个文档；导航或身份变化时抛「接收端不存在」，绝不回退 frameId 广播。
+  const result = (await sendToAuthorizedDocument(tabId, target, fillMessage)) as FillResult | undefined;
 
   // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致
   void _getCrudModule()
@@ -250,8 +258,11 @@ async function handleGetInlineTotp(data: { id: string }, tabId: number, frameId:
  * @param frameId 发起请求的 frame ID（精确回填含验证码输入框的 frame）
  * @returns 填充结果或失败信息
  */
-async function handleFillTotpById(data: { id: string }, tabId: number, frameId: number | undefined) {
-  if (!(await isFrameFillable(tabId, frameId))) {
+async function handleFillTotpById(data: { id: string }, tabId: number, sender: chrome.runtime.MessageSender) {
+  // 与 FILL_BY_ID 同口径：动态码只投递给发起请求的那个文档实例，
+  // 计算动态码期间的导航不会把一次性码交给复用同一 frameId 的新文档。
+  const target = await authorizeSenderDocument(sender);
+  if (!target) {
     return { success: false, message: tl('bg.router.frameDeniedTotpFill') };
   }
 
@@ -260,12 +271,8 @@ async function handleFillTotpById(data: { id: string }, tabId: number, frameId: 
     return { success: false, message: tl('bg.router.sessionOrNoTotp') };
   }
 
-  // 显式定向发起 frame（与 FILL_BY_ID 一致，frameId 缺失时回退顶层）
-  return chrome.tabs.sendMessage(
-    tabId,
-    { type: MessageType.FILL_TOTP, data: { code: totp.code } },
-    { frameId: frameId ?? 0 },
-  );
+  const fillMessage: RuntimeMessage = { type: MessageType.FILL_TOTP, data: { code: totp.code } };
+  return sendToAuthorizedDocument(tabId, target, fillMessage);
 }
 
 /**
@@ -798,6 +805,9 @@ export function setupMessageRouter(): void {
             invalidatePasswordCache();
             invalidateSess();
             markSessInvalid();
+            // 在广播与清理之前先撤销所有在途保存委托：锁定那一刻起，任何已弹出的确认
+            // 都不该再把凭据送回保存链路（幂等，storage 监听兜底其他锁定路径）。
+            cancelSavePromptDelegations();
             // 先把锁定广播出去，再结算清理：广播被排在 `clearSess()` 之后时，其它上下文要多
             // 等一次 `storage.session` + `storage.local` 的删除（Windows 慢盘可到数百毫秒）
             // 才切到锁定态，期间明文列表仍摊在屏幕上。回执仍等清理结算完再发，
@@ -871,6 +881,19 @@ export function setupMessageRouter(): void {
           // 未送达时如实回报 false，委托方据此在本 frame 内降级渲染，绝不静默丢提示
           sendResponse({ success: delivered });
         });
+        return true;
+      }
+
+      case MessageType.DELEGATE_SAVE_PROMPT: {
+        // iframe 捕获凭据后的保存确认：网页 window.postMessage 不是入口。
+        // 归属、会话、两端文档与一次性授权统一由委托模块校验，结果只沿本条
+        // runtime 请求通道返回，页面世界无法伪造或旁听。
+        delegateSavePrompt(message.data, sender).then(sendResponse);
+        return true;
+      }
+
+      case MessageType.SAVE_PROMPT_DECISION: {
+        decideSavePrompt(message.data, sender).then(sendResponse);
         return true;
       }
 
@@ -1003,7 +1026,7 @@ export function setupMessageRouter(): void {
           sendResponse({ success: false, error: '无法获取标签ID' });
           break;
         }
-        handleFillById(message.data, tabId, sender.frameId)
+        handleFillById(message.data, tabId, sender)
           .then(sendResponse)
           .catch(error => {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -1043,7 +1066,7 @@ export function setupMessageRouter(): void {
           sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
-        handleFillTotpById(message.data, tabId, sender.frameId)
+        handleFillTotpById(message.data, tabId, sender)
           .then(sendResponse)
           .catch(error => {
             const errorMsg = error instanceof Error ? error.message : String(error);

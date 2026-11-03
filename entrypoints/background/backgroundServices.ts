@@ -23,6 +23,7 @@ import {
   applyMetadataOnlyUpdate,
   consumeMetadataFlushMarker,
   isMetadataOnlyChange,
+  refreshSidepanelSortCache,
   clearAllPendingTotp,
   resetCredentialAccessBarrierForStartup,
   resetDomainMatchModeMirror,
@@ -802,12 +803,16 @@ export function setupBackgroundServices(): void {
           invalidatePasswordCache();
           void warmPasswordCache();
         } else {
-          // 纯排序配置变更：密码数据未变，覆盖式重建快照（读新 sortConfig）
-          // 避免全量解密回温；同事件内伴随会话键变更时不保留重建（锁定/清除
-          // 语义优先 fail-locked 删快照），其回温时机由下方会话分支自行处理
+          // 纯排序配置变更：密码数据未变，排序镜像 + 快照原地刷新（读新 sortConfig），
+          // 明文缓存保留——走全量失效会让下一次打开侧边栏重做整库解密（2000 条数百毫秒）。
+          // 同事件内伴随会话键变更时按锁定/清除语义 fail-locked 删快照并全量失效。
           const hasSessionKeyChange =
             SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY in changes || SESSION_STORAGE_KEYS.PASSWORD_EXPIRY in changes;
-          invalidatePasswordCache(STORAGE_KEYS.SIDEPANEL_SORT_CONFIG in changes && !hasSessionKeyChange);
+          if (STORAGE_KEYS.SIDEPANEL_SORT_CONFIG in changes && !hasSessionKeyChange) {
+            void refreshSidepanelSortCache();
+          } else {
+            invalidatePasswordCache();
+          }
         }
       }
 

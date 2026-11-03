@@ -100,7 +100,7 @@ describe('备份提醒的接线', () => {
 
   it('导入写回后补置「待备份」（它绕开了 composable 的 CRUD 路径）', () => {
     const body = functionBody(readSource(DIALOG), 'applyImportedData');
-    const writeAt = body.indexOf('replaceAllIdentity(merged.records)');
+    const writeAt = body.indexOf('replaceAllIdentity(data.records)');
     const pendingAt = body.indexOf('markBackupPending()');
     expect(writeAt, '导入写回调用了别的函数：本条判据需要跟着重新确认').toBeGreaterThan(-1);
     expect(pendingAt, '导入后没置待备份——SW 落时间戳是异步的，紧随其后的 load() 读不到').toBeGreaterThan(-1);

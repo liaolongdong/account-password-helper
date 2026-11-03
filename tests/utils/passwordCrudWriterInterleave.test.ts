@@ -179,3 +179,113 @@ describe('并发写者不得互相抹掉对方的行', () => {
     expect(saved?.password, '元数据写者用旧密文回卷了并发完成的密码编辑').toBe('new-plain-password');
   });
 });
+
+/**
+ * 跨上下文敏感编辑的字段级合并（存量评审 S4）
+ *
+ * `updatePassword` 的提交锁只保护「最后一次 set」，读取/解密/再加密都在锁外。
+ * 两个独立模块实例（管理页 + 后台自动保存，或两张管理页标签）同时编辑同一行时，
+ * 后完成的一方会拿自己解密时的旧快照，把对方已经落盘的新密文原样写回去——
+ * 两边都收到成功回执，被回滚的那次改动无声消失。
+ *
+ * 落盘前在提交锁内做字段级对账：本次没真正改动的敏感字段（现值 == 编辑基线）
+ * 一律以重读到的最新值为准；同一字段两边都改过才判冲突并拒绝，绝不静默覆盖。
+ */
+describe('跨上下文敏感编辑不得互相回滚', () => {
+  /** 编辑基线令牌：打开弹窗那一刻读到的 updateTime（与并发写者的 updateTime 对账用） */
+  const BASELINE = { expectedUpdateTime: 1 } as const;
+  const loadCrud = async () => {
+    vi.resetModules();
+    const mod = await import('@/utils/storage/passwordCrud');
+    return mod.updatePassword;
+  };
+
+  beforeEach(() => {
+    // 密文 = `cipher:<明文>`：decrypt 剥前缀、encrypt 加前缀，跨实例可比对字节
+    const encryption = {
+      encryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>) => ({
+        ...entry,
+        username: `cipher:${entry.username}`,
+        password: `cipher:${entry.password}`,
+        url: `cipher:${entry.url}`,
+        remark: `cipher:${entry.remark}`,
+        totp: `cipher:${entry.totp ?? ''}`,
+        encrypted: true,
+      })),
+      decryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>) => ({
+        ...entry,
+        username: String(entry.username).replace(/^cipher:/, ''),
+        password: String(entry.password).replace(/^cipher:/, ''),
+        url: String(entry.url).replace(/^cipher:/, ''),
+        remark: String(entry.remark).replace(/^cipher:/, ''),
+        totp: String(entry.totp ?? '').replace(/^cipher:/, ''),
+      })),
+      deriveEncryptionKey: vi.fn(async () => SESSION_KEY),
+      encryptData: vi.fn(async (data: unknown) => `cipher:${String(data)}`),
+      decryptData: vi.fn(async (data: unknown) => String(data).replace(/^cipher:/, '')),
+    };
+    vi.doMock('@/utils/encryption', () => encryption);
+  });
+
+  it('一方改密码、另一方同时改备注：两次改动都要活下来', async () => {
+    store = {
+      [STORAGE_KEYS.PASSWORDS]: [row('a', { username: 'cipher:plain-a', password: 'cipher:old', remark: 'cipher:' })],
+    };
+    const updateA = await loadCrud();
+    const updateB = await loadCrud();
+
+    const outcomes = await Promise.allSettled([
+      updateA('a', { password: 'new-password', updateTime: 11 } as Partial<PasswordEntry>, undefined, BASELINE),
+      updateB('a', { remark: 'later-note', updateTime: 22 } as Partial<PasswordEntry>, undefined, BASELINE),
+    ]);
+    // 至多一方因「对方先落盘」被判冲突；冲突方必须收到明确拒绝而不是静默覆盖成功
+    expect(outcomes.filter(o => o.status === 'rejected').length).toBeLessThanOrEqual(1);
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        expect(outcome.reason).toMatchObject({ code: 'UPDATE_CONFLICT' });
+      }
+    }
+
+    const after = rows().find(r => r.id === 'a')!;
+    const survivors = outcomes.filter(o => o.status === 'fulfilled').length;
+    if (survivors === 2) {
+      expect(after.password).toBe('cipher:new-password');
+      expect(after.remark).toBe('cipher:later-note');
+    } else {
+      // 一方被拒时，落盘必须是那一支改动的完整结果，另一支不得留下半截旧值
+      const winner = outcomes.find(o => o.status === 'fulfilled')!;
+      if (winner === outcomes[0]) {
+        expect(after.password).toBe('cipher:new-password');
+        expect(after.remark, '被拒的备注编辑不得把旧备注写回，也不得被成功方回卷').toBe('cipher:');
+      } else {
+        expect(after.remark).toBe('cipher:later-note');
+        expect(after.password, '只改备注的一方用旧快照回滚了并发完成的密码编辑').toBe('cipher:old');
+      }
+    }
+  });
+
+  it('两方都改同一字段（基于同一基线）：后提交方被拒，不得静默覆盖', async () => {
+    store = {
+      [STORAGE_KEYS.PASSWORDS]: [row('a', { username: 'cipher:plain-a', password: 'cipher:old', remark: 'cipher:' })],
+    };
+    const updateA = await loadCrud();
+    const updateB = await loadCrud();
+
+    await updateA('a', { password: 'first', updateTime: 11 } as Partial<PasswordEntry>, undefined, BASELINE);
+    await expect(
+      updateB('a', { password: 'second', updateTime: 22 } as Partial<PasswordEntry>, undefined, BASELINE),
+    ).rejects.toMatchObject({ code: 'UPDATE_CONFLICT' });
+    expect(rows().find(r => r.id === 'a')!.password).toBe('cipher:first');
+  });
+
+  it('不传编辑基线的调用方（自动保存/收藏等）行为保持不变', async () => {
+    store = {
+      [STORAGE_KEYS.PASSWORDS]: [row('a', { username: 'cipher:plain-a', password: 'cipher:old', remark: 'cipher:' })],
+    };
+    const update = await loadCrud();
+    await update('a', { password: 'new' } as Partial<PasswordEntry>);
+    expect(rows().find(r => r.id === 'a')!.password).toBe('cipher:new');
+    await update('a', { favorite: true } as Partial<PasswordEntry>);
+    expect(rows().find(r => r.id === 'a')!.favorite).toBe(true);
+  });
+});

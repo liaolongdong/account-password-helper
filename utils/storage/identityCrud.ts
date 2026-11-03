@@ -384,13 +384,23 @@ async function replaceAllIdentityRawInternal(records: IdentityRecord[]): Promise
  * `IdentityEntry` 与 `IdentityBackupRecord` 均可直接传入。
  * 无有效会话且未提供主密码时抛错，绝不退回明文。
  *
- * **不丢弃不变量（镜像 reencryptAll「原样携带」）**：调用方传入的是**可解密**的明文列表，
- * 磁盘上可能另有 `getAllIdentity` 因解密失败而跳过、或并发期间其他窗口新增、因而未出现在
- * 该列表中的原始密文记录。写回前以时刻 `getAllIdentityRaw()` 为基，凡 id 不在入参列表中的
- * 原始记录一律**原样保留**（其密文不动），避免整体覆盖把这些记录静默删除；id 命中入参者以
- * 入参（新明文重加密）为准。读失败在任何写入发生前上抛（fail-closed）。
+ * 本函数把「重读磁盘 → 逐 id 按 updateTime 择优 → 容量复核 → 整体写回」收进同一个提交锁
+ * 事务，因此调用方传的是**导入文件里的记录**，而不是自己按旧内存快照预先合并好的列表。
+ * 逐 id 的定夺在锁外做（要为判断可解性解密一次），**落盘一律以锁内重读到的最新快照为权威**：
  *
- * @param entries 合并后的明文条目列表
+ * - **不丢弃不变量（镜像 reencryptAll「原样携带」）**：磁盘上 `getAllIdentity` 因解密失败而
+ *   从未进入明文的原始密文，锁内按 id 原样带走，密文一个字节都不动；只有导入胜出的行被替换；
+ * - **不覆盖并发编辑**：同 id 以 updateTime 择优，磁盘比入参更新的保留磁盘**最新那一条**
+ *   （不是预读那一条——预读到落盘之间又改过一轮时，拿预读副本落盘就等于回滚了那一轮）；
+ * - **以删除为准，不复活**：预读里有、落盘时没了的胜出行不追加，期间被删掉的记录不会
+ *   被导入拽回主列表（它同时在回收站里，复活就成了两处各一份）；
+ * - **不越容量**：`MAX_IDENTITIES` 按最终落盘条数复核，超限整批拒绝——若按入参条数放行，
+ *   并发新增会把结果推过上限，而这份库随后连自己的 `.aphid` 导出都解不开（自己的
+ *   parser 判 INVALID_STRUCTURE）。
+ *
+ * 读失败在任何写入发生前上抛（fail-closed）。
+ *
+ * @param entries 待合并导入的明文记录（通常为备份文件里的记录）
  * @param masterPassword 锁定态显式传入；会话有效时省略
  */
 export async function replaceAllIdentity(
@@ -409,20 +419,68 @@ async function replaceAllIdentityInternal(
     throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
   }
   const enc = await _getEncryption();
+  const existingRaw = await getAllIdentityRaw();
+  const diskById = new Map(existingRaw.map(record => [record.id, record]));
 
-  // 逐条加密全部发生在提交锁之外：一次导入可达 MAX_IDENTITIES 条，锁内串行加密会把
-  // 密码库的整包写一起拖住秒级。
-  const reencrypted: IdentityRecord[] = [];
+  // 解密整库只为回答一个问题：磁盘上那一条到底解不解得开。谁更新不必靠解密判断——
+  // `updateTime` 在记录上本就是明文，落盘时磁盘胜出的行直接取最新快照那一条即可。
+  const undecryptableIds = new Set<string>();
+  await mapWithConcurrency(existingRaw, async record => {
+    try {
+      await enc.decryptData(record.encryptedPayload, key);
+    } catch {
+      undecryptableIds.add(record.id);
+    }
+  });
+
+  // 逐 id 定夺「这条以导入为准吗」：磁盘没有 → 以导入为准；磁盘解不开 → 以导入为准
+  // （这正是导入要修复的场景）；否则比 updateTime，磁盘不比入参旧就保留磁盘版本，
+  // 不用旧快照覆盖并发编辑。判落盘时一律以提交锁内重读到的 `fresh` 为准。
+  const winnerById = new Map<string, IdentityRecord>();
+  const brandNewIds: string[] = [];
   for (const entry of entries) {
-    reencrypted.push({
+    const disk = diskById.get(entry.id);
+    if (disk && !undecryptableIds.has(entry.id) && entry.updateTime <= disk.updateTime) continue;
+    winnerById.set(entry.id, {
       id: entry.id,
       createTime: entry.createTime,
       updateTime: entry.updateTime,
       encryptedPayload: await enc.encryptData(JSON.stringify(entry.payload), key),
     });
+    if (!disk) brandNewIds.push(entry.id);
   }
-  const incomingIds = new Set(entries.map(entry => entry.id));
-  await commitIdentityRows(fresh => [...reencrypted, ...fresh.filter(record => !incomingIds.has(record.id))]);
+
+  // 预检只为错误优先级（超限要先报 LIMIT_REACHED，而不是先报密钥不可用）；权威判定在下面
+  // 对着落盘前的最新快照再走一次——并发新增若只按入参放行，这份库随后连自己的
+  // `.aphid` 导出都解不开。
+  const projected = existingRaw.length + brandNewIds.length;
+  if (projected > MAX_IDENTITIES) {
+    throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+  }
+
+  // 逐条加密全部发生在提交锁之外：一次导入可达 MAX_IDENTITIES 条，锁内串行加密会把
+  // 密码库的整包写一起拖住秒级。
+  await commitIdentityRows(fresh => {
+    const freshIds = new Set(fresh.map(record => record.id));
+    // 择优在落盘时刻重做一遍：`updateTime` 在记录上是明文，比一次不花一分钱；而预读到落盘之间
+    // 别人可能又改过这一行，拿预读副本落盘就等于回滚了那一轮编辑。磁盘行的密文一个字节都不动
+    // （含解不开的那些：不丢弃不变量），只有导入确实更新的那一行被换掉。
+    const next = fresh.map(record => {
+      const candidate = winnerById.get(record.id);
+      return candidate && candidate.updateTime > record.updateTime ? candidate : record;
+    });
+    for (const id of brandNewIds) {
+      // 预读时不存在、落盘时也不存在 → 真正的新行；落盘时已存在 → 期间别人建了同 id，
+      // 由上面的择优按 updateTime 决定谁留，这里不重复追加。
+      if (!freshIds.has(id)) next.push(winnerById.get(id)!);
+    }
+    // 预读里有、落盘时没了的候选行**不追加**：那是期间被删掉的条目，以删除为准，
+    // 导入不许把刚进回收站的记录复活回主列表（它同时在回收站里，复活就成了两处各一份）。
+    if (next.length > MAX_IDENTITIES) {
+      throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+    }
+    return next;
+  });
 }
 
 // ==================== 列表偏好（非 PII，明文单键） ====================

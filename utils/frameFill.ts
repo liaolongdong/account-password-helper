@@ -7,7 +7,7 @@
  *
  * @module utils/frameFill
  */
-import type { FillResult } from '@/utils/types';
+import type { AuthorizedFillDocument, FillResult, RuntimeMessage } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { isSameMainDomain } from '@/utils/domain';
@@ -26,26 +26,24 @@ type FrameNode = { frameId: number; parentFrameId: number; url?: string };
  * @returns 是否可安全填充
  */
 const isFillableFrame = (frame: FrameNode, framesById: Map<number, FrameNode>, topUrl: string): boolean => {
-  if (frame.frameId === 0) return true; // 顶层 frame 恒可填充
-  const url = frame.url || '';
-  if (url.startsWith('about:')) {
-    const parent = framesById.get(frame.parentFrameId);
-    // 无父帧信息或自引用：保守拒绝，避免误填
-    if (!parent || parent.frameId === frame.frameId) return false;
-    return isFillableFrame(parent, framesById, topUrl);
+  const visited = new Set<number>();
+  let current: FrameNode | undefined = frame;
+  while (current && !visited.has(current.frameId)) {
+    if (current.frameId === 0) return true;
+    visited.add(current.frameId);
+    const url = current.url || '';
+    if (!url.startsWith('about:')) return isSameMainDomain(url, topUrl);
+    current = framesById.get(current.parentFrameId);
   }
-  return isSameMainDomain(url, topUrl);
+  return false;
 };
 
 /**
- * 获取可安全填充的 frame ID 列表：仅顶层 frame 及与顶层同主域名的 frame。
+ * 获取可安全填充的 frame ID 列表：仅顶层 frame 及与顶层同主域名的 frame（about: 帧沿父链回溯）。
  *
- * 安全加固：避免将凭证广播给页面内嵌的跨域第三方 iframe（如广告/统计）导致泄露。
- * 检测（PING）与填充（FILL）复用同一集合，保证"检测到即可填充"的一致性。
- *
- * about: 系列（about:blank / about:srcdoc）继承其父帧来源：沿父链回溯至首个非 about:
- * 祖先再判定，仅当该祖先为顶层或同主域名帧时才纳入——避免跨域 iframe 派生的 about: 子帧
- * （与该跨域帧同源）截获明文凭证。与自动保存路径的 isSameMainDomain 校验保持一致。
+ * 仅供「不含凭据」的探测/注入与元数据门控使用（PING、字段等待、内联下拉展开）。
+ * 任何携带明文凭据的投递必须改用 getFillableDocuments + sendToAuthorizedDocument，
+ * 把接收者绑到授权那一刻的具体文档实例，导航后的新文档不会继承接收资格。
  *
  * @param tabId 标签页ID
  * @returns 可填充的 frame ID 列表；获取失败时回退到 [0]（仅顶层 frame）
@@ -60,7 +58,6 @@ export const getFillableFrameIds = async (tabId: number): Promise<number[]> => {
     if (!topUrl) return [0];
 
     const framesById = new Map(frames.map(f => [f.frameId, f] as const));
-
     const fillable = frames.filter(f => isFillableFrame(f, framesById, topUrl)).map(f => f.frameId);
     return fillable.length > 0 ? fillable : [0];
   } catch (error) {
@@ -70,18 +67,11 @@ export const getFillableFrameIds = async (tabId: number): Promise<number[]> => {
 };
 
 /**
- * 判定指定 frame 是否可安全接收明文凭证（顶层或与顶层同主域名，about: 帧沿父链回溯）。
+ * 判定指定 frame 是否可安全接收（不含明文的）探测与元数据。
  *
- * 与 getFillableFrameIds 复用同一判定（isFillableFrame），供后台内联下拉/一键填充路径
- * （FILL_BY_ID / GET_MATCHING_ACCOUNTS）校验发起 frame，避免跨域 iframe（如第三方广告位）
- * 越权读取顶层站点账号元数据或骗取其明文凭证（与侧边栏 getFillableFrameIds 同一道防线）。
- *
- * @param tabId 标签页 ID
- * @param frameId 发起请求的 frame ID（undefined 或 0 视为顶层 frame，直接放行）
- * @returns 是否允许；获取 frame 信息失败时保守返回 false
+ * 语义与旧实现保持一致；明文凭据投递请改用文档绑定路径。
  */
 export const isFrameFillable = async (tabId: number, frameId: number | undefined): Promise<boolean> => {
-  // 顶层 frame 无需查询，直接放行（热路径零开销，与 getFillableFrameIds 对顶层的处理一致）
   if (frameId === undefined || frameId === 0) return true;
   try {
     const frames = await chrome.webNavigation.getAllFrames({ tabId });
@@ -103,42 +93,147 @@ export const isFrameFillable = async (tabId: number, frameId: number | undefined
 };
 
 /**
- * 向所有 frame 发送填充消息，返回第一个成功的响应
- * 各 frame 的 FormDetector 收到消息后自行判断是否有匹配字段并尝试填充
+ * 取得「可安全接收明文凭证」的文档快照（顶层 + 与顶层同主域名的 frame，about: 帧沿父链回溯）。
+ *
+ * 与旧的纯 frameId 列表相比，这里额外绑定 documentId：授权时的判定与最终发送目标是同一个
+ * 文档实例，期间发生导航的新文档不会继承接收凭据的资格。
+ *
+ * @param tabId 标签页 ID
+ * @param expectedTopUrl 授权时顶层 URL；提供时要求当前仍是同一文档，防止导航后串站
+ * @returns 可填充文档；无法取得可信 documentId 时返回空数组（调用方不得回退广播）
+ */
+export async function getFillableDocuments(tabId: number, expectedTopUrl?: string): Promise<AuthorizedFillDocument[]> {
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    const top = frames?.find(frame => frame.frameId === 0);
+    if (!top?.url || (expectedTopUrl !== undefined && top.url !== expectedTopUrl)) return [];
+    const byId = new Map(frames!.map(frame => [frame.frameId, frame]));
+    // 有 documentId 就绑文档；没有（Firefox、Chrome < 132）退回 frameId + 顶层文档身份。
+    // 刻意不因缺字段而停投：那会让整个凭据投递面在 Firefox 上失效，回归比缺口更重。
+    return frames!
+      .filter(frame => isFillableFrame(frame, byId, top.url))
+      .map(frame => ({
+        tabId,
+        frameId: frame.frameId,
+        ...(frame.documentId ? { documentId: frame.documentId } : {}),
+        ...(top.documentId ? { topDocumentId: top.documentId } : {}),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/** 只能授权浏览器盖章的发起文档，不能把旧请求移交同 frameId 的新文档。 */
+export async function authorizeSenderDocument(
+  sender: chrome.runtime.MessageSender,
+): Promise<AuthorizedFillDocument | null> {
+  if (sender.id !== chrome.runtime.id || typeof sender.tab?.id !== 'number' || typeof sender.frameId !== 'number') {
+    return null;
+  }
+  const targets = await getFillableDocuments(sender.tab.id, sender.tab.url);
+  if (sender.documentId) {
+    return targets.find(t => t.frameId === sender.frameId && t.documentId === sender.documentId) ?? null;
+  }
+  // 平台不提供 documentId：仍要求「同一标签页 + 授权时记录的顶层 URL 未变」下的同一 frame
+  return targets.find(t => t.frameId === sender.frameId && !t.documentId) ?? null;
+}
+
+/** 只检查已授权身份仍有效，绝不把导航后的新文档重新授权为敏感接收者。 */
+export async function isAuthorizedDocumentCurrent(tabId: number, target: AuthorizedFillDocument): Promise<boolean> {
+  if (!target || target.tabId !== tabId || !Number.isInteger(target.frameId)) return false;
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    const top = frames?.find(frame => frame.frameId === 0);
+    if (!top) return false;
+    if (target.topDocumentId && top.documentId !== target.topDocumentId) return false;
+    const current = frames?.find(frame => frame.frameId === target.frameId);
+    if (!current) return false;
+    return target.documentId ? current.documentId === target.documentId : !current.documentId;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 敏感出口：复核身份后定向投递。
+ * 有 documentId 时用它（浏览器保证「检查与发送之间导航」不会串到新文档）；
+ * 没有时退回 frameId，由 `isAuthorizedDocumentCurrent` 的顶层文档身份比对兜住导航。
+ */
+export async function sendToAuthorizedDocument(
+  tabId: number,
+  target: AuthorizedFillDocument,
+  message: RuntimeMessage,
+): Promise<unknown> {
+  if (!(await isAuthorizedDocumentCurrent(tabId, target))) throw new Error('Receiving end does not exist.');
+  return chrome.tabs.sendMessage(
+    tabId,
+    message,
+    target.documentId ? { documentId: target.documentId } : { frameId: target.frameId },
+  );
+}
+
+/**
+ * 向授权文档发送填充消息，返回第一个成功的响应
+ * 各文档的 FormDetector 收到消息后自行判断是否有匹配字段并尝试填充
  *
  * @param tabId 标签页ID
- * @param frameIds 所有 frame ID 列表
+ * @param documents 授权时的文档快照
  * @param fillData 填充数据（用户名、密码、autoLogin）
  * @returns FillResult 或 null
  */
 export const fillPasswordInFrames = async (
   tabId: number,
-  frameIds: number[],
+  documents: AuthorizedFillDocument[],
   fillData: { username: string; password: string; autoLogin: boolean },
 ): Promise<FillResult | null> => {
-  // 并行向所有 frame 发送填充消息，避免顶层 frame 的慢响应（~9s 重试）阻塞 iframe 的快速填充（~0.2s）
+  // 并行投递，慢文档不阻塞其它文档；每个敏感出口均绑定授权时的文档。
   const results = await Promise.allSettled(
-    frameIds.map(frameId =>
-      chrome.tabs.sendMessage(
-        tabId,
-        {
-          type: MessageType.FILL_PASSWORD,
-          data: fillData,
-        },
-        { frameId },
-      ),
+    documents.map(target =>
+      sendToAuthorizedDocument(tabId, target, { type: MessageType.FILL_PASSWORD, data: fillData }),
     ),
   );
 
-  // 取第一个成功的响应
   for (const result of results) {
     if (result.status === 'fulfilled') {
       const response = result.value as FillResult | undefined;
-      if (response?.success) {
-        return response;
-      }
+      if (response?.success) return response;
     }
   }
 
   return null;
+};
+
+/**
+ * 向授权文档并行发送 TOTP 动态码。
+ *
+ * 与 `fillPasswordInFrames` 同一道防线：接收者绑定 `getFillableDocuments` 那一刻的文档实例，
+ * 取码到投递之间若 frame 导航成新文档，一次性码不会交给复用同一 frameId 的新站点。
+ *
+ * @param tabId 标签页 ID
+ * @param code 本地计算得到的动态验证码
+ * @returns `result` 为首个成功送达的响应；`firstResponse` 为首个非成功但确实送达的响应（供失败分档）
+ */
+export const fillTotpInFrames = async (
+  tabId: number,
+  code: string,
+): Promise<{ result: FillResult | null; firstResponse: FillResult | null }> => {
+  const documents = await getFillableDocuments(tabId);
+  const results = await Promise.allSettled(
+    documents.map(target =>
+      sendToAuthorizedDocument(tabId, target, {
+        type: MessageType.FILL_TOTP,
+        data: { code },
+      }),
+    ),
+  );
+
+  let firstResponse: FillResult | null = null;
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      const response = result.value as FillResult | undefined;
+      if (response?.success) return { result: response, firstResponse };
+      if (response && !firstResponse) firstResponse = response;
+    }
+  }
+  return { result: null, firstResponse };
 };

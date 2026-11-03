@@ -126,6 +126,33 @@ describe('passwordHistory', () => {
     expect(all[0].entryId).toBe('b');
   });
 
+  it('并发快照不丢记录：两个调用都要落盘', async () => {
+    const { snapshotPasswordHistory, getAllHistoryRaw } = await import('@/utils/storage/passwordHistory');
+
+    await Promise.all([snapshotPasswordHistory('entry-a', 'pw-a'), snapshotPasswordHistory('entry-b', 'pw-b')]);
+
+    const all = await getAllHistoryRaw();
+    expect(all.map(r => r.entryId).sort()).toEqual(['entry-a', 'entry-b']);
+  });
+
+  it('并发快照与彻底删除交错：已删历史不得被迟到快照复活', async () => {
+    storageData['password_change_history'] = [{ entryId: 'gone', password: 'pw-gone', changedAt: 1 }];
+    const { snapshotPasswordHistory, deleteHistoryByEntryIds, getAllHistoryRaw } =
+      await import('@/utils/storage/passwordHistory');
+
+    // 两路并发：提交锁保证串行，删除一旦执行完，快照不得再把 `gone` 写回复活
+    const results = await Promise.allSettled([
+      snapshotPasswordHistory('entry-new', 'pw-new'),
+      deleteHistoryByEntryIds(['gone']),
+      snapshotPasswordHistory('entry-new-2', 'pw-new-2'),
+      deleteHistoryByEntryIds(['gone']),
+    ]);
+    for (const result of results) expect(result.status).toBe('fulfilled');
+
+    const after = await getAllHistoryRaw();
+    expect(after.map(r => r.entryId).sort()).toEqual(['entry-new', 'entry-new-2']);
+  });
+
   it('replaceAllHistory 替换全部', async () => {
     const { replaceAllHistory, getAllHistoryRaw } = await import('@/utils/storage/passwordHistory');
 
