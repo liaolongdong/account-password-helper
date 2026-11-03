@@ -384,13 +384,22 @@ async function replaceAllIdentityRawInternal(records: IdentityRecord[]): Promise
  * `IdentityEntry` 与 `IdentityBackupRecord` 均可直接传入。
  * 无有效会话且未提供主密码时抛错，绝不退回明文。
  *
- * **不丢弃不变量（镜像 reencryptAll「原样携带」）**：调用方传入的是**可解密**的明文列表，
- * 磁盘上可能另有 `getAllIdentity` 因解密失败而跳过、或并发期间其他窗口新增、因而未出现在
- * 该列表中的原始密文记录。写回前以时刻 `getAllIdentityRaw()` 为基，凡 id 不在入参列表中的
- * 原始记录一律**原样保留**（其密文不动），避免整体覆盖把这些记录静默删除；id 命中入参者以
- * 入参（新明文重加密）为准。读失败在任何写入发生前上抛（fail-closed）。
+ * 本函数把「重读磁盘 → 逐 id 按 updateTime 三方合并 → 容量复核 → 整体写回」收进
+ * 同一个提交锁事务，因此调用方传的是**导入文件里的记录**，而不是自己按旧内存快照
+ * 预先合并好的列表：
  *
- * @param entries 合并后的明文条目列表
+ * - **不丢弃不变量（镜像 reencryptAll「原样携带」）**：磁盘上可能有 `getAllIdentity`
+ *   因解密失败而跳过、因而从未出现在明文里的原始密文记录，它们一律原样保留（密文不动），
+ *   避免整体覆盖把这些记录静默删除；
+ * - **不覆盖并发编辑**：同 id 的三方（磁盘现值 / 入参 / 入参来源的旧快照）以 updateTime
+ *   择优，磁盘上比入参更新的记录保留磁盘版本；
+ * - **不越容量**：`MAX_IDENTITIES` 按最终落盘条数复核，超限整批拒绝——若按入参条数放行，
+ *   并发新增会把结果推过上限，而这份库随后连自己的 `.aphid` 导出都解不开（自己的
+ *   parser 判 INVALID_STRUCTURE）。
+ *
+ * 读失败在任何写入发生前上抛（fail-closed）。
+ *
+ * @param entries 待合并导入的明文记录（通常为备份文件里的记录）
  * @param masterPassword 锁定态显式传入；会话有效时省略
  */
 export async function replaceAllIdentity(
@@ -409,20 +418,75 @@ async function replaceAllIdentityInternal(
     throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
   }
   const enc = await _getEncryption();
+  const existingRaw = await getAllIdentityRaw();
+
+  // 入参按 id 索引；磁盘记录解密一份用于逐 id 择优（解不开的按「原样携带」处理）
+  const incomingById = new Map(entries.map(entry => [entry.id, entry]));
+  const decryptedExisting = await mapWithConcurrency(existingRaw, async record => {
+    try {
+      const json = await enc.decryptData(record.encryptedPayload, key);
+      return { record, payload: JSON.parse(json) as IdentityPayload };
+    } catch {
+      return { record, payload: null as IdentityPayload | null };
+    }
+  });
+
+  const finalById = new Map<
+    string,
+    Pick<IdentityRecord, 'id' | 'createTime' | 'updateTime'> & { payload: IdentityPayload }
+  >();
+  const carried: IdentityRecord[] = [];
+  for (const { record, payload } of decryptedExisting) {
+    const incoming = incomingById.get(record.id);
+    if (!incoming) {
+      // 磁盘独有：可解的进最终集，解不开的原样携带密文
+      if (payload) finalById.set(record.id, { ...record, payload });
+      else carried.push(record);
+      continue;
+    }
+    if (payload && incoming.updateTime <= record.updateTime) {
+      // 磁盘版本不比入参旧：并发期间别人改过（或本就相同），保留磁盘版本，不用旧快照覆盖
+      finalById.set(record.id, { ...record, payload });
+      continue;
+    }
+    if (!payload) {
+      // 磁盘密文解不开而入参带同一 id：以入参为准（这正是导入要修复的场景）
+      finalById.set(record.id, incoming);
+      continue;
+    }
+    finalById.set(record.id, incoming);
+  }
+  for (const entry of entries) {
+    if (!finalById.has(entry.id)) finalById.set(entry.id, entry);
+  }
+
+  const total = finalById.size + carried.length;
+  if (total > MAX_IDENTITIES) {
+    throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+  }
 
   // 逐条加密全部发生在提交锁之外：一次导入可达 MAX_IDENTITIES 条，锁内串行加密会把
   // 密码库的整包写一起拖住秒级。
-  const reencrypted: IdentityRecord[] = [];
-  for (const entry of entries) {
-    reencrypted.push({
+  const merged: IdentityRecord[] = [];
+  for (const entry of finalById.values()) {
+    merged.push({
       id: entry.id,
       createTime: entry.createTime,
       updateTime: entry.updateTime,
       encryptedPayload: await enc.encryptData(JSON.stringify(entry.payload), key),
     });
   }
-  const incomingIds = new Set(entries.map(entry => entry.id));
-  await commitIdentityRows(fresh => [...reencrypted, ...fresh.filter(record => !incomingIds.has(record.id))]);
+  // 本次已经逐个 id 定夺过的行（含磁盘原样携带的解不开者）；其余 id 一律以落盘前重读到的为准，
+  // 这样并发期间新建、而我们那次预读里根本没有的条目不会被整包覆写抹掉。
+  const decidedIds = new Set([...merged, ...carried].map(record => record.id));
+  await commitIdentityRows(fresh => {
+    const next = [...merged, ...carried, ...fresh.filter(record => !decidedIds.has(record.id))];
+    // 容量以落盘前的最新快照为准再判一次：预读到落盘之间别人可能已经写到上限
+    if (next.length > MAX_IDENTITIES) {
+      throw identityCrudError('LIMIT_REACHED', `身份信息条目已达上限（${MAX_IDENTITIES} 条）`);
+    }
+    return next;
+  });
 }
 
 // ==================== 列表偏好（非 PII，明文单键） ====================
