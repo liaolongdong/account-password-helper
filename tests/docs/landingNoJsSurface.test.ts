@@ -73,13 +73,14 @@ const readPage = (file: string): string => readFileSync(path.join(ROOT, file), '
  * `I18N` 字典把 `<noscript>`、`href="./llms.txt"` 这些串又写了一遍，`<style>` 里的注释也是；不剥就会
  * 把「页面上有一处」数成「文件里出现 N 次」，而本守卫要的恰恰是前者。
  *
- * 标志位带 `i`：HTML 标签名大小写不敏感，`<SCRIPT>` 在浏览器里照样是脚本。按大小写敏感去剥，
- * 大写写法就会绕过剥离、被后面的计数当成 DOM 来数。
+ * 标志位带 `i`、结束标签容忍空白与属性：HTML 标签名大小写不敏感，浏览器也接受 `</script >`
+ * 和 `</script foo="bar">` 这种收尾。按大小写敏感、按写死的 `</script>` 去剥，这些写法就会绕过
+ * 剥离、被后面的计数当成 DOM 来数。
  */
 function servedDom(html: string): string {
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script(?:\s[^>]*)?>/gi, '')
+    .replace(/<style[\s\S]*?<\/style(?:\s[^>]*)?>/gi, '')
     .replace(/<!-{2}[\s\S]*?-->/g, '');
 }
 
@@ -250,9 +251,20 @@ describe('守卫自检：卡面漂移与排版失守都会变红', () => {
     expect(() => parseNoscriptNote(reflowed, 'index.html')).toThrow();
   });
 
-  it('大写 <SCRIPT> 块没被剥掉 → 计数会把它当 DOM（证明剥离的 i 标志有牙）', () => {
-    const shouty = `${'<SCRIPT>var s = "<noscript></noscript>";</SCRIPT>'}\n${ZH}`;
-    expect(servedDom(shouty), '夹具：大写写法同样是脚本，必须剥干净').not.toContain('<SCRIPT>');
-    expect((servedDom(shouty).match(/<noscript\b/g) || []).length, '剥离漏了大写脚本块').toBe(2);
+  it('<SCRIPT> 换个收尾写法就不被剥 → 剥离漏；容忍过头 → 剥离多吃', () => {
+    // 夹具刻意是一页「后面再无 </script> 可吃」的最小 HTML。若拿真页当夹具，惰性匹配会一路吃到
+    // 页面后面某个真结束标签，漏剥被过度匹配掩盖，这条断言就永不翻红。
+    for (const close of ['</SCRIPT>', '</script >', '</script foo="bar">']) {
+      const page = `<SCRIPT>var s = "<noscript></noscript>";${close}<noscript>REAL</noscript>`;
+      expect(servedDom(page), `${close} 绕过了剥离`).toBe('<noscript>REAL</noscript>');
+    }
+    // 反方向：容忍空白与属性之后，真页面的计数不许变——防止结束标签匹配反向扩大吞噬范围
+    for (const { file, label } of PAGES) {
+      const shouty = `<SCRIPT>var s = "<noscript></noscript>";</SCRIPT>\n${readPage(file)}`;
+      expect(
+        (servedDom(shouty).match(/<noscript\b/g) || []).length,
+        `${label} 塞进脚本块后计数变了，说明剥离范围失真`,
+      ).toBe(2);
+    }
   });
 });
