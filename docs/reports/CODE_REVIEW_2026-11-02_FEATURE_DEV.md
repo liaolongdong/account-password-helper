@@ -258,10 +258,10 @@ agents.md 里 `preRowMs` / `blockingMs` 两档本就长期未达标，那是要 
 
 落地形状只有两种，都做了实测而不是推断：
 
-| 形状                                              | 手段                                                 | 实测结果                                                                                                                                                                                                                                     |
-| ------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 整文件覆盖（AI 会话按上下文重写整文件的典型后果） | `cp` 55 个文件到主线树                               | **typecheck 当场挂**：`trashManager.ts` 引 `deleteHistoryByEntryIdsWithinLease`，而 `passwordHistory.ts` 被回退成没有该导出（TS2724）。全量单测 **12 条红 / 6 个文件**，覆盖 S1、S2、P1、Q1、Q2 与 metadata 打标——即 #149 六条修复被静默抹掉 |
-| 三方重放                                          | `git diff HEAD` 取增量 → `git apply -3` 到 `fb35bf8` | 只有 **4 处真冲突**：`identityCrud.ts` 2、`passwordCrud.ts` 2、`docs/ARCHITECTURE{,.en}.md` 各 1；`useAuthFlow.ts`、`passwordHistory.ts` 等干净合入，一条修复不掉                                                                            |
+| 形状                                              | 手段                                                 | 实测结果                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 整文件覆盖（AI 会话按上下文重写整文件的典型后果） | `cp` 55 个文件到主线树                               | **typecheck 当场挂**：`trashManager.ts` 引 `deleteHistoryByEntryIdsWithinLease`，而 `passwordHistory.ts` 被回退成没有该导出（TS2724）。全量单测 **12 条红 / 6 个文件**，覆盖 S1、S2、P1、Q1、Q2、Minor 10（metadata 打标）与 Minor 8（身份库回程接线）——即 #149 的修复被静默抹掉 |
+| 三方重放                                          | `git diff HEAD` 取增量 → `git apply -3` 到 `fb35bf8` | 只有 **4 个文件**真冲突：`identityCrud.ts`（2 处）、`passwordCrud.ts`（1 处）、`docs/ARCHITECTURE.md` 与 `.en.md`（各 1 处）；`useAuthFlow.ts`、`passwordHistory.ts` 等干净合入，一条修复不掉                                                                                    |
 
 两版方案的取舍按**覆盖面并集**收口，而不是二选一：
 
@@ -280,7 +280,7 @@ agents.md 里 `preRowMs` / `blockingMs` 两档本就长期未达标，那是要 
 `de5e89b`（并集收口那一版）交给独立评审，查出 **2 Critical + 2 Important**，四条都先证实再修——不是照单全收，也确实不是误报：
 
 1. **历史快照基准用错行、且排在两条拒绝支路之前**（Critical）。快照搬回锁外后写的是事务开头的 `current.password`：并发改密时，真正被取代的那份密文永久漏出历史；而被 `UPDATE_CONFLICT` 拒掉、以及条目已被别处删除的提交，什么都没写却在历史里留了孤儿记录（历史上限 3 条，用户每重试一次污染一次）。改回 `commitPasswordRows` 回调内、判定之后，写 `latest.password`。
-2. **未迁移明文行被写成混排行**（Critical）。无条件字段回填的隐含前提是「盘上是密文」，而 `decryptPasswordEntry` 对 `encrypted !== true` 的老行**原样返回明文、不报错**（encryption.ts:297），于是重加密得到的 `encrypted: true` 标记配上从旧行搬来的明文 `username`/`url`/`totp`。混排行比纯明文行更坏：at-rest 迁移的判据正是 `encrypted === true`（sessionManager-storage.ts:569），它会跳过这一行，把明文永久冻在自称已加密的记录里。未加密行改走另一支：拿锁内重读的明文合并后整体加密。可达路径是真实的——自动保存只提交 `password/tag/remark` 四项，其余敏感字段全靠回填。
+2. **未迁移明文行被写成混排行**（Critical）。无条件字段回填的隐含前提是「盘上是密文」，而 `decryptPasswordEntry` 对 `encrypted !== true` 的老行**原样返回明文、不报错**（encryption.ts:297），于是重加密得到的 `encrypted: true` 标记配上从旧行搬来的明文 `username`/`url`/`totp`。混排行比纯明文行更坏：at-rest 迁移的判据正是 `encrypted === true`（sessionManager-storage.ts:569），它会跳过这一行，把明文永久冻在自称已加密的记录里。未加密行改走另一支：拿锁内重读的明文合并后整体加密。可达路径是真实的——自动保存只提交 `password`/`remark` 两个敏感字段（外加 `tag` 与 `updateTime`），剩下 `username`/`url`/`totp` 三个敏感字段全靠回填。
 3. **身份导入拿预读判定落盘**（Important）。预读（整库解密 + 批量加密，可达秒级）在锁外，定夺也在锁外，于是窗口内别人又改一轮会被回滚、别人删掉的会被复活（它同时在回收站里，复活即两处各一份）。择优搬到锁内对最新快照重做——`updateTime` 在记录上是明文，比一次不花钱；加密范围随之收窄到候选行，`vaultCommitLockScope` 的整包替换用例回到 3 次加密、`id=a` 的原始密文原样保留。
 4. **`UPDATE_CONFLICT` 的存储层中文串上送页面**（Important）。编辑弹窗那条链路对方已接好，自动保存没有：它落到兜底分支 `tl('bg.autoSave.failed', { message: error.message })`，英文界面下页面上就是一串中文。紧邻的 `VAULT_BUSY` 分支注释写着「绝不把存储层的内部串抛到页面上」，这条走了同一条线，新增 `bg.autoSave.conflict` 中英两条。
 
