@@ -40,6 +40,11 @@ vi.mock('@/utils/frameFill', () => ({
     order.push('frames');
     return [0];
   }),
+  // 文档枚举与投递收敛进 fillTotpInFrames：顺序仍以 send 登记，真实实现要读 webNavigation，本测试不跑
+  fillTotpInFrames: vi.fn(async () => {
+    order.push('send');
+    return { result: { success: true }, firstResponse: null };
+  }),
   fillPasswordInFrames: vi.fn(),
 }));
 
@@ -213,7 +218,7 @@ describe('取码前先看剩余时间', () => {
           'generate',
           'send',
         ]);
-        expect(sendMessage).toHaveBeenCalled();
+
         expect(elMessage.success).toHaveBeenCalledTimes(1);
       }),
     );

@@ -1025,6 +1025,7 @@ const {
   removeDuplicates,
   isLocalOperation,
   consumeLocalOperation,
+  clearPasswordState,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
@@ -1251,9 +1252,9 @@ const {
   loadPasswords,
   // 列表解密要等会话判定之后：骨架据此先切到 setup / verify / vault，避免显示错状态
   onFirstViewResolved: markOptionsFirstView,
-  onSessionExpired: () => {
-    passwords.value = [];
-  },
+  // 锁定即同步作废在途整表加载：只清空数组的话，一次仍在 await 的旧读取完成后
+  // 会把明文列表与坏记录计数回填到锁定态页面上（「锁了但没锁」）。
+  onSessionExpired: clearPasswordState,
 });
 
 /**

@@ -56,6 +56,8 @@ export function useAuthFlow(options: {
   const showMasterPasswordSetup = ref(false);
   const showPasswordVerify = ref(false);
   let isAuthenticating = false;
+  /** 每轮认证/检查与锁定推进代际；旧 await、错误及延迟 UI 回调均不得覆盖新状态。 */
+  let authGeneration = 0;
 
   /** 防护标志：当广播导致会话过期时为 true，阻止 checkAuth 覆盖已过期状态 */
   const sessionExpiredByBroadcast = ref(false);
@@ -161,8 +163,10 @@ export function useAuthFlow(options: {
   // 检查认证状态
   const checkAuth = async () => {
     if (isAuthenticating) return;
+    const generation = ++authGeneration;
     try {
       const hasMaster = await StorageUtils.hasMasterPassword();
+      if (generation !== authGeneration) return;
 
       if (!hasMaster) {
         // 主密码配置不存在：强制重置为设置页，避免残留的已认证/验证页状态串台
@@ -173,6 +177,7 @@ export function useAuthFlow(options: {
         reportFirstView('setup');
 
         const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+        if (generation !== authGeneration) return;
         setupForm.value.validityHours = validityHours;
 
         nextTick(() => {
@@ -183,6 +188,7 @@ export function useAuthFlow(options: {
         });
       } else {
         const isSessionValid = await StorageUtils.isSessionValid();
+        if (generation !== authGeneration) return;
         if (isSessionValid) {
           // 竞态防护：如果会话已被广播标记为过期，不覆盖状态，避免显示加密乱码
           if (sessionExpiredByBroadcast.value) {
@@ -200,6 +206,8 @@ export function useAuthFlow(options: {
           if (!wasAuthenticated) {
             await loadPasswords();
           }
+          // 加载期间可能发生锁定（本上下文或别的窗口）：旧一轮不得把认证态写回来
+          if (generation !== authGeneration) return;
           isAuthenticated.value = true;
         } else {
           const wasVerifyVisible = showPasswordVerify.value;
@@ -214,6 +222,7 @@ export function useAuthFlow(options: {
             StorageUtils.getMasterPasswordValidityHours(),
             StorageUtils.getMasterPasswordHint(),
           ]);
+          if (generation !== authGeneration) return;
           verifyForm.value.validityHours = validityHours;
           masterPasswordHint.value = hint;
 
@@ -226,6 +235,8 @@ export function useAuthFlow(options: {
         }
       }
     } catch (error) {
+      // 被锁定作废的旧一轮：不打错误 toast、不改新状态
+      if (generation !== authGeneration) return;
       logger.error('Options: 检查认证状态失败:', error);
       const wasVerifyVisible = showPasswordVerify.value;
       showMasterPasswordSetup.value = false;
@@ -238,14 +249,19 @@ export function useAuthFlow(options: {
 
   // 处理设置主密码（表单验证由 MasterPasswordSetupView 组件处理）
   const handleSetupSubmit = async () => {
+    const generation = ++authGeneration;
     try {
       setupLoading.value = true;
       isAuthenticating = true;
 
       await StorageUtils.setMasterPassword(setupForm.value.password.trim(), setupForm.value.hint);
+      // 落盘主密码期间发生锁定：不再建立会话、不加载列表，避免把刚清的会话复活
+      if (generation !== authGeneration) return;
       await StorageUtils.setMasterPasswordValidityHours(setupForm.value.validityHours);
       await StorageUtils.createSession(setupForm.value.password.trim(), setupForm.value.validityHours);
+      if (generation !== authGeneration) return;
       await StorageUtils.migrateUnencryptedEntries(setupForm.value.password.trim());
+      if (generation !== authGeneration) return;
 
       ElMessage.success(t('auth.setupSuccess'));
 
@@ -254,13 +270,17 @@ export function useAuthFlow(options: {
       showPasswordVerify.value = false;
 
       await loadPasswords();
+      if (generation !== authGeneration) return;
       isAuthenticated.value = true;
     } catch (error) {
+      if (generation !== authGeneration) return;
       logger.error('设置主密码失败:', error);
       ElMessage.error(t('auth.setupFailed'));
     } finally {
-      setupLoading.value = false;
-      isAuthenticating = false;
+      if (generation === authGeneration) {
+        setupLoading.value = false;
+        isAuthenticating = false;
+      }
     }
   };
 
@@ -288,6 +308,7 @@ export function useAuthFlow(options: {
 
   // 处理密码验证（表单验证由 PasswordVerifyView 组件处理）
   const handleVerifySubmit = async (submittedPassword?: string) => {
+    const generation = ++authGeneration;
     try {
       // 子组件的输入与父级 props 是异步同步的；提交必须以子组件此刻的值（事件载荷）为准，
       // 否则快速输入后立刻回车可能读到父级尚未更新的空值。
@@ -309,6 +330,8 @@ export function useAuthFlow(options: {
       try {
         await StorageUtils.createSession(password, verifyForm.value.validityHours);
       } catch (authError) {
+        // 锁定已作废这一轮：旧派生的失败/拒绝不该改写新解锁的输入、错误与计数
+        if (generation !== authGeneration) return;
         const code = (authError as { code?: string } | undefined)?.code;
         if (code === VAULT_BUSY) {
           // 换钥进行中：不是密码错，不计数、不清输入，用户等它完成即可原地重试
@@ -320,32 +343,46 @@ export function useAuthFlow(options: {
         reportVerifyFailure(t('auth.wrongPassword'), true);
         return;
       }
+      if (generation !== authGeneration) return;
 
       sessionExpiredByBroadcast.value = false;
       verifyFailCount.value = 0;
       // 有效期偏好只在认证成功之后落盘：失败的那一次不该改动库里的设置
       await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
       await StorageUtils.migrateUnencryptedEntries(password);
+      if (generation !== authGeneration) return;
 
       showPasswordVerify.value = false;
       showMasterPasswordSetup.value = false;
 
       await loadPasswords();
+      if (generation !== authGeneration) return;
       isAuthenticated.value = true;
       ElMessage.success(t('auth.verifySuccess'));
     } catch (error) {
+      if (generation !== authGeneration) return;
       logger.error('验证失败:', error);
       reportVerifyFailure(t('auth.verifyError'), false);
     } finally {
-      verifyLoading.value = false;
-      isAuthenticating = false;
+      if (generation === authGeneration) {
+        verifyLoading.value = false;
+        isAuthenticating = false;
+      }
     }
   };
 
   // 处理会话过期事件
   const handleSessionExpired = async () => {
-    // 设置竞态防护标志，阻止后续的 checkAuth 覆盖状态
+    // 同步作废在途的认证/检查轮次，并立刻撤销认证态：
+    // 否则旧加载完成后会把「已认证」与明文列表复活到锁定后的页面上。
+    authGeneration++;
     sessionExpiredByBroadcast.value = true;
+    isAuthenticating = false;
+    // 被作废那一轮的 loading 由锁定本身收尾（其 finally 已因代际不匹配跳过），
+    // 否则解锁按钮会在旧请求真正结束前一直空转。
+    setupLoading.value = false;
+    verifyLoading.value = false;
+    isAuthenticated.value = false;
 
     // 会话已经结束：先销毁输入框里可能残留的主密码明文，再走任何分支。
     // 这里不能沿用 checkAuth 的 `wasVerifyVisible` 条件——那是「重新问一次认证状态」，
@@ -373,8 +410,11 @@ export function useAuthFlow(options: {
     showPasswordVerify.value = true;
     isAuthenticated.value = false;
 
+    const hintGeneration = authGeneration;
     void Promise.all([StorageUtils.getMasterPasswordValidityHours(), StorageUtils.getMasterPasswordHint()]).then(
       ([validityHours, hint]) => {
+        // 期间用户已完成新一轮解锁：旧的有效期/提示语读取不得回写新状态
+        if (hintGeneration !== authGeneration) return;
         verifyForm.value.validityHours = validityHours;
         masterPasswordHint.value = hint;
       },

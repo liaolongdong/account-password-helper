@@ -362,6 +362,14 @@ export enum MessageType {
    * `sender.tab.id` 与 `frameId: 0` 决定，页面侧既看不到也发不出。
    */
   DELEGATE_PAGE_NOTICE = 'DELEGATE_PAGE_NOTICE',
+  /** iframe 经后台委托顶层文档呈现保存确认；响应只返回经验证的一次性决定。 */
+  DELEGATE_SAVE_PROMPT = 'DELEGATE_SAVE_PROMPT',
+  /** 后台 → 指定顶层 documentId，绝不经过宿主 window message。 */
+  SHOW_DELEGATED_SAVE_PROMPT = 'SHOW_DELEGATED_SAVE_PROMPT',
+  /** 顶层内容脚本 → 后台，requestId 只能由绑定的渲染文档消费一次。 */
+  SAVE_PROMPT_DECISION = 'SAVE_PROMPT_DECISION',
+  /** 后台取消到期、导航或锁定后的委托 UI。 */
+  CANCEL_DELEGATED_SAVE_PROMPT = 'CANCEL_DELEGATED_SAVE_PROMPT',
   /** Options 站点规则表单请求在目标页面进入「点击拾取选择器」模式 */
   START_SELECTOR_PICK = 'START_SELECTOR_PICK',
   /** Options 站点规则表单取消拾取（弹窗关闭 / 切换字段） */
@@ -371,6 +379,27 @@ export enum MessageType {
   /** 内容脚本按 Esc 取消拾取 */
   SELECTOR_PICK_CANCELLED = 'SELECTOR_PICK_CANCELLED',
 }
+
+/**
+ * 授权时的接收者快照。
+ *
+ * `documentId` 是首选身份：Chrome 132+ 的 `webNavigation.getAllFrames` / `MessageSender`
+ * 才提供它，能把「授权时判定的那个文档」一直绑到投递时刻。缺它时退回 frameId +
+ * 顶层文档身份（Firefox 形态），仍要求顶层文档在授权与投递两次检查间未被替换。
+ */
+export interface AuthorizedFillDocument {
+  readonly tabId: number;
+  readonly frameId: number;
+  readonly documentId?: string;
+  readonly topDocumentId?: string;
+}
+
+/** 保存弹窗内部消息契约，与内容脚本既有展示/编辑类型共享字段。 */
+export type DelegatedSavePromptData = import('@/entrypoints/content/types').SavePromptData;
+export type SavePromptDecision =
+  | { action: 'save'; editedData: import('@/entrypoints/content/types').SavePromptEditedData }
+  | { action: 'dismiss' | 'neverAsk' };
+export type DelegatedSavePromptResponse = { success: true; decision: SavePromptDecision } | { success: false };
 
 /** 站点规则表单里要拾取的字段 */
 export type SelectorPickField = 'username' | 'password';
@@ -468,7 +497,11 @@ export type RuntimeMessage =
   | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
   | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData }
   | { type: MessageType.SHOW_PAGE_NOTICE; data: PageNoticeData }
-  | { type: MessageType.DELEGATE_PAGE_NOTICE; data: PageNoticeData };
+  | { type: MessageType.DELEGATE_PAGE_NOTICE; data: PageNoticeData }
+  | { type: MessageType.DELEGATE_SAVE_PROMPT; data: DelegatedSavePromptData }
+  | { type: MessageType.SHOW_DELEGATED_SAVE_PROMPT; data: { requestId: string; prompt: DelegatedSavePromptData } }
+  | { type: MessageType.SAVE_PROMPT_DECISION; data: { requestId: string; decision: SavePromptDecision } }
+  | { type: MessageType.CANCEL_DELEGATED_SAVE_PROMPT; data: { requestId: string } };
 
 /**
  * 侧边栏 → Background 的 Port 通道消息

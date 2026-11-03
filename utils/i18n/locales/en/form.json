@@ -11,6 +11,7 @@
   "form.tagLengthLimit": "Tag length cannot exceed {max} characters",
   "form.tagCountLimit": "You can select at most {max} tags",
   "form.updateSuccess": "Password updated",
+  "form.updateConflict": "This entry was changed in another window; refresh and try again",
   "form.addSuccess": "Password added",
   "form.copySuccess": "Duplicate created",
   "form.copyFailedDetail": "Failed to create a duplicate: {message}",

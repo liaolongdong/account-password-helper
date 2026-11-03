@@ -34,6 +34,13 @@ const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 /** 敏感字段集合：仅这些字段以密文形式存储，其余为明文元数据 */
 const SENSITIVE_FIELDS = ['username', 'password', 'url', 'remark', 'totp'] as const;
 
+/**
+ * 敏感编辑落盘时「本次没写到就取最新值」的元数据字段
+ *
+ * 与 `METADATA_FIELDS` 差一个 `updateTime`：那次时间戳由本函数统一决定，不能从旧行回填。
+ */
+const PRESERVED_METADATA_FIELDS = ['favorite', 'favoriteUsedAt', 'lastUsedAt', 'tag', 'order'] as const;
+
 /** 判断 updates 是否触及任一敏感字段（触及则需解密-合并-重新加密） */
 function updatesTouchSensitiveFields(updates: Partial<PasswordEntry>): boolean {
   return SENSITIVE_FIELDS.some(f => f in updates);
@@ -252,26 +259,56 @@ async function batchSavePasswordsInternal(
 }
 
 /**
+ * 敏感编辑的并发基线（可选）
+ *
+ * 只承载一个令牌：打开编辑弹窗那一刻读到的 `updateTime`。
+ * 提交时用它与重读到的最新行对账，判断「手里的明文快照还是不是当前版本」。
+ */
+export interface PasswordEditBaseline {
+  expectedUpdateTime: number;
+}
+
+/** 敏感编辑冲突错误码：同一行在编辑期间被别的上下文改过，本次提交被拒 */
+export type PasswordCrudErrorCode = 'UPDATE_CONFLICT';
+
+/** 构造带 code 的 Error，供 UI 按稳定码分流文案（不匹配散文错误信息） */
+function passwordCrudError(code: PasswordCrudErrorCode, message: string): Error {
+  const err = new Error(message) as Error & { code: PasswordCrudErrorCode };
+  err.code = code;
+  return err;
+}
+
+/**
  * 更新密码条目
+ *
+ * @param baseline 敏感编辑的并发基线；传入时，落盘前在提交锁内与最新行对账：
+ *   期间该行被别的上下文改过 → 抛 `UPDATE_CONFLICT`，绝不静默覆盖；
+ *   未传入（自动保存、元数据写入等）→ 行为与历史一致。
  */
 export async function updatePassword(
   id: string,
   updates: Partial<PasswordEntry>,
   masterPassword?: string,
+  baseline?: PasswordEditBaseline,
 ): Promise<void> {
-  return queuePasswordWrite(() => withVaultMutation(() => updatePasswordInternal(id, updates, masterPassword)));
+  return queuePasswordWrite(() =>
+    withVaultMutation(() => updatePasswordInternal(id, updates, masterPassword, baseline)),
+  );
 }
 
 async function updatePasswordInternal(
   id: string,
   updates: Partial<PasswordEntry>,
   masterPassword?: string,
+  baseline?: PasswordEditBaseline,
 ): Promise<void> {
   try {
-    // 开头这次读只用来早退：条目已不存在时，不必再付一次密钥派生与整包重读。
-    // 真正的落盘基准一律是提交锁内重读到的那一行（见下面的敏感路径注释）。
+    // 这次读只用来早退与取「解密基准行」：条目已不存在时，不必再付一次密钥派生。
+    // 落盘基准一律是提交锁内重读到的那一行（见下面敏感路径的字段级对账）。
     const passwords = await getAllPasswordsRaw();
-    if (!passwords.some(p => p.id === id)) return;
+    const currentIndex = passwords.findIndex(p => p.id === id);
+    if (currentIndex === -1) return;
+    const current = passwords[currentIndex];
 
     // 仅更新非敏感元数据（favorite/favoriteUsedAt/lastUsedAt/tag/order 等）：
     // 直接在（密文）条目上就地更新，无需加解密也无需会话密钥，
@@ -296,44 +333,92 @@ async function updatePasswordInternal(
     }
 
     // 敏感字段变更：解密 → 合并 updates → 重新加密写回（at-rest 始终密文）。
-    // 密钥解析留在租约内、提交锁外（派生是 PBKDF2，进锁会把另一个数据域的整包写一起拖住）；
-    // 但**解密与重加密必须在提交锁内、对着落盘前重读到的那一行做**。事务开头那份快照可能已经
-    // 被另一个上下文的编辑超过，拿它解密再整行写回，就会把对方改过的 username/url/remark/totp
-    // 用旧明文重新加密盖掉——而两边都收到「保存成功」，用户无从察觉（评审 2026-11-02 Q1）。
+    // 密钥解析与加解密都留在提交锁外：一次编辑要付 5 组 importKey + decrypt/encrypt，占着锁
+    // 会把另一个数据域的整包写一起拖住（与身份库同口径）。代价是手里这份明文可能已经过期，
+    // 所以落盘一律以锁内重读到的那一行为基准、逐字段对账，本次没写的字段取对方最新的密文
+    // （敏感字段本就逐字段加密，取过来无需再解密）——评审 2026-11-02 Q1 那次是整行拿旧明文
+    // 重加密写回，把对方刚改完的备注/密码盖了回去，而两边都收到「保存成功」。
     const key = await resolveDataKey(masterPassword, true);
     if (!key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
     const enc = await _getEncryption();
+    const currentPlain = await enc.decryptPasswordEntry(current as EncryptedPasswordEntry, masterPassword ?? '', key);
 
+    // 调用方这次到底改没改口令：拿它自己载入的明文比，判据与落盘基准无关，留在锁外算。
+    // 「要不要写历史」也在锁外定；「写哪一份密文进历史」必须在锁内定——见下面 snapshot 那两行。
+    const passwordChanged = 'password' in updates && updates.password !== currentPlain.password;
+
+    // 显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
+    const updatedPlain: PasswordEntry = {
+      ...currentPlain,
+      ...updates,
+      updateTime: updates.updateTime ?? Date.now(),
+    } as PasswordEntry;
+    const reEncrypted = (await enc.encryptPasswordEntry(updatedPlain, masterPassword ?? '', key)) as unknown as Record<
+      string,
+      unknown
+    >;
+
+    // 提交锁内的对账结论：true = 带基线的调用方要改的敏感字段已被别人改过，本次不得覆盖
+    let conflictDetected = false;
     await commitPasswordRows(async list => {
       const at = list.findIndex(p => p.id === id);
       // 解密→再加密之间可达数百毫秒，期间另一来源删掉这条时，本次写不得把它复活
       if (at === -1) return null;
-      const latest = list[at] as EncryptedPasswordEntry;
-      const latestPlain = await enc.decryptPasswordEntry(latest, masterPassword ?? '', key);
-
-      // 旧密文快照必须在 lease 释放前结算，不能在换钥完成后迟到写回；失败仍非致命。
-      if ('password' in updates && updates.password !== latestPlain.password) {
-        await snapshotPasswordHistoryWithinLease(id, latest.password).catch(error =>
+      const latest = list[at] as unknown as Record<string, unknown>;
+      // 带基线的调用方改过任一敏感字段，而行在期间又被别人改过：手里只有密文，判断不出对方
+      // 改的是不是同一字段，只能按冲突拒绝——静默覆盖任一方都是不可逆的凭据丢失。
+      const editedElsewhere = !!baseline && latest.updateTime !== baseline.expectedUpdateTime;
+      if (editedElsewhere && SENSITIVE_FIELDS.some(field => field in updates)) {
+        conflictDetected = true;
+        return null;
+      }
+      // 旧密文快照排在删除判定与冲突拒绝之后：本次真正落盘时才写历史，被拒的提交不许在历史里
+      // 留下重复条目。存的是 `latest.password`——真正被这次编辑取代的那一份密文；拿事务开头的
+      // `current.password` 快照，会在并发改密时把对方那把口令永久漏出历史（评审 2026-11-02 Q1）。
+      // 失败仍非致命，但要留痕，且必须在 lease 释放前结算。
+      if (passwordChanged) {
+        await snapshotPasswordHistoryWithinLease(id, String(latest.password ?? '')).catch(error =>
           logger.error('保存旧密码历史快照失败:', error),
         );
       }
-
-      // 同上：显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
-      const updatedPlain: PasswordEntry = {
-        ...latestPlain,
-        ...updates,
-        updateTime: updates.updateTime ?? Date.now(),
-      } as PasswordEntry;
-      // decryptPasswordEntry 以 `...rest` 展开全部非敏感字段，所以对方期间完成的收藏 / 使用痕迹 /
-      // 标签天然随这一行的最新值一起带走——原先逐字段回填那 5 个元数据已经不需要了，而且那种回填
-      // 只护得住名单里的字段，正是 Q1 漏掉其余敏感字段的根因。
+      // 字段级回填不看 `editedElsewhere`：没有基线的调用方无从对账，但「不拿旧明文盖掉对方
+      // 已经落盘的字段」这条仍然成立，而那正是 Q1 的丢数据路径。无并发时 latest 就是 current，
+      // 取过来与取自己这份完全一致，不改变任何既有行为。
       const next = [...list];
-      next[at] = (await enc.encryptPasswordEntry(updatedPlain, masterPassword ?? '', key)) as
-        PasswordEntry | EncryptedPasswordEntry;
+      if (latest.encrypted !== true) {
+        // at-rest 迁移窗口里的未迁移行：字段在盘上还是明文。从这一行现算再整体加密——
+        // 既保住对方并发写入的明文值，也保证落盘的是「五个敏感字段齐作密文」的完整行。
+        // 不能走下面的密文回填：把明文值搬进 `encrypted: true` 的行会被迁移按标记跳过，
+        // 明文就永久冻在盘上（`decryptPasswordEntry` 对未加密行是原样返回，不报错，挡不住）。
+        const freshPlain = await enc.decryptPasswordEntry(
+          list[at] as EncryptedPasswordEntry,
+          masterPassword ?? '',
+          key,
+        );
+        const mergedPlain = {
+          ...freshPlain,
+          ...updates,
+          updateTime: updates.updateTime ?? Date.now(),
+        } as PasswordEntry;
+        next[at] = (await enc.encryptPasswordEntry(mergedPlain, masterPassword ?? '', key)) as
+          PasswordEntry | EncryptedPasswordEntry;
+        return next;
+      }
+      const nextRow = { ...reEncrypted };
+      for (const field of SENSITIVE_FIELDS) {
+        if (!(field in updates)) nextRow[field] = latest[field];
+      }
+      for (const field of PRESERVED_METADATA_FIELDS) {
+        if (!(field in updates)) nextRow[field] = latest[field];
+      }
+      next[at] = nextRow as unknown as PasswordEntry | EncryptedPasswordEntry;
       return next;
     });
+    if (conflictDetected) {
+      throw passwordCrudError('UPDATE_CONFLICT', '该条目已被其他窗口修改，请刷新后重试');
+    }
   } catch (error) {
     logger.error('更新密码失败:', error);
     throw error;

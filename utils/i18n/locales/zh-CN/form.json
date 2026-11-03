@@ -11,6 +11,7 @@
   "form.tagLengthLimit": "标签长度不能超过 {max} 个字符",
   "form.tagCountLimit": "最多只能选择 {max} 个标签",
   "form.updateSuccess": "密码更新成功",
+  "form.updateConflict": "该条目已被其他窗口修改，请刷新后重试",
   "form.addSuccess": "密码添加成功",
   "form.copySuccess": "副本已创建",
   "form.copyFailedDetail": "创建副本失败: {message}",

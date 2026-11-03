@@ -342,6 +342,23 @@ export function updatePasswordCache(passwords: PasswordEntry[], domain: string, 
 }
 
 /**
+ * 侧边栏排序配置单独变化时的轻量刷新（密码数据未变）
+ *
+ * 走全量 `invalidatePasswordCache` 会把仍有效的明文缓存一并清空：下一次
+ * GET_INITIAL_DATA / 内联查询要重做整库读取 + 最多 5N 次字段解密（2000 条量级为
+ * 数百毫秒），而本次变更只影响「条目怎么排」。这里只换排序镜像并用内存明文
+ * 覆盖式重建快照，明文缓存原地保留。
+ */
+export async function refreshSidepanelSortCache(): Promise<void> {
+  _cachedSortConfig = undefined;
+  const sortConfig = await getSidepanelSortConfig().catch(() => null);
+  _cachedSortConfig = sortConfig;
+  if (passwordCache?.isAuthenticated) {
+    await persistCacheSnapshot(passwordCache, sortConfig).catch(() => {});
+  }
+}
+
+/**
  * 使密码缓存失效
  * 同时重置 _cachedValidityMs、排序配置缓存与跨子域档位镜像，确保配置变更后下次重新读取。
  *

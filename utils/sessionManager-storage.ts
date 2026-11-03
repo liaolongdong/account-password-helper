@@ -75,6 +75,14 @@ let sessionEpoch = 0;
 const _isBackgroundContext = typeof window === 'undefined';
 
 /**
+ * 换钥发布与锁定删除共用短提交锁；独立于 vault 租约，避免换钥持有独占租约时重入死锁。
+ * 预读取与加解密不得放入此锁：clearSession 只等待最终复核/提交，不等待挂起的预读取。
+ */
+function withSessionCommit<T>(operation: () => Promise<T>): Promise<T> {
+  return navigator.locks.request('aph-session-commit', { mode: 'exclusive' }, () => operation());
+}
+
+/**
  * clearSession() 进行中的 Promise（同一上下文内去重）
  *
  * 过期检测（isSessionValid）、缓存预热（warmPasswordCache）、
@@ -832,29 +840,38 @@ export async function publishSessionRekey(dataKey: string, prepared: PreparedSes
   const lockState = (await chrome.storage.session.get(SESSION_MEMORY_KEYS.SESSION_LOCK_STATE))[
     SESSION_MEMORY_KEYS.SESSION_LOCK_STATE
   ] as { locked?: boolean } | undefined;
-  if (lockState?.locked === true) {
-    logger.warn('跳过发布换钥会话材料：另一上下文已锁定当前库，不复活会话');
+  if (sessionEpoch !== epoch || lockState?.locked === true) {
+    logger.warn('跳过发布换钥会话材料：当前库已锁定，不复活会话');
     return false;
   }
-  const expiry = prepared[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
-  adoptRekeyedSession(wrapped, expiry, prepared[SESSION_STORAGE_KEYS.VALIDITY_HOURS]);
-  const adoptedEpoch = sessionEpoch;
-  sessionDataKey = dataKey;
-  try {
-    await chrome.storage.session.set({
-      [SESSION_MEMORY_KEYS.DATA_KEY]: dataKey,
-      [SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]: wrapped,
-      [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: expiry },
-    });
-    if (adoptedEpoch !== sessionEpoch) {
-      sessionDataKey = null;
-      await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
-      return false;
+  return withSessionCommit(async () => {
+    if (sessionEpoch !== epoch) return false;
+    // 排队前的读取只是预检查；锁内重读盘上配对与锁定镜像，覆盖另一上下文已完成的 clear。
+    const latest = await chrome.storage.local.get(SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY);
+    if (sessionEpoch !== epoch || latest[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] !== wrapped) return false;
+    const latestLock = (await chrome.storage.session.get(SESSION_MEMORY_KEYS.SESSION_LOCK_STATE))[
+      SESSION_MEMORY_KEYS.SESSION_LOCK_STATE
+    ] as { locked?: boolean } | undefined;
+    if (sessionEpoch !== epoch || latestLock?.locked === true) return false;
+
+    const expiry = prepared[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+    try {
+      await chrome.storage.session.set({
+        [SESSION_MEMORY_KEYS.DATA_KEY]: dataKey,
+        [SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]: wrapped,
+        [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: expiry },
+      });
+    } catch (error) {
+      if (sessionEpoch !== epoch) return false;
+      logger.warn('会话内存镜像写入失败，将从已提交密钥恢复:', error);
     }
-  } catch (error) {
-    logger.warn('会话内存镜像写入失败，将从已提交密钥恢复:', error);
-  }
-  return true;
+    // 始终使用入口代际；clear 已同步销毁内存，且会在拿到此锁后删除可能迟到的 set。
+    // 不在这里补删，否则可能误伤后续新解锁建立的镜像。
+    if (sessionEpoch !== epoch) return false;
+    adoptRekeyedSession(wrapped, expiry, prepared[SESSION_STORAGE_KEYS.VALIDITY_HOURS]);
+    sessionDataKey = dataKey;
+    return true;
+  });
 }
 
 /**
@@ -954,27 +971,25 @@ async function _doClearSession(): Promise<void> {
     sessionDataKey = null;
     _encryptAtRestDone = false;
 
-    try {
-      // 同时更新锁定状态镜像：侧边栏 isSessionQuicklyKnownInvalid() 下次打开时
-      // 可通过纯内存 IPC 立即感知锁定，无需等待 storage.local 磁盘读取
-      // 成对删除：读侧（getSessionDataKey 的缓存路径）拿 `DATA_KEY` 与 `DATA_KEY_WRAPPED`
-      // 配对来判断「这份明文镜像是否还对应当前密文」。只删前者会让锁定后的会话里
-      // 残留一枚孤立的配对指纹，与 `publishSessionRekey` 的成对移除口径不一致。
-      await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
-      void chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } }).catch(() => {});
-    } catch {
-      // storage.session 不可用时忽略
-    }
+    // 内存失效必须先同步完成；只把最终存储提交与发布互斥，不取得/等待 vault 租约。
+    await withSessionCommit(async () => {
+      try {
+        // 成对删除明文镜像与配对指纹；锁定镜像也必须在释放锁前写完。
+        await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
+        await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } });
+      } catch {
+        // storage.session 不可用时忽略
+      }
 
-    // 注：不清除 WRAP_KEY——它仅是每次写入会话时随机生成的临时包裹密钥，
-    // 缺少 WRAPPED_DATA_KEY 时单独存在无任何意义，保留仅为省去一次删除写操作。
-    await chrome.storage.local.remove([
-      SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
-      SESSION_STORAGE_KEYS.MASTER_PASSWORD,
-      SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
-      SESSION_STORAGE_KEYS.VALIDITY_HOURS,
-      SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
-    ]);
+      // 不清除 WRAP_KEY：缺少 WRAPPED_DATA_KEY 时单独存在无任何意义。
+      await chrome.storage.local.remove([
+        SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
+        SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+        SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+        SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+        SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
+      ]);
+    });
   } catch (error) {
     logger.error('清除会话缓存失败:', error);
     throw error;

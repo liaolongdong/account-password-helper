@@ -131,6 +131,8 @@ describe('身份库写路径的临界区范围', () => {
       'master-pw',
     );
 
+    // 只有导入胜出的行才重新加密：磁盘上没被导入覆盖的 id=a 连密文都不该动
+    // （逐 id 定夺只需要 decrypt 一次判断可解性，不需要再加密回去）。
     expect(heldAt.encrypt).toHaveLength(3);
     assertOutsideCommitSection(heldAt.encrypt, '批量 encryptData');
     assertOutsideCommitSection(heldAt.derive, 'deriveEncryptionKey');

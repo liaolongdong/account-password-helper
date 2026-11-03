@@ -22,7 +22,15 @@ const { isSessionValid, getAllPasswords, getDomainMatchConfig, updatePassword, s
   isSessionValid: vi.fn<() => Promise<boolean>>(),
   getAllPasswords: vi.fn<() => Promise<PasswordEntry[]>>(),
   getDomainMatchConfig: vi.fn<() => Promise<DomainMatchConfig>>(),
-  updatePassword: vi.fn<(id: string, updates: Partial<PasswordEntry>) => Promise<void>>(),
+  updatePassword:
+    vi.fn<
+      (
+        id: string,
+        updates: Partial<PasswordEntry>,
+        masterPassword?: string,
+        baseline?: { expectedUpdateTime: number },
+      ) => Promise<void>
+    >(),
   savePassword: vi.fn<(entry: Omit<PasswordEntry, 'id' | 'order'>) => Promise<PasswordEntry>>(),
 }));
 
@@ -795,12 +803,18 @@ describe('autoSavePassword 标签与备注落盘口径', () => {
 
     await autoSavePassword(makePayload({ tag: 'x9', tagEdited: true }));
 
-    expect(updatePassword).toHaveBeenCalledWith('a', {
-      password: NEW_PASSWORD,
-      tag: 'x9',
-      remark: '旧备注',
-      updateTime: expect.any(Number),
-    });
+    expect(updatePassword).toHaveBeenCalledWith(
+      'a',
+      {
+        password: NEW_PASSWORD,
+        tag: 'x9',
+        remark: '旧备注',
+        updateTime: expect.any(Number),
+      },
+      undefined,
+      // 并发基线：本次读取到的 updateTime，落盘前在提交锁内与最新行对账
+      { expectedUpdateTime: expect.any(Number) },
+    );
   });
 });
 
@@ -883,6 +897,20 @@ describe('autoSavePassword 前置门禁与失败分支', () => {
     });
   });
 
+  it('更新撞上 UPDATE_CONFLICT 时给本地化专文，不把存储层的中文串送到页面上', async () => {
+    isSessionValid.mockResolvedValue(true);
+    getAllPasswords.mockResolvedValue(storedEntries());
+    updatePassword.mockRejectedValueOnce(
+      Object.assign(new Error('该条目已被其他窗口修改，请刷新后重试'), { code: 'UPDATE_CONFLICT' }),
+    );
+
+    const res = await autoSavePassword(makePayload());
+
+    expect(res).toEqual({ success: false, message: tl('bg.autoSave.conflict') });
+    // 存储层那条中文是内部串：英文界面下会原样上屏，判据把它和文案本体分开钉住
+    expect(res.message).not.toContain('该条目已被其他窗口修改');
+  });
+
   it('其他异常走通用失败文案并带上错误原因', async () => {
     isSessionValid.mockResolvedValue(true);
     getAllPasswords.mockResolvedValue([]);
@@ -951,12 +979,17 @@ describe('autoSavePassword / checkCredentialStatus 的端口归属', () => {
 
     await autoSavePassword(makePayload({ url: 'example.com:8443', protocol: 'https:' }));
 
-    expect(updatePassword).toHaveBeenCalledWith('p8443', {
-      password: NEW_PASSWORD,
-      tag: 'x1',
-      remark: tl('cs.save.autoSaveRemark'),
-      updateTime: expect.any(Number),
-    });
+    expect(updatePassword).toHaveBeenCalledWith(
+      'p8443',
+      {
+        password: NEW_PASSWORD,
+        tag: 'x1',
+        remark: tl('cs.save.autoSaveRemark'),
+        updateTime: expect.any(Number),
+      },
+      undefined,
+      { expectedUpdateTime: expect.any(Number) },
+    );
     expect(savePassword).not.toHaveBeenCalled();
   });
 

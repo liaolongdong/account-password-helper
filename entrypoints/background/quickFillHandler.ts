@@ -22,7 +22,7 @@ import { logger } from '@/utils/logger';
 import { tl } from '@/utils/i18n-lite';
 import { MessageType } from '@/utils/types';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
-import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
+import { getFillableDocuments, fillPasswordInFrames } from '@/utils/frameFill';
 import { parsePagePortContext } from '@/utils/domain';
 import {
   ensureCredentialAccessAfterStartupRelock,
@@ -315,11 +315,13 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
     return;
   }
 
-  // 填充排序首条：逐 frame 并行下发（与侧边栏填充路径一致），校验填充结果
+  // 填充排序首条：逐文档并行下发（与侧边栏填充路径一致），校验填充结果。
+  // 接收者绑文档而不是 frameId：从取数到投递之间若发生导航，复用同一 frameId 的新文档
+  // 不会拿到明文（sendToAuthorizedDocument 抛「接收端不存在」）。
   const entry = matched[0];
   try {
-    const frameIds = await getFillableFrameIds(tabId);
-    const result = await fillPasswordInFrames(tabId, frameIds, {
+    const documents = await getFillableDocuments(tabId);
+    const result = await fillPasswordInFrames(tabId, documents, {
       username: entry.username,
       password: entry.password,
       autoLogin: false,

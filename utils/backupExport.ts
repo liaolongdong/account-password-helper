@@ -119,6 +119,47 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
       ) {
         throw new Error('backup_verify_mismatch');
       }
+      // 自检必须走**真实导入解析器**并逐字段比对：只比 version/count 时，解析侧对凭据
+      // 做的任何归一化（历史缺陷：密码首尾空白被修剪）都会「自检通过、恢复后密码已不是
+      // 那一把」。
+      // 口径必须与解析器一致，否则合法自导出会被判「备份不可用」而用户没有任何修复入口：
+      // 解析器对 username/url/tag/totp/remark 做 trim、并丢弃空用户名行（库里可能存在
+      // 这类历史/外部脏值），只有 password 逐字符保真。故：
+      //  - password：源值原样比对（这正是本次要守住的不变量）；
+      //  - 其余字段：按解析器口径归一后比对；
+      //  - 比对前先按同一规则过滤源数组，避免下标错位把后面所有条目误报成 drift。
+      const roundTrip = parseBackupContainer(parsed, true);
+      const source = passwords
+        .filter(p => p.username.trim() !== '')
+        .map(p => ({
+          username: p.username.trim(),
+          password: p.password,
+          url: p.url.trim(),
+          tag: (p.tag ?? '').trim(),
+          remark: (p.remark ?? '').trim(),
+          totp: (p.totp ?? '').trim(),
+          createTime: p.createTime,
+          updateTime: p.updateTime,
+          favorite: !!p.favorite,
+        }));
+      const sameLength = source.length === roundTrip.length;
+      const drifted = sameLength
+        ? roundTrip.some(
+            (got, i) =>
+              got.username !== source[i].username ||
+              got.password !== source[i].password ||
+              got.url !== source[i].url ||
+              got.tag !== source[i].tag ||
+              got.remark !== source[i].remark ||
+              got.totp !== source[i].totp ||
+              got.createTime !== source[i].createTime ||
+              got.updateTime !== source[i].updateTime ||
+              !!got.favorite !== source[i].favorite,
+          )
+        : true;
+      if (drifted) {
+        throw new Error(sameLength ? 'backup_verify_field_drift' : 'backup_verify_count_drift');
+      }
     } catch (cause) {
       logger.error('加密备份自检未通过:', cause);
       const err = new Error(t('backup.exportVerifyFailed'));
