@@ -542,19 +542,40 @@ describe('从个人信息库选择（导航入口）', () => {
     );
   });
 
-  it('会话失效时提示解锁（可点击直达），且不打开身份库', async () => {
+  /**
+   * 锁定态也走同一条投递路径：这条指令的落点本来就是管理页，把召唤原样交给它，
+   * 由管理页给反馈并记成「解锁后续接」（用户解锁后库自己打开，不必回原网页再右键一次）。
+   * 就地劝退那一版把这一次点击丢在了页面上，是本次收口的对象。
+   */
+  it('会话失效时同样把召唤交给管理页，投递成功不再叠加页面提示', async () => {
     mockedSessionActive.mockReturnValue(false);
     mockedSessionValid.mockResolvedValue(false);
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
 
     await vi.waitFor(() =>
-      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.identityLocked', 'cm.title', 'unlock-required'),
+      expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
+        sourceTabId: 1,
+      }),
     );
-    expect(mockedOpenOptionsAndSendMessage).not.toHaveBeenCalled();
+    expect(mockedNotifyFailure).not.toHaveBeenCalled();
   });
 
-  it('打开身份库失败时走通知反馈，不静默吞掉', async () => {
+  /** 唯一回退到页面提示 + 通知的情形：消息确实没送达。锁定态那条通知仍带「点击直达解锁页」的 ID */
+  it('会话失效且投递失败时回退到可点击直达的解锁通知', async () => {
+    mockedSessionActive.mockReturnValue(false);
+    mockedSessionValid.mockResolvedValue(false);
+    mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: false });
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.identityLocked', 'cm.title', 'unlock-required'),
+    );
+    expect(mockedOpenOptionsAndSendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('会话有效但投递失败时按打开失败反馈（此时催解锁没有意义）', async () => {
     mockedOpenOptionsAndSendMessage.mockResolvedValue({ success: false });
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-identity' } as chrome.contextMenus.OnClickData, tab);

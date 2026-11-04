@@ -24,6 +24,9 @@
  * - 会话失效优先就地展开内联下拉锁定卡片（与一键填充同一策略，锚定被右键的输入框）；
  * - 其余失败与面板无法展开时走三层反馈：页面内提示条（不依赖系统通知权限）
  *   + 桌面通知 + 工具栏角标；「需解锁」通知可点击直达主密码验证页。
+ * - 「从个人信息库选择」是**落点在管理页**的那一档：锁定态也把召唤原样交给管理页，
+ *   反馈与「解锁后续接」都归它，只有消息没送达时才回退到上面的通知
+ *   （层次归属的完整规则见 `docs/ARCHITECTURE.md`「锁定态反馈的三层归属」）。
  *
  * @module entrypoints/background/contextMenuManager
  */
@@ -397,9 +400,14 @@ async function handleContextMenuFill(
 /**
  * 从个人信息库选择：只导航，不读取右键目标与字段值
  *
- * 身份库的明文与解密都留在管理页，本入口只负责把用户送到 Options 的身份库；
- * 会话失效时按既有三层反馈提示解锁（通知可点击直达），不静默丢弃意图。
- * 不复用填充路径的 `isFrameFillable`：本路径既不下发明文也不读取条目。
+ * 身份库的明文与解密都留在管理页，本入口只负责把用户送到 Options 的身份库。
+ * **锁定态也照这条路径走**：这条指令的落点本来就是管理页，把召唤原样交给管理页，由它给出
+ * 与字段提示同一句反馈并记成「解锁后续接」（`utils/identity/summonIntent`）——用户解锁后库自己打开，
+ * 不必回原网页再右键一次。会话有效与失效因此共用一条投递路径，反馈渠道也只剩一个。
+ * 只在消息确实没送达时才回退到「页面提示条 + 通知」，锁定态那条通知仍可点击直达主密码验证页。
+ * 不复用填充路径的 `isFrameFillable`，也不走填充路径的「就地展开内联下拉」：本路径既不下发明文
+ * 也不读取条目，留在页面上解锁引导之后仍要到管理页才能取值（引导层次归属见 `docs/ARCHITECTURE.md`
+ * 「锁定态反馈的三层归属」）。
  *
  * 来源标签页取 `onClicked` 递交的 `tab`（浏览器盖章，非页面自报）并经协议白名单收窄，
  * 库内据此给出「回到原网页」出口——右键恰恰是字段提示没出现的那一类场景，
@@ -409,22 +417,19 @@ async function handleContextMenuFill(
  */
 async function handleIdentityPick(tab: chrome.tabs.Tab | undefined): Promise<void> {
   const tabId = tab?.id;
-  if (!isSessionActiveSync()) {
-    const valid = await isSessionValid();
-    if (!valid) {
-      await notifyContextMenuFailure(tabId, tl('cm.identityLocked'), UNLOCK_NOTIFICATION_ID);
-      return;
-    }
-  }
-
+  // 会话状态只用来挑失败文案：锁定态那句要带「点击直达解锁页」的通知 ID
+  const locked = !isSessionActiveSync() && !(await isSessionValid());
   const sourceTabId = resolveSourceTabId(tab?.id, tab?.url);
   const response = await openOptionsAndSendMessage(
     MessageType.OPEN_OPTIONS_AND_IDENTITY,
     sourceTabId === undefined ? undefined : { sourceTabId },
   );
-  if (!response.success) {
-    await notifyContextMenuFailure(tabId, tl('cm.identityPickFailed'));
-  }
+  if (response.success) return;
+  await notifyContextMenuFailure(
+    tabId,
+    locked ? tl('cm.identityLocked') : tl('cm.identityPickFailed'),
+    locked ? UNLOCK_NOTIFICATION_ID : undefined,
+  );
 }
 
 /**

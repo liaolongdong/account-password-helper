@@ -491,6 +491,11 @@ import { decideBackupNudge } from '@/utils/backup/changeDetection';
 import { readBackupNudgeDismissed, writeBackupNudgeDismissed } from '@/utils/backup/nudgeDismissal';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
+import {
+  takeIdentitySummon,
+  type PendingIdentitySummon,
+  type IdentitySummonIntent,
+} from '@/utils/identity/summonIntent';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
@@ -822,8 +827,17 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
   if (shouldVerifyIdentityVault(verifyPolicy, identityVaultVerifiedThisSession)) {
     const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
     if (!masterPassword) return false;
+    // 两次 `await` 之间会话可能已从别处落回锁定态（另一页「立即锁定」、过期广播、checkAuth 自检），
+    // 而复验只比对落盘的校验串、与会话是否活着无关，所以「验过了」不等于「现在能开库」。
+    // 这里必须当场作废：置位会污染 `perSession` 的免验凭据（下一次解锁直接跳过门槛），
+    // 开窗则会在锁定态端出一张空列表——两条都是「引导 → 复验 → 空库」那条死路的形状。
+    // 「解锁续接」（下方 `isAuthenticated` 监听）是第一条无需用户意图就能把弹窗摆到屏上的路径，
+    // 这个窗口从此不再是理论上的。
+    if (!isAuthenticated.value) return false;
     identityVaultVerifiedThisSession = true;
   }
+  // 免验档（`followValidity`）没有上面那道复核的机会，所以开窗前统一再看一次状态
+  if (!isAuthenticated.value) return false;
   identityVault.keyword.value = presetKeyword;
   showIdentityVaultDialog.value = true;
   return true;
@@ -877,6 +891,30 @@ const openIdentityVaultFromPage = async (keyword?: string, sourceTabId?: number)
   // 先过门槛、后记来源：复验被取消时弹窗没开，留下一条「能把你切走」的意图只会变成脏状态。
   const opened = await openIdentityVaultWithVerify(keyword);
   if (opened) void vaultReturn.remember(sourceTabId);
+};
+
+/**
+ * 被锁定态门禁挡下的那一次身份库召唤（等解锁后续接）
+ *
+ * 与 `pendingSiteRuleDomain` 同一口径：门禁挡下的是「现在不能开」，不是「这次点击作废」。
+ * 记录只活在本页文档的内存里，刻意不落 `chrome.storage`——它带的检索词可能是用户姓名（PII），
+ * 落盘等于把它留到会话之外；同一粒度的既有先例是 `identityVaultVerifiedThisSession`。
+ * 过期与单次消费的判据见 `utils/identity/summonIntent`。只有一个槽位：连着召唤多次覆盖成最近那一次，
+ * 解锁时也就只开一个库弹窗，不会叠出 N 张。
+ */
+const pendingIdentitySummon = ref<PendingIdentitySummon | null>(null);
+
+/**
+ * 记下被挡下的召唤，并说清接下来会发生什么
+ *
+ * 复验门槛照旧要问（`perSession` 档下解锁后的第一次打开仍然验），这里省掉的是「回原网页再右键一次」，
+ * 不省任何一道验证。
+ *
+ * @param intent 选项页侧已收口的两个标签
+ */
+const rememberIdentitySummon = (intent: IdentitySummonIntent): void => {
+  pendingIdentitySummon.value = { ...intent, takenAt: Date.now() };
+  ElMessage.info(t('identity.needUnlock'));
 };
 
 /**
@@ -1619,7 +1657,7 @@ watch(
   { flush: 'sync' },
 );
 
-/** 会话状态切换时清理身份库明文/弹窗，并续上未解锁期间收到的站点规则引导 */
+/** 会话状态切换时清理身份库明文/弹窗，并续上未解锁期间收到的站点规则引导与身份库召唤 */
 watch(isAuthenticated, authenticated => {
   if (!authenticated) {
     identityVault.teardown();
@@ -1635,6 +1673,18 @@ watch(isAuthenticated, authenticated => {
   if (pending) {
     pendingSiteRuleDomain.value = null;
     openSiteRules(pending);
+  }
+  // 身份库召唤取走即清（不论是否还新鲜）：留在槽里会在之后的每一次解锁上重放同一件事。
+  // 过期那条只丢记录、不补反馈——用户早已离开这条链路，此刻说话反而是打扰。
+  // 复验门槛照旧在这一次打开里生效，续接省的是「回原网页再右键一次」，不是任何一道验证。
+  const summon = takeIdentitySummon(pendingIdentitySummon.value);
+  pendingIdentitySummon.value = null;
+  if (summon) {
+    // 复验策略要现读一次 storage，这一步可能直接 reject；槽位已经消费掉了，不接住就是「解锁后
+    // 什么都没发生」的静默失效（与上面门槛同一条链路上的既有缺口，见评审报告 §1-8）
+    void openIdentityVaultFromPage(summon.keyword, summon.sourceTabId).catch(error =>
+      logger.error('Options: 身份库召唤续接失败:', error),
+    );
   }
 });
 
@@ -2021,9 +2071,9 @@ useRuntimeMessageHandler({
   openDomainMatchSetting,
   applySearchKeyword,
   openIdentityVault: openIdentityVaultFromPage,
-  // 锁定态被门禁挡下的右键召唤：与 `openSiteRules` 同一口径给一句可读反馈，
-  // 别让「标签页切过来然后什么都没有」成为这条链路的唯一下场。
-  notifyIdentityNeedUnlock: () => ElMessage.info(t('identity.needUnlock')),
+  // 锁定态被门禁挡下的身份库召唤：与 `openSiteRules` 同一口径给一句可读反馈，并把这一次
+  // 召唤记成「解锁后续接」——别让「标签页切过来然后什么都没有」成为这条链路的唯一下场。
+  notifyIdentityNeedUnlock: rememberIdentitySummon,
 });
 
 // ==================== 使用指引文档中页 ====================
