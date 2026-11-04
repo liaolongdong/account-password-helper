@@ -4,6 +4,7 @@ import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 import { normalizeSourceTabId } from '@/utils/sourceTab';
+import type { IdentitySummonIntent } from '@/utils/identity/summonIntent';
 
 /**
  * Runtime 消息监听 Composable
@@ -45,8 +46,11 @@ export function useRuntimeMessageHandler(options: {
    *
    * 门禁本身留在本处（开库只会得到一张空列表），但被挡下不能无声——只有调用方握着
    * `t()` 与 `ElMessage`，所以由它来说话。缺省不接时退化成原来的静默忽略。
+   *
+   * 参数是**已收口的召唤本体**：调用方据此把它记成「解锁后续接」（`utils/identity/summonIntent`），
+   * 否则用户解锁后还得回原网页再点一次——那两个标签在这里已收窄完毕，不在外面重新拼。
    */
-  notifyIdentityNeedUnlock?: () => void;
+  notifyIdentityNeedUnlock?: (intent: IdentitySummonIntent) => void;
 }) {
   const {
     passwords,
@@ -145,12 +149,14 @@ export function useRuntimeMessageHandler(options: {
       // 气泡侧已按会话有效性隐藏，这里兜住残留气泡与会话恰好在点击瞬间过期的竞态。
       // 被门禁挡下的那一次必须出声（AGENTS.md：用户可见操作失败不得静默吞掉）——
       // 用户在页面里点了右键，切过来的标签页若什么都没有，这条链路就是黑洞。
+      // 出声之外还要把这一次召唤整包交给调用方记档：门禁留下的是「等解锁」，不是「作废」。
       waitForPasswords().then(() => {
+        const intent: IdentitySummonIntent = { keyword: keyword || undefined, sourceTabId };
         if (!isAuthenticated.value) {
-          notifyIdentityNeedUnlock?.();
+          notifyIdentityNeedUnlock?.(intent);
           return;
         }
-        openIdentityVault?.(keyword || undefined, sourceTabId);
+        openIdentityVault?.(intent.keyword, intent.sourceTabId);
       });
     }
   };
