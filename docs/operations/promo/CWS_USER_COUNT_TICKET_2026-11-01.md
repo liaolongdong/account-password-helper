@@ -103,7 +103,7 @@
 
 - **恢复判据（可判定，二选一即可）**：① 详情页 `div.F9iKBc` 里重新出现数字；② chrome-stats 该 item 页的 `USERS` 读数继续随后台同向更新。复测命令：浏览器打开 `https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?hl=en`，看「Tools」与「Add to Chrome」之间那一格。
 - **对外口径纪律**（本文第 6 行决定了它必须是硬的）：
-  - **禁止**在任何表面引用 `img.shields.io/chrome-web-store/users/*` 作为数据源——同一 URL 的读数会在 `65M` 与 `not found` 之间跳（第一节第 6 行的复测），挂在页面上时它只是一块红，既证伪不了也证实不了任何事。中英 README 首屏那枚已于 2026-11-01 摘除；`v` / `rating` / `rating-count` 三枚实测每次都出数，保留。
+  - **徽章可以展示，但不能当判据**：`img.shields.io/chrome-web-store/users/*` 已在 **2026-11-02 按用户拍板放回中英 README 首屏**（商店计数恢复后它立刻读到 53，如实显示商店公开数）。它此前长期 `not found` 是「详情页挂起展示」的副作用，不是徽章坏；但读数仍会随 Google 服务端变体抖动，**任何定性都必须回到第一节第 1 行的详情页 DOM 取法**，不得以徽章有无数字下结论。`v` / `rating` / `rating-count` 三枚实测每次出数。
   - **禁止**把后台用户数写成「商店显示 N 用户」。要用这个量级就写成「截至 YYYY-MM-DD，开发者信息中心读数约 N」，并在 [exposure-status.md](../exposure-status.md) 的现状基线里留下取数日期。
   - **单位纪律**：15,190 是**每周用户数峰值（2026-10-22）**，不是装机量、不是总用户。任何表面写「N 用户」时必须注明口径与日期；「10 月装机涨到 1.5 万」这类说法已作废，不得再出现。
 
