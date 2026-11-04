@@ -150,14 +150,18 @@ export function useRuntimeMessageHandler(options: {
       // 被门禁挡下的那一次必须出声（AGENTS.md：用户可见操作失败不得静默吞掉）——
       // 用户在页面里点了右键，切过来的标签页若什么都没有，这条链路就是黑洞。
       // 出声之外还要把这一次召唤整包交给调用方记档：门禁留下的是「等解锁」，不是「作废」。
-      waitForPasswords().then(() => {
-        const intent: IdentitySummonIntent = { keyword: keyword || undefined, sourceTabId };
-        if (!isAuthenticated.value) {
-          notifyIdentityNeedUnlock?.(intent);
-          return;
-        }
-        openIdentityVault?.(intent.keyword, intent.sourceTabId);
-      });
+      waitForPasswords()
+        .then(() => {
+          const intent: IdentitySummonIntent = { keyword: keyword || undefined, sourceTabId };
+          if (!isAuthenticated.value) {
+            notifyIdentityNeedUnlock?.(intent);
+            return;
+          }
+          openIdentityVault?.(intent.keyword, intent.sourceTabId);
+        })
+        // 门槛那侧要现读一次复验策略（storage 读失败会直接 reject）。不接住就是「右键点了、
+        // 标签页切过来了、屏上什么都没有」，而且这是一条 Promise 链，连报错都不会上屏
+        .catch(error => logger.error('RuntimeMsg: 打开身份库指令处理失败:', error));
     }
   };
 

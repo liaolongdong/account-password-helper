@@ -827,8 +827,17 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
   if (shouldVerifyIdentityVault(verifyPolicy, identityVaultVerifiedThisSession)) {
     const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
     if (!masterPassword) return false;
+    // 两次 `await` 之间会话可能已从别处落回锁定态（另一页「立即锁定」、过期广播、checkAuth 自检），
+    // 而复验只比对落盘的校验串、与会话是否活着无关，所以「验过了」不等于「现在能开库」。
+    // 这里必须当场作废：置位会污染 `perSession` 的免验凭据（下一次解锁直接跳过门槛），
+    // 开窗则会在锁定态端出一张空列表——两条都是「引导 → 复验 → 空库」那条死路的形状。
+    // 「解锁续接」（下方 `isAuthenticated` 监听）是第一条无需用户意图就能把弹窗摆到屏上的路径，
+    // 这个窗口从此不再是理论上的。
+    if (!isAuthenticated.value) return false;
     identityVaultVerifiedThisSession = true;
   }
+  // 免验档（`followValidity`）没有上面那道复核的机会，所以开窗前统一再看一次状态
+  if (!isAuthenticated.value) return false;
   identityVault.keyword.value = presetKeyword;
   showIdentityVaultDialog.value = true;
   return true;
@@ -1671,7 +1680,11 @@ watch(isAuthenticated, authenticated => {
   const summon = takeIdentitySummon(pendingIdentitySummon.value);
   pendingIdentitySummon.value = null;
   if (summon) {
-    void openIdentityVaultFromPage(summon.keyword, summon.sourceTabId);
+    // 复验策略要现读一次 storage，这一步可能直接 reject；槽位已经消费掉了，不接住就是「解锁后
+    // 什么都没发生」的静默失效（与上面门槛同一条链路上的既有缺口，见评审报告 §1-8）
+    void openIdentityVaultFromPage(summon.keyword, summon.sourceTabId).catch(error =>
+      logger.error('Options: 身份库召唤续接失败:', error),
+    );
   }
 });
 

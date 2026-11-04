@@ -191,8 +191,11 @@ describe('身份提示的跨上下文接线', () => {
       '后台身份库分支新写了日志：该分支的 keyword 是页面自报的不可信输入，整条分支不进日志',
     ).toHaveLength(0);
     const handlerLogs = handlerBranch.split('\n').filter(line => line.includes('logger.'));
-    // 选项页这一侧是有日志的（只记指令本身），先证「确有行可查」再逐行判——又是防「空集合当证据」
-    expect(handlerLogs, '选项页身份库分支的日志行消失或变成多行：本条判据会退化成空跑，须重新确认').toHaveLength(1);
+    // 选项页这一侧是有日志的（只记指令本身），先证「确有行可查」再逐行判——又是防「空集合当证据」。
+    // 2026-11-04 起是两行：一条 debug（只记指令名），一条 `.catch` 的错误日志（复验策略是现读
+    // storage 的，读失败必须留下痕迹，否则「承诺过解锁后自动打开」会静默失效）。行数写死是为了
+    // 让「再往里加一行带取值的日志」当场变红，而不是被循环默默吃掉。
+    expect(handlerLogs, '选项页身份库分支的日志行数量与预期不符：本条判据会退化成空跑，须重新确认').toHaveLength(2);
     for (const line of handlerLogs) {
       expect(line, '选项页的日志行带出了搜索词：姓名是 PII，不得入日志').not.toMatch(/keyword/i);
     }

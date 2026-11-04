@@ -12,6 +12,7 @@ import {
   vaultDialog,
 } from './identityVaultDom';
 import { MessageType } from '../utils/types';
+import { IDENTITY_SUMMON_TTL_MS } from '../utils/identity/summonIntent';
 
 /**
  * 锁定态身份库召唤「解锁后续接」的真机回归
@@ -87,8 +88,9 @@ test('锁定态召唤：解锁后自动开库、门槛照旧、且只续一次',
 
   // ① 锁定态投出召唤：只该看到一句反馈，屏上不得出现库弹窗或复验弹窗
   await lockSession(optionsPage);
+  const summonedAt = Date.now();
   await summonFromServiceWorker(sw, SELF_NAME);
-  await expect(optionsPage.getByRole('alert').filter({ hasText: textOf('identity.needUnlock') })).toBeVisible();
+  await expect(toast(optionsPage, 'identity.needUnlock')).toBeVisible();
   await expect(vaultDialog(optionsPage)).toBeHidden();
   await expect(verifyDialog(optionsPage)).toBeHidden();
 
@@ -109,4 +111,12 @@ test('锁定态召唤：解锁后自动开库、门槛照旧、且只续一次',
   await optionsPage.waitForTimeout(2_000);
   await expect(verifyDialog(optionsPage), '上一次召唤在第二次解锁上重放了').toBeHidden();
   await expect(vaultDialog(optionsPage), '上一次召唤在第二次解锁上重放了').toBeHidden();
+
+  // 判别式自己也要被量住：第二段仍需在 TTL 之内，「没重放」才只可能是单次消费而非过期。
+  // 机器负载把这段拉到 60 秒以上时，本用例就失去了它声称的那个判别力，必须当场报警。
+  const elapsedMs = Date.now() - summonedAt;
+  expect(
+    elapsedMs,
+    `第二段离召唤已 ${elapsedMs}ms，超过 TTL（${IDENTITY_SUMMON_TTL_MS}ms）：这条红分不清是过期还是单次消费`,
+  ).toBeLessThan(IDENTITY_SUMMON_TTL_MS);
 });
