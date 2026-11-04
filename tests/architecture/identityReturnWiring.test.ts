@@ -176,15 +176,54 @@ describe('身份库回程链路的接线边界', () => {
     expect(body, '选项页不再对 tabId 二次收窄（外部输入一律不可校验上游）').toContain(
       'normalizeSourceTabId(message.data?.sourceTabId)',
     );
+    // 交给门禁两侧的必须是同一份收口结果：挡下时交出去的召唤本体，与放行时的两个参数同源，
+    // 否则「记档的那一次」和「打开的那一次」会读成两件事
     expect(body, '门槛前置的解锁判定被挪走').toMatch(
-      /if \(!isAuthenticated\.value\) \{\n\s*notifyIdentityNeedUnlock\?\.\(\);\n\s*return;\n\s*\}\n\s*openIdentityVault\?\.\(keyword \|\| undefined, sourceTabId\);/,
+      /const intent: IdentitySummonIntent = \{ keyword: keyword \|\| undefined, sourceTabId \};\n\s*if \(!isAuthenticated\.value\) \{\n\s*notifyIdentityNeedUnlock\?\.\(intent\);\n\s*return;\n\s*\}\n\s*openIdentityVault\?\.\(intent\.keyword, intent\.sourceTabId\);/,
     );
     // 门禁照旧（锁定态开库只会得到一张空列表），但被挡下的那一次不得静默——用户点完右键
     // 只看见标签页切过来、屏幕上什么都没有，就是这条链路的黑洞。
-    expect(body, '被门禁挡下时没有给反馈出口').toContain('notifyIdentityNeedUnlock?.();');
+    expect(body, '被门禁挡下时没有给反馈出口').toContain('notifyIdentityNeedUnlock?.(intent);');
     const app = stripComments(readSource('entrypoints/options/App.vue'));
-    expect(app, '反馈出口没接线，或接线写了硬编码文案（中英双语都必须在 identity.json 里）').toMatch(
-      /notifyIdentityNeedUnlock: \(\) => ElMessage\.info\(t\('identity\.needUnlock'\)\)/,
+    expect(app, '反馈出口没接线（接线必须是本页的记档函数，只说一句提示等于让用户再右键一次）').toContain(
+      'notifyIdentityNeedUnlock: rememberIdentitySummon,',
+    );
+    const remember = appBody('rememberIdentitySummon');
+    expect(remember, '记档时没有写下计时用的时刻：TTL 判据失去输入').toContain('{ ...intent, takenAt: Date.now() }');
+    expect(remember, '反馈出口没接线，或接线写了硬编码文案（中英双语都必须在 identity.json 里）').toMatch(
+      /ElMessage\.info\(t\('identity\.needUnlock'\)\)/,
+    );
+  });
+
+  /**
+   * 「解锁后续接」的接线：单次消费 + 不落盘
+   *
+   * 续接判据本身在 `utils/identity/summonIntent.ts`（由 `identitySummonIntent.test.ts` 钉），
+   * 这里只守卫它在管理页的落地形状——这两件事各自都会「看起来还在」而实际被顺手挪走：
+   * - 取走之后必须无条件清槽：只在新鲜时清，过期那条会留在槽里，之后的每一次解锁都重放同一件事；
+   * - 槽位只接受本页内存里的两种赋值：一旦有人把记录写进 `chrome.storage`，携带的检索词
+   *   （可能是用户姓名）就活到了会话之外。
+   */
+  it('解锁后续接取走即清，且记录只活在本页内存里', () => {
+    const app = stripComments(readSource('entrypoints/options/App.vue'));
+    const writes = [...app.matchAll(/pendingIdentitySummon\.value\s*=\s*([^;]*);/g)].map(m => m[1].trim());
+    expect(writes, `续接槽位多了会写别的东西（应为「记下」与「清空」两处）：${writes.join(' | ')}`).toEqual([
+      '{ ...intent, takenAt: Date.now() }',
+      'null',
+    ]);
+
+    const watcher = app.match(/const summon = takeIdentitySummon\(pendingIdentitySummon\.value\);([\s\S]*?)\n\}\);/);
+    expect(watcher, '解锁那一侧的续接不见了：门槛挡下的召唤又变成一次丢弃').toBeTruthy();
+    const afterTake = stripComments(watcher![1]);
+    expect(afterTake, '取走之后没清槽：同一次召唤会在每次解锁上重放').toContain('pendingIdentitySummon.value = null;');
+    expect(
+      afterTake.indexOf('pendingIdentitySummon.value = null;'),
+      '清槽排在了开窗之后：开窗是异步的，中途的失败会留下一个还能再放一次的槽',
+    ).toBeLessThan(afterTake.indexOf('openIdentityVaultFromPage(summon.keyword, summon.sourceTabId)'));
+
+    const intentModule = stripComments(readSource('utils/identity/summonIntent.ts'));
+    expect(intentModule, '续接判据模块开始碰存储：PII 检索词会留到会话之外').not.toMatch(
+      /chrome\.storage|StorageUtils/,
     );
   });
 
