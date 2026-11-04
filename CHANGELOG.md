@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.22.0](https://github.com/liaolongdong/account-password-helper/compare/v3.21.0...v3.22.0) (2026-11-04)
+
+
+### Features
+
+* **identity:** 锁定态身份库召唤解锁后自动续接，并给门槛补会话复核 ([6470742](https://github.com/liaolongdong/account-password-helper/commit/64707428c69b930b4f196622ae4abda03472ba05))
+* **identity:** 锁定态身份库召唤解锁后自动续接，统一三层反馈归属 ([da59173](https://github.com/liaolongdong/account-password-helper/commit/da59173c7cca3d66e75aeb9f07df85da9f80aa96))
+* **identity:** 锁定态身份库召唤解锁后自动续接，门槛补会话复核 ([6ddbe9d](https://github.com/liaolongdong/account-password-helper/commit/6ddbe9d961c5bb2e70d122d34e430e08045019ce))
+
+
+### Bug Fixes
+
+* **identity:** 身份库门槛补会话复核，续接与投递失败不再静默 ([08bd0ac](https://github.com/liaolongdong/account-password-helper/commit/08bd0acc0a213eb31c308e4c2bd077fd8eeb7db2))
+
 ## [3.21.0](https://github.com/liaolongdong/account-password-helper/compare/v3.20.0...v3.21.0) (2026-11-03)
 
 
