@@ -13,12 +13,15 @@
  *    tabId 按 `normalizeSourceTabId` 同理再收一次，非法即「没有来源」。
  * 2. **等会话状态落地**。身份库要过复验门槛，冷启动时直接判定会把已解锁误判成未解锁。
  * 3. **未接线静默降级**。回调缺位时不抛，同批其他指令照常分发。
+ * 4. **挡下不吞意图**。锁定态那句反馈的出口拿到的是**已收口的召唤本体**（词 + 来源标签页），
+ *    管理页据此记成「解锁后续接」；只丢一句提示等于让用户回原网页再右键一次。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, h, ref, type Ref } from 'vue';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { MessageType, type PasswordEntry } from '@/utils/types';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
+import type { IdentitySummonIntent } from '@/utils/identity/summonIntent';
 
 /** 捕获到的 runtime 消息监听器 */
 let registeredListener: ((message: unknown) => unknown) | undefined;
@@ -28,7 +31,10 @@ let passwords: Ref<PasswordEntry[]>;
 let isAuthenticated: Ref<boolean>;
 
 /** 以最小宿主组件挂载 composable，触发 onMounted 注册 */
-function mountHandler(openIdentityVault?: (keyword?: string, sourceTabId?: number) => void): () => void {
+function mountHandler(
+  openIdentityVault?: (keyword?: string, sourceTabId?: number) => void,
+  notifyIdentityNeedUnlock?: (intent: IdentitySummonIntent) => void,
+): () => void {
   passwords = ref<PasswordEntry[]>([]);
   isAuthenticated = ref(true);
   const app = createApp({
@@ -40,6 +46,7 @@ function mountHandler(openIdentityVault?: (keyword?: string, sourceTabId?: numbe
         editPassword: vi.fn(),
         openPasswordDialog: vi.fn(),
         openIdentityVault,
+        notifyIdentityNeedUnlock,
       });
       return () => h('div');
     },
@@ -204,6 +211,91 @@ describe('OPEN_OPTIONS_AND_IDENTITY 的 sourceTabId 收口', () => {
     for (const call of openIdentityVault.mock.calls) {
       expect(call).toEqual(['张三', undefined]);
     }
+    unmount();
+  });
+});
+
+/**
+ * 锁定态被门禁挡下的那一次：意图必须整包交给反馈出口
+ *
+ * 门禁留在选项页（锁定态开窗只会得到空列表），但「挡下」不等于「丢弃」——`notifyIdentityNeedUnlock`
+ * 拿到的是**收口之后**的搜索词与来源标签页，管理页据此把它记成「解锁后续接」。
+ * 这里同时守住反方向：已解锁的那一次不许走反馈出口（否则每次开窗都多一句「请先解锁」）。
+ */
+describe('OPEN_OPTIONS_AND_IDENTITY 锁定态交出的召唤本体', () => {
+  /** 停在锁定态：列表空、认证态未写回，`waitForPasswords` 等满后落入门禁的 false 分支 */
+  async function deliverWhileLocked(data: unknown): Promise<void> {
+    passwords.value = [];
+    isAuthenticated.value = false;
+    registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data });
+    await vi.advanceTimersByTimeAsync(3200);
+  }
+
+  it('词与来源标签页原样交给反馈出口，且不开窗', async () => {
+    vi.useFakeTimers();
+    const openIdentityVault = vi.fn();
+    const notifyIdentityNeedUnlock = vi.fn();
+    const unmount = mountHandler(openIdentityVault, notifyIdentityNeedUnlock);
+
+    await deliverWhileLocked({ keyword: '张三', sourceTabId: 7 });
+
+    expect(openIdentityVault).not.toHaveBeenCalled();
+    expect(notifyIdentityNeedUnlock).toHaveBeenCalledTimes(1);
+    expect(notifyIdentityNeedUnlock.mock.calls[0]).toEqual([{ keyword: '张三', sourceTabId: 7 }]);
+    unmount();
+  });
+
+  /** 交出去的必须是收口后的值：记录会活到解锁那一刻，脏载荷不该有第二次机会上屏 */
+  it('交出的是收口后的载荷：超长截断、空白与非字符串成词缺席、非法 tabId 成来源缺席', async () => {
+    vi.useFakeTimers();
+    const notifyIdentityNeedUnlock = vi.fn();
+    const unmount = mountHandler(vi.fn(), notifyIdentityNeedUnlock);
+
+    await deliverWhileLocked({ keyword: 'k'.repeat(MAX_SEARCH_KEYWORD_LENGTH + 20), sourceTabId: 7 });
+    expect(notifyIdentityNeedUnlock.mock.calls[0]).toEqual([
+      { keyword: 'k'.repeat(MAX_SEARCH_KEYWORD_LENGTH), sourceTabId: 7 },
+    ]);
+
+    notifyIdentityNeedUnlock.mockClear();
+    await deliverWhileLocked({ keyword: '   ', sourceTabId: '7' });
+    expect(notifyIdentityNeedUnlock.mock.calls[0]).toEqual([{ keyword: undefined, sourceTabId: undefined }]);
+
+    notifyIdentityNeedUnlock.mockClear();
+    await deliverWhileLocked(undefined);
+    expect(notifyIdentityNeedUnlock.mock.calls[0]).toEqual([{ keyword: undefined, sourceTabId: undefined }]);
+    unmount();
+  });
+
+  it('会话状态在等待窗口内落地为已解锁：照常开窗，不打扰用户', async () => {
+    const openIdentityVault = vi.fn();
+    const notifyIdentityNeedUnlock = vi.fn();
+    const unmount = mountHandler(openIdentityVault, notifyIdentityNeedUnlock);
+
+    passwords.value = [];
+    isAuthenticated.value = false;
+    registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '张三', sourceTabId: 7 } });
+    // 真实计时下走 `waitForPasswords` 的轮询：解锁判定在窗口内落地，就不该落到反馈出口
+    await new Promise(resolve => setTimeout(resolve, 150));
+    isAuthenticated.value = true;
+
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('张三', 7));
+    expect(notifyIdentityNeedUnlock).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('未接反馈出口时锁定态不抛给消息通道：退化成原来的静默忽略', async () => {
+    vi.useFakeTimers();
+    const openIdentityVault = vi.fn();
+    const unmount = mountHandler(openIdentityVault);
+
+    expect(() =>
+      registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '张三' } }),
+    ).not.toThrow();
+    passwords.value = [];
+    isAuthenticated.value = false;
+    await vi.advanceTimersByTimeAsync(3200);
+
+    expect(openIdentityVault).not.toHaveBeenCalled();
     unmount();
   });
 });

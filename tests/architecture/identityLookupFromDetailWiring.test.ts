@@ -169,6 +169,35 @@ describe('详情抽屉到身份库的跳转接线', () => {
     expect(APP_SRC).toMatch(/^let identityVaultVerifiedThisSession = false;$/m);
   });
 
+  /**
+   * 复验是异步的，落回锁定态必须当场作废
+   *
+   * `verifyMasterPassword` 只比对落盘的校验串，与「会话现在是否还活着」无关（masterPassword.ts 的
+   * `verifyMasterPasswordInternal` 读的是 `STORAGE_KEYS.MASTER_PASSWORD`），而管理页有一整排路径会把
+   * 认证态翻回未认证（另一页「立即锁定」、过期广播、`checkAuth` 自检）。所以「验过了」不等于「现在能开库」。
+   * 两处都必须作废，且各有独立的失效后果：
+   * - 置位早于复核 → 免验凭据被污染，下一次解锁直接跳过门槛，`perSession` 当场退化成「输过一次就永久免验」；
+   * - 开窗早于复核 → 锁定态端出一张空列表，正是 2026-10-20 判掉的那条「引导 → 复验 → 空库」死路。
+   * 「解锁自动续接」是第一条**无需用户意图**就能把复验弹窗摆到屏上的路径，这个窗口从此不是理论上的。
+   */
+  it('门槛在两次 await 之后复核会话状态，作废早于置位与开窗', () => {
+    const gate = appBody('openIdentityVaultWithVerify');
+    const branch = verifyBranch(gate);
+    const RECHECK = 'if (!isAuthenticated.value) return false;';
+    const abortAt = branch.indexOf('if (!masterPassword) return false;');
+    const markAt = branch.indexOf('identityVaultVerifiedThisSession = true;');
+    const recheckAt = branch.indexOf(RECHECK);
+
+    expect(recheckAt, '复验之后不再复核会话状态：锁定落回时既污染凭据又开出空库').toBeGreaterThan(abortAt);
+    expect(recheckAt, '复核排在置位之后：免验凭据已经被上一步污染').toBeLessThan(markAt);
+
+    const openAt = gate.indexOf('showIdentityVaultDialog.value = true');
+    const lastRecheck = gate.lastIndexOf(RECHECK);
+    expect(gate.split(RECHECK).length - 1, '会话复核只写在一处：免验档（followValidity）没有开窗前的那道闸').toBe(2);
+    expect(lastRecheck, '没找到开窗前的会话复核').toBeGreaterThan(0);
+    expect(lastRecheck, '复核排在开窗之后：闸写在了动作后面，等于没写').toBeLessThan(openAt);
+  });
+
   it('锁定/过期作废「本会话已复验」，perSession 不会退化成一次免验', () => {
     const branch = unauthenticatedBranch('identityVault.teardown();');
     expect(branch, '会话失效不再复位已复验凭据：门槛退化成「曾经解锁过就永久免验」').toContain(
