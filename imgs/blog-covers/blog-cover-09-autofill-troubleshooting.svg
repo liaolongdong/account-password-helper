@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1B34"/>
+      <stop offset="1" stop-color="#17305C"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <g>
+    <rect x="96" y="68" width="52" height="52" rx="13" fill="#409EFF"/>
+    <g transform="translate(96,68) scale(0.40625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="164" y="104" font-size="27" font-weight="600" fill="#FFFFFF">Account Password Helper</text>
+    <text x="1504" y="104" font-size="24" fill="#A9BFE0" text-anchor="end">技术博客 09 / 10</text>
+  </g>
+
+  <g>
+    <text x="96" y="250" font-size="84" font-weight="700" fill="#FFFFFF">自动填充不生效</text>
+    <text x="96" y="348" font-size="84" font-weight="700" fill="#FFFFFF">按七处依次查</text>
+    <text x="96" y="418" font-size="38" font-weight="600" fill="#66B3FF">会话 · 档位 · 范围 · 注入</text>
+    <text x="96" y="474" font-size="28" fill="#A9BFE0">每一处都给确认方法与改法</text>
+  </g>
+
+  <g font-size="27" font-weight="500">
+    <rect x="96" y="512" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="550" fill="#CFE3FF">解锁态</text>
+    <rect x="312" y="512" width="242" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="338" y="550" fill="#CFE3FF">入口三档</text>
+    <rect x="570" y="512" width="242" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="596" y="550" fill="#CFE3FF">主域边界</text>
+    <rect x="96" y="588" width="242" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="626" fill="#CFE3FF">脚本未注入</text>
+    <rect x="354" y="588" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="380" y="626" fill="#CFE3FF">iframe</text>
+    <rect x="570" y="588" width="242" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="596" y="626" fill="#CFE3FF">填充≠提交</text>
+  </g>
+
+  <g>
+    <line x1="96" y1="762" x2="640" y2="762" stroke="#23406E" stroke-width="3"/>
+    <text x="96" y="812" font-size="26" fill="#A9BFE0">utils/domain.ts · resolveMatchTier</text>
+  </g>
+
+  <g>
+    <rect x="880" y="196" width="624" height="386" rx="22" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <text x="926" y="252" font-size="24" fill="#A9BFE0">排查顺序</text>
+    <g font-size="25" fill="#CFE3FF">
+      <circle cx="938" cy="300" r="15" fill="#409EFF" fill-opacity="0.22" stroke="#66B3FF" stroke-width="2"/>
+      <text x="938" y="309" font-size="20" text-anchor="middle" fill="#8FB4FF">1</text>
+      <text x="970" y="309">当前是解锁态吗</text>
+      <circle cx="938" cy="356" r="15" fill="#409EFF" fill-opacity="0.22" stroke="#66B3FF" stroke-width="2"/>
+      <text x="938" y="365" font-size="20" text-anchor="middle" fill="#8FB4FF">2</text>
+      <text x="970" y="365">用的是哪一档填充入口</text>
+      <circle cx="938" cy="412" r="15" fill="#409EFF" fill-opacity="0.22" stroke="#66B3FF" stroke-width="2"/>
+      <text x="938" y="421" font-size="20" text-anchor="middle" fill="#8FB4FF">3</text>
+      <text x="970" y="421">候选里有这条账号吗</text>
+      <circle cx="938" cy="468" r="15" fill="#409EFF" fill-opacity="0.22" stroke="#66B3FF" stroke-width="2"/>
+      <text x="938" y="477" font-size="20" text-anchor="middle" fill="#8FB4FF">4</text>
+      <text x="970" y="477">本地页：端口与环境绑定</text>
+      <circle cx="1230" cy="300" r="15" fill="#409EFF" fill-opacity="0.22" stroke="#66B3FF" stroke-width="2"/>
+      <text x="1230" y="309" font-size="20" text-anchor="middle" fill="#8FB4FF">5</text>
+      <text x="1262" y="309">脚本注入进这一页了吗</text>
+      <circle cx="1230" cy="356" r="15" fill="#409EFF" fill-opacity="0.22" stroke="#66B3FF" stroke-width="2"/>
+      <text x="1230" y="365" font-size="20" text-anchor="middle" fill="#8FB4FF">6</text>
+      <text x="1262" y="365">那一格在 iframe 里吗</text>
+      <circle cx="1230" cy="412" r="15" fill="#409EFF" fill-opacity="0.22" stroke="#66B3FF" stroke-width="2"/>
+      <text x="1230" y="421" font-size="20" text-anchor="middle" fill="#8FB4FF">7</text>
+      <text x="1262" y="421">填上了 ≠ 登录了</text>
+    </g>
+    <rect x="926" y="502" width="150" height="38" rx="19" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="1001" y="529" font-size="20" fill="#CFE3FF" text-anchor="middle">逐项确认</text>
+    <text x="1096" y="529" font-size="22" fill="#A9BFE0">只有一处改不动：顶层 frame 的投递边界</text>
+  </g>
+
+  <g>
+    <rect x="880" y="612" width="624" height="140" rx="16" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <g transform="translate(918,642)" stroke="#8FB4FF" stroke-width="3" fill="none" stroke-linecap="round">
+      <rect x="0" y="14" width="46" height="52" rx="8"/>
+      <line x1="0" y1="30" x2="46" y2="30"/>
+      <line x1="12" y1="46" x2="34" y2="46"/>
+      <line x1="12" y1="56" x2="28" y2="56"/>
+    </g>
+    <text x="984" y="674" font-size="28" fill="#CFE3FF">默认值都放在保守那一档</text>
+    <text x="984" y="712" font-size="22" fill="#A9BFE0">快捷键只填充与勾选，是否代为提交由你显式开启</text>
+  </g>
+
+  <g>
+    <rect x="880" y="776" width="624" height="70" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2" stroke-dasharray="10 8"/>
+    <text x="918" y="821" font-size="23" fill="#A9BFE0">只有跨域 iframe 那一处是结构性限制，不是没适配</text>
+  </g>
+</svg>

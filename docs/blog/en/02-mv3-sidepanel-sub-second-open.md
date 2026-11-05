@@ -3,7 +3,7 @@ title: Sub-Second Chrome Side Panel on MV3
 description: MV3 service workers die without warning, so the side panel cold-starts white. Dual-layer keep-alive, four-tier pre-warming and three-way data racing fix that.
 tags: chrome extension,manifest v3,service worker,performance,frontend engineering
 date: 2026-08-28
-modified: 2026-10-27
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-02-sub-second-sidepanel.png
 ---
@@ -91,7 +91,7 @@ Alongside the implementation, the test suite grew to cover every layer (vitest �
 - `passwordCache` / `startupRelock` / `idleLock`: cache re-warm and every lock path;
 - `sidePanelManager`: open sequencing.
 
-The repo now has 4654 automated tests across 320 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
+The repo now has 4856 automated tests across 336 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
 
 ## Retrospective: Three Lessons
 
@@ -99,7 +99,7 @@ The repo now has 4654 automated tests across 320 test files. Performance outcome
 2. **Speed is purchased in layers.** Keep-alive buys "the process exists." Pre-warming buys "files are hot." Racing buys "data arrives fast." Non-blocking CSS buys "paint first." Each layer works independently; stacked, they produce sub-second.
 3. **Handle platform differences head-on.** Windows antivirus scanning is a real, non-technical bottleneck. Full pre-warming plus guiding users to add an exclusion beats pretending it doesn't exist.
 
-Full source on [GitHub](https://github.com/liaolongdong/account-password-helper) — Stars, critique, and issues welcome. If you're building a side-panel extension, I hope this saves you a few months of detours.
+Full source on [GitHub](https://github.com/liaolongdong/account-password-helper) — Stars, critique, and issues welcome. The extension is listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, open source under GPL-3.0. If you're building a side-panel extension, I hope this saves you a few months of detours.
 
 ---
 

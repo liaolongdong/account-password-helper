@@ -3,7 +3,7 @@ title: "TOTP 2FA: How It Works and Where to Store It"
 description: What TOTP is, why codes change every 30 seconds, and what to check before moving secrets from a phone authenticator into a browser extension.
 tags: totp,2fa,two-factor,security,browser extension
 date: 2026-10-19
-modified: 2026-10-19
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-08-totp-two-factor.png
 ---
@@ -84,4 +84,4 @@ A browser extension runs inside your browser; it cannot defend against a comprom
 
 The value of TOTP is an independent second factor, not an absolute wall. Understanding how it computes and where the trust boundary sits keeps the convenience in your workflow and the risk within a range you control.
 
-For the local encryption and key-management details, read [Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html). If your daily logins need built-in TOTP and one-click fill, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html).
+For the local encryption and key-management details, read [Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html). If your daily logins need built-in TOTP and one-click fill, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html), which installs from the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) and updates on its own.

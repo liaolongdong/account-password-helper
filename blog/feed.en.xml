@@ -8,12 +8,36 @@
     <link>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</link>
     <description>Product thinking and engineering deep-dives: local-first security, MV3 performance, Web Crypto internals and multi-environment login.</description>
     <language>en</language>
-    <lastBuildDate>Tue, 27 Oct 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Thu, 05 Nov 2026 00:00:00 GMT</lastBuildDate>
     <atom:link
       href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml"
       rel="self"
       type="application/rss+xml"
     />
+    <item>
+      <title>Why Autofill Fails: Seven Checks in Order</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.en.html</guid>
+      <pubDate>Thu, 05 Nov 2026 00:00:00 GMT</pubDate>
+      <description>The side panel won't open, the account isn't in the list, the form fills but never submits. Seven checks that locate a broken autofill fast.</description>
+      <category>autofill</category>
+      <category>password manager</category>
+      <category>Chrome extension</category>
+      <category>troubleshooting</category>
+      <category>iframe</category>
+    </item>
+    <item>
+      <title>Move Passwords Out of Bitwarden or 1Password</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.en.html</guid>
+      <pubDate>Thu, 05 Nov 2026 00:00:00 GMT</pubDate>
+      <description>How CSV headers get matched, which rows vanish silently, why import never de-duplicates, and why an .aph encrypted backup beats an exported spreadsheet.</description>
+      <category>password manager</category>
+      <category>data migration</category>
+      <category>CSV import</category>
+      <category>Chrome extension</category>
+      <category>encrypted backup</category>
+    </item>
     <item>
       <title>Chrome Password Manager: Which One to Use?</title>
       <link>https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html</link>

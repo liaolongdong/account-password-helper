@@ -13,8 +13,8 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-10-27 · **Latest release**: v3.20.0 (2026-10-27) · CI uploaded v3.20.0 to the Chrome Web Store on 2026-10-27 and it is pending Chrome review — re-verify the served version before restating this line
-- **Quality**: 4654 automated test cases across 320 test files
+- **Last updated**: 2026-11-05 · **Latest release**: v3.22.0 (2026-11-04) · the Chrome Web Store currently serves v3.22.0 (re-read from `img.shields.io/chrome-web-store/v/...` on 2026-11-05) — re-verify the served version before restating this line
+- **Quality**: 4856 automated test cases across 336 test files
 
 ## Key Features
 
@@ -130,8 +130,8 @@ Add a site rule for that domain: your own CSS selectors for the username and pas
 - [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
 - [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
 - [English Version](https://liaolongdong.github.io/account-password-helper/en.html)
-- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — 5 篇技术文：本地优先产品故事、MV3 侧边栏秒开、Web Crypto 加密实战、四个新功能的实现笔记、跨子域名匹配三档的判据与踩坑
-- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) — the same five posts in English, including how the three cross-subdomain tiers decide which accounts appear
+- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — 10 篇技术文：本地优先产品故事、MV3 侧边栏秒开、Web Crypto 加密实战、登录链路实现笔记、跨子域三档判据、自带管理器选型、多环境账号管理、TOTP 指南、自动填充排障、密码库迁移导入
+- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) — the same ten posts in English: product story, sub-second side panel, Web Crypto in practice, login-flow notes, the three cross-subdomain tiers that decide which accounts appear, choosing a manager, multi-environment accounts, TOTP, autofill troubleshooting and vault migration
 - [Pricing](https://liaolongdong.github.io/account-password-helper/pricing.html) — 100% free, no paid tier, no subscription
 - [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
 - [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案十维度事实对比
@@ -156,7 +156,9 @@ Deep-dive pages — skip them for a summary, read them when a question needs the
 - [Blog 06 · Chrome password manager guide](https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html) — Chrome 自带、云端管理器与本地优先工具的选择清单：数据位置、多环境隔离、迁移成本与离线可用
 - [Blog 07 · Multi-environment account management](https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html) — 开发者与测试如何用精确 host、命名标签、自动提交边界和保存判重，避免 test 账号填进 prod
 - [Blog 08 · TOTP two-factor guide](https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html) — TOTP 的时间窗口与 HMAC 原理、与短信/Passkey 的差异、迁移步骤，以及把密钥放进密码管理器的风险边界
-- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all eight posts in Chinese; the English set is at `blog/index.en.html`
+- [Blog 09 · Autofill not working](https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html) — 七处判据依次排查：解锁态、填充入口三档与新装/存量的默认差异、匹配档位与公共后缀边界、`localhost` 端口与环境绑定、content script 未注入、跨域 iframe 的结构性限制、填充不等于提交
+- [Blog 10 · Migrating a vault in](https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html) — 五套表头映射如何命中、哪些行会被静默丢弃、导入为什么刻意不去重、CSV 与 JSON 与 `.aph` 各自带走什么丢掉什么、三道容量闸门与整批原子写
+- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all ten posts in Chinese; the English set is at `blog/index.en.html`
 - [Architecture (English)](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.en.md) — module breakdown, message protocol, storage and crypto boundaries, cross-entry data flow
 - [README (English)](https://github.com/liaolongdong/account-password-helper/blob/main/README.en.md) — install, usage, feature table and screenshots for the English-speaking reader
 

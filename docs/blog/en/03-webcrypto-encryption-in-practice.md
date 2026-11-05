@@ -3,7 +3,7 @@ title: Web Crypto for a Real Password Manager
 description: No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
-modified: 2026-10-27
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
@@ -81,8 +81,8 @@ The other side of security is knowing your limits:
 - A forgotten master password cannot be recovered by default. Enable encrypted backups (.aph files) and enroll an offline recovery key as a second way back.
 - The entire encryption implementation is open source. Audits and issues welcome — for a password manager, being read line by line isn't an intrusion; it's the source of trust.
 
-Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). If you're building local-first security tools too, share the traps you've hit in the comments.
+Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog), completely free, open source under GPL-3.0. If you're building local-first security tools too, share the traps you've hit in the comments.
 
 ---
 
-_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (4654 automated tests, including encryption and re-key paths)._
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (4856 automated tests, including encryption and re-key paths)._

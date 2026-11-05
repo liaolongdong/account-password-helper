@@ -3,7 +3,7 @@ title: Chrome Password Manager: Which One to Use?
 description: Built-in Chrome, cloud managers and local-first tools fit different users. Compare environment isolation, encryption, migration and offline use before choosing.
 tags: password manager,chrome extension,comparison,local-first,open source
 date: 2026-10-19
-modified: 2026-10-19
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-06-chrome-password-manager.png
 ---
@@ -79,4 +79,4 @@ There is no universal winner. Built-in Chrome wins on zero friction, cloud manag
 
 For a feature-by-feature comparison, see [Account Password Helper vs Bitwarden and 1Password](https://liaolongdong.github.io/account-password-helper/compare.en.html). For the encryption details, read [Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html).
 
-If you need a free, open-source, local-first Chrome password manager, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html): exact environment matching, one-click login, built-in TOTP and an offline health check, with data written only to your machine.
+If you need a free, open-source, local-first Chrome password manager, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html): exact environment matching, one-click login, built-in TOTP and an offline health check, with data written only to your machine. To install it, add it from the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) and updates arrive on their own.
