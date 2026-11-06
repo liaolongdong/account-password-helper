@@ -229,6 +229,7 @@
   "options.detail.copied": "已复制到剪贴板",
   "options.detail.matchesAllSites": "匹配所有网站",
   "options.detail.noTotp": "未开启两步验证",
+  "options.detail.noPassword": "未设置密码",
   "options.detail.noRemark": "暂无备注",
   "options.detail.timeInfo": "时间信息",
   "options.detail.lastUsed": "最后使用",

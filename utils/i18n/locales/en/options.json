@@ -229,6 +229,7 @@
   "options.detail.copied": "Copied to clipboard",
   "options.detail.matchesAllSites": "Matches all websites",
   "options.detail.noTotp": "2FA not enabled",
+  "options.detail.noPassword": "No password saved",
   "options.detail.noRemark": "No notes yet",
   "options.detail.timeInfo": "Timestamps",
   "options.detail.lastUsed": "Last used",

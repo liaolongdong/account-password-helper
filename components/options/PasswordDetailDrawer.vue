@@ -77,7 +77,17 @@
         </el-descriptions-item>
 
         <el-descriptions-item :label="t('common.password')">
-          <div class="detail-value">
+          <!-- 空口令条目（手机号 + 短信码登录、只填账号的快速添加）：固定的 8 位掩码会谎称
+               这里有一把密码，点眼睛开出空白、点复制拷走空串，所以两个动作只挂在有口令那一支 -->
+          <span
+            v-if="!entry.password"
+            class="detail-muted"
+            >{{ t('options.detail.noPassword') }}</span
+          >
+          <div
+            v-else
+            class="detail-value"
+          >
             <span class="detail-value__text detail-value__text--mono">
               {{ passwordVisible ? entry.password : '*'.repeat(8) }}
             </span>

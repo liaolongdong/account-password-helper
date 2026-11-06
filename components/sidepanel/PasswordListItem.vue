@@ -180,6 +180,7 @@ const activate = () => {
           </el-icon>
         </span>
         <span
+          v-if="password.password"
           class="copy-icon-wrapper copy-password"
           role="button"
           tabindex="0"

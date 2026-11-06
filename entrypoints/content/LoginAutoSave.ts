@@ -20,7 +20,16 @@ import { deriveCapturedTag } from '@/utils/capturedTag';
 import { logger } from '@/utils/logger';
 import { hashStringLight } from '@/utils/crypto-light';
 import { decryptPendingCredential, encryptPendingCredential } from '@/utils/pendingCredentialCodec';
-import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
+import {
+  USERNAME_SELECTORS,
+  LOGIN_BUTTON_KEYWORDS,
+  normalizeButtonText,
+  looksLikePhoneField,
+  matchesVerifyCodeSelectors,
+  isPhoneExtensionField,
+  looksLikePostalCode,
+  isOneTimeCodeValue,
+} from '@/entrypoints/content/formSelectors';
 import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
 import { showSavePasswordPrompt, dismissSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
 import { isElementVisible } from './domUtils';
@@ -42,6 +51,26 @@ const PENDING_MAX_AGE_MS = 30_000;
 
 /** 「暂不保存」后的冷却期（60 秒），冷却期内相同凭证不重复弹窗 */
 const DISMISS_COOLDOWN_MS = 60_000;
+
+/**
+ * 密码框选择器
+ *
+ * `data-aph-password` 是密码可见性切换打下的稳定标记：站点把 `type` 从 password 改成 text
+ * 之后，光看 type 就认不出那是密码框了。
+ */
+const PASSWORD_FIELD_SELECTOR = 'input[type="password"], input[data-aph-password]';
+
+/** 一次登录提交采集到的凭据 */
+interface CapturedCredentials {
+  /** 账号值（`mobileLogin` 为真时是手机号） */
+  username: string;
+  /** 密码明文；`mobileLogin` 为真时为空串 */
+  password: string;
+  /** 本次是否为「手机号 + 短信验证码」形态 */
+  mobileLogin: boolean;
+  /** 捕获到的密码框引用，供弹窗显示期间同步展示值；手机号形态下为 null */
+  passwordField: HTMLInputElement | null;
+}
 
 // ── 凭据密文的密钥（由 background 签发，绝不落入宿主页面可达的存储） ──
 
@@ -249,25 +278,16 @@ export class LoginAutoSave {
       return;
     }
 
-    // 检查 form 内是否有密码字段
-    const passwordField = form.querySelector(
-      'input[type="password"], input[data-aph-password]',
-    ) as HTMLInputElement | null;
-    if (!passwordField || !passwordField.value) {
-      return;
-    }
-
-    const password = passwordField.value;
-    const username = this.findUsernameInForm(form);
-    if (!username) {
+    const captured = this.readCredentials(form);
+    if (!captured) {
       return;
     }
 
     // 存储字段引用，用于弹窗显示期间实时同步表单值
-    this.lastCapturedPasswordField = passwordField;
+    this.lastCapturedPasswordField = captured.passwordField;
     this.lastCapturedForm = form;
 
-    void this.onCredentialsCaptured(username, password);
+    void this.onCredentialsCaptured(captured.username, captured.password, captured.mobileLogin);
   };
 
   /**
@@ -297,24 +317,16 @@ export class LoginAutoSave {
 
     // 从按钮所在的 form 或页面中获取账号密码
     const form = button.closest('form') as HTMLFormElement | null;
-    const passwordField = form
-      ? (form.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null)
-      : (document.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null);
-    if (!passwordField || !passwordField.value) {
-      return;
-    }
-
-    const password = passwordField.value;
-    const username = form ? this.findUsernameInForm(form) : this.findUsernameInPage();
-    if (!username) {
+    const captured = this.readCredentials(form);
+    if (!captured) {
       return;
     }
 
     // 存储字段引用，用于弹窗显示期间实时同步表单值
-    this.lastCapturedPasswordField = passwordField;
+    this.lastCapturedPasswordField = captured.passwordField;
     this.lastCapturedForm = form;
 
-    void this.onCredentialsCaptured(username, password);
+    void this.onCredentialsCaptured(captured.username, captured.password, captured.mobileLogin);
   };
 
   /**
@@ -336,24 +348,17 @@ export class LoginAutoSave {
     const inputType = target.type?.toLowerCase() || 'text';
     if (!['password', 'text', 'email', 'tel'].includes(inputType)) return;
 
-    // 查找密码字段
     const form = target.closest('form') as HTMLFormElement | null;
-    const passwordField = form
-      ? (form.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null)
-      : (document.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null);
-    if (!passwordField || !passwordField.value) return;
-
-    const password = passwordField.value;
-    const username = form ? this.findUsernameInForm(form) : this.findUsernameInPage();
-    if (!username) {
+    const captured = this.readCredentials(form);
+    if (!captured) {
       return;
     }
 
     // 存储字段引用，用于弹窗显示期间实时同步表单值
-    this.lastCapturedPasswordField = passwordField;
+    this.lastCapturedPasswordField = captured.passwordField;
     this.lastCapturedForm = form;
 
-    void this.onCredentialsCaptured(username, password);
+    void this.onCredentialsCaptured(captured.username, captured.password, captured.mobileLogin);
   };
 
   // ── 域名匹配 ──
@@ -379,10 +384,11 @@ export class LoginAutoSave {
   /**
    * 凭证捕获后的统一处理入口
    * 存入 sessionStorage 并显示确认弹窗
-   * @param username 用户名
-   * @param password 密码
+   * @param username 用户名（手机号登录时是手机号）
+   * @param password 密码；`mobileLogin` 为真时为空串
+   * @param mobileLogin 本次是否为「手机号 + 短信验证码」登录（页面无可用密码框）
    */
-  private async onCredentialsCaptured(username: string, password: string): Promise<void> {
+  private async onCredentialsCaptured(username: string, password: string, mobileLogin = false): Promise<void> {
     // 配置未加载完成时跳过，防止竞态条件导致空规则匹配所有域名
     if (!this.configLoaded) {
       return;
@@ -424,6 +430,7 @@ export class LoginAutoSave {
     const pending: PendingCredentials = {
       username,
       password,
+      mobileLogin,
       url: location.host, // 使用 host（含端口号，如 localhost:3000、192.168.1.1:8080）
       // 只取标题里的站点名做预填：整串页面名普遍超单标签上限（编辑器里一改就被归一化丢掉），还会污染标签候选池（见 capturedTag）
       tag: deriveCapturedTag(document.title, location.hostname),
@@ -475,16 +482,21 @@ export class LoginAutoSave {
    *
    * @param username 用户名
    * @param password 密码
+   * @param mobileLogin 本次是否为「手机号 + 短信验证码」登录，决定后台是否认这个空密码
    * @returns 凭证状态响应
    */
-  private async resolveCredentialStatus(username: string, password: string): Promise<CredentialStatusResponse> {
+  private async resolveCredentialStatus(
+    username: string,
+    password: string,
+    mobileLogin: boolean,
+  ): Promise<CredentialStatusResponse> {
     try {
       if (!chrome.runtime?.id) {
         return { status: 'new' };
       }
       const response = (await chrome.runtime.sendMessage({
         type: MessageType.CHECK_CREDENTIAL_STATUS,
-        data: { username, password, url: location.host, protocol: location.protocol },
+        data: { username, password, mobileLogin, url: location.host, protocol: location.protocol },
       })) as CredentialStatusResponse | undefined;
       return response?.status ? response : { status: 'new' };
     } catch {
@@ -512,6 +524,7 @@ export class LoginAutoSave {
     const { status, existing, risk, targetNote } = await this.resolveCredentialStatus(
       pending.username,
       pending.password,
+      pending.mobileLogin === true,
     );
 
     // await 期间可能收到 SESSION_EXPIRED 广播，二次确认避免过期后仍弹窗
@@ -582,8 +595,10 @@ export class LoginAutoSave {
 
       const pending = JSON.parse(raw) as PendingCredentials;
 
-      // 校验数据有效性：必须有用户名和密码，且在有效期内
-      if (!pending.username || !pending.password) {
+      // 校验数据有效性：必须有用户名，且在有效期内。空口令只在发送方声明了 `mobileLogin` 时合法
+      // （手机号 + 短信码登录本来就没有口令），必须是严格 true——这里读的是页面里的密文，
+      // 脏值不该换来一次弹窗；少了这一位，整页跳转式短信登录的弹窗会在恢复时被当脏数据静默删除。
+      if (!pending.username || (!pending.password && pending.mobileLogin !== true)) {
         sessionStorage.removeItem(PENDING_SAVE_KEY);
         return;
       }
@@ -641,6 +656,7 @@ export class LoginAutoSave {
         {
           username: pending.username,
           password: pending.password,
+          mobileLogin: pending.mobileLogin,
           url: pending.url,
           tag: pending.tag,
           remark: pending.remark,
@@ -698,6 +714,7 @@ export class LoginAutoSave {
     const promptData: SavePromptData = {
       username: pending.username,
       password: pending.password,
+      mobileLogin: pending.mobileLogin,
       url: pending.url,
       tag: pending.tag,
       remark: pending.remark,
@@ -812,7 +829,14 @@ export class LoginAutoSave {
    */
   private setupFieldSync(controls: SavePromptControls): void {
     const passwordField = this.lastCapturedPasswordField;
-    if (!passwordField) return;
+    if (!passwordField) {
+      // 手机号 + 短信码形态没有密码框可跟（`lastCapturedPasswordField` 恒为 null），但账号那一侧
+      // 同样会在弹窗期间被改：不挂监听就会把提交时的旧号码存进库。用捕获时同一把尺子找回手机号框。
+      const mobileField = this.findMobileCodeField(this.lastCapturedForm ?? document);
+      if (!mobileField) return;
+      this.syncUsernameField(controls, mobileField);
+      return;
+    }
 
     // 监听密码框 input 事件，实时更新弹窗密码展示
     const onPasswordInput = () => {
@@ -831,18 +855,32 @@ export class LoginAutoSave {
     const form = this.lastCapturedForm;
     const usernameField = form ? this.findUsernameFieldInForm(form) : this.findUsernameFieldInPage();
     if (usernameField) {
-      const onUsernameInput = () => {
-        controls.updateUsername(usernameField.value);
-        // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
-        void this.syncPendingToSession(undefined, usernameField.value);
-      };
-      usernameField.addEventListener('input', onUsernameInput);
-      this.fieldSyncCleanups.push(() => {
-        usernameField.removeEventListener('input', onUsernameInput);
-      });
-      // 立即同步当前值
-      onUsernameInput();
+      this.syncUsernameField(controls, usernameField);
     }
+  }
+
+  /**
+   * 监听一个账号框的 input 事件，实时同步弹窗展示与待确认凭证
+   *
+   * 口令形态与手机号形态共用这一条，差别只在框是怎么找出来的。监听器一律登记进
+   * `fieldSyncCleanups`，由 `teardownFieldSync` 统一摘除——注册与清理必须成对，否则每次弹窗
+   * 都会多留一个监听器。
+   *
+   * @param controls - 弹窗更新控制接口
+   * @param field - 账号输入框
+   */
+  private syncUsernameField(controls: SavePromptControls, field: HTMLInputElement): void {
+    const onUsernameInput = () => {
+      controls.updateUsername(field.value);
+      // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
+      void this.syncPendingToSession(undefined, field.value);
+    };
+    field.addEventListener('input', onUsernameInput);
+    this.fieldSyncCleanups.push(() => {
+      field.removeEventListener('input', onUsernameInput);
+    });
+    // 立即同步当前值
+    onUsernameInput();
   }
 
   /**
@@ -925,6 +963,7 @@ export class LoginAutoSave {
         data: {
           username: finalUsername,
           password: finalPassword,
+          mobileLogin: pending.mobileLogin,
           url: pending.url,
           protocol: pending.protocol,
           tag: pending.tag,
@@ -1052,6 +1091,70 @@ export class LoginAutoSave {
   }
 
   // ── 表单字段查找工具方法 ──
+
+  /**
+   * 读取「手机号 + 短信验证码」形态下的账号值
+   *
+   * 判据刻意要求**两个框都已填写**：只认「有个手机号框」会把搜索框、注册表单、收货地址页
+   * 一并判成登录页；而用户点「获取验证码」那一下手机号框已填、验证码框还空，此时登录尚未
+   * 发生，弹「保存」只会变成噪声。两个框都有值才是「用户正在提交短信码登录」。
+   *
+   * 值只看字段自己声明的语义（`looksLikePhoneField` / `matchesVerifyCodeSelectors`，与分类、
+   * 侧边栏触发、填充落点共用同一把尺子），不看输入内容——否则一个填着「iphone 15」的搜索框
+   * 会因为值里含 `phone` 被当成手机号。国家码 / 区号 / 分机这类拆号子段被排除：
+   * 那 3~4 位不是任何人的登录账号。
+   *
+   * @param scope 提交所在的 form，或无 form 时的 document
+   * @returns 手机号输入框；不构成该形态时 null
+   */
+  private findMobileCodeField(scope: ParentNode): HTMLInputElement | null {
+    const filled = Array.from(scope.querySelectorAll('input')).filter(
+      input => !!input.value && isElementVisible(input),
+    );
+    const hasSmsCode = filled.some(
+      input => matchesVerifyCodeSelectors(input) && !looksLikePostalCode(input) && isOneTimeCodeValue(input.value),
+    );
+    if (!hasSmsCode) return null;
+
+    return (
+      filled.find(
+        input => looksLikePhoneField(input) && !isPhoneExtensionField(input) && !matchesVerifyCodeSelectors(input),
+      ) ?? null
+    );
+  }
+
+  /**
+   * 读取「手机号 + 短信验证码」形态下的账号值
+   * @param scope 提交所在的 form，或无 form 时的 document
+   * @returns 手机号框的值；不构成该形态时空字符串
+   */
+  private findMobileCodeAccount(scope: ParentNode): string {
+    return this.findMobileCodeField(scope)?.value ?? '';
+  }
+
+  /**
+   * 采集一次登录提交的凭据（三个捕获入口共用的判据）
+   *
+   * 密码框有值 → 走原有的「账号 + 密码」路径，取值方式与历史完全一致（form 场景走
+   * `findUsernameInForm`、无 form 的 SPA 走 `findUsernameInPage`，两者宽窄不同，不在此统一）。
+   * 密码框不存在或还没填 → 只可能由「手机号 + 短信码」形态成立，否则这次提交不产生凭据。
+   *
+   * @param form 提交所在的 form；无 form 的 SPA 场景传 null
+   * @returns 采集结果；不构成可保存的凭据时返回 null
+   */
+  private readCredentials(form: HTMLFormElement | null): CapturedCredentials | null {
+    const scope: ParentNode = form ?? document;
+    const passwordField = scope.querySelector(PASSWORD_FIELD_SELECTOR) as HTMLInputElement | null;
+    const password = passwordField?.value ?? '';
+
+    if (password) {
+      const username = form ? this.findUsernameInForm(form) : this.findUsernameInPage();
+      return username ? { username, password, mobileLogin: false, passwordField } : null;
+    }
+
+    const mobile = this.findMobileCodeAccount(scope);
+    return mobile ? { username: mobile, password: '', mobileLogin: true, passwordField: null } : null;
+  }
 
   /**
    * 从表单中查找用户名输入框的值

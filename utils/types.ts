@@ -885,10 +885,20 @@ export interface OpenOptionsAndAddData {
  * 自动保存密码数据接口
  */
 export interface AutoSavePasswordData {
-  /** 用户名 */
+  /** 用户名（`mobileLogin` 为真时是手机号） */
   username: string;
   /** 密码 */
   password: string;
+  /**
+   * 本次登录是「手机号 + 短信验证码」形态：页面没有可用密码框，因此 `password` 合法地为空串
+   *
+   * 这条位是**写入授权**而不是描述性元数据：没有它，`autoSavePassword` 照旧按「账号或密码为空」
+   * 拒写（`utils/storage/autoSaveManager.ts`）。刻意要求显式声明而不是「空密码即视为手机号登录」，
+   * 是为了让任何未来新增的发送方都必须先想清楚自己是否在往库里塞空凭据。
+   * 即便声明了，写入侧仍有一条不可覆盖门：库里那条有真口令时，空口令**永不**把它抹掉。
+   * 验证码本身不入任何字段——一次性短信码存下来没有复用价值。
+   */
+  mobileLogin?: boolean;
   /** 网站域名 */
   url: string;
   /** 标签，取自页面标题的站点名分段（见 `utils/capturedTag`）；「密码已变更」时为条目已有标签串 */
@@ -965,10 +975,18 @@ export type PasswordFormPatch = Omit<PasswordFormModel, 'tag'>;
  * 由 content script 在捕获登录凭证后、弹窗前发送，供 background 比对已保存密码库。
  */
 export interface CheckCredentialStatusData {
-  /** 用户名 */
+  /** 用户名（`mobileLogin` 为真时是手机号） */
   username: string;
   /** 密码（仅用于在 background 侧比对是否变化，绝不回传） */
   password: string;
+  /**
+   * 本次登录是「手机号 + 短信验证码」形态（页面无可用密码框，`password` 为空串）
+   *
+   * 没有这一位，空密码会在比对前被短路成 `new`（`checkCredentialStatus` 开头的空字段分支），
+   * 于是同一个手机号每次登录都弹「保存」——预检查说不出「这条已经在库里了」。
+   * 判据与写入契约见 `AutoSavePasswordData.mobileLogin`。
+   */
+  mobileLogin?: boolean;
   /** 网站域名（捕获帧 `location.host`，与自动保存写入的 `url` 同口径） */
   url: string;
   /**

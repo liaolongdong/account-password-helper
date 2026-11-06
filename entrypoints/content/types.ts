@@ -74,6 +74,12 @@ export interface SavePromptData {
   username: string;
   /** 密码 */
   password: string;
+  /**
+   * 本次凭证来自「手机号 + 短信验证码」登录：页面没有可用密码框，`username` 是手机号，
+   * `password` 为空串。弹窗据此把密码那一行换成「不保存验证码」的说明，而不是渲染一行空点。
+   * 判据与写入契约见 `AutoSavePasswordData.mobileLogin`。
+   */
+  mobileLogin?: boolean;
   /** 网站域名 */
   url: string;
   /** 标签默认值，取自页面标题里的站点名分段（见 `utils/capturedTag`；「密码已变更」时为条目已有标签串） */
@@ -147,6 +153,14 @@ export interface PendingCredentials {
   username: string;
   /** 密码 */
   password: string;
+  /**
+   * 本次凭证来自「手机号 + 短信验证码」登录（页面无可用密码框）
+   *
+   * 必须随本结构一起进 sessionStorage：跳转后由 `checkPendingCredentials` 恢复弹窗时，
+   * 这一位决定「空密码是合法形态」还是「脏数据」——丢了它，恢复路径会按空字段把凭证扔掉。
+   * 判据与写入契约见 `AutoSavePasswordData.mobileLogin`。
+   */
+  mobileLogin?: boolean;
   /** 网站域名 */
   url: string;
   /** 标签，取自页面标题的站点名分段（见 `utils/capturedTag`） */
