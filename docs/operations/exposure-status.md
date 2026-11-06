@@ -55,6 +55,50 @@
 
 | 测试基线（2026-10-18 复跑·页面写法的认格通道） | `pnpm exec vitest run --no-file-parallelism`（跑在与提交同构的 detached 树 `831b3c8` 里，worktree `~/.aph-wt/gate2`、`node_modules` 软链主仓）→ **251 个测试文件 / 3589 个用例全部通过，exit 0、0 failed、0 pending**（`Duration 148.02s`，只作旁证）。**+22 例 / +0 文件**四处闭合：`useIdentityVault` 43 → 55（+12）、`identityFields` 12 → 19（+7）、`identityLookupFromDetailWiring` 13 → 14（+1）、`piiClassifier.coverage` 240 → 242（+2：词表反向校验 ＋ 召回守卫，评审回灌把一条拆成两条），12 + 7 + 1 + 2 = 22 = 3589 − 3567 零残差。**开跑前先把 `.output` 删了，第一趟不可用**——产物门控的十来条用例在缺 `.output` 时静默跳过，"0 failed"不等于"跑全了"；补 `build` + `build:firefox` 后重测才是这行的数。七道门禁逐条 exit=0，产物 zip **803,222 B**、`.output/chrome-mv3` Σ **2,279,322 B**（208 文件）、`.output/firefox-mv2` Σ **2,279,174 B**（208 文件）；基线在 `~/.aph-wt/base2` 于 `e7816a0` 重建，读数复现上一行的 801,237 / 2,274,334 / 2,274,186，先证明可复算再 A/B。两份解压 Σ **各 +4,988 B** 只来自四枚：`chunks/options.js` +3,456（151 条词表串与认格通道）、`chunks/help.js` **+1,057**（中英 gd.9 各加一句搜法说明，评审回灌又补进「填了值的那一格才算填过」的限定）、`chunks/IdentityVaultDialog.js` +254、`assets/IdentityVaultDialog.css` +221，3,456 + 1,057 + 254 + 221 = 4,988 恰好闭合，另 28 枚只换引用名；zip +1,985 B。**这组是评审回灌之后重测的**：那一笔只动注释与文档，却把 `help.js` 推高 199 B、把用例数推 +1——**"只动注释"既不等于不进产物，也不等于不动用例数**。**对外 48 处落点跟到 3589 / 251**：只有 35 个用例数位走格（产品站两处千分位 `3,589`），13 个文件数位原地不动；派生的 12 页博客 HTML、`en.html`（256/256、16/16、FAQ DOM 42 三条计数不变）与 04 / 05 两张封面 PNG 由 `gen:blog` / `gen:en` / `covers:render` 重跑跟上，01–03 逐字节未变。上一行 3567 / 251 是前一轮的定稿读数，保留作记录。 |
 
+## 🆕 2026-11-05 曝光面收口：博客补 CTA + 两篇长尾文 + 对外数字与在架版本对齐（本轮，未提交）
+
+用户批准四批全选（A 事实漂移收口 / B 博客长尾新内容 / C 商店转化侧 / D GitHub 曝光面），并钉死三条边界：**商店只动说明正文（实际结论是本轮不动，理由见下）**、GitHub 元数据**只出文本与命令不做外部写**、含真实凭据的旧截图**本轮只记录不动**。
+
+### 本轮发现的两件真事（不是润色）
+
+1. 🔴 **五篇博客完全没有商店入口**：`blog/` 八篇里只有 01/04/05 带 `?ref=blog` 的商店链接，**02/03/06/07/08 一处都没有**——而 06（选型对比）/07（多环境）/08（TOTP 指南）恰恰是搜索意图最强、最该转化的三篇。这是本轮唯一一处能直接作用于北极星（CWS 安装量）且零风险的改动，已补齐：现在 10 篇 × 中英 = 20 个产物页每页至少 1 处带归因商店链接。
+2. 🔴 **GitHub About 是全仓唯一还挂着被禁表述的对外表面**：线上 346 UTF-16 的旧描述里那句「密码永不出浏览器」式承诺，正是 `tests/docs/seoSurface.test.ts` 的 `BANNED_PHRASES` 表里的原句，而**那条守卫扫不到 GitHub About（它不是文件）**。同时 `utils/updateChecker.ts` 每 6 小时确实发一次匿名请求，所以这句无法自证。新文本 332 UTF-16 与执行/复测命令都在 [GitHub 元数据替换与站外投递包](./promo/GITHUB_META_AND_LAUNCH_PACK_2026-11-05.md)。
+
+### 改了哪些表面
+
+- **版本新鲜度**：`package.json` 与商店在架读数**同为 v3.22.0**（tag 落 2026-11-04，shields 实测 `message: v3.22.0`），而落地页 JSON-LD `softwareVersion`、页脚「最后更新」、`llms.txt` 的 Latest release 仍停在 v3.20.0 / 2026-10-27。全部推到 v3.22.0 / 2026-11-05，`en.html` 由 `gen:en` 派生（diff 恰好 4 行），`sitemap.xml` 两条根页 lastmod 同步。
+- **`llms.txt` 同一文件内自相矛盾**：133-134 行写「5 篇技术文」，159 行写 "all eight posts"，实际 8 篇 → 现为 10 篇，两处统一，并补上 Blog 09/10 两条 Optional 条目。
+- **对外测试数**：`pnpm test:run` 实跑 **336 个文件 / 4856 个用例**（本轮开工时磁盘 336、文档写 320；用例数 4654 → 4856 的 +64 全部来自新增 4 个产物页撑宽的 `it.each` 覆盖面，属**本轮自身改动造成的合法增长**，不是漂移）。48 处落点（35 用例数位 + 13 文件数位）按 `testCountCopy` 登记的表面清单整轮刷过，派生的 20 个博客 HTML、`en.html`、`llms-full.txt` 与两张封面 PNG 由 `gen:blog` / `gen:en` / `covers:render` 重跑跟上。
+- **商店文档的可执行指令过期**：`CWS_FILL_CONTENT.md:14` 硬写 `account-password-helper-3.13.1-chrome.zip` → 改成 `<package.json 的 version>` 模板写法，并把「构建号与在架号同号 → Dashboard 拒绝上传」重新变成一条看得见的现势提醒（今天在架 3.22.0 与本地 3.22.0 正同号）。**下面的长度批注一律没动**：那些「余 62 / 余 87」是逐轮快照，且二十二修订那行已经自己把 87 记对了，改它等于篡改历史。
+- **新增两篇长尾文（中英成对）**：`09-autofill-not-working-fixes`（自动填充排障七处判据）与 `10-import-from-other-managers`（迁移导入的表头识别与备份口径）。事实逐条回源码核过：`FillEntry` 三档与新装 `inline` / 存量冻结 `sidepanel` 的默认差异、`DomainMatchMode` 三档与公共后缀边界、`quickFillHandler` 只投 `frameId: 0` 且绑文档投递、`LoginAutoSave` 的 `data-aph-password` 双条件、`utils/excelFormatMap.ts` 五套表头映射、UTF-8→GBK 回退、`.aph` 每次新盐新 IV 与下载前往返自检、`.aphid` 按 id 合并、站点规则 500 条上限。**代码里没有的一律写进「不存在」清单**（xlsx、手动选列、导入去重、导入写历史、CSV 收藏列）。
+- **连锁改动**：封面角标分母 8 → 10（十张 SVG 全部改并重新栅格化）、`blogMeta` 页面清单 +4 与 `ItemList` 10、`seoSurface` sitemap 博客条目 20、`darkTokens` 博客页数 22、`sitemap.xml` +4 条、`imgs/blog-covers/outline.md` 与 `docs/blog/PUBLISHING.md` 的篇数口径与登记表同步扩到 10 行。
+
+### 刻意没做
+
+- **商店说明正文一字未改**。三条理由写进 [新的 Dashboard 提交单](./promo/CWS_DASHBOARD_SUBMIT_SHEET_2026-11-05.md)：`?ref=` 归因至今无法自证、英文预算只剩 87 码点、上一轮被拒的正是「同一卖点在多节各抄一遍」。下一轮该等一次 Dashboard 读数再动。
+- **名称 / 摘要 / 权限 / zip 一律不动**（用户选的边界，也是历史红线）。
+- 旧截图与全部历史不改写（用户决定），只再记一次 P0。
+- 站外发帖没有执行——文案、投递包、命令都齐了，但发出去与守帖在人手里。
+
+### 验证
+
+`pnpm test:run` → **336 文件 / 4856 用例全部通过，exit 0**；`pnpm typecheck`、`pnpm lint`（`--max-warnings 0`）、`pnpm lint:style`、对全部改动文本文件 `pnpm exec prettier --check` 逐条 exit 0。`pnpm build` 本轮未跑：**没有触碰入口、manifest、`_locales`、WXT/Vite 配置或依赖**，打包行为不受影响。长度与读数全部实跑复核：商店六个粘贴块 `paste blocks: 6`、中英摘要 131/130、说明 6744/15913 码点、GitHub 描述 346 UTF-16。
+
+⚠️ **本轮踩到并纠正的两处自伤**：① 第一次给 02 补 CTA 时写成了相邻两段重复指向 GitHub，当场合并；② 新写的投递包**逐字引用了禁词表里的原句**，被 `seoSurface` 当场判红——正确做法是引用 `BANNED_PHRASES` 这张唯一真源而不是复制它（`docs/store/*` 与 `outline.md` 正因为「转述禁令」才被排除在扫描面外）。两处都是门禁抓出来的，不是评审提出来的。
+
+### 评审回灌（两路并行评审，逐条证实后才修）
+
+评审提了 9 条，**8 条经我回源码核实成立并已修**，1 条按其性质保留：
+
+- 🔴 **我自己写的两处硬性事实错误**（最容易漏、代价最大）：① 09 篇原写「一键填充这条路径只投顶层 frame」——错。PING 探活确实只打 `frameId: 0`，但**投递**走 `getFillableDocuments` + `fillPasswordInFrames` 逐文档并行，可填集合是「顶层 ＋ 所有与顶层同主域的 frame」（`utils/frameFill.ts` 的 `isFillableFrame`，`about:` 帧沿父链回溯）。真正拦住跨域 iframe 的是**同主域校验**，不是 frameId。已按准确机制改写，并把 `utils/frameFill.ts` 补进文末关键文件清单。② 10 篇原写「`.aph` 每个字段单独 AES-256-GCM 加密」——错。备份是**整个容器一次加密**（`utils/backupExport.ts`，`salt ‖ iv ‖ ciphertext`）；逐字段是 `chrome.storage.local` 的**存储**形态。两者都真，但不是同一层，已分开写明。
+- 🟠 **两处夸大/不精确**：「主域是按公共后缀算的」→ `utils/domain.ts` 自己写明**这是一张拒绝表而非 PSL**，未收录后缀退回「末两段」，已改成如实描述并补上「漏收不等于更安全的默认」这一句；CSV 跳行原判成「有效值少于两个」→ 代码 `values.length < 2` 判的是**列数**，我举的例子实际是被「无用户名」门拦掉的，已改写并把两个门槛分列。
+- 🟠 **中英表格不等价**：10 篇 en 的 native 行漏了 `用户名(必填)` 与 `网站地址` 两枚真实别名（`utils/excelFormatMap.ts` 里有），已补齐；顺带把 UTF-8→GBK 回退的触发条件（「解析无结果」而非「解码报错」）、去重确认框只报组数与条数、站点规则 2 MiB 是**字符数近似** 三处措辞收严。
+- 🟡 **评审顺手抓到的漏刷（我自查没抓到的）**：`product-site/index.html:2006` 同一文件里 `:114` 已是 v3.22.0 而 `:2006` 仍写 v3.20.0；`README*.md:494` 的「文档最后更新」仍写 2026-10-27；公众号/微博两份草稿的「事实基线」写着 v3.15.2 却在同一行报 4856 用例（自相矛盾）；`CWS_FILL_CONTENT.md` 提交前清单仍称「当前批次徽章 v3.20.0 与 `package.json` 同源」——今天已是 3.22.0，这一条会误导下一次上传，已改写成「已落后两版，重传前必须重截」。
+- 🟡 **日期一致性**：01/04/05 六份源文本轮因刷数被改，`modified` 却留在 10-27（02/03/06/07/08 我已升 11-05）。门禁只比对 `lastmod === md modified`，两边一起陈旧**不会翻红**，属于守卫的盲区——已把六份 `modified` 与对应 sitemap 条目一并升到 11-05。
+- 🟢 **保留不动**：`README*.md:407` 的 `### v3.20.0（2026-10-27）` 是更新日志条目，日期本就该属于那一版；执行手册与 reports 里的日期化引用同理。
+
+范围纪律复核（评审独立取数）：本轮**未触碰** `entrypoints/`、`utils/`、`components/`、`composables/`、`public/_locales/`、`wxt.config.ts`、`package.json`、`pnpm-lock.yaml`、`scripts/`、`.github/`、`assets/` 与任何配置——外部写只出文本与命令，符合用户定的边界。
+
 ## 🆕 2026-11-01 商店详情页不展示用户数：旧归因作废，改记「item 级展示抑制」
 
 用户报「商店用户数看不到了，后台还能看到」，本轮把三件事分开实测，结论与 09-29 那条基线的归因**不一致**，证据与工单见[商店用户数不展示：工单草稿 + 后台核对清单](./promo/CWS_USER_COUNT_TICKET_2026-11-01.md)。
@@ -932,6 +976,8 @@
 - 外部链接统一带 UTM（`?utm_source=xxx` / `?ref=xxx`），在 CWS Analytics 与 GitHub Insights 归因。
 - **GitHub About（仓库描述）待替换**：2026-09-25 用 `curl --http1.1 https://api.github.com/repos/liaolongdong/account-password-helper` 复测，线上仍是旧版——2026-09-22 拟好的三版候选**从未执行**。**2026-09-29 再次复核仍是旧版**（实测 **346 UTF-16 / 345 码点 / 368 字节**，结尾 `…idle auto-lock. 本地账号密码管理助手`；本轮第一次请求 `curl` 以 exit 28 / `http=000` 超时，重试才拿到 200——这条读请求不稳定，判定「未替换」必须以拿到 200 且长度=346 的那次为准，别把空响应读成「已经改好」）。旧版第二段写着 `zero cloud - passwords never leave your browser`，与商店文案 / `llms.txt` 已收口的口径冲突（扩展每 6 小时会发一次不携带用户数据的匿名版本检查，`utils/updateChecker.ts:71-98`，"never leave" 属无法自证的绝对化表述）；旧版结尾的 `本地账号密码管理助手` 也只出现中文名单独一项，与本波次收口的**站外双名口径 `账号密码管理助手 Account Password Helper`** 不一致。
   ⚠️ **长度口径先钉死，避免再算错**：GitHub 的 350 上限按 **UTF-16 code unit** 计（`🔐` 占 2、汉字各占 1），复算命令是 `node -e 'console.log(s.length)'`；本文更早版本标注的 343 / 341 是 **UTF-8 字节数**、345 是 **Unicode 码点数**，两者都不能与 350 直接比。线上旧版实测 **346 UTF-16 / 345 码点 / 368 字节**。
+
+  🔴 **2026-11-05 起本项以 [GitHub 元数据替换与站外投递包](./promo/GITHUB_META_AND_LAUNCH_PACK_2026-11-05.md) 为准**，下面那版 343 字候选作废（一处术语过期：`encrypted identity vault` → 现术语是「个人信息库 / Personal Info Vault」）。线上旧版复测仍是 **346 UTF-16 / 345 码点**，且仍含 `passwords never leave your browser`——这一串正好在本仓库自己的禁词表 `tests/docs/seoSurface.test.ts` 的 `BANNED_PHRASES` 里，而那条守卫扫不到 GitHub About，所以它是全仓唯一还挂着被禁表述的对外表面。新候选 332 UTF-16，执行与复测命令用 `gh api`，都在那份文件里。
 
   **最终候选（343 UTF-16，距上限余 7）**——双名占开头 35 个 UTF-16 单位（`🔐 账号密码管理助手 Account Password Helper`），让中文检索与英文检索都命中，前 160 字符覆盖 Google 与 GitHub 搜索结果的可见摘要：
 

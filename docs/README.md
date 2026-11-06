@@ -8,21 +8,21 @@
 
 ## 目录职责
 
-| 路径                         | 放什么                                                                                                                            | 入库    | 主要引用方                                                                                |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------- |
-| `ARCHITECTURE.md` / `.en.md` | 架构、数据流、安全设计、逐文件注释的项目结构树、「功能实现详解」                                                                  | ✅ 必须 | `README*`、`product-site/index.html`（GitHub blob 外链）、issue 模板                      |
-| `CONTRIBUTING.md`            | 开发规范、常用命令、提交范围、PR 自检清单（中英同文件）                                                                           | ✅ 必须 | `README*`、`product-site/index.html`、PR 模板                                             |
-| `THIRD-PARTY-NOTICES.md`     | 第三方许可证声明                                                                                                                  | ✅ 必须 | `README*`                                                                                 |
-| `PR_WORKFLOW_GUIDE.md`       | 分支模型、发版闸门、GitHub 网页端人工设置清单                                                                                     | ✅ 必须 | `.github/CODEOWNERS`、`.github/workflows/*` 注释、`docs/store/` 两份                      |
-| `store/`                     | Chrome 商店上架内容与发布流程：`CWS_FILL_CONTENT.md`（粘贴用正文）、`CWS_PUBLISHING_GUIDE.md`（流程与红线）                       | ✅ 必须 | `AGENTS.md` / `CLAUDE.md` 文档同步条款、`.github/*`、`scripts/render-store-creatives.mjs` |
-| `operations/`                | 对外运营与 SEO：曝光提升执行手册、`exposure-status.md` 进度台账、公众号 / 微博 / reddit 文案、`promo/` 草稿                       | ✅ 必须 | 本目录内部互引、`README*` 配图口径、`scripts/store-shots/`                                |
-| `reports/`                   | 内部评估报告与设计稿：`PERF_*`、`*_EVALUATION.md`、`*_DESIGN.md`、`LANDING_MOTION_PROPOSAL.md`                                    | ✅ 必须 | `utils/`、`components/`、`composables/`、`benchmarks/`、`e2e/`、`tests/` 注释             |
-| `media/`                     | README 与推广文档直接引用的演示素材（`demo-login.*`、`demo-totp.*`）；由 `scripts/store-shots/record.mjs` 产出                    | ✅ 必须 | `README*`、`docs/store/`、`docs/operations/`                                              |
-| `fixtures/`                  | 手工回归夹具：`test-page.html`（表单检测与自动填充验证页）                                                                        | ✅ 必须 | `docs/ARCHITECTURE*.md`                                                                   |
-| `blog/`                      | 博客**源文件**（`zh/`、`en/` 各 8 篇 md）与 `PUBLISHING.md`；产物是 `blog/*.html`、两份 `blog/feed*.xml` 与根目录 `llms-full.txt` | ✅ 必须 | `pnpm gen:blog`                                                                           |
-| `prototypes/`                | 提案的配套实物页（`landing-motion-lab.html`）                                                                                     | ✅ 必须 | `docs/reports/LANDING_MOTION_PROPOSAL.md`                                                 |
-| `docs/code-review-*.md`      | 一次性代码评审报告（可落在本目录或任一子目录）                                                                                    | ❌ 忽略 | 无：结论应回写进提交说明与对应文档                                                        |
-| `docs/pricing.md`            | 根目录 `pricing.md` 的历史副本，全仓零引用                                                                                        | ❌ 忽略 | 无：定价表只认根目录那一份                                                                |
+| 路径                         | 放什么                                                                                                                             | 入库    | 主要引用方                                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------- |
+| `ARCHITECTURE.md` / `.en.md` | 架构、数据流、安全设计、逐文件注释的项目结构树、「功能实现详解」                                                                   | ✅ 必须 | `README*`、`product-site/index.html`（GitHub blob 外链）、issue 模板                      |
+| `CONTRIBUTING.md`            | 开发规范、常用命令、提交范围、PR 自检清单（中英同文件）                                                                            | ✅ 必须 | `README*`、`product-site/index.html`、PR 模板                                             |
+| `THIRD-PARTY-NOTICES.md`     | 第三方许可证声明                                                                                                                   | ✅ 必须 | `README*`                                                                                 |
+| `PR_WORKFLOW_GUIDE.md`       | 分支模型、发版闸门、GitHub 网页端人工设置清单                                                                                      | ✅ 必须 | `.github/CODEOWNERS`、`.github/workflows/*` 注释、`docs/store/` 两份                      |
+| `store/`                     | Chrome 商店上架内容与发布流程：`CWS_FILL_CONTENT.md`（粘贴用正文）、`CWS_PUBLISHING_GUIDE.md`（流程与红线）                        | ✅ 必须 | `AGENTS.md` / `CLAUDE.md` 文档同步条款、`.github/*`、`scripts/render-store-creatives.mjs` |
+| `operations/`                | 对外运营与 SEO：曝光提升执行手册、`exposure-status.md` 进度台账、公众号 / 微博 / reddit 文案、`promo/` 草稿                        | ✅ 必须 | 本目录内部互引、`README*` 配图口径、`scripts/store-shots/`                                |
+| `reports/`                   | 内部评估报告与设计稿：`PERF_*`、`*_EVALUATION.md`、`*_DESIGN.md`、`LANDING_MOTION_PROPOSAL.md`                                     | ✅ 必须 | `utils/`、`components/`、`composables/`、`benchmarks/`、`e2e/`、`tests/` 注释             |
+| `media/`                     | README 与推广文档直接引用的演示素材（`demo-login.*`、`demo-totp.*`）；由 `scripts/store-shots/record.mjs` 产出                     | ✅ 必须 | `README*`、`docs/store/`、`docs/operations/`                                              |
+| `fixtures/`                  | 手工回归夹具：`test-page.html`（表单检测与自动填充验证页）                                                                         | ✅ 必须 | `docs/ARCHITECTURE*.md`                                                                   |
+| `blog/`                      | 博客**源文件**（`zh/`、`en/` 各 10 篇 md）与 `PUBLISHING.md`；产物是 `blog/*.html`、两份 `blog/feed*.xml` 与根目录 `llms-full.txt` | ✅ 必须 | `pnpm gen:blog`                                                                           |
+| `prototypes/`                | 提案的配套实物页（`landing-motion-lab.html`）                                                                                      | ✅ 必须 | `docs/reports/LANDING_MOTION_PROPOSAL.md`                                                 |
+| `docs/code-review-*.md`      | 一次性代码评审报告（可落在本目录或任一子目录）                                                                                     | ❌ 忽略 | 无：结论应回写进提交说明与对应文档                                                        |
+| `docs/pricing.md`            | 根目录 `pricing.md` 的历史副本，全仓零引用                                                                                         | ❌ 忽略 | 无：定价表只认根目录那一份                                                                |
 
 ## 新增文档该放哪
 

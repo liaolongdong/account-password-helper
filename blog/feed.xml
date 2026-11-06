@@ -8,12 +8,36 @@
     <link>https://liaolongdong.github.io/account-password-helper/blog/</link>
     <description>本地优先密码管理器的产品思考与工程实现：安全设计、MV3 性能、Web Crypto 加密与多环境登录。</description>
     <language>zh-cn</language>
-    <lastBuildDate>Tue, 27 Oct 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Thu, 05 Nov 2026 00:00:00 GMT</lastBuildDate>
     <atom:link
       href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml"
       rel="self"
       type="application/rss+xml"
     />
+    <item>
+      <title>密码自动填充不生效？按这七处依次排查</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html</guid>
+      <pubDate>Thu, 05 Nov 2026 00:00:00 GMT</pubDate>
+      <description>侧边栏不弹、候选里没有那条账号、填了却不登录、自动保存不出现——把自动填充的失败路径拆成七处判据，每一处都写清怎么确认、在哪一档改。</description>
+      <category>自动填充</category>
+      <category>密码管理器</category>
+      <category>Chrome扩展</category>
+      <category>排障</category>
+      <category>iframe</category>
+    </item>
+    <item>
+      <title>把密码从旧工具搬过来：表头识别、合并与加密备份</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html</guid>
+      <pubDate>Thu, 05 Nov 2026 00:00:00 GMT</pubDate>
+      <description>CSV 与 JSON 怎么被认出来、哪些行会被丢掉、导入为什么不去重、.aph 加密备份和导出表格有何区别——搬家这一路的真实判据与代码依据。</description>
+      <category>密码管理器</category>
+      <category>数据迁移</category>
+      <category>CSV导入</category>
+      <category>浏览器扩展</category>
+      <category>加密备份</category>
+    </item>
     <item>
       <title>Chrome 自带密码管理器够用吗？三种方案对比</title>
       <link>https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html</link>

@@ -3,7 +3,7 @@ title: Chrome 自带密码管理器够用吗？三种方案对比
 description: Chrome 自带、云端管理器与本地优先工具各适合谁？从多环境隔离、加密方式、迁移成本与离线可用四个维度给出选择清单。
 tags: 密码管理器,Chrome扩展,对比评测,本地优先,开源
 date: 2026-10-19
-modified: 2026-10-19
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-06-chrome-password-manager.png
 ---
@@ -79,4 +79,4 @@ Bitwarden、1Password 这类云端管理器解决的是另一类问题：多设�
 
 如果你想进一步比较具体功能与权限边界，可以看这份[本地优先方案与 Bitwarden、1Password 的逐项对比](https://liaolongdong.github.io/account-password-helper/compare.html)；如果你更关心加密实现，可以读[Web Crypto 加密实践](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)。
 
-如果你正好需要一款本地优先、开源免费的 Chrome 密码管理器，可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)：支持多环境精确匹配、一键登录、内置 TOTP 与离线安全体检，数据只写本机。
+如果你正好需要一款本地优先、开源免费的 Chrome 密码管理器，可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)：支持多环境精确匹配、一键登录、内置 TOTP 与离线安全体检，数据只写本机。想直接装的话，[Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) 一键添加即可，后续版本自动更新。

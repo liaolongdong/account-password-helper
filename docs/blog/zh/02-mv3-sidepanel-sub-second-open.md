@@ -3,7 +3,7 @@ title: 让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热�
 description: MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。
 tags: Chrome扩展,Manifest V3,Service Worker,性能优化,前端工程化
 date: 2026-08-28
-modified: 2026-10-27
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-02-sub-second-sidepanel.png
 ---
@@ -91,7 +91,7 @@ SW 常驻之后，下一步是把"用户即将用到的文件"提前读进系统
 - `passwordCache` / `startupRelock` / `idleLock`：缓存回温与各类锁定路径；
 - `sidePanelManager`：打开时序。
 
-目前全仓库 4654 项自动化测试（分布在 320 个测试文件）。性能结论：**缓存快路径 20-50ms 拿到数据**；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。
+目前全仓库 4856 项自动化测试（分布在 336 个测试文件）。性能结论：**缓存快路径 20-50ms 拿到数据**；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。
 
 ## 复盘：三条经验
 
@@ -99,7 +99,7 @@ SW 常驻之后，下一步是把"用户即将用到的文件"提前读进系统
 2. **快是分层买来的。** 保活买"进程在"，预热买"文件热"，竞速买"数据快"，非阻塞 CSS 买"先渲染"。每层独立生效，叠加起来才是秒开。
 3. **平台差异要正面处理。** Windows 杀毒扫描这种"非技术问题"真实存在，全量预热 + 引导用户加排除目录，比假装看不见有效得多。
 
-完整源码在 [GitHub](https://github.com/liaolongdong/account-password-helper)，欢迎 Star、拍砖、提 Issue。如果你也在做侧边栏类扩展，希望这套方案能帮你少走几个月的弯路。
+完整源码在 [GitHub](https://github.com/liaolongdong/account-password-helper)，欢迎 Star、拍砖、提 Issue；插件已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog)，完全免费，GPL-3.0 开源。如果你也在做侧边栏类扩展，希望这套方案能帮你少走几个月的弯路。
 
 ---
 

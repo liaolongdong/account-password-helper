@@ -3,7 +3,7 @@ title: 开发者的多环境账号管理：dev / test / prod 不串号
 description: 同一套系统四套账号，如何避免 test 账号填进 prod 登录框？从域名匹配、账号命名、保存判重到团队协作，给开发者与测试一套可落地的做法。
 tags: 多环境,开发者工具,域名匹配,测试,账号管理
 date: 2026-10-19
-modified: 2026-10-19
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-07-multi-environment-accounts.png
 ---
@@ -93,4 +93,4 @@ image: imgs/blog-cover-07-multi-environment-accounts.png
 
 多环境管理的目标不是「永不填错」这句口号，而是让每一次填充都发生在可解释的规则里：**为什么这个账号会出现、为什么这个环境不会串号、为什么最后一个提交动作由你确认**。
 
-想亲手试试三档匹配如何改变候选列表，可以打开[产品页的多环境匹配演示](https://liaolongdong.github.io/account-password-helper/#matchDemo)；需要管理多套环境账号时，也可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)。
+想亲手试试三档匹配如何改变候选列表，可以打开[产品页的多环境匹配演示](https://liaolongdong.github.io/account-password-helper/#matchDemo)；需要管理多套环境账号时，也可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)，直接从 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) 一键安装即可自动更新。

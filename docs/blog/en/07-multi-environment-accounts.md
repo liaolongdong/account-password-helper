@@ -3,7 +3,7 @@ title: Managing Dev, Test and Prod Accounts Safely
 description: Four accounts for one system — how do you stop a test credential from landing in production? A practical guide to host matching, naming, dedupe and team handoff.
 tags: multi-environment,developer tools,host matching,testing,account management
 date: 2026-10-19
-modified: 2026-10-19
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-07-multi-environment-accounts.png
 ---
@@ -93,4 +93,4 @@ If you only want to recommend a tool to a colleague, share the product page — 
 
 The goal is not the slogan "never fill the wrong account". It is to make every fill explainable: **why this account appeared, why this environment cannot cross over, and why the final submit action is yours to confirm.**
 
-To try how the three tiers change the candidate list, open the [multi-environment demo](https://liaolongdong.github.io/account-password-helper/en.html#matchDemo). If you manage several environments every day, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html).
+To try how the three tiers change the candidate list, open the [multi-environment demo](https://liaolongdong.github.io/account-password-helper/en.html#matchDemo). If you manage several environments every day, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html) — it installs from the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) and updates automatically.

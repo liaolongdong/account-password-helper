@@ -11,7 +11,7 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 # 博客封面系列设计规格
 
-八张封面共用一套令牌与版式，保证「同一系列」的视觉一致性；中英文文章共用同一张图，
+十张封面共用一套令牌与版式，保证「同一系列」的视觉一致性；中英文文章共用同一张图，
 因此封面上的文字只放**中文主标 + 语言中立的技术关键字/数字**，英文读者读关键字无障碍。
 
 ## 共享令牌（对齐 `assets/theme/tokens.css`）
@@ -45,13 +45,13 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 | 浅底表盘与骨架行          | `#f4f9ff` / `#dcebff` / `#b8d4f5`   | 02 秒表与浏览器骨架                                            |
 | 提速闪电（EP warning 系） | `#ffd04b → #e6a23c`                 | 02 闪电、05 兄弟子域警示徽章                                   |
 | 钥匙孔内圈                | `#3b86e8`                           | 01 保险块（取主色渐变中段）                                    |
-| 系列标                    | `#9ca3af`（= `--aph-text-muted`）   | 右上 `技术博客 0N / 08`（八张 SVG 已统一，改计数须重渲染 PNG） |
+| 系列标                    | `#9ca3af`（= `--aph-text-muted`）   | 右上 `技术博客 0N / 10`（十张 SVG 已统一，改计数须重渲染 PNG） |
 
 ## 共享版式
 
 - 画布 1600×900，安全边距 96px（OG 卡与列表小图裁切后文字仍完整）。
 - 左上品牌角标：52×52 主蓝圆角块 + 白色钥匙记号（`assets/icons/icon.svg` 同骨架）+ 27px 产品名。
-- 右上系列标：24px `技术博客 0N / 08`（08 是文章总数；新增文章要连同前面所有封面的分母一起改并重渲染）。
+- 右上系列标：24px `技术博客 0N / 10`（10 是文章总数；新增文章要连同前面所有封面的分母一起改并重渲染）。
 - 文字层级：H1 84px/700 → 关键字行 38px/600 主色 → 说明行 28px 辅助色 → 胶囊 27px/500（高 56、圆角 28、左右内距 26、间距 16）。
 - 01/02/03/05 为「左文字 + 右插画」双栏（文字栏 x 96–860，插画栏 x 880–1504）；
   04 因主体是「四个功能」卡片带，改为「上文字横排 + 下方四卡带」，其余令牌完全一致。
@@ -92,7 +92,7 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 **Position**: `04-login-flow-details.md` 封面 + og:image
 **Purpose**: 一图说清「这批更新加了什么、没加什么」
-**Text**: H1 `四个新功能 · 四段实现笔记`；关键字 `0 新增设置开关 · 仅 +1 权限 · 4654 项自动化测试`；说明 `每个功能都撞上一个 Chrome 扩展特有的坑`；卡片标签 `右键填充` `内联面板` `全站搜索` `只读详情`
+**Text**: H1 `四个新功能 · 四段实现笔记`；关键字 `0 新增设置开关 · 仅 +1 权限 · 4856 项自动化测试`；说明 `每个功能都撞上一个 Chrome 扩展特有的坑`；卡片标签 `右键填充` `内联面板` `全站搜索` `只读详情`
 **Visual Content**: 四张等宽卡片横带（带 01–04 序号），各配一个功能微缩图形（右键菜单 + 光标 / 输入框上方翻转面板 / 本站-全站分段控件 + 放大镜 / 列表 + 只读抽屉），虚线脊柱串联
 **Filename**: blog-cover-04-login-flow-details.svg → ../blog-cover-04-login-flow-details.png
 
@@ -100,7 +100,7 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 **Position**: `05-cross-subdomain-matching.md` 封面 + og:image
 **Purpose**: 把「同一站点的账号该出现在哪些子域」这件事画成一张可核对的层级梯
-**Text**: H1 两行 `同一站点的账号` / `该出现在哪些子域`；关键字 `off · wildcard · sameMainDomain`；说明 `三档分层判据 · 一个函数决定 · 多处消费`；胶囊 `三档分层判据` `主域名相等` `不用 endsWith` `4654 项自动化测试` `+18 B 包体积`；证据行 `utils/domain.ts · resolveMatchTier`
+**Text**: H1 两行 `同一站点的账号` / `该出现在哪些子域`；关键字 `off · wildcard · sameMainDomain`；说明 `三档分层判据 · 一个函数决定 · 多处消费`；胶囊 `三档分层判据` `主域名相等` `不用 endsWith` `4856 项自动化测试` `+18 B 包体积`；证据行 `utils/domain.ts · resolveMatchTier`
 **Visual Content**: 顶部地址栏（锁形记号 + `mail.example.com` + 「当前档：同主域名」）→ 虚线脊柱串起 tier 0–3 四行（0 精确行主蓝高亮、1 通配 `*.example.com`、2 apex `example.com`、3 兄弟子域 `uat.example.com` 用 warning 系描边），1–3 行右侧带「跨子域」徽章 → 底部虚线框 `evil-example.com` 配 EP 红叉，注脚 `主域名相等，不是 endsWith('example.com')`；域名一律用 `example.com` 家族，不出现任何真实站点或账号
 **Filename**: blog-cover-05-cross-subdomain-matching.svg → ../blog-cover-05-cross-subdomain-matching.png
 
@@ -127,3 +127,19 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 **Text**: H1 两行 `TOTP 两步验证` / `怎么用才安全`；关键字 `RFC 6238 · 30s · HMAC`；说明 `原理、迁移与信任边界`；胶囊 `独立因素` `加密存储` `恢复码` `扫码或手动迁移` `时钟同步`；证据行 `utils/totp.ts · generateTOTP`
 **Visual Content**: 右侧验证码卡片（六位活码 + 30 秒倒计时环）→ 下方密钥卡（锁形记号 + 「密钥只随条目加密存储」）→ 虚线提示「高价值账户优先 Passkey 或独立验证器」；不出现任何真实验证码或密钥
 **Filename**: blog-cover-08-totp-two-factor.svg → ../blog-cover-08-totp-two-factor.png
+
+## Illustration 9 — blog-cover-09-autofill-troubleshooting
+
+**Position**: `docs/blog/{zh,en}/09-autofill-not-working-fixes.md` 封面 + og:image
+**Purpose**: 把「填不上」这条模糊抱怨画成一条有顺序的检查路径，降低「不知道该从哪儿查」的门槛
+**Text**: H1 两行 `自动填充不生效` / `按七处依次查`；关键字 `会话 · 档位 · 范围 · 注入`；说明 `每一处都给确认方法与改法`；胶囊 `解锁态` `入口三档` `主域边界` `脚本未注入` `iframe` `填充≠提交`；证据行 `utils/domain.ts · resolveMatchTier`
+**Visual Content**: 右侧编号清单卡（1-7 两列排布，序号用圆形徽标）→ 下方「默认值都放在保守那一档」卡片（文档线框图标 + 快捷键只填充不提交）→ 虚线注脚「只有跨域 iframe 那一处是结构性限制」；不出现任何真实站点或账号
+**Filename**: blog-cover-09-autofill-troubleshooting.svg → ../blog-cover-09-autofill-troubleshooting.png
+
+## Illustration 10 — blog-cover-10-import-migration
+
+**Position**: `docs/blog/{zh,en}/10-import-from-other-managers.md` 封面 + og:image
+**Purpose**: 用「同一列在各家导出里长得不一样」这一眼就懂的形状，把迁移这件事的实质讲清楚
+**Text**: H1 两行 `把旧密码库` / `搬进来`；关键字 `五套表头映射 · 追加不去重`；说明 `哪些行会被丢掉，备份该用哪一个`；胶囊 `CSV` `JSON` `.aph 加密备份` `UTF-8 → GBK 回退` `每批要么全写要么全不写`；证据行 `utils/excelFormatMap.ts · 5 套映射`
+**Visual Content**: 右侧映射卡五行等宽字体（`login_username` / `login_uri` / `origin` / `grouping` / `otpauth` 各配一个中文箭头目标，列区用低透明底块分组）→ 下方「备份用 .aph，不是导出表格」卡片（钥匙图标 + 明文密码提醒 + `新盐新 IV` 胶囊）→ 虚线注脚「没有 xlsx、没有手动选列」；表头名一律用各家公开导出格式里的真实列名，不出现真实账号
+**Filename**: blog-cover-10-import-migration.svg → ../blog-cover-10-import-migration.png
