@@ -1,6 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import type { ImportFormat } from '@/utils/excelFormatMap';
-import { parseCSVBuffer } from '@/utils/excelCsv';
+import { parseCSVBuffer, type CsvParseResult } from '@/utils/excelCsv';
 import { parsePasswordJSON } from '@/utils/excelJson';
 import {
   downloadTemplate as downloadCsvTemplate,
@@ -11,7 +11,7 @@ import {
 /**
  * Excel / CSV / JSON 导入导出工具（门面）
  *
- * 具体实现按职责拆分到独立模块，本类仅作为稳定的对外契约（静态方法签名不变）：
+ * 具体实现按职责拆分到独立模块，本类只作为对外门面（方法名与语义保持稳定）：
  * - 列映射配置：`@/utils/excelFormatMap`
  * - CSV 导入解析：`@/utils/excelCsv`
  * - JSON 导入解析：`@/utils/excelJson`
@@ -27,10 +27,13 @@ export class ExcelUtils {
 
   /**
    * 解析 CSV 文件为密码数据，支持多编码自动回退
+   *
+   * 返回 `{ entries, skipped }`：`skipped` 是没能带出的数据行及其原因，界面必须把它说出来——
+   * 只回一个条数时，表头没被认出的用户看到的就只是「导入 0 条」这一句没用的话。
    * @param buffer CSV 文件原始字节
    * @param format 导入格式，'auto' 时自动检测
    */
-  static parseCSV(buffer: ArrayBuffer, format: ImportFormat = 'auto'): Omit<PasswordEntry, 'id' | 'order'>[] {
+  static parseCSV(buffer: ArrayBuffer, format: ImportFormat = 'auto'): CsvParseResult {
     return parseCSVBuffer(buffer, format);
   }
 

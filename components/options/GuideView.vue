@@ -136,7 +136,7 @@
           </h2>
           <ol class="guide-list">
             <li
-              v-for="(item, idx) in helpItems('help.gb', 19)"
+              v-for="(item, idx) in helpItems('help.gb', 20)"
               :key="idx"
             >
               <RichText :source="item" />

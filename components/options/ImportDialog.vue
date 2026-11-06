@@ -100,6 +100,22 @@
           </div>
         </div>
 
+        <!-- 未能带出的行：解析层丢行此前是静默的，用户只看到「导入 0 条」这一句没用的话 -->
+        <div
+          v-if="skippedGroups.length > 0"
+          class="skipped-section"
+        >
+          <p class="skipped-section__title">{{ t('options.import.skippedTitle', { count: skippedRows.length }) }}</p>
+          <p
+            v-for="group in skippedGroups"
+            :key="group.reason"
+            class="skipped-section__item"
+          >
+            {{ group.text }}
+          </p>
+          <p class="skipped-section__hint">{{ t('options.import.skippedHint') }}</p>
+        </div>
+
         <!-- 预览数据 -->
         <div
           v-if="previewData.length > 0"
@@ -226,6 +242,8 @@ import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { ExcelUtils } from '@/utils/excel';
 import type { ImportFormat } from '@/utils/excelFormatMap';
+import type { ImportSkipReason, ImportSkippedRow } from '@/utils/excelCsv';
+import { groupSkippedRows } from '@/utils/excelCsv';
 import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { importFailureMessage, importSuccessMessage, useImportCapacity } from '@/composables/useImportCapacity';
@@ -279,6 +297,35 @@ const handleExceed = () => {
 };
 
 // 处理文件选择
+/**
+ * 没能带出的数据行（CSV 专属）
+ *
+ * 只装 `{ row, reason }`——解析层刻意不把字段原值带出来，那一列很可能就是明文口令。
+ */
+const skippedRows = ref<ImportSkippedRow[]>([]);
+
+/** 原因枚举 → 文案 key（新增原因时这里必须一起补，否则编译期就红） */
+const SKIPPED_REASON_KEYS: Record<ImportSkipReason, string> = {
+  'too-few-columns': 'options.import.skippedTooFewColumns',
+  'missing-username': 'options.import.skippedMissingUsername',
+};
+
+/**
+ * 按原因归组的跳过说明
+ *
+ * 每行渲染成一句完整的话（含行号清单），而不是把「原因」和「行号」拆成两段再靠界面拼——
+ * 中英文语序与标点不同，拆开拼必然有一边读不通。归组与行号截断本身是纯计算，
+ * 收在 `groupSkippedRows` 里单独测。
+ */
+const skippedGroups = computed(() =>
+  groupSkippedRows(skippedRows.value).map(group => ({
+    reason: group.reason,
+    text:
+      t(SKIPPED_REASON_KEYS[group.reason], { rows: group.rows.join(', ') }) +
+      (group.more ? t('options.import.skippedRowsMore', { count: group.more }) : ''),
+  })),
+);
+
 const handleFileChange = async (file: UploadFile) => {
   if (!file.raw) return;
 
@@ -296,6 +343,7 @@ const handleFileChange = async (file: UploadFile) => {
     const isJSON = fileName.endsWith('.json');
 
     let data: Omit<PasswordEntry, 'id' | 'order'>[];
+    skippedRows.value = [];
     if (isJSON) {
       // JSON 解析路径
       selectedFile.value = file.raw;
@@ -305,7 +353,9 @@ const handleFileChange = async (file: UploadFile) => {
       // CSV 解析路径
       selectedFile.value = file.raw;
       const buffer = await file.raw.arrayBuffer();
-      data = ExcelUtils.parseCSV(buffer, importFormat.value as ImportFormat);
+      const parsed = ExcelUtils.parseCSV(buffer, importFormat.value as ImportFormat);
+      data = parsed.entries;
+      skippedRows.value = parsed.skipped;
     } else {
       ElMessage.error(t('options.import.unsupportedFormat'));
       selectedFile.value = undefined;
@@ -327,12 +377,14 @@ const handleFileChange = async (file: UploadFile) => {
     logger.error('解析文件失败:', error);
     ElMessage.error(t('options.import.parseFailed'));
     previewData.value = [];
+    skippedRows.value = [];
   }
 };
 
 // 处理文件移除
 const handleFileRemove = () => {
   previewData.value = [];
+  skippedRows.value = [];
   selectedFile.value = undefined;
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
@@ -527,6 +579,32 @@ const handleClose = () => {
   background: #fafafa;
   border: 1px solid #ebeef5;
   border-radius: 10px;
+}
+
+/* 未能带出的行：与预览区同底色同圆角，不另造一套视觉；标题不写死颜色，交给继承 */
+.skipped-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background: #fafafa;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+}
+
+.skipped-section__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.skipped-section__item,
+.skipped-section__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--aph-text-muted);
 }
 
 .preview-header {

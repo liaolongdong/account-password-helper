@@ -51,7 +51,7 @@ describe('parseCSV：显式格式列映射', () => {
       'alice,secret,https://a.com,work,note1,JBSW',
       'bob,pw2,https://b.com,,,',
     ].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv), 'native');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'native');
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
       username: 'alice',
@@ -73,7 +73,7 @@ describe('parseCSV：显式格式列映射', () => {
 
   it('chrome 格式：name→tag、其余按列名映射', () => {
     const csv = ['name,url,username,password', 'GitHub,https://github.com,octocat,ghpass'].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv), 'chrome');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'chrome');
     expect(result[0]).toMatchObject({
       username: 'octocat',
       password: 'ghpass',
@@ -87,7 +87,7 @@ describe('parseCSV：显式格式列映射', () => {
       'url,username,password,totp,extra,name,grouping',
       'https://x.com,user1,pass1,SEED,notes-extra,MySite,Social',
     ].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv), 'lastpass');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'lastpass');
     expect(result[0]).toMatchObject({
       username: 'user1',
       password: 'pass1',
@@ -103,7 +103,7 @@ describe('parseCSV：显式格式列映射', () => {
       'folder,name,notes,login_uri,login_username,login_password,login_totp',
       'Work,GH,my notes,https://gh.com,ghuser,ghpw,TOTPSEED',
     ].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv), 'bitwarden');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'bitwarden');
     expect(result[0]).toMatchObject({
       username: 'ghuser',
       password: 'ghpw',
@@ -119,7 +119,7 @@ describe('parseCSV：显式格式列映射', () => {
       'Title,Url,Username,Password,Notes,OTPAuth',
       'My Login,https://op.com,opuser,oppw,some notes,otpseed',
     ].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv), '1password');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), '1password');
     expect(result[0]).toMatchObject({
       username: 'opuser',
       password: 'oppw',
@@ -134,14 +134,14 @@ describe('parseCSV：显式格式列映射', () => {
 describe('parseCSV：auto 自动检测与解析细节', () => {
   it('auto 检测 native（中文表头）', () => {
     const csv = ['用户名(必填),密码,网址', 'alice,secret,https://a.com'].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv));
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv));
     expect(result[0]).toMatchObject({ username: 'alice', password: 'secret', url: 'https://a.com' });
   });
 
   it('auto 检测优先级：含 name+username+password 时按 chrome 处理（既有行为）', () => {
     // 该表头同时具备 lastpass 特征（grouping），但 chrome 判定在先
     const csv = ['url,username,password,grouping,name', 'https://x.com,u1,p1,Social,MySite'].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv));
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv));
     // chrome 映射下 name→tag
     expect(result[0]).toMatchObject({ username: 'u1', password: 'p1', url: 'https://x.com', tag: 'MySite' });
   });
@@ -151,7 +151,7 @@ describe('parseCSV：auto 自动检测与解析细节', () => {
       'Username,Password,URL,Tag,Remark,TOTP,Created At,Updated At',
       'alice,secret,https://a.com,work,note1,JBSW,2026/1/1,2026/1/1',
     ].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv));
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv));
     expect(result[0]).toMatchObject({
       username: 'alice',
       password: 'secret',
@@ -167,7 +167,7 @@ describe('parseCSV：auto 自动检测与解析细节', () => {
       '"Username (Required)","Password","URL","Tag","Remark","TOTP"',
       'bob,pw,https://b.com,Work,Sample,',
     ].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv));
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv));
     expect(result[0]).toMatchObject({ username: 'bob', password: 'pw', url: 'https://b.com', tag: 'Work' });
   });
 
@@ -176,19 +176,19 @@ describe('parseCSV：auto 自动检测与解析细节', () => {
       '用户名(必填),密码,网址,标签,备注,两步验证',
       '"smith, jr","pa""ss",https://x.com,"a,b","he said ""hi""",',
     ].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv), 'native');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'native');
     expect(result[0]).toMatchObject({ username: 'smith, jr', password: 'pa"ss', tag: 'a,b', remark: 'he said "hi"' });
   });
 
   it('跳过用户名为空的行', () => {
     const csv = ['用户名(必填),密码', ',orphanpass', 'valid,p'].join('\n');
-    const result = ExcelUtils.parseCSV(buf(csv), 'native');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'native');
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ username: 'valid', password: 'p' });
   });
 
   it('少于两行（仅表头）返回空数组', () => {
-    expect(ExcelUtils.parseCSV(buf('用户名(必填),密码'), 'native')).toEqual([]);
+    expect(ExcelUtils.parseCSV(buf('用户名(必填),密码'), 'native').entries).toEqual([]);
   });
 });
 
@@ -314,7 +314,7 @@ describe('导出序列化（经 Blob/document/URL 打桩捕获生成内容）', 
       expect(blobContent, `导出给 ${JSON.stringify(password)} 补了强制文本前缀`).not.toContain(`"'${password}"`);
 
       // 导入侧：把导出的字节喂回自家 native 模板，逐字回来（前导单引号同样不剥）
-      const parsed = ExcelUtils.parseCSV(buf(blobContent.replace(/^\uFEFF/, '')), 'native');
+      const { entries: parsed } = ExcelUtils.parseCSV(buf(blobContent.replace(/^\uFEFF/, '')), 'native');
       expect(parsed, `${JSON.stringify(password)} 往返后条目丢失`).toHaveLength(1);
       expect(parsed[0].password, `${JSON.stringify(password)} 往返被改写`).toBe(password);
     }
