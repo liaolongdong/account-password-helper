@@ -253,27 +253,30 @@ export async function computeBreachedEntries(list: PasswordEntry[]): Promise<Bre
 /**
  * 计算综合安全评分（0~100）
  *
- * 以受影响条目占总数的比例线性扣分：
+ * 以受影响条目占**参与评分条目数**的比例线性扣分：
  * `100 - 35*reuseRatio - 25*weakRatio - 20*breachedRatio - 20*staleRatio`，
- * 结果 clamp 到 0~100 并取整。总数为 0 时返回满分 100。
+ * 结果 clamp 到 0~100 并取整。`passwordTotal` 为 0 时返回满分 100。
  *
- * @param input 各维度受影响计数与总数
+ * 分母刻意不是「库里的条目总数」：四个维度都按 `hasPassword` 跳过空密码条目，若分母仍算上它们，
+ * 空密码条目一边不产生任何扣分项、一边把分母撑大，等于用「没设密码的账号」给真实口令洗分。
+ *
+ * @param input 各维度受影响计数与参与评分的条目数
  * @returns 0~100 的整数评分
  */
 export function computeSecurityScore(input: {
-  total: number;
+  passwordTotal: number;
   weakCount: number;
   breachedCount: number;
   reuseAffectedCount: number;
   staleCount: number;
 }): number {
-  const { total, weakCount, breachedCount, reuseAffectedCount, staleCount } = input;
-  if (total <= 0) return 100;
+  const { passwordTotal, weakCount, breachedCount, reuseAffectedCount, staleCount } = input;
+  if (passwordTotal <= 0) return 100;
 
-  const reuseRatio = reuseAffectedCount / total;
-  const weakRatio = weakCount / total;
-  const breachedRatio = breachedCount / total;
-  const staleRatio = staleCount / total;
+  const reuseRatio = reuseAffectedCount / passwordTotal;
+  const weakRatio = weakCount / passwordTotal;
+  const breachedRatio = breachedCount / passwordTotal;
+  const staleRatio = staleCount / passwordTotal;
 
   const raw =
     100 -
@@ -333,7 +336,7 @@ export function buildHealthReport(list: PasswordEntry[], now: number = Date.now(
   const noTotpCount = list.filter(e => !e.totp || !e.totp.trim()).length;
 
   const score = computeSecurityScore({
-    total,
+    passwordTotal: list.filter(hasPassword).length,
     weakCount: weak.length,
     breachedCount: 0,
     reuseAffectedCount,
@@ -387,7 +390,7 @@ export async function buildHealthReportAsync(list: PasswordEntry[], now: number 
   const noTotpCount = list.filter(e => !e.totp || !e.totp.trim()).length;
 
   const score = computeSecurityScore({
-    total,
+    passwordTotal: list.filter(hasPassword).length,
     weakCount: weak.length,
     breachedCount: breached.length,
     reuseAffectedCount,
