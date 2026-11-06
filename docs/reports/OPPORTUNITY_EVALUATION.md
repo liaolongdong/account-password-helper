@@ -516,8 +516,16 @@ GitHub Topics 20 个、Discussions 已开。hreflang 三件套与 og 双语图�
 ## 6. 明确不重开（已拍板项，列出来是为了别下次再提）
 
 云端 / 跨设备同步、在线泄露检测（HIBP）、常驻占宽的组织形态（左栏 / 树 / 侧抽屉，1276px 列宽地板是硬前置）、
-紧急访问 / 遗产继承、「快捷键自动登录」作为对外卖点、Passkey 管理（大版本议题）、
+紧急访问 / 遗产继承、「快捷键自动登录」作为对外卖点、Passkey 管理（2026-11-06 改判：不是暂缓，是
+**消费级分发下不可行**——接管站点 WebAuthn 仪式只有 `chrome.webAuthenticationProxy`（官方文档明写仅对企业策略
+安装的扩展开放）与 OS 级 Password Manager API（不支持浏览器扩展）两条路，内容脚本也无法改页面自己的
+`navigator.credentials`）、
 popup 改直开侧边栏、侧边栏行操作图标顺序、站点规则导出加密、`WRAP_KEY` 移进 `storage.session`。
+
+生物识别解锁（上轮 C1）同日拍板**不做**，理由与重启刀写在
+`FEATURE_CANDIDATES_EVALUATION.md` §C1 的 2026-11-06 尾注里：守卫式省不掉任何一次键盘输入
+（锚 `utils/sessionManager-storage.ts:978` 的密钥真删），省掉就得让密钥常驻、削弱「锁定」语义，
+而抗离线提取的增量本就是零（锚同文件 `:439-463`）。
 
 ---
 
