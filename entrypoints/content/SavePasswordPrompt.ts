@@ -225,8 +225,10 @@ export function showSavePasswordPrompt(
   );
   const { row: passRow, valueEl: passwordValueEl } = createInfoRow(
     tl('cs.save.password'),
-    data.password,
-    true,
+    // 手机号登录没有口令可展示：空串经掩码分支渲染出来是「什么都不见的空白」，用户只会读成
+    // 「扩展没抓到密码」。这一行改说一句事实，且不做掩码（无值可遮）。
+    data.mobileLogin === true ? tl('cs.save.mobileLoginNote') : data.password,
+    data.mobileLogin !== true,
     labelWidth,
   );
   body.appendChild(userRow);

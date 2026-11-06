@@ -250,6 +250,37 @@ export function matchesVerifyCodeSelectors(input: HTMLInputElement): boolean {
   }
 }
 
+/**
+ * 邮编 / 区号类字段的文本特征
+ *
+ * `VERIFY_CODE_SELECTORS` 里的 `[name*="code"]` / `[id*="code"]` 是宽子串匹配，`zipcode`、
+ * `postcode`、`areaCode` 全都会顺带命中。收货地址页（手机号框 + 邮编框）因此有机会被读成
+ * 「短信码登录」。这里按字段自己声明的文本把它们摘出去。
+ */
+const POSTAL_CODE_TEXT = /zip|postal|postcode|area[-_ ]?code|邮编|邮政编码|区号/;
+
+/**
+ * 判断一个框是不是邮编 / 邮政编码 / 区号，而非一次性短信码
+ * @param input - 待判定的输入框
+ */
+export function looksLikePostalCode(input: HTMLInputElement): boolean {
+  const text = `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
+  return POSTAL_CODE_TEXT.test(text);
+}
+
+/**
+ * 判断输入值是否具备一次性短信码的形态
+ *
+ * 短信码是 4~8 位字母数字；更长的串（`REFERRAL-2026-LONG-CODE`、校验 token、优惠码）即便字段名
+ * 命中 `code` 也不是登录凭据。只用作**归属判据**（这一位决定「这次提交算不算短信码登录」），
+ * 不参与任何次序或权重判断。
+ *
+ * @param value - 输入框当前的值
+ */
+export function isOneTimeCodeValue(value: string): boolean {
+  return /^[A-Za-z0-9-]{4,8}$/.test(value.trim());
+}
+
 /** 登录按钮关键词 */
 export const LOGIN_BUTTON_KEYWORDS = [
   '登录',

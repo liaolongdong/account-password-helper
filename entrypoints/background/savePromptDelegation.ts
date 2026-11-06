@@ -28,7 +28,9 @@ function isPrompt(value: unknown): value is DelegatedSavePromptData {
     return false;
   if (
     !value.username ||
-    !value.password ||
+    // 空口令只在「手机号 + 短信验证码」委托里合法（iframe 内的登录页本来就没有密码框）。
+    // 必须显式声明该位，未声明/非布尔真值一律按缺字段拒收。
+    (!value.password && value.mobileLogin !== true) ||
     !value.url ||
     (value.mode !== undefined && value.mode !== 'save' && value.mode !== 'update')
   )
@@ -173,6 +175,9 @@ export async function delegateSavePrompt(
         url: data.url,
         tag: data.tag,
         remark: data.remark,
+        // 逐字段重建会把没列出的位静默丢掉，而顶层 frame 的弹窗正是拿这一位决定
+        // 「密码那一行该渲染成点，还是渲染成『验证码不保存』的说明」。
+        ...(data.mobileLogin === true ? { mobileLogin: true } : {}),
         ...(data.mode !== undefined ? { mode: data.mode } : {}),
         ...(data.risk ? { risk: { weak: data.risk.weak, reusedCount: data.risk.reusedCount } } : {}),
         ...(data.targetNote ? { targetNote: { kind: data.targetNote.kind, url: data.targetNote.url } } : {}),

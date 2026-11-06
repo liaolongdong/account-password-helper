@@ -331,7 +331,9 @@ async function persistAutoSavePassword(data: AutoSavePasswordData): Promise<{ su
     return { success: false, message: tl('bg.autoSave.domainMismatch') };
   }
 
-  if (!data.username || !data.password) {
+  // 空口令只在「手机号 + 短信验证码」登录这一形态下合法，且必须由发送方显式声明；
+  // 未声明的发送方一律按空字段拒写，免得谁都能往库里塞一条没有凭据的空记录。
+  if (!data.username || (!data.password && data.mobileLogin !== true)) {
     return { success: false, message: tl('bg.autoSave.emptyFields') };
   }
 
@@ -344,6 +346,13 @@ async function persistAutoSavePassword(data: AutoSavePasswordData): Promise<{ su
   const existingEntry = findMatchingEntry(passwords, data, ...(await resolvePortOwnership(data.url, data.protocol)));
 
   if (existingEntry) {
+    // 空口令不许覆盖已有真口令。常规路径已被预检查的 `identical` 挡在弹窗之前，这里守的是
+    // 「弹窗开着的那几十秒里另一处给这条设了密码」这类陈旧窗口——静默清掉一把口令是不可逆的
+    // 数据损失，比少存一条严重得多，所以这条既不改口令也不动标签备注，原样返回。
+    if (!data.password && existingEntry.password) {
+      return { success: true, message: tl('bg.autoSave.passwordKept') };
+    }
+
     const newTag = data.tagEdited ? data.tag : existingEntry.tag || data.tag || '';
     const newRemark = data.remarkEdited
       ? data.remark || tl('cs.save.autoSaveRemark')
@@ -398,6 +407,10 @@ async function persistAutoSavePassword(data: AutoSavePasswordData): Promise<{ su
  * @returns 风险提示；两个维度均未命中时返回 undefined，避免弹窗渲染空警示条
  */
 function buildSaveRiskHint(password: string, entries: PasswordEntry[]): SaveRiskHint | undefined {
+  // 空口令没有强度可评估，也不能按「值相等」比对——否则全库的空口令条目会被数成
+  // 同一把被复用的密码，给用户弹一条凭空捏造的「该密码已在 N 处使用」警告。
+  if (!password) return undefined;
+
   const hint: SaveRiskHint = {};
 
   if (isWeakPassword(password)) {
@@ -500,8 +513,10 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
       return { status: 'locked' };
     }
 
-    // 无有效凭证可比对时按新账号处理，交由后续弹窗流程判定
-    if (!data.username || !data.password) {
+    // 无账号可比对时按新账号处理，交由后续弹窗流程判定。空口令只有在发送方声明这是
+    // 「手机号 + 短信验证码」登录时才继续比对：这类页面本来就没有口令，但手机号本身
+    // 就是需要判重的账号——短路成 `new` 会让同一个号每次登录都重弹一次「保存」。
+    if (!data.username || (!data.password && data.mobileLogin !== true)) {
       return { status: 'new' };
     }
 
@@ -519,6 +534,12 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     }
 
     if (existingEntry.password === data.password) {
+      return { status: 'identical' };
+    }
+
+    // 本次带不回口令（手机号登录）而库里那条有：没有新信息可比对，按「已是最新」静默跳过。
+    // 绝不能落到 `password_changed`——那条弹窗会把用户已有的口令更新成空串。
+    if (!data.password) {
       return { status: 'identical' };
     }
 

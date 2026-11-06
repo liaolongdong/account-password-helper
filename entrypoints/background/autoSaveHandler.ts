@@ -24,6 +24,7 @@ type AutoSavePayloadResult = { valid: true; payload: AutoSavePasswordData } | { 
  */
 function validateAutoSavePayload(data: AutoSavePasswordData): AutoSavePayloadResult {
   const { username, password, url } = data;
+  const { mobileLogin: declaredMobileLogin, ...rest } = data;
   const tag = data.tag ?? '';
   const remark = data.remark ?? '';
 
@@ -43,7 +44,18 @@ function validateAutoSavePayload(data: AutoSavePasswordData): AutoSavePayloadRes
 
   return {
     valid: true,
-    payload: { ...data, username, password, url, tag, remark },
+    // `mobileLogin` 必须在这里收成真正的布尔：它是「允许空口令」的写入授权位，而载荷来自
+    // 宿主页面，任何非 `true` 的真值（字符串 / 数字）都按「未声明」处理。未声明时整个键省略
+    // ——先摘掉发送方那一份，再按判定结果决定是否装回来，否则 `...data` 会把脏值原样带进存储层。
+    payload: {
+      ...rest,
+      username,
+      password,
+      url,
+      tag,
+      remark,
+      ...(declaredMobileLogin === true ? { mobileLogin: true } : {}),
+    },
   };
 }
 
