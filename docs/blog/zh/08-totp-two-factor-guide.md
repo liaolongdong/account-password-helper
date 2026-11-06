@@ -3,7 +3,7 @@ title: TOTP 两步验证怎么用：原理、迁移与安全边界
 description: TOTP 是什么、验证码为什么每 30 秒变化、把密钥从手机迁到浏览器扩展要注意什么？一篇讲清原理、迁移步骤与安全边界。
 tags: TOTP,两步验证,2FA,安全,浏览器扩展
 date: 2026-10-19
-modified: 2026-10-19
+modified: 2026-11-05
 author: liaolongdong
 image: imgs/blog-cover-08-totp-two-factor.png
 ---
@@ -84,4 +84,4 @@ TOTP 由 RFC 6238 定义。服务端在你绑定两步验证时生成一个共�
 
 TOTP 的价值在于「多一个独立因素」，而不是「多一道绝对防线」。理解它的计算方式与信任边界，才能把便利留在工作流里，把风险留在可控范围内。
 
-想了解本地加密与密钥管理的实现细节，可以读[Web Crypto 加密实践](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)；如果你的日常登录需要内置 TOTP 与一键填充，可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)。
+想了解本地加密与密钥管理的实现细节，可以读[Web Crypto 加密实践](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)；如果你的日常登录需要内置 TOTP 与一键填充，可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)，直接从 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog) 一键安装即可自动更新。

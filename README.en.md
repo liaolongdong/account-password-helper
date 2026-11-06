@@ -17,7 +17,7 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 4654 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 4856 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
@@ -393,6 +393,17 @@ The side panel relies on Chrome's Side Panel API (Chromium 114 or newer); you ca
 
 Highlights from the most recent releases. The item-by-item record is in [CHANGELOG.md](./CHANGELOG.md); packages and release notes are on [Releases](https://github.com/liaolongdong/account-password-helper/releases).
 
+### v3.22.0 (2026-11-04)
+
+- **Summoning the Personal Info Vault while locked no longer dead-ends**: once you unlock, the right-click request that started it resumes by itself, the gate re-checks the session, and a failed resume or delivery says so instead of going silent.
+
+### v3.21.0 (2026-11-03)
+
+- **Concurrent writes settled**: sensitive writes take the newest ciphertext field by field, one context can no longer overwrite fields another never read, and a genuine clash is rejected with a readable edit-conflict message.
+- **Key derivation and batch encryption moved out of the commit lock**: no nested lease inside the lock, a failed trash rewrite is no longer silent, and history snapshots now record the ciphertext the write actually replaced.
+- **An expired session always clears the master password you typed**; when auto-save runs into an edit conflict you get localised copy instead of a raw storage-layer string.
+- **Importing a backup no longer resurrects entries deleted while it ran**; the page observer only registers candidates and defers text checks until after the debounce, evicting the oldest candidate on overflow.
+
 ### v3.20.0 (2026-10-27)
 
 - **Right-click any web input to open the Personal Info Vault**: in the cases where the field hint never appears (undetected fields, non-top frames) you no longer have to walk back to the manager page; after copying, "Back to the page" returns you to the field you were in — the source tab is only ever the id Chrome stamped, and its origin is re-checked before switching.
@@ -480,4 +491,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: 2026-10-27 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: 2026-11-05 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

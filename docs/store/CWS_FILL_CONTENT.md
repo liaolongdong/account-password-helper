@@ -11,10 +11,12 @@
 在 Dashboard 打开**已有商品** → 「商品包 / Package」→ **上传新的 ZIP 生成新草稿**（被拒的旧草稿已关闭，无法在原草稿上编辑）。**本轮这类只改说明正文、不动 manifest 的改动可跳过本步**，直接进「第二步」编辑商品详情；确需重新出包时上传以下文件：
 
 ```
-.output/account-password-helper-3.13.1-chrome.zip
+.output/account-password-helper-<package.json 的 version>-chrome.zip
 ```
 
-> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output` 目录中最新构建产物为准。⚠️ 过去这里是「构建产物与商店在架同号，Dashboard 会拒绝上传」的处境（3.13.0 时代）；现在构建出的是 **3.13.1**，与在架 **3.13.0** 不再同号，技术上可以传——但**本轮按用户 2026-09-29 决定不传**（见下一条）。只有在某轮改动确实需要重新出包（动了名称／摘要／权限说明）时才上传，且上传前确认 `main` 已由 release-please 升过版本。
+> 💡 zip 文件名里的版本号跟随 `package.json`（release-please 自动维护），**不要在这里抄一个具体数字**——按 `pnpm build` 后 `.output` 目录里的实际产物名取。取号前先看一眼商店在架读数（`curl --http1.1 https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli.json`）：**构建号与在架号相同时 Dashboard 会直接拒绝上传**，必须先等 `main` 上 release-please 升一个版本再构建。
+>
+> 📌 **2026-11-05 实测状态**：`package.json` 与商店在架读数**同为 v3.22.0**（tag v3.22.0 落在 2026-11-04，shields 当日实测 `message: v3.22.0`），属于「同号、传不上去」的处境——本轮这类只改说明正文、不动 manifest 的改动**本来就不该传包**，直接在 Dashboard 编辑商品详情即可。下面 09-29 / 09-25 两段是当时的版本推进留档，其中的具体号只作快照，不再描述当前状态。
 >
 > 📌 **2026-09-29 实测状态（十四修订）**：**商店在架版本 v3.13.0（2026-09-28 发布，shields 读数 `http=200`）**，而 `package.json` 与 `origin/main` 已随 release-please 走到 **3.13.1**（GitHub latest release v3.13.1，2026-09-29），差的是一个 patch 的浮层点击回归修复——**商店这轮不带包**，所以两个读数暂时错开，是刻意状态而非漏做。本轮**只改了「第二步」的中英说明正文，名称与摘要逐字未动**，因此 `public/_locales/*/messages.json` 与在架包内 manifest 仍然一致——**不必 `pnpm build`、不必上传 zip**，在 Dashboard 直接编辑商品详情里的说明文本再提交即可（说明同属商店元数据，改它同样要过一轮审核）。只有当某轮同时动了名称／摘要／权限说明时，才需要按上面的 zip 重新出包上传。
 >
@@ -933,7 +935,7 @@ No specific website accounts are required. The extension treats all websites uni
 - [ ] 分类选择 Productivity
 - [ ] 商店图标已上传（128×128）
 - [ ] 截图已上传（**中文页与 English (United States) 页各 5 张**，从 `assets/cws-store/upload/*-1280x800.png` 的 16 张候选里选，英文页取 `-en-` 那一套；**不要传 2560×1600 母版、也不要再用旧的 `01-*.png` ~ `12-*.png`**）
-- [ ] 截图版本徽章与提交包一致（**当前批次徽章为 v3.20.0**，2026-10-27 整批重拍，与 `package.json` / `manifest` 同源；改版本后必须 `pnpm build` 并重跑 `scripts/store-shots/`）
+- [ ] 截图版本徽章与提交包一致（现存批次徽章为 **v3.20.0**，2026-10-27 整批重拍；而 `package.json` 与商店在架读数今日均为 **v3.22.0** ——**这一批已经落后两版，重传截图前必须 `pnpm build` 并重跑 `scripts/store-shots/` 把徽章带到 3.22.0**，否则就是「截图版本与商店版本不符」那个已知驳回点。只改文字类元数据则不触发）
 - [ ] Marquee 宣传图（1400×560）已上传
 - [ ] Small Promo Tile（440×280）已上传
 - [ ] 隐私政策 URL 已填写
