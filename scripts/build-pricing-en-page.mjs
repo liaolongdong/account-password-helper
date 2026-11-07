@@ -79,6 +79,14 @@ replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
 
 // hreflang 三条交替声明随 pricing.html 一并继承（双语互指内容相同，无需按语言改写）
 
+// JSON-LD 的品牌名按页面语言分流：英文页主名用英文、中文名退到 alternateName。
+// 判据在 tests/docs/structuredData.test.ts —— name 必须与本页 <html lang> 匹配。
+// 这两行不参与 data-i18n 替换，漏掉会让本脚本产出的英文页带着中文名，生成链因此不可复现。
+replaceOnce(
+  / {8}"name": "账号密码管理助手",\n {8}"alternateName": "Account Password Helper",/,
+  ['        "name": "Account Password Helper",', '        "alternateName": "账号密码管理助手",'].join('\n'),
+);
+
 // 语言默认值固定为 en（仍尊重 localStorage 显式选择）
 replaceOnce(
   /\/\* localStorage 不可用时保持中文缺省 \*\/\n        \}\n        return 'zh';/,

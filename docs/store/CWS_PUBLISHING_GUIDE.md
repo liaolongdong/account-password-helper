@@ -430,7 +430,9 @@ pnpm test:run 2>&1 | grep -E "Test Files|Tests"
 # 已废止口径：命中处只应是本指南与文档里标注待办的那几行 ⚠️，出现新命中即为口径回退
 rg -n "零网络传输|零联网|数据不出浏览器|100% offline|军事级|2048|五维|默认 5 份|Excel 导入" README.md README.en.md index.html en.html llms.txt privacy.html privacy.en.html pricing.html docs/
 
-# 商店元数据自检（提交前必跑）：只扫描 CWS_FILL_CONTENT.md「第二步」里会被复制粘贴的代码块
+# 商店元数据自检：下面这段 python 是人工探索用的，同样的判据已由
+# tests/docs/storePasteBudget.test.ts 在 CI 里守（码点预算 / 禁词 / 跨小节重复长句 / _locales 逐字一致）。
+# 改完文案跑 `pnpm exec vitest run tests/docs/storePasteBudget.test.ts` 即可，不必手抄这段。
 # 1) 竞品品牌名与已废止的绝对化表述必须为零（AES-256-GCM / PBKDF2 已按 2026-09-10 决定允许出现）
 # 2) 中英 extensionName、extensionDescription 与粘贴块逐字一致
 # 3) 跨小节重复行扫描：同一句话在小节里抄第二遍是 keyword-stuffing 判定的结构特征
