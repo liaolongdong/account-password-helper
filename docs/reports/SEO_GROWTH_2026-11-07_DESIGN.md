@@ -49,6 +49,10 @@ LCP 那一项有个已知约束：`tests/docs/landingNoJsSurface.test.ts:112` �
 
 **2026-11-07 实测结论：整项作废。** 用 Chrome DevTools 性能轨迹对线上中文首页 reload 三次（CPU 1x、无网络节流），LCP 分别 469 / 574 / 691 ms，中位数 **574 ms**，三次 LCP 元素都是首屏 `H1` 标题文本（nodeId 32/33/34，非网络资源），LCP 拆解里 render delay 占 99.5%、TTFB 仅 2–6 ms、**没有 resource load delay 这一档**，CLS 恒 0.00。也就是说首帧图根本不是 LCP 元素：`#showcase` 的 webp 截图在折叠线以下，`loading="lazy"` 是正确行为；首屏视觉是文本 + 内联 SVG，不发起图片请求。把 `loading="lazy"` 改成 eager 对 LCP 零增益（estimated savings: none），故按判据作废该项——不放宽阈值、不动 `loading="lazy"`、不改那条守卫。574 ms 已远优于 2.5 s 的 good 线，无 LCP 问题可修。
 
+**OG 三条已落地（commit 979461f），`twitter:site` 刻意不加。** `og:image:alt` / `:width` / `:height` 铺到全站 32 页，尺寸取 PNG 头真实值，守卫独立解析比对。表里列的 `twitter:site` 没有可核实的官方账号——填一个就是凭空捏造归属，故省略；其余三条不影响该决定。
+
+**2026-11-07 origin 根：前提变了，按用户拍板新建根仓库。** 实测根域名 `liaolongdong.github.io/` 返回 **404**，原根 Pages 仓库已被改名为 `better-blog`（现服务 `/better-blog/`，是个人博客），REST 确认名下已无 `*.github.io` 仓库——「向已有根仓库增量写入」无从执行。经询问，用户选择「建根仓库 + 极简落地页」。于是新建公开用户站仓库 `liaolongdong/liaolongdong.github.io`（`main` 分支），放三件：`robots.txt`（`* Allow:/` + 密码助手与 better-blog 两条 Sitemap）、`llms.txt`（指向项目 llms.txt/llms-full.txt 的索引）、`index.html`（极简中英落地，链向密码助手与博客，无 JS/无外链/无统计）。Pages 自动启用、构建 `built`，`/`、`/robots.txt`、`/llms.txt` 均 `curl` 200（早先 404 是 CDN 负缓存，已消散），落地页浅色/深色 + 移动端实测渲染正常。**纯新增仓库，不触碰 better-blog 与其他项目**，满足「只增不改」的刀；日后可整仓删除回退。
+
 ### 波次 C｜送上线 + GitHub 元数据（顺序不可换）
 
 1. 刷新 48 处测试数（`testCountCopy.test.ts` 定义 = 35 处用例数 + 13 处文件数）、7 处时间戳、版本号；
