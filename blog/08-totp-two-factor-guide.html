@@ -301,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -407,11 +449,13 @@
           <span aria-current="page" title="TOTP 两步验证怎么用：原理、迁移与安全边界">TOTP 两步验证怎么用：原理、迁移与安全边界</span>
         </nav>
         <h1>TOTP 两步验证怎么用：原理、迁移与安全边界</h1>
-        <p class="meta">2026-10-19 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a></p>
+        <p class="meta">2026-10-19 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 5 分钟</p>
+        <div class="tag-chips"><span class="tag-chip">TOTP</span><span class="tag-chip">两步验证</span><span class="tag-chip">2FA</span><span class="tag-chip">安全</span><span class="tag-chip">浏览器扩展</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-08-totp-two-factor.png" alt="TOTP 两步验证怎么用：原理、迁移与安全边界" />
+        <nav class="toc" aria-label="目录"><strong>目录</strong><ol><li><a href="#totp-到底算的是什么">TOTP 到底算的是什么</a></li><li><a href="#totp-短信验证码和-passkey-的区别">TOTP、短信验证码和 Passkey 的区别</a></li><li><a href="#把-totp-放进密码管理器-方便与风险">把 TOTP 放进密码管理器：方便与风险</a></li><li><a href="#迁移-totp-的步骤">迁移 TOTP 的步骤</a></li><li><a href="#浏览器扩展里的-totp-如何工作">浏览器扩展里的 TOTP 如何工作</a></li><li><a href="#检查表">检查表</a></li></ol></nav>
         <p>很多登录页在密码之后还有一步：打开手机、找到条目、抄六位数字，等验证码刷新。这个六位数字通常就是 TOTP（基于时间的一次性密码）。它比短信验证码更可靠，但也常被误解成「绝对安全」。</p>
 <p>这篇文章讲三件事：TOTP 到底算的是什么、把它放进密码管理器值不值得，以及迁移时最容易踩的坑。</p>
-<h2>TOTP 到底算的是什么</h2>
+<h2 id="totp-到底算的是什么">TOTP 到底算的是什么</h2>
 <p>TOTP 由 RFC 6238 定义。服务端在你绑定两步验证时生成一个共享密钥，并把它交给你（通常通过二维码或一串文本）。之后每次登录：</p>
 <ol>
 <li>客户端和服务端都拿这个共享密钥；</li>
@@ -420,14 +464,14 @@
 <li>服务端在允许的时间漂移内比对结果。</li>
 </ol>
 <p>所以验证码不是随机数，而是<strong>密钥 + 时间的确定性结果</strong>。它不需要联网，也不依赖短信网络；只要两边时钟大致一致，就能算出一致的码。</p>
-<h2>TOTP、短信验证码和 Passkey 的区别</h2>
+<h2 id="totp-短信验证码和-passkey-的区别">TOTP、短信验证码和 Passkey 的区别</h2>
 <ul>
 <li><strong>短信验证码</strong>：依赖运营商网络，存在 SIM 换卡、短信劫持和号码回收风险，安全性弱于 TOTP。</li>
 <li><strong>TOTP</strong>：不依赖运营商，离线可算，明显优于短信；但它仍然是「可被钓鱼的验证码」——假登录页可以实时索要并转发你的码。</li>
 <li><strong>Passkey / 硬件安全密钥</strong>：绑定站点来源，能抵抗大多数钓鱼，是更强的方向；但并非所有站点都已支持。</li>
 </ul>
 <p>因此，TOTP 是今天非常实用的第二因素，但不是终点。高价值账户如果支持 Passkey 或硬件密钥，应优先使用。</p>
-<h2>把 TOTP 放进密码管理器：方便与风险</h2>
+<h2 id="把-totp-放进密码管理器-方便与风险">把 TOTP 放进密码管理器：方便与风险</h2>
 <p>把 TOTP 和密码放在同一条目里，最大的好处是<strong>登录链路不中断</strong>：填充密码后，同一处就能拿到当前验证码，不用切 App。对开发者、测试和每天登录大量后台的人来说，这个体验提升很实在。</p>
 <p>但要把风险说清楚：</p>
 <ul>
@@ -437,7 +481,7 @@
 <li>无论放在哪里，TOTP 密钥都必须加密存储，不能以明文落盘。</li>
 </ul>
 <p>账号密码管理助手把 TOTP 密钥作为独立字段，与用户名、密码、网址、备注一起逐字段加密；验证码在本地按 RFC 6238 生成，登录到第二步时可直接填入。它适合「方便地管理多套日常账号」，但不建议把它当作银行或支付类凭据的唯一保险箱。</p>
-<h2>迁移 TOTP 的步骤</h2>
+<h2 id="迁移-totp-的步骤">迁移 TOTP 的步骤</h2>
 <p>从手机验证器迁到另一个工具，通常有三种方式：</p>
 <ol>
 <li><strong>扫码迁移</strong>：新工具扫描旧工具或服务端提供的二维码；</li>
@@ -453,7 +497,7 @@
 <li>如果怀疑密钥泄露，立即在服务端重置两步验证，而不是只删掉旧 App。</li>
 </ul>
 <p>不要把 TOTP 二维码、密钥截图或恢复码发到聊天工具里。它们和密码一样，是可直接生成验证码的凭据。</p>
-<h2>浏览器扩展里的 TOTP 如何工作</h2>
+<h2 id="浏览器扩展里的-totp-如何工作">浏览器扩展里的 TOTP 如何工作</h2>
 <p>以账号密码管理助手为例：</p>
 <ul>
 <li>密钥随条目一起加密存储，只有会话解锁后才能读取；</li>
@@ -462,7 +506,7 @@
 <li>复制验证码沿用剪贴板定时清除策略，降低截屏或误粘贴的风险。</li>
 </ul>
 <p>需要提醒的是：浏览器扩展运行在你的浏览器里，不能防御已被入侵的操作系统、恶意扩展或正在共享的屏幕。开启屏幕共享或远程协助时，先确认验证码页面不在共享范围内。</p>
-<h2>检查表</h2>
+<h2 id="检查表">检查表</h2>
 <ul>
 <li><input disabled="" type="checkbox"> 高价值账户优先使用 Passkey / 硬件密钥，TOTP 作为兼容方案；</li>
 <li><input disabled="" type="checkbox"> TOTP 密钥加密存储，未解锁时不可读；</li>

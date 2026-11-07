@@ -301,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -407,13 +449,15 @@
           <span aria-current="page" title="让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战">让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</span>
         </nav>
         <h1>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h1>
-        <p class="meta">2026-08-28 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a></p>
+        <p class="meta">2026-08-28 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 7 分钟</p>
+        <div class="tag-chips"><span class="tag-chip">Chrome扩展</span><span class="tag-chip">Manifest V3</span><span class="tag-chip">Service Worker</span><span class="tag-chip">性能优化</span><span class="tag-chip">前端工程化</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战" />
+        <nav class="toc" aria-label="目录"><strong>目录</strong><ol><li><a href="#先搞清楚白屏从哪来">先搞清楚白屏从哪来</a></li><li><a href="#对策一-双层保活-让-sw-常驻">对策一：双层保活，让 SW 常驻</a></li><li><a href="#对策二-四层资源预热-消灭冷读盘">对策二：四层资源预热，消灭冷读盘</a></li><li><a href="#对策三-三路数据竞速-谁快用谁">对策三：三路数据竞速，谁快用谁</a></li><li><a href="#对策四-非阻塞-css-先画出来再说">对策四：非阻塞 CSS，先画出来再说</a></li><li><a href="#还有一条铁律-手势链不能被-await-打断">还有一条铁律：手势链不能被 await 打断</a></li><li><a href="#验证-秒开不是感觉-是测出来的">验证：秒开不是感觉，是测出来的</a></li><li><a href="#复盘-三条经验">复盘：三条经验</a></li></ol></nav>
         <p>做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：<strong>侧边栏（Side Panel）冷启动白屏</strong>。</p>
 <p>用户点击图标，侧边栏框架是出来了，内容区白一片，两秒后才慢慢渲染。在桌面软件里，这叫不可用。更糟的是，MV3 把后台换成了 Service Worker——一个随时可能被浏览器回收的短命进程，你精心维护的内存缓存、连接状态，说没就没。</p>
 <p><a href="https://github.com/liaolongdong/account-password-helper">Account Password Helper</a> 是一款本地密码管理器扩展，侧边栏是它的最高频入口（解锁、搜索、填充都在这）。我们给它定了一个硬性 SLA：<strong>所有场景（会话有效/失效、浏览器冷启动、快速重启）侧边栏必须 1 秒内打开、无白屏</strong>。最终结果：缓存快路径 20-50ms 拿到数据。</p>
 <p>这篇文章把整套方案的实现和踩坑完整公开，源码路径都会给出，可以直接抄。</p>
-<h2>先搞清楚白屏从哪来</h2>
+<h2 id="先搞清楚白屏从哪来">先搞清楚白屏从哪来</h2>
 <p>侧边栏打开的链路拆开看，每一段都可能贡献白屏时间：</p>
 <ol>
 <li><strong>Service Worker 冷启动</strong>：SW 已被回收，消息没人接，扩展页初始化请求悬空；</li>
@@ -422,7 +466,7 @@
 <li><strong>CSS 阻塞</strong>：<code>&lt;link rel=&quot;stylesheet&quot;&gt;</code> 默认阻塞渲染，样式文件没到位，页面就是不画。</li>
 </ol>
 <p>四个问题，四套对策。</p>
-<h2>对策一：双层保活，让 SW 常驻</h2>
+<h2 id="对策一-双层保活-让-sw-常驻">对策一：双层保活，让 SW 常驻</h2>
 <p>MV3 的 SW 空闲约 30 秒就会被回收。社区常见方案是定时给自己发消息续命，但这里有个细节：<strong>SW 内部的 <code>setInterval</code> 本身也会随 SW 一起死掉</strong>，只靠它不够稳。</p>
 <p>我们的做法是双层结构（<code>entrypoints/background/backgroundServices.ts</code>）：</p>
 <ul>
@@ -435,7 +479,7 @@
 <li><code>chrome.alarms</code> 的官方限制是<strong>最快每 30 秒触发一次</strong>（以未打包方式加载做调试时不限频率），所以 0.5 分钟已经是打包扩展能写到的最小周期，别指望秒级精度——秒级的连续性由 20 秒心跳层负责，闹钟层只兜&quot;起死回生&quot;；</li>
 <li>保活闹钟里还挂了会话到期检查——到期立即锁定，不依赖页面存活。</li>
 </ul>
-<h2>对策二：四层资源预热，消灭冷读盘</h2>
+<h2 id="对策二-四层资源预热-消灭冷读盘">对策二：四层资源预热，消灭冷读盘</h2>
 <p>SW 常驻之后，下一步是把&quot;用户即将用到的文件&quot;提前读进系统缓存。预热逻辑（<code>utils/warmSidePanelResources.ts</code>）分四层，由浅入深：</p>
 <ol>
 <li>侧边栏 HTML 本体；</li>
@@ -447,7 +491,7 @@
 <p><strong>平台差异化。</strong> Windows 的主要瓶颈是 Defender 对扩展目录的逐文件扫描，文件读得越多、扫得越久，所以 Windows 走全量预热（约 25 个文件），把扫描成本提前摊掉；Mac 等 Unix 平台没有这个问题，只预热白名单里的约 15 个核心文件。<strong>触发时机</strong>：扩展安装/更新、浏览器启动、窗口聚焦、Tab 激活、保活闹钟 tick、侧边栏打开 2 秒后——都是&quot;用户可能要打开侧边栏&quot;的前置信号。</p>
 <p><strong>节流与去重。</strong> 持久化 5 分钟节流窗口 + in-flight 互斥锁，防止多个触发点同时触发时把磁盘打满。</p>
 <p>另外还有一层 SW 预唤醒（<code>utils/preWarmSw.ts</code>，8 秒节流）：用户在 Popup 上的任何交互都顺手戳一下后台，保证点&quot;打开侧边栏&quot;时 SW 一定是在线的。</p>
-<h2>对策三：三路数据竞速，谁快用谁</h2>
+<h2 id="对策三-三路数据竞速-谁快用谁">对策三：三路数据竞速，谁快用谁</h2>
 <p>密码数据有三条可走的路（<code>composables/useSidepanelData.ts</code>）：</p>
 <ol>
 <li><strong><code>storage.session</code> 加密快照直读</strong>：会话有效期内，后台把解密后的快照以 AES-256-GCM 加密形态放在 <code>storage.session</code>，侧边栏直接读，不经过消息通道；</li>
@@ -456,12 +500,12 @@
 </ol>
 <p>三路并发出发，<strong>任一路先返回就先渲染，任一路失败不影响其他路径</strong>。所有异步提交都带会话代际和请求序号保护——万一用户中途锁定或换钥，过期结果不会写回 UI。</p>
 <p>这个设计的核心思想是：<strong>把&quot;数据在哪&quot;变成运行时决策，而不是架构假设</strong>。SW 活着走快路径，SW 死了走兜底，用户无感。</p>
-<h2>对策四：非阻塞 CSS，先画出来再说</h2>
+<h2 id="对策四-非阻塞-css-先画出来再说">对策四：非阻塞 CSS，先画出来再说</h2>
 <p>最后一段白屏来自样式阻塞。我们的处理（<code>wxt.config.ts</code> 里的自定义 Vite 插件）：给侧边栏的 <code>&lt;link rel=&quot;stylesheet&quot;&gt;</code> 先写 <code>media=&quot;print&quot;</code>（浏览器不会为 print 媒体阻塞渲染），加载完成后再改回 <code>media=&quot;all&quot;</code>。</p>
 <p>效果：HTML 解析完立刻渲染骨架，样式异步到位。配合主题令牌的 CSS 变量，切换成本几乎为零。这是浏览器圈的经典技巧，用在扩展侧边栏上刚刚好。</p>
-<h2>还有一条铁律：手势链不能被 await 打断</h2>
+<h2 id="还有一条铁律-手势链不能被-await-打断">还有一条铁律：手势链不能被 await 打断</h2>
 <p><code>chrome.sidePanel.open()</code> 必须由用户手势触发，且<strong>调用前禁止 <code>await</code></strong>——一旦中间插入任何异步等待，手势上下文就失效，侧边栏直接打不开。所以打开动作本身永远是同步发出的，tabId 也用同步接口获取。所有&quot;打开前的准备工作&quot;全部前置到保活和预热阶段完成，而不是在点击之后临时抱佛脚。</p>
-<h2>验证：秒开不是感觉，是测出来的</h2>
+<h2 id="验证-秒开不是感觉-是测出来的">验证：秒开不是感觉，是测出来的</h2>
 <p>方案落地的同时，配套测试也补齐了（vitest，跑在本地与提交前钩子里，并由仓库的 GitHub Actions 在每次 push 与 PR 上自动执行）：</p>
 <ul>
 <li><code>swKeepalive</code>：心跳与闹钟的注册、续命、清理；</li>
@@ -470,7 +514,7 @@
 <li><code>sidePanelManager</code>：打开时序。</li>
 </ul>
 <p>目前全仓库 4856 项自动化测试（分布在 336 个测试文件）。性能结论：<strong>缓存快路径 20-50ms 拿到数据</strong>；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。</p>
-<h2>复盘：三条经验</h2>
+<h2 id="复盘-三条经验">复盘：三条经验</h2>
 <ol>
 <li><strong>别和 MV3 的生命周期对抗，要顺着它设计。</strong> SW 一定会被回收，那就假设它随时不在，把状态放进 <code>chrome.storage</code>，把唤醒交给闹钟，把成本提前到预热阶段。</li>
 <li><strong>快是分层买来的。</strong> 保活买&quot;进程在&quot;，预热买&quot;文件热&quot;，竞速买&quot;数据快&quot;，非阻塞 CSS 买&quot;先渲染&quot;。每层独立生效，叠加起来才是秒开。</li>

@@ -140,6 +140,80 @@ function renderMarkdown(body) {
   return html;
 }
 
+/**
+ * 阅读时长按页面语言各算各的：中文数汉字（每分钟 300 字），英文数词（每分钟 200 词），
+ * 向上取整、至少 1 分钟。代码块整段剔除后再计——盯着 fenced code 的时间不该算进「读完这篇」。
+ *
+ * @param {string} body 源 Markdown 正文（已剥首行 h1）
+ * @param {'zh-CN'|'en'} lang 页面语言
+ * @returns {number} 分钟数
+ */
+function readingMinutes(body, lang) {
+  const text = body.replace(/```[\s\S]*?```/g, ' ').replace(/[#>*_`~[\]()!|]/g, ' ');
+  if (lang === 'zh-CN') {
+    const chars = (text.match(/[一-鿿]/g) || []).length;
+    return Math.max(1, Math.ceil(chars / 300));
+  }
+  const words = text.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 200));
+}
+
+/**
+ * 解码 marked 已转义的 HTML 实体（`&#39;`/`&amp;` 等）。标题纯文本要先还原成真实字符，
+ * 否则 slug 会把 `&#39;` 里的 `39` 当成数字留下（`who-it-39-s-for`），目录标签再经一次
+ * escapeHtml 还会把 `&` 双重转义成 `&amp;#39;` 显示成字面实体。`&amp;` 必须最后解。
+ */
+function decodeEntities(s) {
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/**
+ * 给正文每个 `<h2>` 加锚点 id 并抽出目录项。id 由标题纯文本 slug 化（保留字母数字与 CJK，
+ * 其余折成连字符），同名追加序号保证唯一；目录只收 h2——h3 太碎，收进来反而难扫。
+ * 标题里的内联标签（code/em/a）先剥掉、实体先解码再 slug，避免 id 里混进尖号或实体残数字。
+ *
+ * @param {string} html 已渲染的正文 HTML
+ * @returns {{html: string, items: {id: string, text: string}[]}} 改写后的 HTML 与目录项
+ */
+function withToc(html) {
+  const seen = new Map();
+  const items = [];
+  const out = html.replace(/<h2>([\s\S]*?)<\/h2>/g, (_, inner) => {
+    const text = decodeEntities(inner.replace(/<[^>]+>/g, '')).trim();
+    const base =
+      text
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, '-')
+        .replace(/^-+|-+$/g, '') || 'section';
+    const n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    const id = n > 1 ? `${base}-${n}` : base;
+    items.push({ id, text });
+    return `<h2 id="${id}">${inner}</h2>`;
+  });
+  return { html: out, items };
+}
+
+/** 目录导航：少于两节不值得占一块，直接不出。锚文本用标题纯文本，转义后落进 href 与 li。 */
+function tocNav(items, lang) {
+  if (items.length < 2) return '';
+  const label = lang === 'zh-CN' ? '目录' : 'On this page';
+  const lis = items.map(i => `<li><a href="#${i.id}">${escapeHtml(i.text)}</a></li>`).join('');
+  return `<nav class="toc" aria-label="${label}"><strong>${label}</strong><ol>${lis}</ol></nav>`;
+}
+
+/** frontmatter 的 tags 渲染成可见 chip（此前只进 JSON-LD keywords 与 RSS category，页面上看不到）。 */
+function tagChips(tags) {
+  if (!tags.length) return '';
+  return `<div class="tag-chips">${tags.map(t => `<span class="tag-chip">${escapeHtml(t)}</span>`).join('')}</div>`;
+}
+
 const GH_URL = 'https://github.com/liaolongdong/account-password-helper';
 const CWS_URL = 'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';
 
@@ -450,6 +524,9 @@ ${content}
 
 function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, switchLabel }) {
   const cover = article.image ? `${SITE}/${article.image}` : OG_IMAGE[lang];
+  const { html: bodyHtml, items: tocItems } = withToc(renderMarkdown(article.body));
+  const minutes = readingMinutes(article.body, lang);
+  const readLabel = lang === 'zh-CN' ? `约 ${minutes} 分钟` : `${minutes} min read`;
   const breadcrumb = [
     { name: BRAND[lang], url: lang === 'zh-CN' ? `${SITE}/` : `${SITE}/en.html` },
     { name: BLOG_CRUMB[lang], url: `${SITE}/blog/${lang === 'zh-CN' ? '' : 'index.en.html'}` },
@@ -687,6 +764,48 @@ ${breadcrumbJsonLd(breadcrumb)}
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -793,9 +912,11 @@ ${breadcrumbJsonLd(breadcrumb)}
           <span aria-current="page" title="${escapeAttr(article.title)}">${escapeHtml(article.title)}</span>
         </nav>
         <h1>${escapeHtml(article.title)}</h1>
-        <p class="meta">${article.date}${article.modified ? ` · ${lang === 'zh-CN' ? '更新于' : 'Updated'} ${article.modified}` : ''} · <a rel="author" href="${authorUrl}">${escapeHtml(article.author)}</a></p>
+        <p class="meta">${article.date}${article.modified ? ` · ${lang === 'zh-CN' ? '更新于' : 'Updated'} ${article.modified}` : ''} · <a rel="author" href="${authorUrl}">${escapeHtml(article.author)}</a> · ${readLabel}</p>
+        ${tagChips(article.tags)}
         ${article.image ? `<img class="cover" src="${SITE}/${article.image}" alt="${escapeAttr(article.title)}" />` : ''}
-        ${renderMarkdown(article.body)}
+        ${tocNav(tocItems, lang)}
+        ${bodyHtml}
         ${authorCard}
       </article>
     </main>

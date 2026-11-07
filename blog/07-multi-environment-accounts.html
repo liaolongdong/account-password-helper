@@ -301,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -407,11 +449,13 @@
           <span aria-current="page" title="开发者的多环境账号管理：dev / test / prod 不串号">开发者的多环境账号管理：dev / test / prod 不串号</span>
         </nav>
         <h1>开发者的多环境账号管理：dev / test / prod 不串号</h1>
-        <p class="meta">2026-10-19 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a></p>
+        <p class="meta">2026-10-19 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 6 分钟</p>
+        <div class="tag-chips"><span class="tag-chip">多环境</span><span class="tag-chip">开发者工具</span><span class="tag-chip">域名匹配</span><span class="tag-chip">测试</span><span class="tag-chip">账号管理</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-07-multi-environment-accounts.png" alt="开发者的多环境账号管理：dev / test / prod 不串号" />
+        <nav class="toc" aria-label="目录"><strong>目录</strong><ol><li><a href="#为什么-填错环境-不是小概率">为什么「填错环境」不是小概率</a></li><li><a href="#第一层-让匹配规则替你挡住">第一层：让匹配规则替你挡住</a></li><li><a href="#第二层-把环境写进账号命名和标签">第二层：把环境写进账号命名和标签</a></li><li><a href="#第三层-把自动提交当成危险动作">第三层：把自动提交当成危险动作</a></li><li><a href="#第四层-保存与覆盖要可预期">第四层：保存与覆盖要可预期</a></li><li><a href="#团队协作-工具可以分享-凭据不要群发">团队协作：工具可以分享，凭据不要群发</a></li><li><a href="#上线前检查表">上线前检查表</a></li></ol></nav>
         <p>同一套后台系统，我有四套账号：dev、test、staging、prod。域名分别是 <code>admin-dev.example.com</code>、<code>admin-test.example.com</code>、<code>admin-staging.example.com</code>、<code>admin.example.com</code>。看起来很好区分，但真正登录时，问题往往不是「记不住密码」，而是<strong>密码管理器把哪个账号递给了你</strong>。</p>
 <p>填错环境的后果可大可小：轻则登录失败，重则用测试账号改掉生产数据。这篇文章从匹配规则、账号命名、自动保存和团队协作四层，给出一套可以落地的做法。</p>
-<h2>为什么「填错环境」不是小概率</h2>
+<h2 id="为什么-填错环境-不是小概率">为什么「填错环境」不是小概率</h2>
 <p>大多数密码管理器按「站点」匹配：主域相同就算同一个站。对普通用户这是合理简化，对开发者却是风险来源：</p>
 <ul>
 <li><code>dev.example.com</code> 与 <code>example.com</code> 可能被视作同一站；</li>
@@ -420,7 +464,7 @@
 <li>自动提交开启后，错误账号可能直接把登录请求发出去。</li>
 </ul>
 <p>所以，多环境管理的核心不是「记住更多密码」，而是<strong>让匹配规则、账号命名和操作动作共同降低误填概率</strong>。</p>
-<h2>第一层：让匹配规则替你挡住</h2>
+<h2 id="第一层-让匹配规则替你挡住">第一层：让匹配规则替你挡住</h2>
 <p>最有效的一层是域名匹配。可以把它拆成三档，按需使用：</p>
 <ol>
 <li><strong>精确主机名（默认）</strong>：只有规范化后的 host 完全一致才展示。<code>admin-dev.example.com</code> 的条目不会出现在 <code>admin.example.com</code> 上，这是多环境隔离的底线。</li>
@@ -429,7 +473,7 @@
 </ol>
 <p><code>localhost</code> 和 <code>127.0.0.1</code> 要单独处理：本地项目经常用不同端口并行，<code>localhost:3000</code> 与 <code>localhost:5173</code> 应该按端口隔离；页面没写端口时再放行全部本地条目，方便联调。</p>
 <p>账号密码管理助手把这些规则做成了管理页头部的三档开关，并在每条跨子域结果上给出徽标。具体实现与踩坑可以看<a href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html">跨子域名匹配三档的实现</a>。</p>
-<h2>第二层：把环境写进账号命名和标签</h2>
+<h2 id="第二层-把环境写进账号命名和标签">第二层：把环境写进账号命名和标签</h2>
 <p>匹配规则解决「哪些账号出现」，命名和标签解决「出现之后一眼选对」：</p>
 <ul>
 <li>用户名尽量带环境标识，例如 <code>qa+staging@example.com</code>、<code>deploy-prod@example.com</code>；</li>
@@ -438,7 +482,7 @@
 <li>备注写清楚这个账号能做什么、不能做什么，例如「只读」「可发布」「仅测试」。</li>
 </ul>
 <p>标签和命名不是装饰，它们是你在一长串相似条目里做快速判断的依据。</p>
-<h2>第三层：把自动提交当成危险动作</h2>
+<h2 id="第三层-把自动提交当成危险动作">第三层：把自动提交当成危险动作</h2>
 <p>自动填充和自动提交是两件事。填充只是把值写进输入框，自动提交则会把登录请求发出去。</p>
 <p>建议：</p>
 <ul>
@@ -448,7 +492,7 @@
 <li>把「填充并登录」当成显式动作，而不是页面加载后的默认行为。</li>
 </ul>
 <p>这不是工具能力问题，而是操作边界问题：越接近生产，越应该让最后一个动作由人确认。</p>
-<h2>第四层：保存与覆盖要可预期</h2>
+<h2 id="第四层-保存与覆盖要可预期">第四层：保存与覆盖要可预期</h2>
 <p>多环境场景下，自动保存也很容易制造混乱：</p>
 <ul>
 <li>同一域名、同一用户名但密码变化时，工具应提示「更新」而不是静默覆盖；</li>
@@ -457,7 +501,7 @@
 <li>定期检查重复条目，但不要用「一键去重」误删不同环境的账号。</li>
 </ul>
 <p>账号密码管理助手把自动保存的判重口径与展示匹配分开：放宽档位只改变「哪些账号可见/可填充」，不会改变保存时对「同域名 + 同用户名」的判断。</p>
-<h2>团队协作：工具可以分享，凭据不要群发</h2>
+<h2 id="团队协作-工具可以分享-凭据不要群发">团队协作：工具可以分享，凭据不要群发</h2>
 <p>多环境账号经常需要团队协作，但<strong>不要把密码发在群聊、文档或截图里</strong>。更稳妥的做法：</p>
 <ul>
 <li>每个人使用自己的账号，按角色授权，避免共享同一个生产账号；</li>
@@ -466,7 +510,7 @@
 <li>交接时转移的是「账号归属与权限」，不是一条聊天记录里的明文密码。</li>
 </ul>
 <p>如果你只是想推荐工具给同事，可以分享产品说明页，而不是分享你自己的库。</p>
-<h2>上线前检查表</h2>
+<h2 id="上线前检查表">上线前检查表</h2>
 <ul>
 <li><input disabled="" type="checkbox"> 匹配档位是否符合当前项目：默认精确，确需放宽时逐条确认；</li>
 <li><input disabled="" type="checkbox"> <code>localhost</code> / <code>127.0.0.1</code> 是否按端口隔离；</li>

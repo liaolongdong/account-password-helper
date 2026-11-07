@@ -301,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -407,11 +449,13 @@
           <span aria-current="page" title="Managing Dev, Test and Prod Accounts Safely">Managing Dev, Test and Prod Accounts Safely</span>
         </nav>
         <h1>Managing Dev, Test and Prod Accounts Safely</h1>
-        <p class="meta">2026-10-19 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a></p>
+        <p class="meta">2026-10-19 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 5 min read</p>
+        <div class="tag-chips"><span class="tag-chip">multi-environment</span><span class="tag-chip">developer tools</span><span class="tag-chip">host matching</span><span class="tag-chip">testing</span><span class="tag-chip">account management</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-07-multi-environment-accounts.png" alt="Managing Dev, Test and Prod Accounts Safely" />
+        <nav class="toc" aria-label="On this page"><strong>On this page</strong><ol><li><a href="#why-wrong-environment-fills-are-not-a-rare-edge-case">Why wrong-environment fills are not a rare edge case</a></li><li><a href="#layer-1-let-matching-rules-block-the-wrong-account">Layer 1: let matching rules block the wrong account</a></li><li><a href="#layer-2-put-the-environment-into-names-and-tags">Layer 2: put the environment into names and tags</a></li><li><a href="#layer-3-treat-auto-submit-as-a-dangerous-action">Layer 3: treat auto-submit as a dangerous action</a></li><li><a href="#layer-4-make-saving-and-overwriting-predictable">Layer 4: make saving and overwriting predictable</a></li><li><a href="#team-handoff-share-the-tool-not-the-credentials">Team handoff: share the tool, not the credentials</a></li><li><a href="#pre-release-checklist">Pre-release checklist</a></li></ol></nav>
         <p>One admin system, four accounts: dev, test, staging and prod. The hosts are <code>admin-dev.example.com</code>, <code>admin-test.example.com</code>, <code>admin-staging.example.com</code> and <code>admin.example.com</code>. They look easy to tell apart. The problem at login time is usually not remembering the password — it is <strong>which account the password manager hands you</strong>.</p>
 <p>Filling the wrong environment can be merely annoying, or it can let a test account mutate production data. This guide covers four layers: matching rules, naming, auto-save and team handoff.</p>
-<h2>Why wrong-environment fills are not a rare edge case</h2>
+<h2 id="why-wrong-environment-fills-are-not-a-rare-edge-case">Why wrong-environment fills are not a rare edge case</h2>
 <p>Most password managers match at the site level: the same registrable domain counts as the same site. That is a reasonable simplification for consumers and a risk for developers:</p>
 <ul>
 <li><code>dev.example.com</code> and <code>example.com</code> may be treated as one site;</li>
@@ -420,7 +464,7 @@
 <li>with auto-submit enabled, the wrong credentials can be sent immediately.</li>
 </ul>
 <p>The goal of multi-environment management is therefore not &quot;remember more passwords&quot;. It is <strong>to make the wrong fill less likely through matching, naming and explicit actions</strong>.</p>
-<h2>Layer 1: let matching rules block the wrong account</h2>
+<h2 id="layer-1-let-matching-rules-block-the-wrong-account">Layer 1: let matching rules block the wrong account</h2>
 <p>Host matching is the strongest layer. Think of it as three tiers:</p>
 <ol>
 <li><strong>Exact host (default)</strong>: only entries whose normalized host matches exactly are shown. An <code>admin-dev.example.com</code> entry never appears on <code>admin.example.com</code>. This is the baseline for environment isolation.</li>
@@ -429,7 +473,7 @@
 </ol>
 <p>Treat <code>localhost</code> and <code>127.0.0.1</code> separately: local projects often run on different ports, so <code>localhost:3000</code> and <code>localhost:5173</code> should stay apart. When the page has no port, showing all local entries is a useful development convenience.</p>
 <p>Account Password Helper exposes these three tiers in the manager header and badges widened results. For the implementation and the edge cases, read <a href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html">Three tiers of cross-subdomain matching</a>.</p>
-<h2>Layer 2: put the environment into names and tags</h2>
+<h2 id="layer-2-put-the-environment-into-names-and-tags">Layer 2: put the environment into names and tags</h2>
 <p>Matching decides which accounts appear; naming and tags help you pick the right one once they do:</p>
 <ul>
 <li>Put the environment in the username where possible, e.g. <code>qa+staging@example.com</code> or <code>deploy-prod@example.com</code>;</li>
@@ -438,7 +482,7 @@
 <li>Use remarks to state what the account can and cannot do: &quot;read-only&quot;, &quot;can deploy&quot;, &quot;test only&quot;.</li>
 </ul>
 <p>Tags and names are not decoration. They are the cues you use to make a fast, correct decision in a long list of similar entries.</p>
-<h2>Layer 3: treat auto-submit as a dangerous action</h2>
+<h2 id="layer-3-treat-auto-submit-as-a-dangerous-action">Layer 3: treat auto-submit as a dangerous action</h2>
 <p>Autofill and auto-submit are different. Filling writes values into the form; auto-submit sends the login request.</p>
 <p>Recommendations:</p>
 <ul>
@@ -448,7 +492,7 @@
 <li>Treat &quot;fill and sign in&quot; as an explicit action, not something that happens automatically after page load.</li>
 </ul>
 <p>This is not a tool limitation; it is an operating boundary. The closer you are to production, the more the final action should stay with a human.</p>
-<h2>Layer 4: make saving and overwriting predictable</h2>
+<h2 id="layer-4-make-saving-and-overwriting-predictable">Layer 4: make saving and overwriting predictable</h2>
 <p>Auto-save can create mess in multi-environment setups:</p>
 <ul>
 <li>When the same host and username get a new password, prompt to update instead of silently overwriting;</li>
@@ -457,7 +501,7 @@
 <li>Review duplicates periodically, but never let a bulk dedupe delete accounts from different environments.</li>
 </ul>
 <p>Account Password Helper deliberately keeps save-time dedupe separate from display matching: widening the tier changes which accounts are visible and fillable, not how &quot;same host + same username&quot; is judged on save.</p>
-<h2>Team handoff: share the tool, not the credentials</h2>
+<h2 id="team-handoff-share-the-tool-not-the-credentials">Team handoff: share the tool, not the credentials</h2>
 <p>Multi-environment accounts often involve a team, but <strong>never send passwords through chat, documents or screenshots</strong>. Safer patterns:</p>
 <ul>
 <li>Give each person their own account with role-based access instead of sharing one production login;</li>
@@ -466,7 +510,7 @@
 <li>Hand over ownership and permissions, not a plaintext password in a chat history.</li>
 </ul>
 <p>If you only want to recommend a tool to a colleague, share the product page — not your own vault.</p>
-<h2>Pre-release checklist</h2>
+<h2 id="pre-release-checklist">Pre-release checklist</h2>
 <ul>
 <li><input disabled="" type="checkbox"> The matching tier fits the project: exact by default, widened only entry by entry;</li>
 <li><input disabled="" type="checkbox"> <code>localhost</code> / <code>127.0.0.1</code> stay per-port;</li>

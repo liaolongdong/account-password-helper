@@ -301,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -407,15 +449,17 @@
           <span aria-current="page" title="密码自动填充不生效？按这七处依次排查">密码自动填充不生效？按这七处依次排查</span>
         </nav>
         <h1>密码自动填充不生效？按这七处依次排查</h1>
-        <p class="meta">2026-11-05 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a></p>
+        <p class="meta">2026-11-05 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 9 分钟</p>
+        <div class="tag-chips"><span class="tag-chip">自动填充</span><span class="tag-chip">密码管理器</span><span class="tag-chip">Chrome扩展</span><span class="tag-chip">排障</span><span class="tag-chip">iframe</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-09-autofill-troubleshooting.png" alt="密码自动填充不生效？按这七处依次排查" />
+        <nav class="toc" aria-label="目录"><strong>目录</strong><ol><li><a href="#一-先确认当前是不是解锁态">一、先确认当前是不是解锁态</a></li><li><a href="#二-你用的是哪一档填充入口">二、你用的是哪一档填充入口</a></li><li><a href="#三-候选列表里到底有没有这条账号">三、候选列表里到底有没有这条账号</a></li><li><a href="#四-本地开发页-端口与-这一页其实是哪个环境">四、本地开发页：端口与「这一页其实是哪个环境」</a></li><li><a href="#五-content-script-到底有没有注进这一页">五、content script 到底有没有注进这一页</a></li><li><a href="#六-那一格输入框在-iframe-里吗">六、那一格输入框在 iframe 里吗</a></li><li><a href="#七-填上了-不等于-登录了-以及自动保存为什么不弹">七、「填上了」不等于「登录了」，以及自动保存为什么不弹</a></li><li><a href="#排查顺序">排查顺序</a></li></ol></nav>
         <p>「为什么这一站的账号没弹出来？」是我在 Issue 里被问得最多的一句话。第一次听到时我默认是匹配算法坏了，后来把失败案例逐个复现下来，结论不太给人面子：<strong>绝大多数「填不上」不是识别错了，而是你正好站在某一扇门外面</strong>——而每一扇门的开法都不一样。</p>
 <p>这篇把这条链路从上到下拆成七处判据。每一处都给「怎么确认」和「在哪一档改」，你可以照着往下走，不必先猜。</p>
-<h2>一、先确认当前是不是解锁态</h2>
+<h2 id="一-先确认当前是不是解锁态">一、先确认当前是不是解锁态</h2>
 <p>密码数据是逐字段密文存在 <code>chrome.storage.local</code> 里的，主密码经 PBKDF2（60 万次迭代）派生密钥后才能解密。这意味着<strong>扩展在锁定态手里根本没有明文可交出去</strong>。</p>
 <p>所以第一步不是检查站点，而是看会话：工具栏图标在解锁后会从挂锁换成钥匙，侧边栏顶部也会显示剩余有效期。如果你刚锁屏回来、或者会话到期，那一切填充入口都是灰的——这不是故障，是这套加密方案的必然代价。</p>
 <p>顺手说一句副作用：解锁那一下不需要重新加密整库，销毁和重建的只是会话密钥材料与解密快照。所以「解锁很慢」通常不是密码条数太多，而是磁盘读得慢。</p>
-<h2>二、你用的是哪一档填充入口</h2>
+<h2 id="二-你用的是哪一档填充入口">二、你用的是哪一档填充入口</h2>
 <p>这是「文档和我看到的不一样」的头号原因。入口一共三档：</p>
 <table>
 <thead>
@@ -439,7 +483,7 @@
 </tbody></table>
 <p><strong>关键差异在于你和「别人」的默认值可能不是同一个</strong>：全新安装的默认是 <code>inline</code>；而从早期版本升级上来的存量用户，扩展在升级钩子里把历史默认值冻结成了 <code>sidepanel</code>（并保留「自动打开侧边栏」）。这么做是因为配置读取用 <code>{ ...默认值, ...存储值 }</code> 合并，如果什么都不写，存量用户会在某次升级后被新默认值静默改掉手感——对手感敏感的人会觉得「插件突然变了」。</p>
 <p>再往上一层：这三档是全局设置，但<strong>站点规则可以按域名逐条覆盖</strong>。所以同一个浏览器里，<code>github.com</code> 走侧边栏、某个内部系统走内联，是完全可能的。设置面板会写明「本站已被站点规则覆盖为哪一档」，如果你在某一站点看不到入口，先去看这一行，而不是去翻全局开关。清掉唯一那条覆盖会直接移除规则，不会把你堵在「改不回去」的状态里。</p>
-<h2>三、候选列表里到底有没有这条账号</h2>
+<h2 id="三-候选列表里到底有没有这条账号">三、候选列表里到底有没有这条账号</h2>
 <p>如果面板出现了，但列表里没有你要的那条，问题在<strong>匹配档位</strong>。</p>
 <p>条目存的网址和当前页面的主机名要能对上。默认档 <code>off</code> 是精确主机匹配——<code>mail.qq.com</code> 的页面只会拿出自 <code>mail.qq.com</code> 的条目，躺在 <code>qq.com</code> 上的那一条不会现身。三档是包含关系：</p>
 <ul>
@@ -453,7 +497,7 @@
 <li><code>a.github.io</code> 和 <code>b.github.io</code> 也不算同主域。<code>github.io</code> 这一类多租户后缀被收在一张<strong>内置拒绝表</strong>里。这里要说清它的性质：<strong>这是一张拒绝表，不是完整的 Public Suffix List</strong>。完整 PSL 得引外部数据，而这个模块同时待在侧边栏首屏和 content script 的闭包里，所以表内只放高频、可确证的条目；<strong>没被收录的后缀会退回「末两段」口径</strong>——也就是说，表外的新后缀仍可能被当成同主域放行。漏收的代价是「和没这张表时一样」，而不是一个更安全的默认值，这一点值得记住。</li>
 </ol>
 <p>也就是说：<strong>「这条账号在库里的网址那一栏写成了什么」比「这个网站是不是我的」更决定结果</strong>。如果你确实需要整个子域家族共享，那就显式写成 <code>*.qq.com</code> 并知道它会连带 <code>fat</code> / <code>uat</code> 一起放开。</p>
-<h2>四、本地开发页：端口与「这一页其实是哪个环境」</h2>
+<h2 id="四-本地开发页-端口与-这一页其实是哪个环境">四、本地开发页：端口与「这一页其实是哪个环境」</h2>
 <p><code>localhost</code> 是最特殊的一格：环回地址没有主域可言，所以它多走一层<strong>端口</strong>判定，规则是三条：</p>
 <ul>
 <li>条目网址里<strong>写了端口</strong> → 只在同端口的页面出现，<code>localhost:3000</code> 与 <code>localhost:8080</code> 互不相干；</li>
@@ -462,23 +506,23 @@
 </ul>
 <p>另外，当前页面本身没有端口时这一轴直接放行。这套「默认按端口隔开、但要留一条不限端口的出路」的设计，是为了既不让两个项目的账号互相串，又不逼你把同一账号录两遍。</p>
 <p>顺带是本地开发最常踩的一个真实场景：前端跑在 <code>localhost</code>，接口打到 <code>dev.example.com</code>。这时页面主机名是 <code>localhost</code>，而你的账号存的是远端环境那一格。这个扩展的做法是让本地页声明「我其实是哪个环境的前端」，声明之后直接复用该环境已存的账号，不必为每台开发机再录一份。绑定只对<strong>这个 host + 端口</strong>生效，且关掉浏览器就没了。</p>
-<h2>五、content script 到底有没有注进这一页</h2>
+<h2 id="五-content-script-到底有没有注进这一页">五、content script 到底有没有注进这一页</h2>
 <p>如果你按快捷键后看到「页面未就绪」这类提示，那一次是真的没送出去。后台在投递前会先向<strong>顶层 frame</strong> 发一个 PING 探活，收不到回应就不猜、直接把话交给用户，提示你刷新标签页。</p>
 <p>这一步存在的理由很实际：扩展安装或更新之前就已经打开的标签页里，没有注入内容脚本。Chrome 不会替你把脚本补进旧文档，所以那些标签页看起来「插件没反应」，刷新即好。</p>
 <p>还有一个更隐蔽的坑：从取数到真正投递之间，页面可能发生跳转。所以投递的目标绑的是<strong>那一份文档</strong>，不是 <code>frameId</code>——否则同一个 frameId 上换了一个新文档，凭证会被塞进一个用户没打算登录的页面里。</p>
-<h2>六、那一格输入框在 iframe 里吗</h2>
+<h2 id="六-那一格输入框在-iframe-里吗">六、那一格输入框在 iframe 里吗</h2>
 <p>不少登录框是嵌在 iframe 里的（社交登录、支付、单点登录跳转）。这一处最容易被说错，所以把边界讲准：</p>
 <ul>
 <li><strong>能不能填，看那个 frame 和顶层页面是不是同一个主域。</strong> 后台取到可填文档集合后是<strong>逐文档并行下发</strong>的，可填范围 = 顶层 frame ＋ 所有与顶层同主域的 frame（<code>about:</code> 这类没有可判 URL 的帧，沿父链回溯到第一个能判的祖先）。所以同一个站点把登录框嵌在自己的子域 iframe 里，是能填到的；<strong>跨主域的第三方 iframe 拿不到凭证</strong>——这条是刻意留的边界，不是漏适配。</li>
 <li><strong>页面内的那两套 UI（悬浮按钮与内联下拉）用的是 closed shadow DOM</strong>。选它有两个原因：宿主页面的样式不该渗进来，插件的样式也不该渗出去污染宿主；同时 <code>all: initial</code> 之后主题令牌要内联写进去，换肤才能跟着走。</li>
 </ul>
 <p>所以如果你在 iframe 里看不到入口，先分清是「同主域的 frame」还是「第三方 frame」。后者不要指望这条路径能填进去：把凭证发给一个来源无法确认的文档，是密码管理器最不该做的事。</p>
-<h2>七、「填上了」不等于「登录了」，以及自动保存为什么不弹</h2>
+<h2 id="七-填上了-不等于-登录了-以及自动保存为什么不弹">七、「填上了」不等于「登录了」，以及自动保存为什么不弹</h2>
 <p>最后一处最容易造成误会，因为它其实是两个问题。</p>
 <p><strong>填充与提交是分开的。</strong> 快捷键 <code>Ctrl+Shift+F</code> 默认只做填充与勾选协议，<strong>不点登录按钮</strong>；侧边栏里的「填充并登录」才会把这三步串起来。想让快捷键也代为提交，需要显式开启「自动触发登录」。默认保守是有意的：自动提交意味着按错一次就可能把一个半成品表单提交出去，或者在不该登录的环境里登录成功。</p>
 <p><strong>自动保存不弹，通常是那一格不被认为是密码框。</strong> 判定用的是双条件：<code>input[type=&quot;password&quot;]</code> 或带 <code>data-aph-password</code> 标记的输入框。后者由内容脚本自己打，MutationObserver 会盯着动态新增的字段补标记——因为大量登录页是先渲染一个空壳、等你聚焦后才把密码框插进 DOM，只认 <code>type=&quot;password&quot;</code> 会漏掉这一整类页面。</p>
 <p>如果字段认到了但还是不弹保存提示，再看这三层上限：密码库有条目总量上限，收藏数达到上限时会按 LRU 让位，每条密码的历史快照只保留配置份数（默认 3 份）。它们是「不再记录新东西」，不是「坏了」。</p>
-<h2>排查顺序</h2>
+<h2 id="排查顺序">排查顺序</h2>
 <table>
 <thead>
 <tr>

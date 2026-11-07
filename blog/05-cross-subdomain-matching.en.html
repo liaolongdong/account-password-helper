@@ -301,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -407,11 +449,13 @@
           <span aria-current="page" title="Three Tiers of Cross-Subdomain Matching">Three Tiers of Cross-Subdomain Matching</span>
         </nav>
         <h1>Three Tiers of Cross-Subdomain Matching</h1>
-        <p class="meta">2026-09-22 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a></p>
+        <p class="meta">2026-09-22 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 12 min read</p>
+        <div class="tag-chips"><span class="tag-chip">chrome extension</span><span class="tag-chip">password manager</span><span class="tag-chip">domain matching</span><span class="tag-chip">multi-environment testing</span><span class="tag-chip">frontend</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Three Tiers of Cross-Subdomain Matching" />
+        <nav class="toc" aria-label="On this page"><strong>On this page</strong><ol><li><a href="#exact-matching-is-the-right-default-but-logins-don-t-respect-hostname-boundaries">Exact matching is the right default — but logins don't respect hostname boundaries</a></li><li><a href="#the-three-tiers-off-wildcard-samemaindomain">The three tiers: off / wildcard / sameMainDomain</a></li><li><a href="#one-predicate-two-fill-paths">One predicate, two fill paths</a></li><li><a href="#the-boundary-that-must-not-be-cut-root-domain-equality-not-endswith">The boundary that must not be cut: root-domain equality, not endsWith</a></li><li><a href="#chrome-s-url-parser-percent-encoded-the">Chrome's URL parser percent-encoded the *</a></li><li><a href="#three-things-widening-deliberately-doesn-t-touch">Three things widening deliberately doesn't touch</a></li><li><a href="#what-widening-actually-costs">What widening actually costs</a></li><li><a href="#test-and-guard-surface">Test and guard surface</a></li><li><a href="#if-this-is-the-wall-you-hit">If this is the wall you hit</a></li></ol></nav>
         <p>Ever since the matching rule was narrowed to &quot;hostnames must be equal&quot; in July 2026, that rule has been this extension&#39;s foundation for multi-environment isolation: a page on <code>fat.example.com</code> never sees entries from <code>uat.example.com</code> or from <code>example.com</code>. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.</p>
 <p>This post covers the trade-offs behind the three widening tiers, and a bug that only a real browser could catch.</p>
-<h2>Exact matching is the right default — but logins don&#39;t respect hostname boundaries</h2>
+<h2 id="exact-matching-is-the-right-default-but-logins-don-t-respect-hostname-boundaries">Exact matching is the right default — but logins don&#39;t respect hostname boundaries</h2>
 <p>To be clear: exact matching isn&#39;t conservatism for its own sake. It is the <strong>only default that blocks both classes of incident at once</strong> — <code>fat.example.com</code> can&#39;t reach <code>example.com</code> credentials, and a phishing site can&#39;t reach anything that merely looks close. Widening must be an explicit user choice; that part isn&#39;t negotiable.</p>
 <p>The problem is that real login flows were never drawn along hostname lines:</p>
 <ul>
@@ -421,7 +465,7 @@
 <li>an entry saved once at the apex (<code>qq.com</code>) is simply invisible on <code>mail.qq.com</code>.</li>
 </ul>
 <p>The failure modes are obvious. Giving them a non-abusable answer meant splitting &quot;wider&quot; into tiers of different strength instead of loosening subdomain matching across the board.</p>
-<h2>The three tiers: off / wildcard / sameMainDomain</h2>
+<h2 id="the-three-tiers-off-wildcard-samemaindomain">The three tiers: off / wildcard / sameMainDomain</h2>
 <p>The setting lives in the &quot;Cross-Subdomain Matching&quot; dialog in the manager page header (<code>components/options/DomainMatchSettingDialog.vue</code>). The three tiers are nested:</p>
 <table>
 <thead>
@@ -449,7 +493,7 @@
 </tbody></table>
 <p>Selecting <code>sameMainDomain</code> expands a read-only warning right under the radio group: <code>fat.example.com</code> and <code>uat.example.com</code> share one root domain, so test-environment accounts will appear together — switch to the wildcard tier if you need isolation. That is the only new risk this tier carries, and exactly why it sits last: <code>wildcard</code> widens per entry the user chose, <code>sameMainDomain</code> widens the whole family at once.</p>
 <p>Only one storage key lands on disk, <code>domain_match_config</code>, and its value is a bare enum — no domains, no accounts. So it stays in plain <code>storage.local</code>, outside the encrypted snapshot and outside the backup format; a missing key, a read failure, or an invalid value all fall back to <code>off</code>. Neither the side panel nor the inline dropdown gets its own copy of the switch: the same setting rendered in three places just creates three sources of truth for later contributors to disagree about.</p>
-<h2>One predicate, two fill paths</h2>
+<h2 id="one-predicate-two-fill-paths">One predicate, two fill paths</h2>
 <p>Every widening decision lives in one pure function in <code>utils/domain.ts</code>:</p>
 <pre><code class="language-ts">resolveMatchTier(currentHost, storedUrl, mode) → MatchTier | -1
 </code></pre>
@@ -462,7 +506,7 @@
 <li>The <strong>Popup&#39;s &quot;N matches for this page&quot; counter</strong> (<code>composables/usePopupInit.ts</code>), the <strong>empty-state &quot;N more accounts on the same root domain&quot; hint</strong> (<code>countSameMainDomainCandidates</code>), and the <strong>auto-save &quot;this will update that other account&quot; note</strong> (<code>utils/storage/autoSaveManager.ts</code>) read the same predicate too. The Popup number deliberately keeps excluding empty-URL entries — it answers &quot;how many accounts does this site already have&quot;, where a site-agnostic entry doesn&#39;t belong, so it is intentionally a different set from the side panel&#39;s visible list; <code>localhost</code> stays on exact-host there as well.</li>
 </ul>
 <p>The value here isn&#39;t fewer lines of code — it&#39;s that &quot;should this entry appear on this site?&quot; has exactly one answer. The classic way this kind of feature rots is one predicate for the list and another for filling, which eventually produces either &quot;it&#39;s in the dropdown but clicking does nothing&quot; or &quot;the side panel badges it and the inline dropdown doesn&#39;t&quot;. A tier is a property of the entry, not a per-screen heuristic.</p>
-<h2>The boundary that must not be cut: root-domain equality, not endsWith</h2>
+<h2 id="the-boundary-that-must-not-be-cut-root-domain-equality-not-endswith">The boundary that must not be cut: root-domain equality, not endsWith</h2>
 <p>The natural way to implement a wildcard hit is <code>hostname.endsWith(&#39;.qq.com&#39;)</code>, and the lazier way is <code>hostname.endsWith(&#39;qq.com&#39;)</code>. The lazy version behaves perfectly in a demo — nobody logs into <code>evil-qq.com</code> during a demo. In production it&#39;s a credential collector: <code>evil-qq.com</code> and <code>myqq.com</code> both end with <code>qq.com</code>, so a <code>*.qq.com</code> entry gets surfaced there, and the user is the one typing the password into it.</p>
 <p>The dotted version looks careful and is still wrong, just for a different reason: it hands &quot;which suffix counts as the same family&quot; to string comparison, so it inherits none of what <code>getMainDomain</code> already solved — two-part ccTLDs (the root domain of <code>example.com.cn</code> is three labels), the heuristic for unlisted country codes, and the &quot;return IPs and <code>localhost</code> verbatim&quot; behaviour. It also needs a special case to accept an apex entry (<code>qq.com</code> itself), and special cases are what drift apart from each other.</p>
 <p>The shipped implementation reuses exactly one trusted boundary instead: <strong>root-domain equality</strong>.</p>
@@ -470,18 +514,18 @@
 hit ⟺ getMainDomain(currentHost) === getMainDomain(base)
 </code></pre>
 <p>The same <code>getMainDomain</code> already gates cross-domain iframe delegation, so two security-relevant decisions share one implementation and one bug fix. One directional detail is worth keeping in mind: <code>getMainDomain</code>&#39;s heuristic branch can only make a root domain <strong>more</strong> specific (three labels instead of two), meaning it only ever narrows matching, never adds a match — the same &quot;fail toward the safe side&quot; property that matters in crypto, just in a different building.</p>
-<h2>Chrome&#39;s URL parser percent-encoded the <code>*</code></h2>
+<h2 id="chrome-s-url-parser-percent-encoded-the">Chrome&#39;s URL parser percent-encoded the <code>*</code></h2>
 <p>The first real-browser Playwright run showed the <code>wildcard</code> tier widening nothing at all.</p>
 <p>In unit tests, <code>resolveMatchTier(&#39;mail.qq.com&#39;, &#39;*.qq.com&#39;, &#39;wildcard&#39;)</code> returned 1 and passed reliably. The difference is that a stored URL passes through <code>normalizeToHostname</code> before the predicate sees it, and that function calls <code>new URL()</code>. <code>*</code> is not a valid host codepoint: Chrome yields <code>%2A.qq.com</code> (and never decodes <code>%2A</code> back), while Node.js keeps the <code>*</code> verbatim. So on a real browser the stored host arriving at the matcher was <code>%2A.qq.com</code> — it doesn&#39;t start with <code>*.</code>, so the wildcard branch is skipped; under <code>sameMainDomain</code> its root domain still equals the page&#39;s, so it landed in tier 3, &quot;sibling subdomain&quot;, getting both the wrong rank and the wrong badge.</p>
 <p>Net result: <strong>every unit test green, not one character of behaviour widened in a real browser.</strong> The fix restores the marker explicitly (<code>restoreWildcardMarker</code> in <code>utils/domain.ts</code>), and both normalizers need it — <code>normalizeToHostname</code> plus the port-carrying <code>normalizeToHostAndPort</code>, which also serves as a matching key. Patching one of the two is patching half of it.</p>
 <p>The lesson isn&#39;t the empty truism &quot;test on real browsers&quot;. It&#39;s more specific: <strong>the test runtime and the shipping runtime are two different URL parsers.</strong> Whenever a decision depends on input that went through URL, path, or i18n parsing and normalization, green in Node is only a necessary condition. That path is now pinned by <code>e2e/cross-subdomain.spec.ts</code>, which changes the tier through the real dialog and watches an already-open panel&#39;s list and badges update without re-unlocking — a stretch of storage listener plus messaging plus Vue reactivity that stubs in unit tests can never reach.</p>
-<h2>Three things widening deliberately doesn&#39;t touch</h2>
+<h2 id="three-things-widening-deliberately-doesn-t-touch">Three things widening deliberately doesn&#39;t touch</h2>
 <ol>
 <li><strong>Auto-save duplicate detection is untouched.</strong> Saving still uses the pre-existing <code>findMatchingEntry</code> in <code>utils/storage/autoSaveManager.ts</code> (same username plus hostname equality or parent-domain containment, most specific hit wins), and no tier changes it — otherwise &quot;enable cross-subdomain matching&quot; would secretly mean &quot;your saves may land on another site&quot;, which isn&#39;t reversible. The tiers only buy two read-only note lines: when the update targets a same-username account on a different host, say which one; when a same-root-domain twin exists but wasn&#39;t matched, say that this save creates a new entry. Separately, the by-URL lookup in <code>utils/storage/passwordCrud.ts</code> keeps exact-host semantics and its JSDoc now states plainly that it does not consult the tier, so nobody mistakes it for the widened entry point.</li>
 <li><strong><code>localhost</code> / <code>127.0.0.1</code> stay separated by port.</strong> In local multi-project work <code>:3000</code> and <code>:8080</code> are different apps, and a tier is meaningless there, so those hosts keep going through <code>matchesPortForLocalDev</code> and the predicate doesn&#39;t participate at all.</li>
 <li><strong>Changing the tier does not invalidate the decrypted password cache.</strong> Filtering happens after decryption; the tier changes which entries reach the result, never any ciphertext. Adding it to the cache invalidation keys would drop the <code>storage.session</code> snapshot and trigger a full decrypt-back-to-warm on every switch, breaking the documented sub-second side-panel SLA. A source-scan test pins that boundary, for a simple reason: once this lands in the invalidation list, no functional test will ever show anything wrong.</li>
 </ol>
-<h2>What widening actually costs</h2>
+<h2 id="what-widening-actually-costs">What widening actually costs</h2>
 <p>Numbers from the project&#39;s own Vitest benchmark, <code>benchmarks/sidepanel-p0.bench.ts</code> (tiers compared inside one multi-environment fixture; absolute values aren&#39;t comparable against other fixtures):</p>
 <table>
 <thead>
@@ -514,10 +558,10 @@ hit ⟺ getMainDomain(currentHost) === getMainDomain(base)
 </tbody></table>
 <p>The content script bundle grew from 217,062 to 217,080 bytes: +18 B. The predicate is a pure function and tree-shaking absorbed it, which is where it belongs.</p>
 <p>Three caveats so these numbers aren&#39;t over-read: they measure the JS data layer, not end-to-end render time — the side-panel list already renders in a windowed fashion, so the first frame doesn&#39;t care about the tier; the badge scan and the empty-state count are both lazy, so the <code>off</code> default path pays nothing; and the honest conclusion is that <strong>the wider tiers needed no performance work at all</strong>. The most expensive cell in the table is still single- to double-digit milliseconds, and what it buys is &quot;accounts for this site show up on its subdomains&quot;.</p>
-<h2>Test and guard surface</h2>
+<h2 id="test-and-guard-surface">Test and guard surface</h2>
 <p>The repo currently holds 4856 automated test cases across 336 test files. What covers this area directly: the <code>resolveMatchTier</code> tier cases (<code>off</code> reproducing the pre-migration exact-host rule, <code>wildcard</code> admitting only wildcard entries, <code>sameMainDomain</code> producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as <code>%2A</code>, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (<code>evil-qq.com</code> / <code>notqq.com</code> / <code>mail.qq.com.evil.io</code>) all return -1 against <code>*.qq.com</code>; an equivalence guard on <code>filterAndSortEntriesForDomain</code> claiming the same set in the same order id by id under <code>off</code>, plus the widened tiers&#39; priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.</p>
 <p>The unusual one is <code>tests/architecture/crossSubdomainTierWiring.test.ts</code>: it doesn&#39;t exercise behaviour, it scans source. Invariants of the form &quot;all four consumers must agree&quot; die most often when a new call site forgets to pass the tier — and because the parameter has an <code>off</code> default, type checking and ESLint stay completely silent. It happened once for real: a full row click in the side panel used the tier-aware predicate while the keyboard Enter path ate the default value, producing &quot;clickable, but Enter won&#39;t open it&quot; for cross-subdomain entries. The same file mechanically forbids hand-writing range comparisons like <code>tier &gt;= 1 &amp;&amp; tier &lt;= 3</code> in runtime code, locking the one definition of that interval inside <code>isCrossSubdomainTier</code>. Constraints of the shape &quot;these two places must agree&quot; drift when they rely on discipline; they don&#39;t drift when a scanner enforces them.</p>
-<h2>If this is the wall you hit</h2>
+<h2 id="if-this-is-the-wall-you-hit">If this is the wall you hit</h2>
 <p>First decide which of the two you actually want on <code>mail.qq.com</code>: only a few accounts spanning subdomains (<code>wildcard</code> tier, hand-write <code>*.qq.com</code>), or the whole subdomain family (<code>sameMainDomain</code>, and remember it drags <code>fat</code> / <code>uat</code> in with it). The switch is &quot;Cross-Subdomain Matching&quot; in the manager page header, and it takes effect immediately without re-unlocking.</p>
 <p>Account and password data still live encrypted in local storage exactly as before, and this feature added no permissions and no network requests; the extension&#39;s only recurring request remains its anonymous version check every 6 hours.</p>
 <p>Source and discussion: <a href="https://github.com/liaolongdong/account-password-helper">the GitHub repository</a>. It&#39;s listed on the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome Web Store</a>, completely free, open source under GPL-3.0.</p>
