@@ -34,7 +34,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marked } from 'marked';
-import { OG_IMAGE_EN, OG_IMAGE_ZH } from './lib/share-image.mjs';
+import { imageSizeOf, OG_IMAGE_ALT, OG_IMAGE_EN, OG_IMAGE_ZH } from './lib/share-image.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
@@ -145,6 +145,31 @@ const CWS_URL = 'https://chromewebstore.google.com/detail/account-password-helpe
 
 /** 无封面文章与索引页的分享卡兜底图：中英各一张 1200×630，语言与页面一致 */
 const OG_IMAGE = { 'zh-CN': OG_IMAGE_ZH, en: OG_IMAGE_EN };
+
+/**
+ * 分享卡的三条附加声明：alt 给读屏与加载失败兜底，width/height 让平台不必先下载图片
+ * 就能预留正确比例。尺寸从 PNG 头读真实值——博客封面 1600×900 与品牌卡 1200×630 并存，
+ * 写死一份会让其中一族说假话。
+ *
+ * @param {string} cover 站点绝对图片地址
+ * @param {string} alt 图片替代文本
+ * @returns {string} 三个 meta 标签，缩进与模板里其他 meta 对齐
+ */
+function ogImageExtras(cover, alt) {
+  const { width, height } = imageSizeOf(cover, root);
+  return `    <meta
+      property="og:image:alt"
+      content="${escapeAttr(alt)}"
+    />
+    <meta
+      property="og:image:width"
+      content="${width}"
+    />
+    <meta
+      property="og:image:height"
+      content="${height}"
+    />`;
+}
 
 /** 品牌名按语言输出：中文页此前挂着英文品牌，与 pricing/privacy 等页面口径不一致 */
 const BRAND = { 'zh-CN': '账号密码管理助手', en: 'Account Password Helper' };
@@ -506,6 +531,7 @@ ${headKit(lang)}
       property="og:image"
       content="${cover}"
     />
+${ogImageExtras(cover, article.title)}
     <meta
       property="og:site_name"
       content="${BRAND[lang]}"
@@ -860,6 +886,7 @@ ${headKit(lang)}
       property="og:image"
       content="${OG_IMAGE[lang]}"
     />
+${ogImageExtras(OG_IMAGE[lang], OG_IMAGE_ALT[lang === 'zh-CN' ? 'zh' : 'en'])}
     <meta
       property="og:site_name"
       content="${BRAND[lang]}"
