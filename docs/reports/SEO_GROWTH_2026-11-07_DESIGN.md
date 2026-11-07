@@ -65,6 +65,8 @@ LCP 那一项有个已知约束：`tests/docs/landingNoJsSurface.test.ts:112` �
 
 About 的刀：改完复测必须是 **332 UTF-16**；把同一条检查跑在旧的 346 字文本上必须命中禁词表。⚠️ 那条读请求历史上出现过 `exit 28` / `http=000`，**空响应不能读成「已经改好」**。
 
+**2026-11-07 第 5 步已执行并复测（与发版解耦，先做）。** GitHub About `description` 从 346 UTF-16 换成推荐文本，独立复读实测 **332 UTF-16 / 331 码点**，`never leave your browser` 与 `zero cloud` 均已不在其中；刀先在本地跑过——从 `seoSurface.test.ts` 真源抽出 9 条禁词，旧 346 文本命中 `never leave your browser`（刀有牙），新 332 文本零命中。Topics 整体 PUT 为 20 个，独立复读确认四新词（`autofill` / `browser-extension` / `open-source` / `password-generator`）全在、四旧词（`developer-tools` / `browser-extensions` / `password-generator-web` / `password-visibility`）全无、`bitwarden` 保留。这是线上唯一残留的自我虚假隐私承诺，至此收口。第 1–4 步仍待波次 E 内容落定后按序执行（E 会改测试数与页数，先刷数会白刷一遍）。
+
 ### 波次 D｜分发执行（北极星主杠杆）
 
 awesome PR 已授权，但**逐个读目标仓库自己的 `CONTRIBUTING`**——收录门槛会变，不能按老规则假设。中文周刊投稿包与站外定稿准备好，发帖与 48h 守帖由本人做。
