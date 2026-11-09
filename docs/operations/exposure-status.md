@@ -57,7 +57,7 @@
 
 ## 🆕 2026-11-09 SEO 与曝光五波收口：两篇中英科普上线、竞品事实复核回灌、对外口径跟到串行实测 5157 / 346
 
-设计稿见 [SEO_GROWTH_2026-11-07_DESIGN.md](../reports/SEO_GROWTH_2026-11-07_DESIGN.md)。十笔提交（`bd52e50` → `e9ef0cd`）走 A 修尺子 / B 技术 SEO / C 送上线 / D 分发 / E 内容补缺，走 PR #164 合入 `main`。**本节写下时（2026-11-09）PR 仍是 OPEN、`origin/main` 仍在 `fc8cee0`——合并尚未发生**；这一句先前写成「已合入」是错的，属对外状态记述的失真，特此更正。合并真正完成后应回来把这句改成实测读数。
+设计稿见 [SEO_GROWTH_2026-11-07_DESIGN.md](../reports/SEO_GROWTH_2026-11-07_DESIGN.md)。提交 `bd52e50` → `8c6ece3` 走 A 修尺子 / B 技术 SEO / C 送上线 / D 分发 / E 内容补缺，经 **PR #164 合入 `main`**：合并提交 `f3c79e2`（`gh pr view` 实测 `mergedAt=2026-11-09T17:11:59Z`、`mergeStateStatus=CLEAN`，九项检查全过，含 `Playwright extension E2E` 16m48s）。本节先前写「已合入」时 PR 其实仍是 OPEN、`main` 还在 `fc8cee0`——那句是对外状态记述的失真，现已按实测读数改写；教训是**合并类结论只能在 `git ls-remote origin main` 或 `gh pr view --json mergedAt` 出数之后写**。
 
 **A 修尺子（`bd52e50`）**：英文页生成链可复现，商店说明预算进 CI。两把会静默失效的量具重新配刀。
 
@@ -105,7 +105,11 @@
 
 ### 遗留待办
 
-波次 D 的 awesome 列表 PR、投稿包与 Dashboard `?ref=` 归因自证尚未执行；`product-site` 的 `dateModified` 与本波不同源，未随 `lastmod` 动。
+1. **发布 PR #165（`chore(main): release 3.23.0`）等维护者拍板。** 合 `main` 之后 release-please 成功跑完，但 `release_created=false`、「Build and attach zip」被 skip——它开的是发布 PR 而不是直接切版本，`main` 上 `package.json` 仍是 `3.22.0`，最新 Release 仍是 `v3.22.0`（2026-11-04）。合 #165 才会打 tag、建 Release、挂 zip，随后 `publish.yml` 卡在 `environment: production` 的人工 Approve 上。**这一步没替维护者做**：切版本伴随 CHANGELOG 与对外公告节奏，属人来定的里程碑；且本波对外内容上线并不依赖它（Pages 直接发 `main` 根目录）。
+2. **awesome 列表投稿必须由人发起**——目标清单明文禁止 agent 提交，详见 [AWESOME_LIST_SUBMISSION_PACK_2026-11-09.md](./promo/AWESOME_LIST_SUBMISSION_PACK_2026-11-09.md)。归因自证已完成（发现并修掉博客 26 页导航链接漏 `?ref=blog`，配了守卫）。
+3. **`en.html` 没有可复现性守卫**：`tests/scripts/enPageGenerators.test.ts` 只覆盖 pricing / privacy 兄弟页，`en.html` 本身不在内。本轮实测它逐字节可复现，属覆盖缺口而非漂移；补它要先想清楚会不会让计数再走一格。
+4. **商店截图 32 张母本未重拍**（含演示明文口令与账号，按决定只记录不动），商店文案与截图的重新上架仍是人工动作。
+5. `product-site` 的 `dateModified` 与本波不同源，未随 `lastmod` 动。
 
 ### 这一轮解决的是「装了不用」
 
