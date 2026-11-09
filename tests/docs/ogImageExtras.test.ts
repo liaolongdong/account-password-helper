@@ -1,7 +1,7 @@
 /**
  * 分享图的 `og:image:alt` / `:width` / `:height` 三条附加声明。
  *
- * 起因：全站 32 个页面此前只有 `og:image` 一枚。缺 width/height 时社交平台必须先下载图片
+ * 起因：全站 36 个页面此前只有 `og:image` 一枚。缺 width/height 时社交平台必须先下载图片
  * 才能确定比例，预览卡因此更容易错位或延迟；缺 alt 时读屏用户与图片加载失败的场景拿不到
  * 任何描述。三条都补上之后，必须钉住「值是真的」——尺寸写死一份会让博客封面（1600×900）
  * 与品牌卡（1200×630）里的一族说假话，所以这里**从 PNG 头独立读一遍**比对。
@@ -74,10 +74,10 @@ function articleTitle(file: string): string {
 }
 
 describe('分享图附加声明', () => {
-  it('量到全部 32 个页面（防空跑）', () => {
+  it('量到全部 36 个页面（防空跑）', () => {
     expect(ROOT_PAGES).toHaveLength(10);
-    expect(BLOG_PAGES).toHaveLength(22);
-    expect(ALL_PAGES).toHaveLength(32);
+    expect(BLOG_PAGES).toHaveLength(26);
+    expect(ALL_PAGES).toHaveLength(36);
     // 反向自检：不存在的 key 必须读出空，否则 contents 的过滤是永真
     expect(contents(headOf('index.html'), 'og:image:no-such')).toEqual([]);
   });

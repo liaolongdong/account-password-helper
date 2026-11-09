@@ -73,6 +73,10 @@ const ARTICLE_PAGES = [
   '09-autofill-not-working-fixes.en.html',
   '10-import-from-other-managers.html',
   '10-import-from-other-managers.en.html',
+  '11-is-password-manager-safe.html',
+  '11-is-password-manager-safe.en.html',
+  '12-password-generator-strength.html',
+  '12-password-generator-strength.en.html',
 ];
 const ALL_PAGES = [...ARTICLE_PAGES, INDEX_PAGE['zh-CN'], INDEX_PAGE['en']];
 
@@ -167,7 +171,7 @@ function sourceH2Count(body: string): number {
 }
 
 describe('博客产物清单', () => {
-  it('blog/ 恰好是这 22 个页面，不留已被替代的旧页', () => {
+  it('blog/ 恰好是这 26 个页面，不留已被替代的旧页', () => {
     const onDisk = readdirSync(BLOG_DIR)
       .filter(f => f.endsWith('.html'))
       .sort();
@@ -192,7 +196,8 @@ describe('博客产物清单', () => {
         .find(d => d['@type'] === 'ItemList');
       expect(list, `${indexPage} 没有 ItemList 结构化数据`).toBeDefined();
       const urls = (list!.itemListElement ?? []).map(i => i.url ?? '');
-      expect(urls.length, `${indexPage} 的 ItemList 条数与文章数不一致`).toBe(10);
+      const articleCount = new Set(ARTICLE_PAGES.map(n => n.replace(/(\.en)?\.html$/, ''))).size;
+      expect(urls.length, `${indexPage} 的 ItemList 条数与文章数不一致`).toBe(articleCount);
       for (const url of urls) {
         expect(url, `${indexPage} 的 url 不在站点前缀下`).toMatch(
           /^https:\/\/liaolongdong\.github\.io\/account-password-helper\/blog\//,
@@ -330,9 +335,9 @@ describe('博客文章源文件', () => {
   });
 
   // 角标是画进 `imgs/blog-covers/*.svg` 的文本节点，不会跟着文章篇数自己变：新增文章后
-  // 前四张的分母仍写 `/ 04`，位图和页面都照常渲染，没有任何一条断言会红。这里把分母钉成
+  // 旧封面的分母仍写旧的篇数，位图和页面都照常渲染，没有任何一条断言会红。这里把分母钉成
   // 篇数、分子钉成产物名里的序号，两处都对不上才算这个守卫有牙。
-  it('十张封面 SVG 的角标计数等于文章篇数，序号各归各位', () => {
+  it('十二张封面 SVG 的角标计数等于文章篇数，序号各归各位', () => {
     const coverDir = path.join(ROOT, 'imgs', 'blog-covers');
     const covers = readdirSync(coverDir)
       .filter(f => /^blog-cover-\d{2}-.+\.svg$/.test(f))

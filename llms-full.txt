@@ -184,6 +184,158 @@ GPL-3.0-only. Free to use, modify and distribute (including commercially). Deriv
 
 ## 中文原文
 
+### [浏览器存密码安全吗？本地密码管理器到底安全在哪](https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html)
+
+> Published: 2026-11-07 · Updated: 2026-11-07 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+「把密码交给一个工具存着，真的安全吗？」这是我被问得第二多的问题——第一多的是「为什么填不上」。问的人往往不是开发者，只是想给爸妈、给自己找一个放心的存法。
+
+这篇不堆术语，也不替你拍板买哪个。它只回答三个最朴素的问题：**密码存在哪、谁能读到、丢了怎么办**。把这三件事想清楚，「安不安全」就不再是一个玄学形容词，而是一组你能自己核对的事实。
+
+### 先问一句：你的密码现在存在哪
+
+大多数人从来没认真想过这个问题。常见的答案有三种：
+
+- **记在脑子里或纸上。** 听起来最「安全」，但人的记忆会逼你复用——为了记住，十个网站用同一个密码。一旦其中一家泄露，其余九家跟着遭殃。纸则会丢、会被拍下来。
+- **交给浏览器自带管理器。** 方便，登录时点一下「保存」就攒下来了。但开启同步后，这些密码会随你的浏览器账号被托管到厂商的服务器上；关掉同步，它又只活在这一台设备里。
+- **交给一个密码管理器。** 数据落在哪、加不加密、要不要联网，取决于这个工具怎么设计。
+
+「存在哪」决定了后面两个问题的答案。所以别急着比功能列表，先把这一格填上。
+
+### 三种存法，攻击面各不一样
+
+安全不是「有没有加密」一句话，而是「在什么情况下，谁有机会读到你的明文」。
+
+**复用是最大的现实风险。** 攻击者很少真的去破解你的加密——他们更常拿别处泄露的账号密码来「撞库」。你重复使用的那个密码，可能早在某次与你无关的数据泄露里躺进了字典。所以「每个网站一个不同的密码」比「密码够不够复杂」更要紧。
+
+**浏览器同步把信任交给了厂商。** 这不是说厂商一定不可信，而是你要清楚：开了同步，密码的副本就离开了你的设备，安全性的一部分由对方的服务器和账号体系承担。你的浏览器账号若被攻破，影响面就不止一台电脑。
+
+**本地优先把信任收回自己手里。** 以 [Account Password Helper](https://github.com/liaolongdong/account-password-helper) 为例，它是一个本地优先的 Chrome 扩展：密码逐字段加密后存在浏览器的 `chrome.storage.local` 里，没有账号、没有同步服务器。数据要不要离开这台设备，由你决定，而不是默认行为。代价是跨设备得靠自己导出导入——这是「控制权」和「省事」之间的取舍，没有免费午餐。
+
+### 加密到底在保护什么
+
+很多人以为「加密」就是给整个库套一把锁。更细的做法是**字段级加密**：每条记录的账号、密码、网址、备注、动态口令各自单独加密后再写进浏览器的 `chrome.storage.local`；标签和时间戳仍是明文，因为列表要靠它们排序和筛选。所以从磁盘上读不到明文密码，但也不是什么都读不到。解密只发生在你解锁后的会话里，一旦锁定或会话过期，内存中的明文随即清空。
+
+这里有两个普通人也该知道的常识：
+
+**主密码不是直接当钥匙用的。** 它先经过一个叫 PBKDF2 的密钥派生函数，做 60 万次迭代才变成真正的加密密钥。这一步的意义是：哪怕有人拿到了你的密文文件，想靠「猜主密码」逐个试，每一次猜测都要付出 60 万次运算的成本，暴力破解因此变得不划算。这也是为什么主密码可以是一句好记的长口令，而不必是一串反人类的乱码——长度比花样更重要。
+
+**加密保护的是「静态数据」。** 它防的是别人拿到你的存储文件后读不出明文。它不防你正在用的这台电脑本身被恶意软件控制，也不防你解锁状态下被人凑到屏幕前。所以「加密很强」和「绝对安全」是两回事，下一节就讲这个边界。
+
+### 本地优先不是万能药：它不替你挡什么
+
+诚实地划清边界，比喊口号更有用。一个本地密码管理器**不能**替你做到这些：
+
+- **它不防钓鱼。** 你把主密码或某条密码亲手填进了一个假网站，加密再强也拦不住。工具能帮你按域名匹配、减少填错站的概率，但最终按下提交的是你。
+- **它不防设备被控。** 如果你的电脑已经中了键盘记录或远程控制，解锁后的明文就在内存里，任何本地工具都无力回天。
+- **它不防主密码太弱。** 60 万次迭代抬高的是「每次猜测」的成本，抬不高一个 `123456` 本身的信息量。主密码得够长、够独特。
+- **它不替你备份。** 本地优先意味着数据主要活在你这台设备上。设备坏了、浏览器数据被清，没有备份就真没了。导出加密备份是你自己的责任。
+
+把这些「不防」记在心里，你就不会把任何一个工具当成保险箱供起来。
+
+### 丢了怎么办：备份与恢复
+
+本地优先的便利和风险是同一枚硬币。既然没有云端替你兜底，**定期导出一份加密备份**就是必做项，而不是可选项。
+
+好的备份应当满足三点：备份文件本身是加密的（拿到文件也读不出明文）、恢复时需要你的主密码（而不是任何拿到文件的人都能还原）、并且你把它放在了一个与日常设备分离的地方。这样设备故障时你能恢复，设备被盗时别人又用不了那份备份。
+
+顺带说一句：导出成明文 CSV 表格是另一回事——那是为了迁移到别的工具，文件里的密码是直接可读的，用完应当尽快删掉，别拿它当长期备份。
+
+### 给普通人的五条判断清单
+
+不想读原理，照这五条做也能把风险压到很低：
+
+1. **每个网站用不同的密码。** 这一条的收益超过其余所有花哨功能。让生成器替你随机生成，别自己重复使用。
+2. **主密码用一句长口令。** 四五个不相关的词拼起来，比 `P@ssw0rd!` 这种短而「复杂」的更难猜，也更好记。
+3. **重要的账号开两步验证。** 密码之外再加一道（验证码、TOTP 或硬件密钥），密码泄露了也还有一层。
+4. **定期导出加密备份，放在别处。** 本地优先的工具尤其要养成这个习惯。
+5. **想清楚同步这件事。** 要跨设备省事，就接受数据托管给厂商；要数据留在本机，就接受手动迁移。两者都行，别在不知情的情况下默认了其中一种。
+
+安全不是一次性的购买决策，而是一组日常习惯。工具能帮你把这几件事做得更顺手，但按下「保存」和「提交」的，始终是你自己。
+
+---
+
+### [密码生成器怎么用才安全？长度、熵与强度的那些误区](https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html)
+
+> Published: 2026-11-07 · Updated: 2026-11-07 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+几乎每个密码管理器都带一个「生成密码」按钮，但很多人点完之后心里并不踏实：这串乱码真的比我原来那个安全吗？那个强度条又是按什么打的分？
+
+这篇把生成和评估两件事拆开讲。你会看到「看着复杂」和「真的难猜」为什么不是一回事，长度和熵是什么关系，以及随机密码和助记词组分别该用在什么地方。例子用 [Account Password Helper](https://github.com/liaolongdong/account-password-helper) 的生成器，但道理对任何正经工具都成立。
+
+### 「看着复杂」为什么不等于「难猜」
+
+`P@ssw0rd!` 看起来挺唬人：有大写、有小写、有数字、有符号，只查「形状」的强度条甚至会给出「强」。但它只有 9 位，而且底子是 `password` 这个全宇宙最常见的词，再套上几个人尽皆知的替换规则（a→@、o→0、末尾加 !）。
+
+攻击者的字典早就把这些套路收齐了。对一台现代显卡来说，猜这种「变形常见词」不是按年算，而是按秒算。**复杂度花样骗得过强度条，骗不过字典。**
+
+真正决定难猜程度的，是下一节的那个量。
+
+### 熵：把「难猜」变成一个数
+
+熵（entropy）衡量的是「一个密码有多少种等可能的取法」，单位是比特（bit）。每多 1 比特，可能的取法翻一倍，暴力破解要试的次数也翻一倍。
+
+对一个**真随机**生成的密码，熵有个简单算法：
+
+> 熵 ≈ 长度 × log₂(字符集大小)
+
+字符集就是「每一位可能是哪些字符」。只用小写字母是 26 个，加上大写和数字是 62 个，再加常见符号大约 90 个。代入算一下：
+
+- 8 位、62 字符集：约 48 比特；
+- 16 位、90 字符集：约 104 比特。
+
+从 8 位到 16 位，长度翻一倍，熵也大致翻一倍——但破解成本不是翻一倍，而是翻 2 的几十次方倍。**这就是「长度比花样重要」的数学原因**：把字符集从 62 扩到 90，每位只多约 0.5 比特；而把长度从 8 加到 16，一下子多出几十比特。
+
+注意前提：**真随机**。人手「想」出来的乱码不算——你会不自觉地用生日、键盘走向、喜欢的词，熵远低于公式给出的上限。这正是生成器存在的意义。
+
+### 随机密码：交给生成器，别自己「想」
+
+一个合格的生成器应当用密码学安全的随机源（浏览器里是 `crypto.getRandomValues`），而不是 `Math.random()` 这种可预测的伪随机。Account Password Helper 的生成器默认 16 位、四类字符全开，长度可在 6 到 50 之间调，还能排除 `1/l/I/0/O` 这些容易看错的字符。
+
+几个实用建议：
+
+- **存进管理器的密码，尽量长。** 反正不用你记，16 位起步，重要账号拉到 20 位以上没有坏处。
+- **每个网站生成一个新的。** 生成器的价值一半在「随机」，一半在「让你懒得复用」。
+- **要手抄或口述的，排除易混淆字符。** 省去「这是大写 I 还是小写 l」的扯皮。
+
+随机密码的短板也很明显：它不好记。所以它适合「交给工具保管、需要时自动填充」的场景，不适合你必须背下来的那一个。
+
+### 助记词组：要背下来的那个，用词不用字
+
+主密码、磁盘加密口令这类你必须记在脑子里的密码，更适合**助记词组（passphrase）**：从一个大词库里随机挑几个词拼起来，形如 `correct-horse-battery-staple`（此处仅示意结构，别真用这几个词）。
+
+它的妙处在于：每个词都认识、连起来好记，但因为是**随机**挑选，组合数依然巨大。以一个约 3080 词的词库为例，每个词约 11.6 比特：
+
+- 4 个词 ≈ 46 比特；
+- 6 个词 ≈ 69 比特；
+- 7 个词 ≈ 81 比特。
+
+关键还是「随机」二字。你自己编的一句顺口溜（比如歌词、诗句）不算助记词组——它落在攻击者的语料库里，熵会塌方。让生成器从词库里掷骰子，才拿得到上面那些比特数。
+
+### 强度条在测什么，又没测什么
+
+强度条是个有用的提醒，但别把它当判决书。常见的轻量强度规则只查四件事：够不够长（比如 ≥8 位）、有没有字母、有没有数字、有没有符号。Account Password Helper 的核心规则就是这四条，全过给「强」，过两三条给「中」，其余「弱」。
+
+这套规则的优点是快、能在你打字时即时反馈；缺点是它**只看形状，不看内容**。`Abcdef1!` 四条全过、显示「强」，但它是个有规律的短串，真实强度并不高。
+
+所以更完整的评估还要补两个维度，这正是安全体检在做的事：
+
+- **是不是常见泄露密码。** 拿一份高频弱口令字典比对，命中就直接标红——把 `password` 换成 `P@ssw0rd` 这种小聪明，字典里早就收齐了。
+- **有没有在别处复用。** 同一个密码用在多个账号上，等于把鸡蛋放进同一个篮子。
+
+顺带澄清一个常见误解：这类本地体检**不需要把你的密码发到网上去查**。复用比对在内存里分组完成，泄露字典是预置在本地的常见弱口令表，全程不联网。强度条管「形状」，体检管「内容」，两者合起来才接近真相。
+
+### 一句话总结
+
+- 难猜程度看**熵**，熵主要靠**长度**堆，花样只是零头；
+- 不用记的密码交给**随机生成器**，越长越好，一站一个；
+- 必须记的那一个用**随机助记词组**，词数够多；
+- 强度条只看形状，别因为它显示「强」就放松，复用和泄露才是现实里最常出事的两处。
+
+生成器解决的是「人手想不出真随机」这个根本问题。把它用对，比纠结密码里要不要多塞一个符号有用得多。
+
+---
+
 ### [密码自动填充不生效？按这七处依次排查](https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html)
 
 > Published: 2026-11-05 · Updated: 2026-11-05 · Author: [liaolongdong](https://github.com/liaolongdong)
@@ -1123,6 +1275,158 @@ _本文涉及的关键文件：`entrypoints/background/backgroundServices.ts`（
 _本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（4856 项自动化测试，含加密与换钥路径）。_
 
 ## English originals
+
+### [Is Storing Passwords in a Browser Safe?](https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html)
+
+> Published: 2026-11-07 · Updated: 2026-11-07 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+"Is it actually safe to hand my passwords to a tool?" is the second question I get most — the first is "why won't it autofill?" The people asking usually aren't developers. They just want a way to store passwords that they can trust for themselves or their parents.
+
+This post skips the jargon and won't tell you which product to buy. It answers three plain questions: **where do passwords live, who can read them, and what happens if you lose them?** Once those are clear, "safe" stops being a vague adjective and becomes a set of facts you can check yourself.
+
+### First: Where Do Your Passwords Live Right Now?
+
+Most people have never really thought about this. There are three common answers:
+
+- **In your head or on paper.** It sounds the "safest," but human memory pushes you to reuse — to remember them, you use one password across ten sites. When one of those ten leaks, the other nine fall with it. Paper gets lost or photographed.
+- **In your browser's built-in manager.** Convenient: click "Save" at login and they pile up. But turn on sync and those passwords are hosted on the vendor's servers under your browser account; turn sync off and they live only on this one device.
+- **In a password manager.** Where the data lands, whether it's encrypted, and whether it needs the network all depend on how the tool is designed.
+
+"Where they live" determines the answers to the next two questions. So don't rush to compare feature lists — fill in this box first.
+
+### Three Ways to Store, Three Different Attack Surfaces
+
+Security isn't the single question "is it encrypted?" It's "under what circumstances, and who, gets a chance to read your plaintext?"
+
+**Reuse is the biggest real-world risk.** Attackers rarely bother cracking your encryption — they far more often take credentials leaked elsewhere and try them against your accounts ("credential stuffing"). The password you reused may already sit in a dictionary from a breach that had nothing to do with you. So "a different password for every site" matters more than "is my password complex enough."
+
+**Browser sync hands trust to the vendor.** That doesn't mean the vendor is untrustworthy — it means you should be clear-eyed: with sync on, a copy of your passwords leaves your device, and part of their safety now rests on someone else's servers and account system. If your browser account is compromised, the blast radius is more than one computer.
+
+**Local-first pulls that trust back to you.** Take [Account Password Helper](https://github.com/liaolongdong/account-password-helper): it's a local-first Chrome extension. Passwords are encrypted field by field and stored in the browser's `chrome.storage.local`, with no account and no sync server. Whether data leaves this device is your decision, not a default. The price is that moving between devices is a manual export/import — a trade-off between control and convenience. There's no free lunch.
+
+### What Encryption Actually Protects
+
+A lot of people picture "encryption" as one lock around the whole vault. A more granular approach is **field-level encryption**: each record's username, password, URL, notes, and TOTP secret are encrypted separately before being written to the browser's `chrome.storage.local`. Tags and timestamps stay in plaintext, because the list sorts and filters on them. So someone with disk access gets no plaintext password — but not nothing. Decryption happens only within your unlocked session, and the plaintext in memory is cleared the moment you lock or the session expires.
+
+Two things worth knowing even if you're not technical:
+
+**Your master password isn't used as the key directly.** It first runs through a key-derivation function called PBKDF2, with 600,000 iterations, before becoming the actual encryption key. The point: even if someone gets your ciphertext file and tries to guess the master password one attempt at a time, every single guess costs 600,000 operations, which makes brute force impractical. That's also why a master password can be a memorable long passphrase rather than an inhuman string of symbols — length matters more than variety.
+
+**Encryption protects data at rest.** It stops someone who gets your storage file from reading the plaintext. It does not stop malware that already controls the computer you're using, and it does not stop someone leaning over your shoulder while you're unlocked. "Strong encryption" and "absolutely safe" are two different claims — the next section is about that boundary.
+
+### Local-First Isn't a Cure-All: What It Won't Block
+
+Drawing the boundary honestly is more useful than slogans. A local password manager **cannot** do these for you:
+
+- **It won't stop phishing.** If you type your master password or a saved password into a fake site yourself, no amount of encryption can catch that. The tool can match by domain and lower the odds of filling the wrong site, but you're the one who presses submit.
+- **It won't stop a compromised device.** If your computer already has a keylogger or remote control, the plaintext is in memory once you unlock, and no local tool can undo that.
+- **It won't fix a weak master password.** 600,000 iterations raise the cost of *each guess*; they don't add information to a `123456`. The master password itself has to be long and unique.
+- **It won't back up for you.** Local-first means the data mostly lives on this device. If the device dies or the browser data is cleared, without a backup it's genuinely gone. Exporting an encrypted backup is your responsibility.
+
+Keep these "won'ts" in mind and you won't treat any tool as a shrine.
+
+### What If You Lose It: Backup and Recovery
+
+The convenience and the risk of local-first are two sides of one coin. Since no cloud is catching you, **exporting an encrypted backup regularly** is a must-do, not a nice-to-have.
+
+A good backup meets three conditions: the file itself is encrypted (holding it reveals no plaintext), restoring it requires your master password (not just anyone who has the file), and you keep it somewhere separate from your everyday device. That way you can recover when a device fails, and a thief can't use the backup when a device is stolen.
+
+One aside: exporting a plaintext CSV is a different thing — that's for migrating to another tool, the passwords in it are directly readable, and you should delete it soon after use rather than treat it as a long-term backup.
+
+### A Five-Point Checklist for Everyone
+
+If you'd rather skip the theory, these five habits keep risk very low:
+
+1. **Use a different password for every site.** This one habit beats every fancy feature combined. Let a generator produce them randomly; don't reuse your own.
+2. **Make the master password a long passphrase.** Four or five unrelated words strung together are harder to guess than a short "complex" `P@ssw0rd!` — and easier to remember.
+3. **Turn on two-factor for important accounts.** A second step beyond the password (a code, TOTP, or a hardware key) means a leaked password still has another layer behind it.
+4. **Export an encrypted backup regularly and keep it elsewhere.** Local-first tools especially need this habit.
+5. **Think sync through.** Want cross-device convenience? Accept hosting your data with a vendor. Want it to stay on your machine? Accept manual migration. Both are fine — just don't default into one without realizing it.
+
+Security isn't a one-time purchase decision; it's a set of daily habits. A tool can make these things smoother, but the one pressing "Save" and "Submit" is always you.
+
+---
+
+### [Password Generator: Length, Entropy, Strength](https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html)
+
+> Published: 2026-11-07 · Updated: 2026-11-07 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+Almost every password manager ships a "Generate" button, but a lot of people click it without feeling any more confident: is this string of gibberish really safer than what I had? And what is that strength bar actually scoring?
+
+This post separates the two jobs — generating and evaluating. You'll see why "looks complex" and "hard to guess" aren't the same thing, how length and entropy relate, and where random passwords versus passphrases each belong. The examples use [Account Password Helper](https://github.com/liaolongdong/account-password-helper)'s generator, but the reasoning holds for any decent tool.
+
+### Why "Looks Complex" Doesn't Mean "Hard to Guess"
+
+`P@ssw0rd!` looks intimidating: uppercase, lowercase, a digit, a symbol — a shape-only strength bar may even call it "strong." But it's only 9 characters, and underneath it's `password`, the most common word in the universe, wrapped in a few substitutions everyone knows (a→@, o→0, a trailing !).
+
+Attackers' dictionaries collected these tricks long ago. On a modern GPU, guessing a "mutated common word" isn't measured in years — it's measured in seconds. **Complexity theater fools the strength bar; it doesn't fool the dictionary.**
+
+What actually determines guess-resistance is the quantity in the next section.
+
+### Entropy: Turning "Hard to Guess" Into a Number
+
+Entropy measures "how many equally likely possibilities a password has," in bits. Each extra bit doubles the number of possibilities — and doubles the attempts a brute-force attack needs.
+
+For a **truly random** password, entropy has a simple formula:
+
+> entropy ≈ length × log₂(character-set size)
+
+The character set is "what each position could be." Lowercase only is 26; add uppercase and digits and it's 62; add common symbols and it's roughly 90. Plug in the numbers:
+
+- 8 characters from a 62-character set: about 48 bits;
+- 16 characters from a 90-character set: about 104 bits.
+
+Going from 8 to 16 characters doubles the length and roughly doubles the entropy — but the cracking cost doesn't double, it multiplies by 2 to the power of dozens. **That's the mathematical reason "length beats variety":** widening the set from 62 to 90 adds only about 0.5 bit per character, while going from 8 to 16 characters adds dozens of bits at once.
+
+Note the precondition: **truly random**. Gibberish a human "thinks up" doesn't count — you'll unconsciously reach for birthdays, keyboard patterns, favorite words, and the entropy lands far below the formula's ceiling. That's exactly why generators exist.
+
+### Random Passwords: Let the Generator Do It, Don't "Think" Them Up
+
+A proper generator should use a cryptographically secure random source (`crypto.getRandomValues` in the browser), not a predictable pseudo-random one like `Math.random()`. Account Password Helper's generator defaults to 16 characters with all four classes on, lets you set length from 6 to 50, and can exclude look-alike characters such as `1/l/I/0/O`.
+
+A few practical tips:
+
+- **For passwords you store in the manager, go long.** You don't have to remember them, so start at 16 and push important accounts past 20 — there's no downside.
+- **Generate a fresh one for every site.** Half the generator's value is "random"; the other half is "makes you too lazy to reuse."
+- **For anything you'll copy by hand or read aloud, exclude look-alikes.** It saves the "is that a capital I or a lowercase l" argument.
+
+The weakness of random passwords is obvious: they're hard to remember. So they fit the "let the tool keep it and autofill when needed" case, not the one password you must memorize.
+
+### Passphrases: For the One You Must Remember, Use Words
+
+Master passwords, disk-encryption passphrases — the ones you have to keep in your head — suit a **passphrase**: several words picked at random from a large word list and joined, shaped like `correct-horse-battery-staple` (illustrating the structure only; don't actually use these words).
+
+The beauty is that every word is familiar and the whole thing is easy to remember, yet because the words are chosen **at random**, the number of combinations is still enormous. With a word list of about 3,080 words, each word is roughly 11.6 bits:
+
+- 4 words ≈ 46 bits;
+- 6 words ≈ 69 bits;
+- 7 words ≈ 81 bits.
+
+The operative word, again, is "random." A catchy line you invent yourself (song lyrics, a poem) is not a passphrase — it lives in attackers' text corpora, and its entropy collapses. Let the generator roll the dice from the word list to actually get those bits.
+
+### What the Strength Bar Measures — and What It Misses
+
+The strength bar is a useful nudge, but don't treat it as a verdict. A common lightweight rule checks just four things: long enough (say ≥8 characters), has a letter, has a digit, has a symbol. Account Password Helper's core rules are exactly these four: all four pass is "strong," two or three pass is "medium," the rest is "weak."
+
+The upside is speed and instant feedback as you type; the downside is that it **only looks at shape, not content**. `Abcdef1!` passes all four and shows "strong," but it's a short, patterned string whose real strength isn't high.
+
+So a fuller evaluation adds two dimensions — which is what a security audit does:
+
+- **Is it a commonly breached password?** Compare against a high-frequency weak-password dictionary; a hit gets flagged red — swapping `password` for `P@ssw0rd` is a trick the dictionary already knows.
+- **Is it reused elsewhere?** The same password on multiple accounts puts all your eggs in one basket.
+
+One common misconception worth clearing up: this kind of local audit **doesn't need to send your passwords online to check**. Reuse comparison groups entries in memory, and the breach dictionary is a preloaded local list of common weak passwords — nothing leaves the device. The strength bar handles "shape," the audit handles "content"; together they get close to the truth.
+
+### In One Sentence
+
+- Guess-resistance is about **entropy**, entropy is mostly built by **length**, and variety is just the change;
+- Passwords you don't need to remember: hand them to a **random generator**, longer is better, one per site;
+- The one you must remember: use a **random passphrase** with enough words;
+- The strength bar only sees shape — don't relax just because it says "strong"; reuse and breaches are where things actually go wrong.
+
+A generator solves the root problem that humans can't produce true randomness. Using it well beats agonizing over whether to squeeze in one more symbol.
+
+---
 
 ### [Why Autofill Fails: Seven Checks in Order](https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.en.html)
 

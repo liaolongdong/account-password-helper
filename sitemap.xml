@@ -95,7 +95,7 @@
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/" />
@@ -104,7 +104,7 @@
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/" />
@@ -290,5 +290,41 @@
     <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html" />
     <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.en.html" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
   </url>
 </urlset>

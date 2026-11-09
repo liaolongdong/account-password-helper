@@ -1,7 +1,7 @@
 /**
  * 博客分发面守卫：RSS、llms-full 与页面可访问性结构
  *
- * `scripts/build-blog-pages.mjs` 现在一次产出四类必须入库的字节：12 个博客 HTML、
+ * `scripts/build-blog-pages.mjs` 现在一次产出四类必须入库的字节：26 个博客 HTML、
  * 两份 RSS、根目录 `llms-full.txt`。这些产物没有 CI 重新生成，改完 Markdown 忘记
  * `pnpm gen:blog` 就会把过期内容留在线上；RSS 的日期、条目顺序和自引用地址写错，
  * 订阅器也不会报错，只会静默不更新。因此这里从**源 Markdown** 反推应得结果：
@@ -9,7 +9,7 @@
  * 1. 每条 feed 的标题/摘要/链接/发布日期与该语言的文章一一对应，且按日期倒序；
  *    `lastBuildDate` 取该语言最新的 `modified`；
  * 2. 每篇源文的标题与结尾段落必须出现在 llms-full 中，图片相对路径已改成绝对 URL；
- * 3. 22 个页面都有 skip link、`<main id="main">`、RSS 自动发现；文章页另有可见面包屑、
+ * 3. 26 个页面都有 skip link、`<main id="main">`、RSS 自动发现；文章页另有可见面包屑、
  *    `rel="author"` 与作者卡片。
  *
  * 判据刻意从源文重算而不是和生成器共享函数：共享实现时，生成器与守卫一起写错也会绿。
@@ -55,6 +55,14 @@ const ARTICLE_PAGES = [
   '07-multi-environment-accounts.en.html',
   '08-totp-two-factor-guide.html',
   '08-totp-two-factor-guide.en.html',
+  '09-autofill-not-working-fixes.html',
+  '09-autofill-not-working-fixes.en.html',
+  '10-import-from-other-managers.html',
+  '10-import-from-other-managers.en.html',
+  '11-is-password-manager-safe.html',
+  '11-is-password-manager-safe.en.html',
+  '12-password-generator-strength.html',
+  '12-password-generator-strength.en.html',
 ];
 const ALL_PAGES = [...ARTICLE_PAGES, 'index.html', 'index.en.html'];
 

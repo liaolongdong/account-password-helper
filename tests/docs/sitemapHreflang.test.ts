@@ -1,7 +1,7 @@
 /**
  * `sitemap.xml` 的 hreflang 声明与 HTML 侧互证。
  *
- * 起因：站点 32 个 URL 的 HTML 里早就有 zh-CN / en / x-default 三件套，但 sitemap 里
+ * 起因：站点 36 个 URL 的 HTML 里早就有 zh-CN / en / x-default 三件套，但 sitemap 里
  * `xhtml:link` 一条都没有。Google 支持在 sitemap 里声明语言 alternates，且对**同一个 URL
  * 组**要求组内每个成员都列出全组（含自己）——只写在 HTML 里，sitemap 这条抓取入口就看不到
  * 语言关系。补上之后必须两侧一致，否则等于给爬虫两份互相矛盾的信号。
@@ -72,8 +72,8 @@ const urls = sitemapUrls();
 const byLoc = new Map(urls.map(entry => [entry.loc, entry]));
 
 describe('sitemap 的 hreflang 与 HTML 侧互证', () => {
-  it('解析到全部 32 个 URL 且 xmlns:xhtml 已声明（防空跑）', () => {
-    expect(urls.length).toBe(32);
+  it('解析到全部 36 个 URL 且 xmlns:xhtml 已声明（防空跑）', () => {
+    expect(urls.length).toBe(36);
     const xml = readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
     expect(xml, '缺 xmlns:xhtml 声明，xhtml:link 会是未定义前缀').toContain(
       'xmlns:xhtml="http://www.w3.org/1999/xhtml"',
