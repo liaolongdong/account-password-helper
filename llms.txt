@@ -14,7 +14,7 @@
 - **Account required**: No
 - **Subscription**: No
 - **Last updated**: 2026-11-05 · **Latest release**: v3.22.0 (2026-11-04) · the Chrome Web Store currently serves v3.22.0 (re-read from `img.shields.io/chrome-web-store/v/...` on 2026-11-05) — re-verify the served version before restating this line
-- **Quality**: 5130 automated test cases across 346 test files
+- **Quality**: 5157 automated test cases across 346 test files
 
 ## Key Features
 

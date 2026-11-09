@@ -227,9 +227,12 @@ describe('博客页的无障碍与署名结构', () => {
  * 判据取「所有商店链接」而不是「某一条特定链接」，这样新增落点默认被覆盖。
  */
 describe('博客的商店链接全部带 ?ref=blog 归因', () => {
-  const CWS = /https:\/\/chromewebstore\.google\.com\/detail\/account-password-helper\/[a-z0-9]+(\?ref=([a-z]+))?/g;
+  // ref 值取到引号 / `&` / 空白为止，而不是只吃字母：`[a-z]+` 会把 `?ref=blog2`
+  // 读成 `blog` 从而假绿——评审实测到这条洞，故整段捕获后逐字比较。
+  const CWS =
+    /https:\/\/chromewebstore\.google\.com\/detail\/account-password-helper\/[a-z0-9]+(?:\?ref=([^"'&\s]+))?/g;
 
-  const refsOf = (html: string) => [...html.matchAll(CWS)].map(m => m[2]);
+  const refsOf = (html: string) => [...html.matchAll(CWS)].map(m => m[1]);
 
   it.each(ALL_PAGES)('%s 的每条商店链接都标注了 ref=blog', page => {
     const html = read(`blog/${page}`);
@@ -241,10 +244,13 @@ describe('博客的商店链接全部带 ?ref=blog 归因', () => {
     ).toEqual([]);
   });
 
-  it('取数正则本身能区分「带 ref」与「漏 ref」（证明这把刀不空转）', () => {
-    const bare = 'href="https://chromewebstore.google.com/detail/account-password-helper/abc123">商店';
-    const tagged = 'href="https://chromewebstore.google.com/detail/account-password-helper/abc123?ref=blog">商店';
-    expect(refsOf(bare)).toEqual([undefined]);
-    expect(refsOf(tagged)).toEqual(['blog']);
+  it('取数正则能区分「带 ref」「漏 ref」与「近似但不同的 ref」（证明这把刀不空转）', () => {
+    const id = 'https://chromewebstore.google.com/detail/account-password-helper/abc123';
+    expect(refsOf(`href="${id}">商店`)).toEqual([undefined]);
+    expect(refsOf(`href="${id}?ref=blog">商店`)).toEqual(['blog']);
+    // 这三形都不得被当成 blog：漏网一次，来源统计就永久错位
+    expect(refsOf(`href="${id}?ref=blog2">商店`)).toEqual(['blog2']);
+    expect(refsOf(`href="${id}?ref=blog-x">商店`)).toEqual(['blog-x']);
+    expect(refsOf(`href="${id}?ref=blog&utm=1">商店`)).toEqual(['blog']);
   });
 });
