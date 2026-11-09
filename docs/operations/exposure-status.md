@@ -55,6 +55,125 @@
 
 | 测试基线（2026-10-18 复跑·页面写法的认格通道） | `pnpm exec vitest run --no-file-parallelism`（跑在与提交同构的 detached 树 `831b3c8` 里，worktree `~/.aph-wt/gate2`、`node_modules` 软链主仓）→ **251 个测试文件 / 3589 个用例全部通过，exit 0、0 failed、0 pending**（`Duration 148.02s`，只作旁证）。**+22 例 / +0 文件**四处闭合：`useIdentityVault` 43 → 55（+12）、`identityFields` 12 → 19（+7）、`identityLookupFromDetailWiring` 13 → 14（+1）、`piiClassifier.coverage` 240 → 242（+2：词表反向校验 ＋ 召回守卫，评审回灌把一条拆成两条），12 + 7 + 1 + 2 = 22 = 3589 − 3567 零残差。**开跑前先把 `.output` 删了，第一趟不可用**——产物门控的十来条用例在缺 `.output` 时静默跳过，"0 failed"不等于"跑全了"；补 `build` + `build:firefox` 后重测才是这行的数。七道门禁逐条 exit=0，产物 zip **803,222 B**、`.output/chrome-mv3` Σ **2,279,322 B**（208 文件）、`.output/firefox-mv2` Σ **2,279,174 B**（208 文件）；基线在 `~/.aph-wt/base2` 于 `e7816a0` 重建，读数复现上一行的 801,237 / 2,274,334 / 2,274,186，先证明可复算再 A/B。两份解压 Σ **各 +4,988 B** 只来自四枚：`chunks/options.js` +3,456（151 条词表串与认格通道）、`chunks/help.js` **+1,057**（中英 gd.9 各加一句搜法说明，评审回灌又补进「填了值的那一格才算填过」的限定）、`chunks/IdentityVaultDialog.js` +254、`assets/IdentityVaultDialog.css` +221，3,456 + 1,057 + 254 + 221 = 4,988 恰好闭合，另 28 枚只换引用名；zip +1,985 B。**这组是评审回灌之后重测的**：那一笔只动注释与文档，却把 `help.js` 推高 199 B、把用例数推 +1——**"只动注释"既不等于不进产物，也不等于不动用例数**。**对外 48 处落点跟到 3589 / 251**：只有 35 个用例数位走格（产品站两处千分位 `3,589`），13 个文件数位原地不动；派生的 12 页博客 HTML、`en.html`（256/256、16/16、FAQ DOM 42 三条计数不变）与 04 / 05 两张封面 PNG 由 `gen:blog` / `gen:en` / `covers:render` 重跑跟上，01–03 逐字节未变。上一行 3567 / 251 是前一轮的定稿读数，保留作记录。 |
 
+## 🆕 2026-11-09 SEO 与曝光五波收口：两篇中英科普上线、竞品事实复核回灌、对外口径跟到串行实测 5157 / 346
+
+设计稿见 [SEO_GROWTH_2026-11-07_DESIGN.md](../reports/SEO_GROWTH_2026-11-07_DESIGN.md)。十笔提交（`bd52e50` → `e9ef0cd`）走 A 修尺子 / B 技术 SEO / C 送上线 / D 分发 / E 内容补缺，走 PR #164 合入 `main`。**本节写下时（2026-11-09）PR 仍是 OPEN、`origin/main` 仍在 `fc8cee0`——合并尚未发生**；这一句先前写成「已合入」是错的，属对外状态记述的失真，特此更正。合并真正完成后应回来把这句改成实测读数。
+
+**A 修尺子（`bd52e50`）**：英文页生成链可复现，商店说明预算进 CI。两把会静默失效的量具重新配刀。
+
+**B 技术 SEO（`d16c483` `979461f` `43a65f5` `49a8d88`）**：`sitemap.xml` 补 hreflang 三档声明并与 HTML 侧逐条互证；分享卡补 `og:image:alt/width/height`，尺寸取 PNG 头真实值而非抄来的常量。**LCP 一项实测后作废**——首屏 LCP 是 H1 文本、与 lazy 图无关，所以不改代码；这条记在这里是为了阻止下一轮又把它捡回来做。origin 根缺口按「建根仓库 + 极简落地页」落地（根仓库 `liaolongdong/liaolongdong.github.io`，`ef81d79` / `23d0d1a` / `3b245ac`）。
+
+**C 送上线（`fbe8d8a` `e9ef0cd`）**：GitHub About（332 UTF-16 码点）与 topics 四换已线上改并 `curl` 复测。测试数口径在最终提交态上用 `vitest run --no-file-parallelism --reporter=json` 串行重测 → **346 个测试文件 / 5130 个用例，0 failed / 0 skipped**，31 文件 48 处落点整体从 4856 / 336 抬一格。**只手改 20 个维护面**，派生的 10 页博客 HTML、`llms-full.txt`、`en.html` 与两张封面 PNG 一律走 `gen:blog` / `gen:en` / `covers:render` 重跑。时间戳跟着内容走：01–05 的 `modified` 抬到 UTC 今天 2026-11-09，`sitemap` 的 `lastmod` 逐条对齐，博客索引页取十二篇最大值，root 与 `en.html` 的 `footer.updated` 同步——**这一步不是自愿的**：`seoSurface` 把 sitemap lastmod 钉在页内 `dateModified` 上、把索引页钉在十二篇最大值上，只改一半直接见红（本轮就红过两次，各补一处才绿）。没动过的 06–10（仍 11-05）、11–12（仍 11-07）、author / privacy 各保持原值。
+
+**5130 这个数在本节写下时就已经过期了**：`c101a10` 在刷完数之后又给 `blogDiscovery` 加了 27 例（26 页 + 1 自检），整支评审实测到终态是 **346 文件 / 5157 例**，`25240f4` 与 `499cac5` 把 48 处落点跟到 5157。教训记两条：一是「最终提交态」只有在最后一笔提交之后才成立，刷数不能排在加测试之前；二是 `testCountCopy` 只校验 48 处彼此一致，**全体一致地写错它拦不住**，所以这一步的判据只能是重测，不是守卫。另外 `499cac5` 单独存在是因为上一次提交按目录列举暂存路径时漏了 `product-site/`——守卫读工作区、不读提交树，所以那次提交不完整而门禁照样全绿。
+
+**E 内容补缺（`3610266` `e6cecde` `d967ff5`）**：博客文章页补目录 / 阅读时长 / 标签 chip；新增两对中英科普（`11-is-password-manager-safe`、`12-password-generator-strength`）与配套封面，博客面从 22 页 / 20 篇 / 10 封面 / 32 URL 走到 **26 页 / 24 篇 / 12 封面 / 36 URL**。README 把中英共 8 条「数百到数千码点塞进一个 bullet」拆成父项 + 分层子项（最长那条英文 3474 码点），只重排层级与加结构性小标题、句子事实零增删——用数字 token 差分核对过，除刻意修正外改动前后数字集合一致。FAQ 散文段没动：那是问答体，拆成 bullet 反而伤可读性，且 `faqSchemaParity` 锁着 schema 与可见文案的一致性。
+
+### 五处「说出去但产品做不到 / 核不实」的订正
+
+这批里最值得单独记的是它——新增文案写完先逐条对源码与厂商官网核过，核出五处错的：
+
+| 表述                                             | 错在哪                                                                                                                                                                          | 依据                                                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 「磁盘上始终只有密文」                           | `encryptPasswordEntry` 用 `...entry` 展开，只有账号 / 密码 / 网址 / 备注 / TOTP 五个敏感字段逐字段加密，`id`、`tag`、`createTime`、`updateTime`、`order`、`favorite` 是明文落盘 | `utils/encryption.ts:271-279`                                                                                                       |
+| 「列表页展示标题和图标时根本不需要解密敏感字段」 | `getAllPasswordsDetailed` 走 `Promise.allSettled` 整库批量解密，含 `password`；UI 只是把口令打码显示，明文确实进了内存                                                          | `utils/storage/passwordCrud.ts:762-813`、`composables/usePasswordManagement.ts:480-489`                                             |
+| 「`P@ssw0rd!` 在体检里原形毕露」                 | 字典精确匹配、大小写不敏感，`p@ssw0rd!` **不在**库内（999 行 / 989 个去重小写值），`p@ssw0rd` 在；换成后者                                                                      | `utils/weakPasswordDict.ts`、`utils/data/top1000.json`                                                                              |
+| 强度条给「中」                                   | 四条形状规则（≥8 / 字母 / 数字 / 符号）全过即判「强」，`P@ssw0rd!` 恰好全过；「中」是过两三条                                                                                   | `utils/passwordStrengthCore.ts:105-110`                                                                                             |
+| 1Password「Watchdog」；Bitwarden「约 $10 起」    | 官方名是 **Watchtower**；Premium 自 2026-01-21 起 **$1.65/月、年付 $19.80**——即「截至 2026-09」这个标注本身在盖章时就已过期                                                     | support.1password.com/watchtower（2026-11-04 原文「Use Watchtower…」）、bitwarden.com/blog/bitwarden-launches-enhanced-premium-plan |
+
+竞品口径日期随之统一抬到 2026-11，顺带修掉 `pricing.html` 可见文案写 2026-08、页内 i18n 字典写 2026-09 的自相矛盾。Chrome 自带的「只做表单填充」软化为「以表单填充与云同步为主」并补正产品名为 Google Password Manager，因为 GPM 现已有密码生成、Password Checkup、passkey 与明文 CSV 导入导出；**但四项差异（精确域名多环境隔离 / 内置 TOTP / 离线体检 / 加密备份）逐条核实后仍成立**，予以保留。复核后维持原值的：Bitwarden 跨平台同步与开源可自建、1Password $2.99/月无免费档、LastPass 仍在运营且可导出通用 CSV。
+
+### 验证
+
+`tests/docs` 22 文件 1015 例、`tests/architecture` + `tests/utils` 198 文件 2434 例全绿；`eslint --max-warnings 0` 对 6 个改动的守卫通过；`prettier --check` 对手改面通过（`llms.txt` 无 parser，跳过）。真 Chrome（品牌版，Playwright 1.63 + `setViewportSize`）跑 4 个新页面 × {1280, 375(`isMobile`+`deviceScaleFactor 2`)} = **8/8 通过**：无横向溢出、目录 6 链接 0 死锚点且点击确实滚动、5 个标签 chip、中英阅读时长格式各自正确（`约 N 分钟` / `N min read`）、封面 `naturalWidth=1600` 且随视口 712→327px 缩放。**溢出判据另做 canary 对照**：注入 2000px 元素后逐元素右边界检测报出 `DIV.canary`，而 `scrollWidth-clientWidth` 在同一注入下仍为 0——**说明后者单独用会漏，前者才是有牙的那把**。4 个站页渲染复核 `19.80` / `Watchtower` / `2026-11` 实际进 DOM、无 `$10` / `Watchdog` 残留、控制台零错误。
+
+### CodeQL 两条 high 的处置（2026-11-09，PR #164）
+
+合并被 CodeQL 挡住：`js/incomplete-multi-character-sanitization` 报在 `scripts/build-blog-pages.mjs:188` 与 `tests/docs/blogMeta.test.ts:406`。这条规则针对的是 `/<[^>]+>/g` 这类剥离器——它确实不完整，`<scr<script>ipt>` 剥一层会剩下一个真的 `<script>`。但两处都不构成注入面，逐条读过落点后按既有先例消解：
+
+- **#34（生成器）→ `mitigated`**：`withToc` 剥出的 `text` 只有两个消费者，一是同函数内的 slug（非字母数字一律换成连字符，尖号被吃掉），二是目录标签，而后者在**唯一**的 HTML 落点 `build-blog-pages.mjs:207` 走 `escapeHtml`，左尖括号变实体，进不了标签位。原样插回的 `inner` 是 marked 渲染的正文，本波未改该行为，输入是仓库自产 markdown。
+- **#35（守卫测试）→ `used in tests`**：只把生成 HTML 的 h2 内联标签剥掉后与目录标签逐字比对，输出只进 `expect`，不构造 HTML、不进运行时。
+
+先例是同一规则的 #20–#23、#32、#33，此前均按 `used in tests` 处置并写了理由。**这是消解不是删除，可在 Security 页重开**；两条都附了可核对的行号与判据，便于后来人复核。API 侧两个坑记一下：`dismissed_reason` 要传人类可读枚举（`used in tests` / `mitigated`），传 `used_in_tests` 会 422；`dismissed_comment` 上限 280 字符。另外用 `?ref=refs/pull/164/head` 才查得到 PR 维度的 alert——不带 ref 的列表端点只给默认分支，会显示 0 条 open，容易误判成「没有告警」。
+
+### 本轮刻意不动
+
+- **商店截图 32 张母本**：含演示用明文口令与账号，按用户决定「本轮只记录不动」，不上架、不用于宣传。
+- **全站 12 篇封面双语化**：既有约定是一篇文章一张中文文字封面、中英文页共用（已上线的 01 / 10 英文页同样如此），属全站视觉改动，超出本波范围。
+- **README / index.html / ARCHITECTURE 等十余处的「磁盘上始终是密文」**：`docs/code-review-2026-10-03.md:156` 曾明确判它「字面成立」，凭据部分准确、只是精度不足；全站改写属独立决定，不顺手做。
+- **`benchmarks/**`、`.aph-wt-*`、`docs/reports/**` 与本台账的历史读数**：改掉等于伪造历史。
+
+### 遗留待办
+
+波次 D 的 awesome 列表 PR、投稿包与 Dashboard `?ref=` 归因自证尚未执行；`product-site` 的 `dateModified` 与本波不同源，未随 `lastmod` 动。
+
+### 这一轮解决的是「装了不用」
+
+后台「一段时间内的每周用户数」10-13 起爬升、10-22 峰值 **15,190**、当前 **4,102**（此前基线约 130），
+两周回落七成；商店详情页公开用户数被单 item 收起（中/英/日三语该格皆空，同账号 4/8 用户的其他扩展照常显示）。
+对着这张账找到的工程原因有两条，都在激活与日常高频路径上，不在功能清单上。
+
+### 交付一｜手机号 + 短信验证码登录页也保存凭据（`dbd803b`）
+
+三个捕获入口此前都硬性要求「存在密码框且值非空」，而国内主流登录形态页面上根本没有密码框——
+用户装完、天天登录、库里一条都没攒出来。判据改成「手机号框与验证码框**都已填写**」：
+只认手机号框会把搜索框/注册页/收货地址页判成登录页，而点「获取验证码」那一下验证码框还空、
+登录尚未发生。落盘是 `username`=手机号、`password`=空串，**验证码不进任何字段**，
+存储结构与加密格式一字未改。空口令的写入授权由载荷 `mobileLogin` 位显式声明，
+未声明的发送方照旧按空字段拒写。
+
+顺带修掉三个今天就存在的缺陷（`4ce4a6f`）：空快照会占掉一格密码历史 `maxCount` 把真正该留的旧口令挤出去；
+空口令条目不产生扣分项却撑大体检分母（1 弱 + 3 空的库此前报 94 分「优秀」，现如实 75 分「良好」）；
+详情抽屉对空口令渲染固定 8 位假掩码还挂着复制按钮。
+
+### 交付二｜导入没能带出的行逐条说清原因（`7ffa932`）
+
+`utils/excelCsv.ts` 此前对不合格行直接 `continue`，表头没被认出时还会先兜底成 Chrome 映射再落进同一条
+丢弃分支，用户只看到「导入 0 条」。现在解析返回 `{ entries, skipped }`，界面按原因归组说人话，
+并给出下一步（核对表头列名 / 指定来源格式）。跳过记录只允许行号与原因，**不得携带字段原值**。
+
+### 交付三｜侧边栏使用密度：按判据作废，不实现
+
+「当前站点账号置顶」与「本站无结果时一键切全站」都已在代码里（`utils/passwordSort.ts` 的域名优先级是
+第一个比较器；`SidepanelAuthView.vue` 的 `sidepanel.scope.searchAllCta`）。剩下的只有会动焦点/滚动行为的
+猜测性改动，收益不可证、而侧边栏秒开 SLA 与「focus 自触发滚动会掐掉刚亮的浮层」是实打实的风险。
+计划里写明「不可证就整项作废」，本轮执行该判据。
+
+### 不做并钉死的两项
+
+- **生物识别解锁**（`5d53b42`）：守卫式省不掉任何一次键盘输入（锁定即真删数据密钥，
+  锚 `utils/sessionManager-storage.ts:978`），省掉就得让密钥常驻、把「锁定」降级为「UI 按不动」；
+  抗离线提取增量本就为零（锚同文件 `:439-463`）。
+- **Passkey 管理**：接管站点 WebAuthn 仪式只有 `chrome.webAuthenticationProxy`（仅企业策略安装可用）
+  与 OS 级 Password Manager API（不支持扩展）两条路，消费级商店分发下不可行。
+
+### 验证（口径：同一串行窗口内的相对证据，不采信跨批次绝对值）
+
+- 单测：`pnpm test:run` **342 文件 / 4895 例全绿**；本轮新增 7 个测试文件、12 条用例，全部先看红后转绿。
+- 门禁：`pnpm typecheck` / `pnpm lint` / `pnpm lint:style` / `pnpm build` / `pnpm cws:preflight` 全绿；
+  改动的 md/json 逐文件 `prettier --check` 通过。
+- 架构守卫抓到两处并当场修：`i18nBundles` 指出 `help.gb` 计数有两处渲染入口（只改 HelpDialog 会漏 GuideView）；
+  `siblingImportAlias` 抓出 `utils/excel.ts` 新增一条同目录别名导入（5→6，登记表只准减不准增），
+  合并进原有 import 语句消除，而不是把登记表改宽。
+- 真机（Chrome for Testing 158，隔离 worktree `.aph-wt-mobile-save`）：`e2e/mobile-code-autosave.spec.ts`
+  4 条全绿——XHR 原地登录、整页跳转后复现、「获取验证码」不弹、账号密码老路径不受影响；
+  **变异探针**（把手机号分支改成 `return null` 重建）使正向用例转红、另两条不受影响，
+  证明结论由本次改动产生。存量 e2e 子集 27 条：26 绿。
+- 两处如实报告的边界：① 弹窗内容在 closed shadow root 里，Playwright 选择器进不去、CDP
+  `DOM.getDocument{pierce}` 在该 page target 只返回根节点（实测 total=1），故 e2e 只能断言宿主节点挂载，
+  弹窗内文案与点「保存」落库由单测负责；② 无头模式 `page.screenshot` 出来是全白图，不能当像素证据。
+
+### 记录一条存量竞态（本轮未修）
+
+`e2e/security.spec.ts:72`「当前密码错误时拒绝修改…」在负载下复现失败、静机 14.3s 通过：
+失败在第③步重新解锁，期望「密码错误，请重新输入」拿到的是「请输入主密码」空值校验——
+即 `fill` 之后校验视图重挂载把值清掉了。该路径本轮一行未碰，属夹具级竞态，按仓库规矩记录不动。
+
+### 刻意没做
+
+不推远端、不发商店、不改权限与 manifest description（zh 131/132 码点、en 130，无预算）；
+英文商店长描述未加新卖点（剩余预算约 62 码点，新事实优先落中文表面与落地页 FAQ）。
+
 ## 🆕 2026-11-05 曝光面收口：博客补 CTA + 两篇长尾文 + 对外数字与在架版本对齐（本轮，未提交）
 
 用户批准四批全选（A 事实漂移收口 / B 博客长尾新内容 / C 商店转化侧 / D GitHub 曝光面），并钉死三条边界：**商店只动说明正文（实际结论是本轮不动，理由见下）**、GitHub 元数据**只出文本与命令不做外部写**、含真实凭据的旧截图**本轮只记录不动**。

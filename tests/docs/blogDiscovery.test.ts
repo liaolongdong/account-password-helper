@@ -1,7 +1,7 @@
 /**
  * 博客分发面守卫：RSS、llms-full 与页面可访问性结构
  *
- * `scripts/build-blog-pages.mjs` 现在一次产出四类必须入库的字节：12 个博客 HTML、
+ * `scripts/build-blog-pages.mjs` 现在一次产出四类必须入库的字节：26 个博客 HTML、
  * 两份 RSS、根目录 `llms-full.txt`。这些产物没有 CI 重新生成，改完 Markdown 忘记
  * `pnpm gen:blog` 就会把过期内容留在线上；RSS 的日期、条目顺序和自引用地址写错，
  * 订阅器也不会报错，只会静默不更新。因此这里从**源 Markdown** 反推应得结果：
@@ -9,7 +9,7 @@
  * 1. 每条 feed 的标题/摘要/链接/发布日期与该语言的文章一一对应，且按日期倒序；
  *    `lastBuildDate` 取该语言最新的 `modified`；
  * 2. 每篇源文的标题与结尾段落必须出现在 llms-full 中，图片相对路径已改成绝对 URL；
- * 3. 22 个页面都有 skip link、`<main id="main">`、RSS 自动发现；文章页另有可见面包屑、
+ * 3. 26 个页面都有 skip link、`<main id="main">`、RSS 自动发现；文章页另有可见面包屑、
  *    `rel="author"` 与作者卡片。
  *
  * 判据刻意从源文重算而不是和生成器共享函数：共享实现时，生成器与守卫一起写错也会绿。
@@ -55,6 +55,14 @@ const ARTICLE_PAGES = [
   '07-multi-environment-accounts.en.html',
   '08-totp-two-factor-guide.html',
   '08-totp-two-factor-guide.en.html',
+  '09-autofill-not-working-fixes.html',
+  '09-autofill-not-working-fixes.en.html',
+  '10-import-from-other-managers.html',
+  '10-import-from-other-managers.en.html',
+  '11-is-password-manager-safe.html',
+  '11-is-password-manager-safe.en.html',
+  '12-password-generator-strength.html',
+  '12-password-generator-strength.en.html',
 ];
 const ALL_PAGES = [...ARTICLE_PAGES, 'index.html', 'index.en.html'];
 
@@ -204,5 +212,45 @@ describe('博客页的无障碍与署名结构', () => {
     expect(html).toContain('rel="author"');
     expect(html).toContain('href="https://github.com/liaolongdong"');
     expect(html).toContain('class="author-card"');
+  });
+});
+
+/**
+ * 商店链接归因：博客每一页指向 Chrome 商店的锚点都必须带 `?ref=blog`。
+ *
+ * 商店后台按 `?ref=` 分来源统计转化，漏了参数的点击会并入「未标注」那一桶——
+ * 页面照常能打开、链接照常有效，所以四道门禁一条都不会红，只有等复盘时
+ * 才发现「博客带来多少安装」这个问题没有答案。2026-11-09 实测就是这样：
+ * 正文 CTA 手写了 ref，`siteLinks()` 里那条却用的是裸 `CWS_URL`，
+ * 26 个页面各漏一条。
+ *
+ * 判据取「所有商店链接」而不是「某一条特定链接」，这样新增落点默认被覆盖。
+ */
+describe('博客的商店链接全部带 ?ref=blog 归因', () => {
+  // ref 值取到引号 / `&` / 空白为止，而不是只吃字母：`[a-z]+` 会把 `?ref=blog2`
+  // 读成 `blog` 从而假绿——评审实测到这条洞，故整段捕获后逐字比较。
+  const CWS =
+    /https:\/\/chromewebstore\.google\.com\/detail\/account-password-helper\/[a-z0-9]+(?:\?ref=([^"'&\s]+))?/g;
+
+  const refsOf = (html: string) => [...html.matchAll(CWS)].map(m => m[1]);
+
+  it.each(ALL_PAGES)('%s 的每条商店链接都标注了 ref=blog', page => {
+    const html = read(`blog/${page}`);
+    const refs = refsOf(html);
+    expect(refs.length, `${page} 一个商店链接都没有，判据已失去意义`).toBeGreaterThan(0);
+    expect(
+      refs.filter(r => r !== 'blog'),
+      `${page} 有商店链接漏带 ?ref=blog`,
+    ).toEqual([]);
+  });
+
+  it('取数正则能区分「带 ref」「漏 ref」与「近似但不同的 ref」（证明这把刀不空转）', () => {
+    const id = 'https://chromewebstore.google.com/detail/account-password-helper/abc123';
+    expect(refsOf(`href="${id}">商店`)).toEqual([undefined]);
+    expect(refsOf(`href="${id}?ref=blog">商店`)).toEqual(['blog']);
+    // 这三形都不得被当成 blog：漏网一次，来源统计就永久错位
+    expect(refsOf(`href="${id}?ref=blog2">商店`)).toEqual(['blog2']);
+    expect(refsOf(`href="${id}?ref=blog-x">商店`)).toEqual(['blog-x']);
+    expect(refsOf(`href="${id}?ref=blog&utm=1">商店`)).toEqual(['blog']);
   });
 });

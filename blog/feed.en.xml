@@ -8,12 +8,36 @@
     <link>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</link>
     <description>Product thinking and engineering deep-dives: local-first security, MV3 performance, Web Crypto internals and multi-environment login.</description>
     <language>en</language>
-    <lastBuildDate>Thu, 05 Nov 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Mon, 09 Nov 2026 00:00:00 GMT</lastBuildDate>
     <atom:link
       href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml"
       rel="self"
       type="application/rss+xml"
     />
+    <item>
+      <title>Is Storing Passwords in a Browser Safe?</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html</guid>
+      <pubDate>Sat, 07 Nov 2026 00:00:00 GMT</pubDate>
+      <description>No jargon. Three plain questions — where passwords live, who can read them, what if you lose them — to tell browser storage from a local-first manager.</description>
+      <category>password security</category>
+      <category>local-first</category>
+      <category>password manager</category>
+      <category>browser</category>
+      <category>explainer</category>
+    </item>
+    <item>
+      <title>Password Generator: Length, Entropy, Strength</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html</guid>
+      <pubDate>Sat, 07 Nov 2026 00:00:00 GMT</pubDate>
+      <description>Why complex-looking short passwords are fragile, how length and entropy relate, and when to use random passwords versus passphrases.</description>
+      <category>password generator</category>
+      <category>password strength</category>
+      <category>entropy</category>
+      <category>passphrase</category>
+      <category>security</category>
+    </item>
     <item>
       <title>Why Autofill Fails: Seven Checks in Order</title>
       <link>https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.en.html</link>

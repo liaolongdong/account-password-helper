@@ -94,6 +94,18 @@
       content="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-09-autofill-troubleshooting.png"
     />
     <meta
+      property="og:image:alt"
+      content="Why Autofill Fails: Seven Checks in Order"
+    />
+    <meta
+      property="og:image:width"
+      content="1600"
+    />
+    <meta
+      property="og:image:height"
+      content="900"
+    />
+    <meta
       property="og:site_name"
       content="Account Password Helper"
     />
@@ -289,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -395,15 +449,17 @@
           <span aria-current="page" title="Why Autofill Fails: Seven Checks in Order">Why Autofill Fails: Seven Checks in Order</span>
         </nav>
         <h1>Why Autofill Fails: Seven Checks in Order</h1>
-        <p class="meta">2026-11-05 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a></p>
+        <p class="meta">2026-11-05 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 10 min read</p>
+        <div class="tag-chips"><span class="tag-chip">autofill</span><span class="tag-chip">password manager</span><span class="tag-chip">Chrome extension</span><span class="tag-chip">troubleshooting</span><span class="tag-chip">iframe</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-09-autofill-troubleshooting.png" alt="Why Autofill Fails: Seven Checks in Order" />
+        <nav class="toc" aria-label="On this page"><strong>On this page</strong><ol><li><a href="#1-is-the-session-actually-unlocked">1. Is the session actually unlocked</a></li><li><a href="#2-which-fill-entry-are-you-on">2. Which fill entry are you on</a></li><li><a href="#3-is-the-entry-in-the-candidate-list-at-all">3. Is the entry in the candidate list at all</a></li><li><a href="#4-local-dev-pages-ports-and-which-environment-is-this-really">4. Local dev pages: ports, and &quot;which environment is this really&quot;</a></li><li><a href="#5-did-the-content-script-land-on-this-page">5. Did the content script land on this page</a></li><li><a href="#6-is-the-field-inside-an-iframe">6. Is the field inside an iframe</a></li><li><a href="#7-it-filled-is-not-it-logged-in-and-why-no-save-prompt-appeared">7. &quot;It filled&quot; is not &quot;it logged in&quot; — and why no save prompt appeared</a></li><li><a href="#the-order-to-check-in">The order to check in</a></li></ol></nav>
         <p>&quot;Why didn&#39;t this site offer my account?&quot; is the question I get most often in issues. My first instinct was always a matching bug. After reproducing enough failures to be embarrassed about it, the honest answer is different: <strong>most &quot;autofill is broken&quot; reports are not wrong matches — you happen to be standing outside one of seven doors</strong>, and each of them opens differently.</p>
 <p>This post takes the pipeline apart into seven checks. For each one I&#39;ll say how to confirm it and where to change it, so you can work down the list instead of guessing.</p>
-<h2>1. Is the session actually unlocked</h2>
+<h2 id="1-is-the-session-actually-unlocked">1. Is the session actually unlocked</h2>
 <p>Passwords live in <code>chrome.storage.local</code> as per-field ciphertext, and the key comes from your master password through PBKDF2 (600,000 iterations). That means <strong>while locked, the extension simply has no plaintext to hand over</strong>.</p>
 <p>So don&#39;t start with the site — start with the session. The toolbar icon switches from a padlock to a key once you&#39;re unlocked, and the side panel shows the remaining validity. If you just came back from a lock screen or the session expired, every entry point is grey. That isn&#39;t a defect, it&#39;s the price of this particular encryption design.</p>
 <p>Related, and often mistaken for slowness: locking doesn&#39;t re-encrypt the vault. It discards the session key material and the decrypted snapshot. When unlocking feels slow, the cause is usually disk reads, not the number of entries.</p>
-<h2>2. Which fill entry are you on</h2>
+<h2 id="2-which-fill-entry-are-you-on">2. Which fill entry are you on</h2>
 <p>This is the number one reason the docs and your screen disagree. There are three settings:</p>
 <table>
 <thead>
@@ -427,7 +483,7 @@
 </tbody></table>
 <p><strong>Your default may not be the default in the docs.</strong> A fresh install starts on <code>inline</code>. People who upgraded from earlier versions get frozen to <code>sidepanel</code>, with &quot;open the side panel automatically&quot; kept on. The reason is how config is read: <code>{ ...defaults, ...stored }</code>. If nothing is written for those keys, an upgrade would silently change long-time users&#39; muscle memory. Preserving the old behaviour was the better trade.</p>
 <p>One layer up: those three are global, but <strong>site rules can override the entry per domain</strong>. The same browser can legitimately show the side panel on <code>github.com</code> and the inline dropdown on an internal system. The settings panel states which rule covers the current site, so if an entry is missing on one site only, read that line before you go hunting for a global switch. Clearing the last override removes the rule outright rather than leaving you stuck unable to switch back.</p>
-<h2>3. Is the entry in the candidate list at all</h2>
+<h2 id="3-is-the-entry-in-the-candidate-list-at-all">3. Is the entry in the candidate list at all</h2>
 <p>If the panel opens but the account you want isn&#39;t there, you&#39;re looking at the <strong>matching tier</strong>.</p>
 <p>The stored URL has to line up with the current hostname. The default tier <code>off</code> is exact-host matching: a page on <code>mail.qq.com</code> only surfaces entries stored against <code>mail.qq.com</code>, not one filed under <code>qq.com</code>. The three tiers are nested:</p>
 <ul>
@@ -441,7 +497,7 @@
 <li><code>a.github.io</code> and <code>b.github.io</code> aren&#39;t the same main domain either. Multi-tenant suffixes like <code>github.io</code> are listed in a <strong>built-in deny table</strong>, and it&#39;s worth being precise about what that is: <strong>a deny table, not the full Public Suffix List.</strong> The complete PSL would mean shipping external data, and this module sits inside both the side panel&#39;s first paint and the content-script bundle, so the table only carries high-frequency, verifiable entries. <strong>A suffix that isn&#39;t in the table falls back to the old &quot;last two labels&quot; reading</strong> — which means an unlisted suffix can still be treated as same-main-domain. The cost of a missing entry is &quot;same as before the table existed&quot;, not a safer default. That&#39;s a limitation worth remembering.</li>
 </ol>
 <p>Put differently: <strong>what you typed in the entry&#39;s URL field decides the outcome more than whether the site &quot;feels like&quot; yours.</strong> If you really want a whole subdomain family to share, write <code>*.qq.com</code> and accept that it also drags <code>fat</code> and <code>uat</code> along.</p>
-<h2>4. Local dev pages: ports, and &quot;which environment is this really&quot;</h2>
+<h2 id="4-local-dev-pages-ports-and-which-environment-is-this-really">4. Local dev pages: ports, and &quot;which environment is this really&quot;</h2>
 <p><code>localhost</code> is the strangest slot: a loopback host has no meaningful main domain, so an extra <strong>port</strong> check runs on top, with three rules:</p>
 <ul>
 <li>the entry&#39;s URL <strong>carries a port</strong> → it only appears on the same port, so <code>localhost:3000</code> and <code>localhost:8080</code> stay apart;</li>
@@ -450,23 +506,23 @@
 </ul>
 <p>And when the current page itself has no port, this axis passes everything through. Isolating by port while leaving one port-agnostic escape hatch is the point: two projects shouldn&#39;t cross-fill, but nobody should have to register the same account twice either.</p>
 <p>The more common trap: your frontend runs on <code>localhost</code> while its API points at <code>dev.example.com</code>. The page host is <code>localhost</code>, but the account you saved belongs to the remote environment. The extension lets a local page declare which environment it is really the frontend of, and then reuses the accounts already stored for that environment. The binding applies to <strong>that host and port only</strong>, and it&#39;s gone when the browser closes.</p>
-<h2>5. Did the content script land on this page</h2>
+<h2 id="5-did-the-content-script-land-on-this-page">5. Did the content script land on this page</h2>
 <p>If pressing the hotkey gives you a &quot;page not ready&quot; style message, nothing was delivered. Before sending anything, the background worker pings the <strong>top frame</strong>; if it gets no answer it doesn&#39;t guess — it tells you, and the message is &quot;refresh the tab&quot;.</p>
 <p>That check exists because tabs opened <em>before</em> the extension was installed or updated have no content script in them. Chrome won&#39;t retroactively inject, so those tabs look dead until you reload them.</p>
 <p>The subtler one: navigation can happen between picking the credential and delivering it. Delivery is therefore bound to <strong>that document</strong>, not to a <code>frameId</code>. Otherwise the same numeric frame could host a brand-new document by then, and your password would land in a page nobody intended to log into.</p>
-<h2>6. Is the field inside an iframe</h2>
+<h2 id="6-is-the-field-inside-an-iframe">6. Is the field inside an iframe</h2>
 <p>Plenty of login forms sit in iframes — social sign-in, payment, SSO redirects. This is the item most easily stated wrong, so let me state the boundary precisely:</p>
 <ul>
 <li><strong>Whether it can be filled depends on whether that frame shares a main domain with the top page.</strong> The background collects the fillable documents and then delivers <strong>to each of them in parallel</strong>. The fillable set is the top frame <strong>plus every frame whose URL is in the same main domain as the top</strong> (an <code>about:</code> frame, which has no URL worth testing, walks up the parent chain to the first ancestor that does). So a login box embedded in your own subdomain&#39;s iframe <strong>is</strong> reachable; a <strong>cross-main-domain third-party iframe never receives credentials</strong> — that boundary is deliberate, not missing support.</li>
 <li><strong>The two in-page UIs (floating button and inline dropdown) live in a closed shadow root.</strong> Chosen for two reasons: the host page&#39;s CSS shouldn&#39;t leak in and ours shouldn&#39;t leak out; and after an <code>all: initial</code> reset, theme tokens have to be written inline or skin switching stops following the theme.</li>
 </ul>
 <p>So when an iframe gives you no entry point, first tell apart &quot;same main domain&quot; from &quot;someone else&#39;s domain&quot;. For the second case, don&#39;t hope this path will reach it: handing plaintext to a document whose origin you can&#39;t confirm is the last thing a password manager should do.</p>
-<h2>7. &quot;It filled&quot; is not &quot;it logged in&quot; — and why no save prompt appeared</h2>
+<h2 id="7-it-filled-is-not-it-logged-in-and-why-no-save-prompt-appeared">7. &quot;It filled&quot; is not &quot;it logged in&quot; — and why no save prompt appeared</h2>
 <p>The last item is really two confusions wearing one coat.</p>
 <p><strong>Filling and submitting are separate.</strong> <code>Ctrl+Shift+F</code> fills and ticks the consent checkbox by default; it does <strong>not</strong> click the login button. Only &quot;Fill and sign in&quot; in the side panel chains all three. To make the hotkey submit too, you have to opt into &quot;auto-submit login&quot;. The conservative default is intentional: auto-submit means one mis-timed keystroke can post a half-filled form, or sign you successfully into an environment you didn&#39;t mean to touch.</p>
 <p><strong>No save prompt usually means the field wasn&#39;t read as a password field.</strong> The predicate is a two-condition selector: <code>input[type=&quot;password&quot;]</code>, or any input carrying the <code>data-aph-password</code> marker the content script adds itself. A MutationObserver watches for fields inserted later and marks them, because many login pages render a shell first and insert the password input only after you focus it. Matching on <code>type=&quot;password&quot;</code> alone misses that entire family of pages.</p>
 <p>If the field is recognised and still nothing appears, check the three ceilings: the vault has a hard entry cap, the favourites limit evicts the least recently used entry once full, and each password keeps a configured number of history snapshots (3 by default). Those make the extension <em>stop recording</em>, not break.</p>
-<h2>The order to check in</h2>
+<h2 id="the-order-to-check-in">The order to check in</h2>
 <table>
 <thead>
 <tr>
@@ -515,7 +571,7 @@
     </main>
     <footer class="footer">
       <p>Account Password Helper · Open source (GPL-3.0)</p>
-      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml">RSS feed</a></p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml">RSS feed</a></p>
       <p>Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></p>
     </footer>
   </body>

@@ -8,12 +8,36 @@
     <link>https://liaolongdong.github.io/account-password-helper/blog/</link>
     <description>本地优先密码管理器的产品思考与工程实现：安全设计、MV3 性能、Web Crypto 加密与多环境登录。</description>
     <language>zh-cn</language>
-    <lastBuildDate>Thu, 05 Nov 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Mon, 09 Nov 2026 00:00:00 GMT</lastBuildDate>
     <atom:link
       href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml"
       rel="self"
       type="application/rss+xml"
     />
+    <item>
+      <title>浏览器存密码安全吗？本地密码管理器到底安全在哪</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html</guid>
+      <pubDate>Sat, 07 Nov 2026 00:00:00 GMT</pubDate>
+      <description>不堆术语，从「密码存在哪、谁能读到、丢了怎么办」三个问题讲清浏览器自带与本地密码管理器的安全差别，给出普通人能照着做的判断清单。</description>
+      <category>密码安全</category>
+      <category>本地优先</category>
+      <category>密码管理器</category>
+      <category>浏览器</category>
+      <category>科普</category>
+    </item>
+    <item>
+      <title>密码生成器怎么用才安全？长度、熵与强度的那些误区</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html</guid>
+      <pubDate>Sat, 07 Nov 2026 00:00:00 GMT</pubDate>
+      <description>为什么「看着复杂」的短密码不堪一击，长度和熵到底什么关系，随机密码与助记词组各适合谁——把密码生成与强度评估讲成普通人能用的常识。</description>
+      <category>密码生成器</category>
+      <category>密码强度</category>
+      <category>熵</category>
+      <category>助记词</category>
+      <category>安全</category>
+    </item>
     <item>
       <title>密码自动填充不生效？按这七处依次排查</title>
       <link>https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html</link>

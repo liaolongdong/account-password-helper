@@ -1,195 +1,330 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset
+  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml"
+>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/author.html</loc>
     <lastmod>2026-10-19</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/author.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/author.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/author.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/author.en.html</loc>
     <lastmod>2026-10-19</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/author.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/author.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/author.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/pricing.html</loc>
-    <lastmod>2026-10-18</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/pricing.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/pricing.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/pricing.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/pricing.en.html</loc>
-    <lastmod>2026-10-18</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/pricing.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/pricing.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/pricing.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/privacy.html</loc>
     <lastmod>2026-10-27</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/privacy.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/privacy.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/privacy.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/privacy.en.html</loc>
     <lastmod>2026-10-27</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/privacy.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/privacy.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/privacy.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/compare.html</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/compare.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/compare.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/compare.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/compare.en.html</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/compare.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/compare.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/compare.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/index.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/index.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html</loc>
-    <lastmod>2026-11-05</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.en.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html" />
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.en.html</loc>
     <lastmod>2026-11-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html</loc>
+    <lastmod>2026-11-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.en.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html" />
   </url>
 </urlset>

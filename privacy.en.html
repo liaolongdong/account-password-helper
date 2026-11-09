@@ -68,6 +68,18 @@
       content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png"
     />
     <meta
+      property="og:image:alt"
+      content="Account Password Helper share card: field-by-field local encryption, one-click fill and sign-in, environments never mix — free and open source under GPL-3.0"
+    />
+    <meta
+      property="og:image:width"
+      content="1200"
+    />
+    <meta
+      property="og:image:height"
+      content="630"
+    />
+    <meta
       property="og:url"
       content="https://liaolongdong.github.io/account-password-helper/privacy.en.html"
     />
@@ -508,7 +520,9 @@
           <p>
             个人信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
             认证加密后写入本地存储，默认掩码显示；打开该库是否要求验证主密码由「个人信息库复验设置」决定（默认同一管理页会话内只问一次，锁定、会话过期或刷新、重开管理页后会重新问），库内的查看与复制不再额外索要主密码。
-            从网页输入框右键「从个人信息库选择」进入该库时，该菜单项<strong>不读取右键目标与字段内容</strong>、不预填检索词、不把库内的值回填页面，跨上下文只传递一个由浏览器盖章的<strong>来源标签页编号</strong>（一个整数，不含页面地址、不含字段内容、不含任何库内数据），用途是在库内给出「回到原网页」出口；这个编号不落盘，切回前还会复核来源页是否仍在原站点，不符即作废该出口。页面字段提示气泡上的同名按钮会额外带一个<strong>可选检索词</strong>：只在您点下按钮的那一刻读一次，取同一表单里判定为本人姓名那个框的值，或该格的标签文字，读完即用——不落盘、不进日志、不参与解密；管理页当时处于锁定态的，这个词只在管理页自己的内存里最多停留 60 秒（解锁那一刻取用、超时即丢），同样不落盘、不进日志、不外传。两条入口都仍要过原有的主密码复验门槛，库内的值只由你逐字段或整卡经剪贴板限时清除通道复制。
+            从网页输入框右键「从个人信息库选择」进入该库时，该菜单项<strong>不读取右键目标与字段内容</strong>、不预填检索词、不把库内的值回填页面，跨上下文只传递一个由浏览器盖章的<strong>来源标签页编号</strong>（一个整数，不含页面地址、不含字段内容、不含任何库内数据），用途是在库内给出「回到原网页」出口；这个编号不落盘，切回前还会复核来源页是否仍在原站点，不符即作废该出口。页面字段提示气泡上的同名按钮会额外带一个<strong>可选检索词</strong>：只在您点下按钮的那一刻读一次，取同一表单里判定为本人姓名那个框的值，或该格的标签文字，读完即用——不落盘、不进日志、不参与解密；管理页当时处于锁定态的，这个词只在管理页自己的内存里最多停留
+            60
+            秒（解锁那一刻取用、超时即丢），同样不落盘、不进日志、不外传。两条入口都仍要过原有的主密码复验门槛，库内的值只由你逐字段或整卡经剪贴板限时清除通道复制。
           </p>
         </div>
 
@@ -951,9 +965,9 @@
             no longer matches, the exit is voided. The identically named button on the in-page field hint carries one
             extra <strong>optional search term</strong>, read once at the moment you click it — the value of the field
             judged to be your own name in that same form, or the label of that field — and used and discarded there:
-            never stored, never logged, never involved in decryption. If the manager page is still locked at
-            that moment, the term waits only in that page's own memory for up to 60 seconds — consumed the
-            instant you unlock, dropped afterwards — never on disk and never sent anywhere. Either route still passes the existing
+            never stored, never logged, never involved in decryption. If the manager page is still locked at that
+            moment, the term waits only in that page's own memory for up to 60 seconds — consumed the instant you
+            unlock, dropped afterwards — never on disk and never sent anywhere. Either route still passes the existing
             master-password verification gate, and values leave the vault only through your own per-field or whole-card
             copy under the timed clipboard wipe.
           </p>

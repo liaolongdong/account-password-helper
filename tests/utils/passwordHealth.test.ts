@@ -176,28 +176,28 @@ describe('computeStaleEntries', () => {
 });
 
 describe('computeSecurityScore', () => {
-  it('总数为 0 返回满分 100', () => {
+  it('参与评分的条目数为 0 返回满分 100', () => {
     expect(
-      computeSecurityScore({ total: 0, weakCount: 0, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
+      computeSecurityScore({ passwordTotal: 0, weakCount: 0, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
     ).toBe(100);
   });
 
   it('无风险返回 100', () => {
     expect(
-      computeSecurityScore({ total: 10, weakCount: 0, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
+      computeSecurityScore({ passwordTotal: 10, weakCount: 0, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
     ).toBe(100);
   });
 
   it('按占比线性扣分并四舍五入', () => {
     // 100 - 25*(1/3) = 91.67 → 92
     expect(
-      computeSecurityScore({ total: 3, weakCount: 1, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
+      computeSecurityScore({ passwordTotal: 3, weakCount: 1, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
     ).toBe(92);
   });
 
   it('全维度受影响时扣至下限 0', () => {
     expect(
-      computeSecurityScore({ total: 5, weakCount: 5, breachedCount: 5, reuseAffectedCount: 5, staleCount: 5 }),
+      computeSecurityScore({ passwordTotal: 5, weakCount: 5, breachedCount: 5, reuseAffectedCount: 5, staleCount: 5 }),
     ).toBe(0);
   });
 });
@@ -318,5 +318,49 @@ describe('buildHealthReportAsync', () => {
     ];
     const asyncReport = await buildHealthReportAsync(list, NOW);
     expect(asyncReport).toEqual(buildHealthReport(list, NOW));
+  });
+});
+
+/**
+ * 评分分母只应包含「有密码的条目」
+ *
+ * 四个维度（弱/复用/泄露/陈旧）都按 `hasPassword` 跳过空密码条目，但此前分母仍是
+ * `list.length`：多账号是纯手机号登录（`password` 为空串，快速添加今天就允许这种形状）
+ * 时，一条弱密码在 1 实 + 3 空的库里只扣 25/4 = 6.25 分——空条目一边不产生任何扣分项、
+ * 一边把分母撑大，等于用「没设密码的账号」给真实口令洗分。
+ */
+describe('评分分母排除空密码条目', () => {
+  it('1 条弱密码 + 3 条空密码：按 1/1 扣满 25 分，total 仍如实报 4', () => {
+    const list = [
+      makePasswordEntry({ id: 'w', password: 'weak-a', updateTime: NOW }),
+      makePasswordEntry({ id: 'm1', password: '', updateTime: NOW }),
+      makePasswordEntry({ id: 'm2', password: '', updateTime: NOW }),
+      makePasswordEntry({ id: 'm3', password: '', updateTime: NOW }),
+    ];
+    const report = buildHealthReport(list, NOW);
+    // 展示口径不变：库里确实有 4 条
+    expect(report.total).toBe(4);
+    // 100 - 25*(1/1)，而不是被三条空密码摊成 100 - 25*(1/4)
+    expect(report.score).toBe(75);
+    // 稀释前 94 分会被判「优秀」，收口后同一份库落到「良好」
+    expect(report.grade).toBe('good');
+  });
+
+  it('整库都是空密码时分母为 0：给满分而不是 NaN，且 total 照实', () => {
+    const report = buildHealthReport([makePasswordEntry({ id: 'm1', password: '' })], NOW);
+    expect(report.total).toBe(1);
+    expect(report.score).toBe(100);
+    expect(Number.isNaN(report.score)).toBe(false);
+  });
+
+  it('异步版同口径：空密码不替真实口令稀释任何维度', async () => {
+    const list = [
+      makePasswordEntry({ id: '1', password: 'dup', updateTime: NOW }),
+      makePasswordEntry({ id: '2', password: 'dup', updateTime: NOW }),
+      makePasswordEntry({ id: 'm', password: '', updateTime: NOW }),
+    ];
+    const report = await buildHealthReportAsync(list, NOW);
+    // 100 - 35*(2/2)：复用组覆盖全部两条有密码的条目 → 扣满 35
+    expect(report.score).toBe(65);
   });
 });

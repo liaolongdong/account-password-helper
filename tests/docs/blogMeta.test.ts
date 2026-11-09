@@ -73,6 +73,10 @@ const ARTICLE_PAGES = [
   '09-autofill-not-working-fixes.en.html',
   '10-import-from-other-managers.html',
   '10-import-from-other-managers.en.html',
+  '11-is-password-manager-safe.html',
+  '11-is-password-manager-safe.en.html',
+  '12-password-generator-strength.html',
+  '12-password-generator-strength.en.html',
 ];
 const ALL_PAGES = [...ARTICLE_PAGES, INDEX_PAGE['zh-CN'], INDEX_PAGE['en']];
 
@@ -134,8 +138,40 @@ function ldJsonBlocks(html: string): string[] {
   return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m => m[1]);
 }
 
+/**
+ * 独立重算阅读时长（刻意不与生成器共享函数：共享时两边一起写错也会绿）。
+ * 中文数汉字 / 300，英文数词 / 200，代码块整段剔除，向上取整、至少 1 分钟。
+ */
+function expectedMinutes(body: string, lang: 'zh-CN' | 'en'): number {
+  const text = body.replace(/```[\s\S]*?```/g, ' ').replace(/[#>*_`~[\]()!|]/g, ' ');
+  if (lang === 'zh-CN') {
+    const chars = (text.match(/[一-鿿]/g) || []).length;
+    return Math.max(1, Math.ceil(chars / 300));
+  }
+  return Math.max(1, Math.ceil(text.split(/\s+/).filter(Boolean).length / 200));
+}
+
+/** 解码 HTML 实体（独立写一份），把目录标签 / chip 还原成纯文本再与源文比对。`&amp;` 最后解。 */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/** 源文里的 h2 标题数（剔除代码块，避免把 fenced code 里的 `##` 当成标题） */
+function sourceH2Count(body: string): number {
+  return body
+    .replace(/```[\s\S]*?```/g, '')
+    .split('\n')
+    .filter(l => /^##\s+/.test(l)).length;
+}
+
 describe('博客产物清单', () => {
-  it('blog/ 恰好是这 22 个页面，不留已被替代的旧页', () => {
+  it('blog/ 恰好是这 26 个页面，不留已被替代的旧页', () => {
     const onDisk = readdirSync(BLOG_DIR)
       .filter(f => f.endsWith('.html'))
       .sort();
@@ -160,7 +196,8 @@ describe('博客产物清单', () => {
         .find(d => d['@type'] === 'ItemList');
       expect(list, `${indexPage} 没有 ItemList 结构化数据`).toBeDefined();
       const urls = (list!.itemListElement ?? []).map(i => i.url ?? '');
-      expect(urls.length, `${indexPage} 的 ItemList 条数与文章数不一致`).toBe(10);
+      const articleCount = new Set(ARTICLE_PAGES.map(n => n.replace(/(\.en)?\.html$/, ''))).size;
+      expect(urls.length, `${indexPage} 的 ItemList 条数与文章数不一致`).toBe(articleCount);
       for (const url of urls) {
         expect(url, `${indexPage} 的 url 不在站点前缀下`).toMatch(
           /^https:\/\/liaolongdong\.github\.io\/account-password-helper\/blog\//,
@@ -298,9 +335,9 @@ describe('博客文章源文件', () => {
   });
 
   // 角标是画进 `imgs/blog-covers/*.svg` 的文本节点，不会跟着文章篇数自己变：新增文章后
-  // 前四张的分母仍写 `/ 04`，位图和页面都照常渲染，没有任何一条断言会红。这里把分母钉成
+  // 旧封面的分母仍写旧的篇数，位图和页面都照常渲染，没有任何一条断言会红。这里把分母钉成
   // 篇数、分子钉成产物名里的序号，两处都对不上才算这个守卫有牙。
-  it('十张封面 SVG 的角标计数等于文章篇数，序号各归各位', () => {
+  it('十二张封面 SVG 的角标计数等于文章篇数，序号各归各位', () => {
     const coverDir = path.join(ROOT, 'imgs', 'blog-covers');
     const covers = readdirSync(coverDir)
       .filter(f => /^blog-cover-\d{2}-.+\.svg$/.test(f))
@@ -317,5 +354,96 @@ describe('博客文章源文件', () => {
         `${file} 的分母没跟着篇数走（现在是 ${badge![2]}，应为 ${String(total).padStart(2, '0')}）`,
       ).toBe(String(total).padStart(2, '0'));
     }
+  });
+});
+
+describe.each(ARTICLE_PAGES)('文章目录 / 阅读时长 / 标签 %s', name => {
+  const html = readFileSync(path.join(BLOG_DIR, name), 'utf8');
+  const lang = langOf(name);
+  const { fm, body } = readSource(mdPathOf(name)!);
+
+  it('阅读时长落在 .meta 行，且与源文独立重算一致', () => {
+    const minutes = expectedMinutes(body, lang);
+    const label = lang === 'zh-CN' ? `约 ${minutes} 分钟` : `${minutes} min read`;
+    const meta = pick(html, '<p class="meta">([\\s\\S]*?)</p>');
+    expect(meta, `${name} 的 .meta 没有正确的阅读时长 ${label}`).toContain(label);
+  });
+
+  it('可见标签 chip 与 frontmatter tags 逐字同序', () => {
+    const tags = (fm.tags || '')
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    const chips = [...html.matchAll(/<span class="tag-chip">([\s\S]*?)<\/span>/g)].map(m => decodeEntities(m[1]));
+    expect(chips, `${name} 的标签 chip 与源文 tags 不一致`).toEqual(tags);
+  });
+
+  it('目录锚点全部解析到正文 h2 id，条数等于源文 ## 标题数', () => {
+    const h2Count = sourceH2Count(body);
+    const toc = html.match(/<nav class="toc"[^>]*>([\s\S]*?)<\/nav>/);
+    if (h2Count < 2) {
+      expect(toc, `${name} 少于两节不该出目录`).toBeNull();
+      return;
+    }
+    expect(toc, `${name} 有 ${h2Count} 节，应出目录`).not.toBeNull();
+    const anchors = [...toc![1].matchAll(/href="#([^"]+)"/g)].map(m => m[1]);
+    const h2Ids = [...html.matchAll(/<h2 id="([^"]+)">/g)].map(m => m[1]);
+    expect(anchors.length, `${name} 目录条数与源文 h2 数不一致`).toBe(h2Count);
+    expect(new Set(anchors).size, `${name} 目录锚点有重复`).toBe(anchors.length);
+    for (const a of anchors) {
+      expect(h2Ids, `${name} 目录锚点 #${a} 没有对应的正文 h2 id（断链）`).toContain(a);
+    }
+  });
+
+  it('目录标签与正文 h2 文本逐字同源（双重转义 / 标签漂移都会红）', () => {
+    const h2Count = sourceH2Count(body);
+    if (h2Count < 2) return;
+    const toc = html.match(/<nav class="toc"[^>]*>([\s\S]*?)<\/nav>/)![1];
+    const labels = [...toc.matchAll(/<a href="#[^"]+">([\s\S]*?)<\/a>/g)].map(m => decodeEntities(m[1]));
+    // 正文 h2 由 marked 从同一个源标题渲染；剥内联标签 + 解码后应与目录标签逐字相等。
+    // 目录若双重转义（`&amp;#39;`）或漏剥 code 标签，这里立刻失配。
+    const h2Texts = [...html.matchAll(/<h2 id="[^"]+">([\s\S]*?)<\/h2>/g)].map(m =>
+      decodeEntities(m[1].replace(/<[^>]+>/g, '')).trim(),
+    );
+    expect(labels, `${name} 目录标签与正文 h2 文本不同源`).toEqual(h2Texts);
+  });
+});
+
+describe('文章工具守卫自检：改值必红（证明三条断言有牙）', () => {
+  const name = '01-local-first-password-manager.html';
+  const html = readFileSync(path.join(BLOG_DIR, name), 'utf8');
+  const { fm, body } = readSource(mdPathOf(name)!);
+
+  it('阅读时长被篡改 → .meta 不再含重算值', () => {
+    const minutes = expectedMinutes(body, 'zh-CN');
+    const correct = `约 ${minutes} 分钟`;
+    expect(html, '基线：当前值等于重算值').toContain(correct);
+    const tampered = html.replace(correct, `约 ${minutes + 1} 分钟`);
+    expect(tampered).not.toBe(html);
+    expect(pick(tampered, '<p class="meta">([\\s\\S]*?)</p>'), '篡改后守卫会红').not.toContain(correct);
+  });
+
+  it('目录锚点改成不存在的 id → 解析断链', () => {
+    const h2Ids = [...html.matchAll(/<h2 id="([^"]+)">/g)].map(m => m[1]);
+    // 只在目录块内改第一枚锚点：整页第一处 href="#" 是 skip-link 的 #main，改它测不到目录
+    const tocBlock = html.match(/<nav class="toc"[^>]*>[\s\S]*?<\/nav>/)![0];
+    const brokenToc = tocBlock.replace(/href="#[^"]+"/, 'href="#definitely-not-a-heading"');
+    expect(brokenToc).not.toBe(tocBlock);
+    const anchors = [...brokenToc.matchAll(/href="#([^"]+)"/g)].map(m => m[1]);
+    expect(
+      anchors.some(a => !h2Ids.includes(a)),
+      '断链锚点应被守卫抓到',
+    ).toBe(true);
+  });
+
+  it('删一枚标签 chip → 与 frontmatter 数量不符', () => {
+    const tags = fm.tags
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    const removed = html.replace(/<span class="tag-chip">[\s\S]*?<\/span>/, '');
+    expect(removed).not.toBe(html);
+    const chips = [...removed.matchAll(/<span class="tag-chip">([\s\S]*?)<\/span>/g)];
+    expect(chips.length, '删一枚后数量应少一，守卫会红').toBe(tags.length - 1);
   });
 });

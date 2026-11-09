@@ -94,6 +94,18 @@
       content="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png"
     />
     <meta
+      property="og:image:alt"
+      content="把密码从旧工具搬过来：表头识别、合并与加密备份"
+    />
+    <meta
+      property="og:image:width"
+      content="1600"
+    />
+    <meta
+      property="og:image:height"
+      content="900"
+    />
+    <meta
       property="og:site_name"
       content="账号密码管理助手"
     />
@@ -289,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -395,8 +449,10 @@
           <span aria-current="page" title="把密码从旧工具搬过来：表头识别、合并与加密备份">把密码从旧工具搬过来：表头识别、合并与加密备份</span>
         </nav>
         <h1>把密码从旧工具搬过来：表头识别、合并与加密备份</h1>
-        <p class="meta">2026-11-05 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a></p>
+        <p class="meta">2026-11-05 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 9 分钟</p>
+        <div class="tag-chips"><span class="tag-chip">密码管理器</span><span class="tag-chip">数据迁移</span><span class="tag-chip">CSV导入</span><span class="tag-chip">浏览器扩展</span><span class="tag-chip">加密备份</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png" alt="把密码从旧工具搬过来：表头识别、合并与加密备份" />
+        <nav class="toc" aria-label="目录"><strong>目录</strong><ol><li><a href="#一-先搞清楚各家导出的是什么">一、先搞清楚各家导出的是什么</a></li><li><a href="#二-哪些行会静默消失">二、哪些行会静默消失</a></li><li><a href="#三-为什么导入刻意不去重">三、为什么导入刻意不去重</a></li><li><a href="#四-三道闸门-文件-条目-库容量">四、三道闸门：文件、条目、库容量</a></li><li><a href="#五-搬家时什么会被带过来-什么不会">五、搬家时什么会被带过来，什么不会</a></li><li><a href="#六-真正的备份是-aph-不是表格">六、真正的备份是 .aph，不是表格</a></li><li><a href="#七-站点规则也要搬">七、站点规则也要搬</a></li><li><a href="#八-代码里没有的东西">八、代码里没有的东西</a></li></ol></nav>
         <p>搬家是密码管理器最容易翻车的一步：新工具再好，你要是不敢把旧库导进来，它就永远是个空壳。而大部分「导入教程」都写成了「点一下就好了」，把人真正会撞上的东西全略过了——哪一列被认出来了、哪一行被静默丢了、重复的账号怎么办、导完要不要把旧库删掉。</p>
 <p>这篇按代码实际做的事来讲。先给三条最反直觉的结论：</p>
 <ol>
@@ -404,7 +460,7 @@
 <li>认表头这件事有<strong>五套映射</strong>，覆盖扩展自己的格式和四类主流工具的导出列名；认不出的列会变成空值，不会报错。</li>
 <li>真正的备份不是导出表格，而是 <code>.aph</code> 那个加密文件——<strong>表格里的密码是明文</strong>。</li>
 </ol>
-<h2>一、先搞清楚各家导出的是什么</h2>
+<h2 id="一-先搞清楚各家导出的是什么">一、先搞清楚各家导出的是什么</h2>
 <p>主流工具几乎都能导出 CSV，但列名彼此不像话：同一个「网址」概念，一边写 <code>URL</code>，一边写 <code>origin</code>，一边写 <code>login_uri</code>。所以适配工作的实质不是「支持某个工具」，而是「支持一套表头」。</p>
 <p>代码里目前是这样分的（<code>utils/excelFormatMap.ts</code>），六个内部字段：用户名、密码、网址、标签、备注、两步验证。</p>
 <table>
@@ -467,7 +523,7 @@
 </tbody></table>
 <p>识别过程是这样走的：表头<strong>先按精确匹配</strong>，没命中再做<strong>大小写不敏感</strong>的回退；每个单元格进来都会 <code>trim</code>。自动判断来源那一档看的是「这行表头里有没有 <code>origin</code>」这类形状特征，默认落到浏览器自带那一套；如果第一轮一种格式都没认出内容，它会<strong>再遍历其余格式各试一次</strong>，而不是直接放弃。</p>
 <p>还有一条中文用户特别需要的：文件先按 UTF-8 解码，<strong>若那一轮解析不出任何结果，再用 GBK 重试一次</strong>。要说准一点：触发回退的是「没解析出东西」，不是「解码报错」——UTF-8 那一路走的是非致命解码，本身不会抛异常。国内各种工具导出的 CSV 经常是 GBK，少了这一步，导进来的账号名会是一堆乱码方块。</p>
-<h2>二、哪些行会静默消失</h2>
+<h2 id="二-哪些行会静默消失">二、哪些行会静默消失</h2>
 <p>这是最容易让人以为「导入丢数据」的地方，规则其实写得很清楚，只是没人读：</p>
 <ul>
 <li><strong>用户名那一格是空的 → 整条丢掉。</strong> 这是最常见的一类静默丢行：一个账号标识都没有的条目，进了库也只会变成没法检索的垃圾。</li>
@@ -476,7 +532,7 @@
 <li>只有一行表头、没有数据的文件，结果是空列表，界面会说「文件中没有找到有效的密码数据」，不会假装成功。</li>
 </ul>
 <p>要坦白一件事：<strong>没有「手动选列」的界面</strong>。如果你的工具导出了一套很小众的表头，映射不上，正确做法是改表头而不是等这个扩展加功能——把第一行改成 <code>用户名,密码,网址,标签,备注,两步验证</code> 就能被自身那套映射接住，「下载模板」给你的就是这个形状。</p>
-<h2>三、为什么导入刻意不去重</h2>
+<h2 id="三-为什么导入刻意不去重">三、为什么导入刻意不去重</h2>
 <p><code>[...现有列表, ...新导入]</code>，每条都是新生成的 id，追加写在末尾。看上去「不够聪明」，但这个选择有三个理由：</p>
 <ol>
 <li><strong>判重本身没有安全默认值。</strong> 按 URL 判会把 <code>dev.example.com</code> 和 <code>example.com</code> 当成一家——而多环境账号恰恰是这个工具的主要场景，把两套环境的账号合并成一条，损失比重复严重得多。</li>
@@ -484,7 +540,7 @@
 <li>导入失败的代价应该是「重复」，不该是「缺失」。重复了顶多再点一次去重；静默合并掉的字段是找不回来的。</li>
 </ol>
 <p>所以合理的搬家顺序是：<strong>先导一次 → 抽查几条 → 需要时用一键去重收拾</strong>。别在导入之前先想着「会不会重复」。</p>
-<h2>四、三道闸门：文件、条目、库容量</h2>
+<h2 id="四-三道闸门-文件-条目-库容量">四、三道闸门：文件、条目、库容量</h2>
 <p>导入路径上有三个独立上限，各挡一种情况：</p>
 <table>
 <thead>
@@ -511,7 +567,7 @@
 </tr>
 </tbody></table>
 <p>字节闸门刻意<strong>排在读取文件内容之前</strong>，这样超限时连一次不必要的整文件 IO 都不发生。库容量那道更贴近真实使用：如果你已有 1950 条、这次要导 200 条，它会按剩余空间切片、二次确认，你取消就一条都不写。写入本身是整批语义——<strong>要么全写，要么全不写</strong>，不会出现「导了一半、库里多了 37 条来路不明的数据」。</p>
-<h2>五、搬家时什么会被带过来，什么不会</h2>
+<h2 id="五-搬家时什么会被带过来-什么不会">五、搬家时什么会被带过来，什么不会</h2>
 <p>这张表是我希望自己在动手之前就看到的：</p>
 <table>
 <thead>
@@ -573,7 +629,7 @@
 </tbody></table>
 <p>两个容易踩的点：<strong>CSV 不带收藏</strong>，所以把 CSV 当备份的人搬家后会发现收藏全没了；<strong>CSV 会重写时间戳</strong>，而「长时间未更新」是安全体检的一个计分维度——用 CSV 搬完家再跑体检，长期未更换这一维会被导入时刻洗掉，等于自欺欺人。</p>
 <p>密码历史在任何路径下都不随搬家走，这是刻意的：历史快照是本地运维数据，不是账号凭据。</p>
-<h2>六、真正的备份是 <code>.aph</code>，不是表格</h2>
+<h2 id="六-真正的备份是-aph-不是表格">六、真正的备份是 <code>.aph</code>，不是表格</h2>
 <p>导出 CSV 需要主密码，但导出结果是<strong>明文</strong>——它是为了「喂给别的工具」，不是为了「存着」。加密备份走另一条路：</p>
 <ul>
 <li>容器（版本号、导出时间、条目数、条目数据）序列化后<strong>一次性</strong>用 AES-256-GCM 加密，密钥由主密码经 PBKDF2-SHA256（60 万次迭代）派生，落盘的字节是「盐 ‖ IV ‖ 密文」三段拼接；</li>
@@ -583,9 +639,9 @@
 </ul>
 <p>导入 <code>.aph</code> 时必须输入<strong>导出时的主密码</strong>，不是当前会话的主密码。如果这两者不一样（比如你换过主密码），拿新密码解旧备份会失败——这是预期行为，不是 bug。</p>
 <p>另外两个同名系列别混：<code>.aphid</code> 是个人信息库的加密备份，它<strong>保留 id 并按 id 合并</strong>（新 id 追加、更新时间更大的覆盖、其余跳过），跟密码库那种「追加不去重」正好是两种策略，因为个人信息那侧的身份标识是有意义的；<code>.aphrecovery</code> 是离线恢复套件，<strong>里面不含密码库</strong>，它解决的是「忘记主密码之后本机数据怎么救」。</p>
-<h2>七、站点规则也要搬</h2>
+<h2 id="七-站点规则也要搬">七、站点规则也要搬</h2>
 <p>如果你以前调过按域名的填充入口覆盖、匹配范围之类的规则，这些不藏在密码库里，得单独导出单独导入。上限 500 条；文件大小按<strong>字符数近似</strong>到 2 MiB，且这道闸门排在 <code>JSON.parse</code> 之前。导入时接受带信封的结构和裸的「域名 → 规则」两种写法；逐条校验域名与选择器，非法或规范化后重复的计入「丢弃」；合并按规范化后的域名，同域名以导入为准。界面必须同时报出「新增 / 更新 / 丢弃」三个数——只报成功不报丢弃，等于让人以为搬全了。</p>
-<h2>八、代码里没有的东西</h2>
+<h2 id="八-代码里没有的东西">八、代码里没有的东西</h2>
 <p>为了避免你在别处读到不实的说法，这份清单是我逐条在源码里确认过<strong>不存在</strong>的：</p>
 <ul>
 <li>不支持 xlsx（只吃 <code>.csv</code> 与 <code>.json</code>，没有 Excel 解析器）；</li>
@@ -607,7 +663,7 @@
     </main>
     <footer class="footer">
       <p>账号密码管理助手 · 开源（GPL-3.0）</p>
-      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml">RSS 订阅</a></p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml">RSS 订阅</a></p>
       <p>同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></p>
     </footer>
   </body>

@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { OG_IMAGE_EN } from './lib/share-image.mjs';
+import { OG_IMAGE_EN, OG_IMAGE_ALT } from './lib/share-image.mjs';
 import vm from 'node:vm';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -62,7 +62,12 @@ replaceOnce(
   `name="twitter:description"\n      content="${EN_DESCRIPTION}"`,
 );
 // 分享卡跟着语言走：源页里是中文卡，英文页必须换成英文那张 1200×630
-replaceOnce(/property="og:image"\s+content="[^"]*"/, `property="og:image"\n      content="${OG_IMAGE_EN}"`);
+replaceOnce(
+  // 连源页那枚中文 alt 一起吃掉再整块重建：只换 og:image 会把中文 alt 留在英文页上；
+  // 末尾也要补回被正则吃掉的 `/>`，否则标签不闭合
+  /property="og:image"\s+content="[^"]*"\s*\/>\s*<meta\s+property="og:image:alt"\s+content="[^"]*"\s*\/>/,
+  `property="og:image"\n      content="${OG_IMAGE_EN}"\n    />\n    <meta\n      property="og:image:alt"\n      content="${OG_IMAGE_ALT.en}"\n    />`,
+);
 replaceOnce(/name="twitter:image"\s+content="[^"]*"/, `name="twitter:image"\n      content="${OG_IMAGE_EN}"`);
 
 // hreflang 三条交替声明随 privacy.html 一并继承（双语互指内容相同，无需按语言改写）

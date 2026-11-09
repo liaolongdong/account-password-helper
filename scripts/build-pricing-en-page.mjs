@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
-import { OG_IMAGE_EN } from './lib/share-image.mjs';
+import { OG_IMAGE_EN, OG_IMAGE_ALT } from './lib/share-image.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'pricing.html');
@@ -66,7 +66,12 @@ replaceOnce(
   `name="twitter:description"\n      content="${EN_DESCRIPTION}"`,
 );
 // 分享卡跟着语言走：源页里是中文卡，英文页必须换成英文那张 1200×630
-replaceOnce(/property="og:image"\s+content="[^"]*"/, `property="og:image"\n      content="${OG_IMAGE_EN}"`);
+replaceOnce(
+  // 连源页那枚中文 alt 一起吃掉再整块重建：只换 og:image 会把中文 alt 留在英文页上；
+  // 末尾也要补回被正则吃掉的 `/>`，否则标签不闭合
+  /property="og:image"\s+content="[^"]*"\s*\/>\s*<meta\s+property="og:image:alt"\s+content="[^"]*"\s*\/>/,
+  `property="og:image"\n      content="${OG_IMAGE_EN}"\n    />\n    <meta\n      property="og:image:alt"\n      content="${OG_IMAGE_ALT.en}"\n    />`,
+);
 replaceOnce(/name="twitter:image"\s+content="[^"]*"/, `name="twitter:image"\n      content="${OG_IMAGE_EN}"`);
 
 // 页内跳转改为英文兄弟页面，避免英文页链向中文页
@@ -78,6 +83,14 @@ replaceEvery('href="./index.html"', 'href="./en.html"');
 replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
 
 // hreflang 三条交替声明随 pricing.html 一并继承（双语互指内容相同，无需按语言改写）
+
+// JSON-LD 的品牌名按页面语言分流：英文页主名用英文、中文名退到 alternateName。
+// 判据在 tests/docs/structuredData.test.ts —— name 必须与本页 <html lang> 匹配。
+// 这两行不参与 data-i18n 替换，漏掉会让本脚本产出的英文页带着中文名，生成链因此不可复现。
+replaceOnce(
+  / {8}"name": "账号密码管理助手",\n {8}"alternateName": "Account Password Helper",/,
+  ['        "name": "Account Password Helper",', '        "alternateName": "账号密码管理助手",'].join('\n'),
+);
 
 // 语言默认值固定为 en（仍尊重 localStorage 显式选择）
 replaceOnce(

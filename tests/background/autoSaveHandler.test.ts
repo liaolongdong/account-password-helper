@@ -68,6 +68,23 @@ describe('handleAutoSavePassword 字段容量边界', () => {
   });
 
   it.each([
+    ['字符串真值', 'yes'],
+    ['数字 1', 1],
+    ['空串', ''],
+    ['undefined', undefined],
+  ] as const)('mobileLogin 是 %s 时按「未声明」处理，整个键省略（写入授权位不认非布尔真值）', (_label, value) => {
+    return handleAutoSavePassword(makePayload({ mobileLogin: value as never })).then(() => {
+      expect(mockedAutoSave.mock.calls[0][0]).not.toHaveProperty('mobileLogin');
+    });
+  });
+
+  it('mobileLogin 为严格 true 时原样带上，存储层才拿得到空口令的写入授权', async () => {
+    await handleAutoSavePassword(makePayload({ password: '', mobileLogin: true }));
+
+    expect(mockedAutoSave.mock.calls[0][0]).toMatchObject({ password: '', mobileLogin: true });
+  });
+
+  it.each([
     ['username', PASSWORD_FIELD_LIMITS.username],
     ['url', PASSWORD_FIELD_LIMITS.url],
     ['remark', PASSWORD_FIELD_LIMITS.remark],

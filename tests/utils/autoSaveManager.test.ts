@@ -1016,3 +1016,70 @@ describe('autoSavePassword / checkCredentialStatus 的端口归属', () => {
     expect(updatePassword).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「手机号 + 短信验证码」登录的写入契约（`mobileLogin`）
+ *
+ * 这一位是**写入授权**：库里那条有真口令时，空口令永远不许把它抹掉——静默覆盖凭据是不可逆的
+ * 数据损失，比多存一条严重得多。反过来，没有这一位时空密码照旧按「账号或密码为空」拒写，
+ * 免得未来某个发送方在没想清楚的情况下往库里塞空凭据。
+ */
+describe('手机号登录的写入契约', () => {
+  const MOBILE = '13800000000';
+
+  it('mobileLogin 放行空密码入库，落盘条目的密码是空串', async () => {
+    isSessionValid.mockResolvedValue(true);
+    getAllPasswords.mockResolvedValue([]);
+    savePassword.mockResolvedValue(makePasswordEntry({ id: 'n1' }));
+
+    const res = await autoSavePassword(makePayload({ username: MOBILE, password: '', mobileLogin: true }));
+
+    expect(res.success).toBe(true);
+    expect(savePassword).toHaveBeenCalledTimes(1);
+    expect(savePassword.mock.calls[0][0]).toMatchObject({ username: MOBILE, password: '' });
+  });
+
+  it('库里那条已有真口令：空口令不许覆盖，也不许改这条', async () => {
+    isSessionValid.mockResolvedValue(true);
+    getAllPasswords.mockResolvedValue(storedEntries({ username: MOBILE, password: 'OldPass1!' }));
+
+    const res = await autoSavePassword(makePayload({ username: MOBILE, password: '', mobileLogin: true }));
+
+    expect(res).toEqual({ success: true, message: tl('bg.autoSave.passwordKept') });
+    expect(updatePassword).not.toHaveBeenCalled();
+    expect(savePassword).not.toHaveBeenCalled();
+  });
+
+  it('同号已存且本就是空口令：判 identical，不再重复弹「保存」', async () => {
+    isSessionValid.mockResolvedValue(true);
+    getAllPasswords.mockResolvedValue(storedEntries({ username: MOBILE, password: '' }));
+
+    const status = await checkCredentialStatus({
+      username: MOBILE,
+      password: '',
+      mobileLogin: true,
+      url: 'github.com',
+    });
+
+    expect(status.status).toBe('identical');
+  });
+
+  it('空口令不产生「复用」风险提示：否则全库空口令条目会被算成同一把被复用的密码', async () => {
+    isSessionValid.mockResolvedValue(true);
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'e1', username: '13900000001', url: 'a.com', password: '' }),
+      makePasswordEntry({ id: 'e2', username: '13900000002', url: 'b.com', password: '' }),
+    ]);
+
+    const status = await checkCredentialStatus({
+      username: MOBILE,
+      password: '',
+      mobileLogin: true,
+      url: 'c.com',
+    });
+
+    expect(status.status).toBe('new');
+    expect(status.risk?.reusedCount).toBeUndefined();
+    expect(status.risk?.weak).toBeUndefined();
+  });
+});

@@ -94,6 +94,18 @@
       content="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png"
     />
     <meta
+      property="og:image:alt"
+      content="Move Passwords Out of Bitwarden or 1Password"
+    />
+    <meta
+      property="og:image:width"
+      content="1600"
+    />
+    <meta
+      property="og:image:height"
+      content="900"
+    />
+    <meta
       property="og:site_name"
       content="Account Password Helper"
     />
@@ -289,6 +301,48 @@
         color: var(--accent-ink);
         text-decoration: none;
       }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 24px;
+      }
+      .tag-chip {
+        padding: 3px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--code);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      .toc {
+        padding: 16px 20px;
+        margin: 0 0 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .toc strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+      }
+      .toc li {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      .toc a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
       .cover {
         width: 100%;
         margin: 0 0 28px;
@@ -395,8 +449,10 @@
           <span aria-current="page" title="Move Passwords Out of Bitwarden or 1Password">Move Passwords Out of Bitwarden or 1Password</span>
         </nav>
         <h1>Move Passwords Out of Bitwarden or 1Password</h1>
-        <p class="meta">2026-11-05 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a></p>
+        <p class="meta">2026-11-05 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 9 min read</p>
+        <div class="tag-chips"><span class="tag-chip">password manager</span><span class="tag-chip">data migration</span><span class="tag-chip">CSV import</span><span class="tag-chip">Chrome extension</span><span class="tag-chip">encrypted backup</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png" alt="Move Passwords Out of Bitwarden or 1Password" />
+        <nav class="toc" aria-label="On this page"><strong>On this page</strong><ol><li><a href="#1-what-each-tool-actually-exports">1. What each tool actually exports</a></li><li><a href="#2-which-rows-disappear-silently">2. Which rows disappear silently</a></li><li><a href="#3-why-import-never-de-duplicates">3. Why import never de-duplicates</a></li><li><a href="#4-three-gates-bytes-entries-capacity">4. Three gates: bytes, entries, capacity</a></li><li><a href="#5-what-survives-the-move-and-what-doesn-t">5. What survives the move, and what doesn't</a></li><li><a href="#6-the-backup-that-actually-works">6. The backup that actually works</a></li><li><a href="#7-site-rules-need-moving-too">7. Site rules need moving too</a></li><li><a href="#8-things-that-do-not-exist">8. Things that do not exist</a></li></ol></nav>
         <p>Migration is where a new password manager loses people. The tool can be good and still fail here, because nobody wants to import an old vault they can&#39;t verify. Most migration guides say &quot;click import&quot; and skip everything that actually goes wrong: which columns were recognised, which rows quietly disappeared, what happens to duplicates, and whether it&#39;s safe to delete the old vault afterwards.</p>
 <p>Here is what the code really does. Three findings up front, because they&#39;re the counter-intuitive ones:</p>
 <ol>
@@ -404,7 +460,7 @@
 <li>Header recognition is driven by <strong>five column maps</strong> covering this extension&#39;s own format plus four common exports. A column it can&#39;t map becomes an empty field — it doesn&#39;t error.</li>
 <li>The real backup is not the spreadsheet. It&#39;s the <code>.aph</code> file, because <strong>an exported CSV holds plaintext passwords</strong>.</li>
 </ol>
-<h2>1. What each tool actually exports</h2>
+<h2 id="1-what-each-tool-actually-exports">1. What each tool actually exports</h2>
 <p>Nearly every manager can export CSV, but the column names barely resemble each other: one writes <code>URL</code>, another <code>origin</code>, a third <code>login_uri</code>. So compatibility isn&#39;t &quot;supporting a product&quot;, it&#39;s &quot;supporting a header shape&quot;.</p>
 <p>There are six internal fields — username, password, URL, tags, notes, TOTP — mapped from five header sets (<code>utils/excelFormatMap.ts</code>):</p>
 <table>
@@ -467,7 +523,7 @@
 </tbody></table>
 <p>Recognition order matters: headers are matched <strong>exactly first</strong>, then a <strong>case-insensitive</strong> pass; every cell is trimmed. Auto-detection looks at shape (a <code>origin</code> column means the browser export) and defaults to that map. If the first pass yields nothing usable, it <strong>retries against the remaining formats</strong> rather than giving up.</p>
 <p>One detail that matters a lot for Chinese users: the file is decoded as UTF-8, and <strong>if that pass yields nothing parseable it retries once as GBK</strong>. To be precise about the trigger — it&#39;s &quot;nothing came out&quot;, not &quot;decoding threw&quot;: the UTF-8 path uses non-fatal decoding and doesn&#39;t raise. Plenty of tools exported by Chinese services emit GBK CSVs; skip that fallback and every account name arrives as mojibake.</p>
-<h2>2. Which rows disappear silently</h2>
+<h2 id="2-which-rows-disappear-silently">2. Which rows disappear silently</h2>
 <p>This is where &quot;it lost my data&quot; reports come from. The rules are explicit, just rarely read:</p>
 <ul>
 <li><strong>An empty username cell drops the whole row.</strong> That&#39;s the most common silent loss: an entry with no identifier isn&#39;t a credential, it&#39;s unsearchable noise.</li>
@@ -476,7 +532,7 @@
 <li>A header-only file produces an empty list and the dialog says so — it doesn&#39;t pretend to have imported something.</li>
 </ul>
 <p>One honest gap: <strong>there is no manual column-mapping UI.</strong> If your tool emits an obscure header set, the fix is to rename the header, not to wait for a feature. Make the first row read <code>用户名,密码,网址,标签,备注,两步验证</code> and the native map catches it — that&#39;s exactly what &quot;download template&quot; gives you.</p>
-<h2>3. Why import never de-duplicates</h2>
+<h2 id="3-why-import-never-de-duplicates">3. Why import never de-duplicates</h2>
 <p><code>[...existing, ...imported]</code>, each row with a freshly generated id, appended at the end. Looks unsophisticated. Three reasons it&#39;s the right default:</p>
 <ol>
 <li><strong>De-duplication has no safe threshold.</strong> Matching on URL treats <code>dev.example.com</code> and <code>example.com</code> as one site — and multi-environment accounts are precisely what this tool is for. Merging two environments into one entry is far worse than having a duplicate.</li>
@@ -484,7 +540,7 @@
 <li>The failure mode of import should be <em>redundancy</em>, not <em>loss</em>. Duplicates cost one more click. Silently merged fields don&#39;t come back.</li>
 </ol>
 <p>So: import once, spot-check a few entries, then clean up if you actually need to. Don&#39;t try to prevent duplicates before you&#39;ve seen them.</p>
-<h2>4. Three gates: bytes, entries, capacity</h2>
+<h2 id="4-three-gates-bytes-entries-capacity">4. Three gates: bytes, entries, capacity</h2>
 <table>
 <thead>
 <tr>
@@ -510,7 +566,7 @@
 </tr>
 </tbody></table>
 <p>The byte gate deliberately runs <strong>before the file contents are read</strong>, so an oversized file never costs a full read. The capacity gate is the one you&#39;ll meet in practice: with 1,950 entries and a 200-entry import, it slices to the remaining space and asks for confirmation — and if you cancel, nothing is written. Writes are batch-atomic: <strong>all of it or none of it</strong>, never &quot;37 mystery rows appeared&quot;.</p>
-<h2>5. What survives the move, and what doesn&#39;t</h2>
+<h2 id="5-what-survives-the-move-and-what-doesn-t">5. What survives the move, and what doesn&#39;t</h2>
 <table>
 <thead>
 <tr>
@@ -571,7 +627,7 @@
 </tbody></table>
 <p>Two traps here. <strong>CSV carries no favourite flag</strong>, so anyone treating a CSV as their backup loses every favourite on the move. And <strong>CSV rewrites timestamps</strong> — while &quot;not updated in a long time&quot; is one of the four scored dimensions of the security audit. Run the audit after a CSV migration and that dimension has been reset by the import itself: a clean score you didn&#39;t earn.</p>
 <p>Password history never travels, deliberately. Snapshots are local operational data, not credentials.</p>
-<h2>6. The backup that actually works</h2>
+<h2 id="6-the-backup-that-actually-works">6. The backup that actually works</h2>
 <p>Exporting CSV requires the master password, but the result is <strong>plaintext</strong>. It exists to feed other tools, not to sit in a folder. Encrypted backup is a different path:</p>
 <ul>
 <li>the container (version, export timestamp, entry count, entry data) is serialised and encrypted <strong>in one pass</strong> with AES-256-GCM, keyed by PBKDF2-SHA256 at 600,000 iterations; the bytes on disk are <code>salt ‖ iv ‖ ciphertext</code>;</li>
@@ -581,9 +637,9 @@
 </ul>
 <p>Restoring an <code>.aph</code> asks for <strong>the master password you used at export time</strong>, not your current session password. If you&#39;ve since changed it, an old backup won&#39;t open with the new one. That&#39;s expected, not a bug.</p>
 <p>Don&#39;t confuse the siblings. <code>.aphid</code> is the personal-info vault&#39;s encrypted backup, and it <strong>keeps ids and merges by id</strong> (new ids appended, newer <code>updateTime</code> wins, the rest skipped) — the opposite policy to password import, because on that side the identity really is meaningful. <code>.aphrecovery</code> is the offline recovery kit; it <strong>contains no vault</strong>, it answers &quot;what do I do after forgetting the master password&quot;.</p>
-<h2>7. Site rules need moving too</h2>
+<h2 id="7-site-rules-need-moving-too">7. Site rules need moving too</h2>
 <p>Per-domain fill entries and match scopes aren&#39;t inside the password vault, so they export and import separately. 500 rules; the size limit is <strong>approximated against character count</strong> at 2 MiB, and that gate runs before <code>JSON.parse</code>. Import accepts both the enveloped structure and a bare <code>{ domain: rule }</code> object, validates each domain and selector, counts anything invalid or duplicate-after-normalisation as dropped, and merges by normalised domain with the incoming rule winning. The UI has to report <strong>added / updated / dropped together</strong> — reporting success without the drop count is how you convince someone their migration was complete when it wasn&#39;t.</p>
-<h2>8. Things that do not exist</h2>
+<h2 id="8-things-that-do-not-exist">8. Things that do not exist</h2>
 <p>So you don&#39;t read a claim elsewhere that turns out to be aspirational, these were checked in the source and are <strong>not implemented</strong>:</p>
 <ul>
 <li>no xlsx support (only <code>.csv</code> and <code>.json</code>; there&#39;s no Excel parser);</li>
@@ -605,7 +661,7 @@
     </main>
     <footer class="footer">
       <p>Account Password Helper · Open source (GPL-3.0)</p>
-      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml">RSS feed</a></p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml">RSS feed</a></p>
       <p>Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></p>
     </footer>
   </body>

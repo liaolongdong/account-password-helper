@@ -347,7 +347,11 @@ async function updatePasswordInternal(
 
     // 调用方这次到底改没改口令：拿它自己载入的明文比，判据与落盘基准无关，留在锁外算。
     // 「要不要写历史」也在锁外定；「写哪一份密文进历史」必须在锁内定——见下面 snapshot 那两行。
-    const passwordChanged = 'password' in updates && updates.password !== currentPlain.password;
+    // 旧值为空串时不写：那不是一个「被取代的口令」。纯手机号登录条目（`password` 允许为空，
+    // 快速添加今天就产这个形状）从空改实正好走这一支，而历史按 maxCount 截断最旧的——
+    // 空快照会占掉一格，把真正该留的第一把旧口令挤出历史。
+    const passwordChanged =
+      'password' in updates && !!currentPlain.password && updates.password !== currentPlain.password;
 
     // 显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
     const updatedPlain: PasswordEntry = {
