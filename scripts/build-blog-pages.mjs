@@ -359,7 +359,7 @@ function siteLinks(lang) {
     `${SITE}/pricing${suffix}.html`,
     `${SITE}/compare${suffix}.html`,
     `${SITE}/privacy${suffix}.html`,
-    CWS_URL,
+    `${CWS_URL}?ref=blog`,
     GH_URL,
     `${SITE}/blog/${BLOG_FEED[lang].file}`,
   ];

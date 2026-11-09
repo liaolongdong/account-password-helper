@@ -214,3 +214,37 @@ describe('博客页的无障碍与署名结构', () => {
     expect(html).toContain('class="author-card"');
   });
 });
+
+/**
+ * 商店链接归因：博客每一页指向 Chrome 商店的锚点都必须带 `?ref=blog`。
+ *
+ * 商店后台按 `?ref=` 分来源统计转化，漏了参数的点击会并入「未标注」那一桶——
+ * 页面照常能打开、链接照常有效，所以四道门禁一条都不会红，只有等复盘时
+ * 才发现「博客带来多少安装」这个问题没有答案。2026-11-09 实测就是这样：
+ * 正文 CTA 手写了 ref，`siteLinks()` 里那条却用的是裸 `CWS_URL`，
+ * 26 个页面各漏一条。
+ *
+ * 判据取「所有商店链接」而不是「某一条特定链接」，这样新增落点默认被覆盖。
+ */
+describe('博客的商店链接全部带 ?ref=blog 归因', () => {
+  const CWS = /https:\/\/chromewebstore\.google\.com\/detail\/account-password-helper\/[a-z0-9]+(\?ref=([a-z]+))?/g;
+
+  const refsOf = (html: string) => [...html.matchAll(CWS)].map(m => m[2]);
+
+  it.each(ALL_PAGES)('%s 的每条商店链接都标注了 ref=blog', page => {
+    const html = read(`blog/${page}`);
+    const refs = refsOf(html);
+    expect(refs.length, `${page} 一个商店链接都没有，判据已失去意义`).toBeGreaterThan(0);
+    expect(
+      refs.filter(r => r !== 'blog'),
+      `${page} 有商店链接漏带 ?ref=blog`,
+    ).toEqual([]);
+  });
+
+  it('取数正则本身能区分「带 ref」与「漏 ref」（证明这把刀不空转）', () => {
+    const bare = 'href="https://chromewebstore.google.com/detail/account-password-helper/abc123">商店';
+    const tagged = 'href="https://chromewebstore.google.com/detail/account-password-helper/abc123?ref=blog">商店';
+    expect(refsOf(bare)).toEqual([undefined]);
+    expect(refsOf(tagged)).toEqual(['blog']);
+  });
+});
