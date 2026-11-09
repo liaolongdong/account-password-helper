@@ -55,7 +55,7 @@
 
 | 测试基线（2026-10-18 复跑·页面写法的认格通道） | `pnpm exec vitest run --no-file-parallelism`（跑在与提交同构的 detached 树 `831b3c8` 里，worktree `~/.aph-wt/gate2`、`node_modules` 软链主仓）→ **251 个测试文件 / 3589 个用例全部通过，exit 0、0 failed、0 pending**（`Duration 148.02s`，只作旁证）。**+22 例 / +0 文件**四处闭合：`useIdentityVault` 43 → 55（+12）、`identityFields` 12 → 19（+7）、`identityLookupFromDetailWiring` 13 → 14（+1）、`piiClassifier.coverage` 240 → 242（+2：词表反向校验 ＋ 召回守卫，评审回灌把一条拆成两条），12 + 7 + 1 + 2 = 22 = 3589 − 3567 零残差。**开跑前先把 `.output` 删了，第一趟不可用**——产物门控的十来条用例在缺 `.output` 时静默跳过，"0 failed"不等于"跑全了"；补 `build` + `build:firefox` 后重测才是这行的数。七道门禁逐条 exit=0，产物 zip **803,222 B**、`.output/chrome-mv3` Σ **2,279,322 B**（208 文件）、`.output/firefox-mv2` Σ **2,279,174 B**（208 文件）；基线在 `~/.aph-wt/base2` 于 `e7816a0` 重建，读数复现上一行的 801,237 / 2,274,334 / 2,274,186，先证明可复算再 A/B。两份解压 Σ **各 +4,988 B** 只来自四枚：`chunks/options.js` +3,456（151 条词表串与认格通道）、`chunks/help.js` **+1,057**（中英 gd.9 各加一句搜法说明，评审回灌又补进「填了值的那一格才算填过」的限定）、`chunks/IdentityVaultDialog.js` +254、`assets/IdentityVaultDialog.css` +221，3,456 + 1,057 + 254 + 221 = 4,988 恰好闭合，另 28 枚只换引用名；zip +1,985 B。**这组是评审回灌之后重测的**：那一笔只动注释与文档，却把 `help.js` 推高 199 B、把用例数推 +1——**"只动注释"既不等于不进产物，也不等于不动用例数**。**对外 48 处落点跟到 3589 / 251**：只有 35 个用例数位走格（产品站两处千分位 `3,589`），13 个文件数位原地不动；派生的 12 页博客 HTML、`en.html`（256/256、16/16、FAQ DOM 42 三条计数不变）与 04 / 05 两张封面 PNG 由 `gen:blog` / `gen:en` / `covers:render` 重跑跟上，01–03 逐字节未变。上一行 3567 / 251 是前一轮的定稿读数，保留作记录。 |
 
-## 🆕 2026-11-09 SEO 与曝光五波收口：两篇中英科普上线、竞品事实复核回灌、对外口径跟到串行实测 5130 / 346
+## 🆕 2026-11-09 SEO 与曝光五波收口：两篇中英科普上线、竞品事实复核回灌、对外口径跟到串行实测 5157 / 346
 
 设计稿见 [SEO_GROWTH_2026-11-07_DESIGN.md](../reports/SEO_GROWTH_2026-11-07_DESIGN.md)。十笔提交（`bd52e50` → `e9ef0cd`）走 A 修尺子 / B 技术 SEO / C 送上线 / D 分发 / E 内容补缺，走 PR #164 合入 `main`。**本节写下时（2026-11-09）PR 仍是 OPEN、`origin/main` 仍在 `fc8cee0`——合并尚未发生**；这一句先前写成「已合入」是错的，属对外状态记述的失真，特此更正。合并真正完成后应回来把这句改成实测读数。
 
@@ -64,6 +64,8 @@
 **B 技术 SEO（`d16c483` `979461f` `43a65f5` `49a8d88`）**：`sitemap.xml` 补 hreflang 三档声明并与 HTML 侧逐条互证；分享卡补 `og:image:alt/width/height`，尺寸取 PNG 头真实值而非抄来的常量。**LCP 一项实测后作废**——首屏 LCP 是 H1 文本、与 lazy 图无关，所以不改代码；这条记在这里是为了阻止下一轮又把它捡回来做。origin 根缺口按「建根仓库 + 极简落地页」落地（根仓库 `liaolongdong/liaolongdong.github.io`，`ef81d79` / `23d0d1a` / `3b245ac`）。
 
 **C 送上线（`fbe8d8a` `e9ef0cd`）**：GitHub About（332 UTF-16 码点）与 topics 四换已线上改并 `curl` 复测。测试数口径在最终提交态上用 `vitest run --no-file-parallelism --reporter=json` 串行重测 → **346 个测试文件 / 5130 个用例，0 failed / 0 skipped**，31 文件 48 处落点整体从 4856 / 336 抬一格。**只手改 20 个维护面**，派生的 10 页博客 HTML、`llms-full.txt`、`en.html` 与两张封面 PNG 一律走 `gen:blog` / `gen:en` / `covers:render` 重跑。时间戳跟着内容走：01–05 的 `modified` 抬到 UTC 今天 2026-11-09，`sitemap` 的 `lastmod` 逐条对齐，博客索引页取十二篇最大值，root 与 `en.html` 的 `footer.updated` 同步——**这一步不是自愿的**：`seoSurface` 把 sitemap lastmod 钉在页内 `dateModified` 上、把索引页钉在十二篇最大值上，只改一半直接见红（本轮就红过两次，各补一处才绿）。没动过的 06–10（仍 11-05）、11–12（仍 11-07）、author / privacy 各保持原值。
+
+**5130 这个数在本节写下时就已经过期了**：`c101a10` 在刷完数之后又给 `blogDiscovery` 加了 27 例（26 页 + 1 自检），整支评审实测到终态是 **346 文件 / 5157 例**，`25240f4` 与 `499cac5` 把 48 处落点跟到 5157。教训记两条：一是「最终提交态」只有在最后一笔提交之后才成立，刷数不能排在加测试之前；二是 `testCountCopy` 只校验 48 处彼此一致，**全体一致地写错它拦不住**，所以这一步的判据只能是重测，不是守卫。另外 `499cac5` 单独存在是因为上一次提交按目录列举暂存路径时漏了 `product-site/`——守卫读工作区、不读提交树，所以那次提交不完整而门禁照样全绿。
 
 **E 内容补缺（`3610266` `e6cecde` `d967ff5`）**：博客文章页补目录 / 阅读时长 / 标签 chip；新增两对中英科普（`11-is-password-manager-safe`、`12-password-generator-strength`）与配套封面，博客面从 22 页 / 20 篇 / 10 封面 / 32 URL 走到 **26 页 / 24 篇 / 12 封面 / 36 URL**。README 把中英共 8 条「数百到数千码点塞进一个 bullet」拆成父项 + 分层子项（最长那条英文 3474 码点），只重排层级与加结构性小标题、句子事实零增删——用数字 token 差分核对过，除刻意修正外改动前后数字集合一致。FAQ 散文段没动：那是问答体，拆成 bullet 反而伤可读性，且 `faqSchemaParity` 锁着 schema 与可见文案的一致性。
 
@@ -84,6 +86,15 @@
 ### 验证
 
 `tests/docs` 22 文件 1015 例、`tests/architecture` + `tests/utils` 198 文件 2434 例全绿；`eslint --max-warnings 0` 对 6 个改动的守卫通过；`prettier --check` 对手改面通过（`llms.txt` 无 parser，跳过）。真 Chrome（品牌版，Playwright 1.63 + `setViewportSize`）跑 4 个新页面 × {1280, 375(`isMobile`+`deviceScaleFactor 2`)} = **8/8 通过**：无横向溢出、目录 6 链接 0 死锚点且点击确实滚动、5 个标签 chip、中英阅读时长格式各自正确（`约 N 分钟` / `N min read`）、封面 `naturalWidth=1600` 且随视口 712→327px 缩放。**溢出判据另做 canary 对照**：注入 2000px 元素后逐元素右边界检测报出 `DIV.canary`，而 `scrollWidth-clientWidth` 在同一注入下仍为 0——**说明后者单独用会漏，前者才是有牙的那把**。4 个站页渲染复核 `19.80` / `Watchtower` / `2026-11` 实际进 DOM、无 `$10` / `Watchdog` 残留、控制台零错误。
+
+### CodeQL 两条 high 的处置（2026-11-09，PR #164）
+
+合并被 CodeQL 挡住：`js/incomplete-multi-character-sanitization` 报在 `scripts/build-blog-pages.mjs:188` 与 `tests/docs/blogMeta.test.ts:406`。这条规则针对的是 `/<[^>]+>/g` 这类剥离器——它确实不完整，`<scr<script>ipt>` 剥一层会剩下一个真的 `<script>`。但两处都不构成注入面，逐条读过落点后按既有先例消解：
+
+- **#34（生成器）→ `mitigated`**：`withToc` 剥出的 `text` 只有两个消费者，一是同函数内的 slug（非字母数字一律换成连字符，尖号被吃掉），二是目录标签，而后者在**唯一**的 HTML 落点 `build-blog-pages.mjs:207` 走 `escapeHtml`，左尖括号变实体，进不了标签位。原样插回的 `inner` 是 marked 渲染的正文，本波未改该行为，输入是仓库自产 markdown。
+- **#35（守卫测试）→ `used in tests`**：只把生成 HTML 的 h2 内联标签剥掉后与目录标签逐字比对，输出只进 `expect`，不构造 HTML、不进运行时。
+
+先例是同一规则的 #20–#23、#32、#33，此前均按 `used in tests` 处置并写了理由。**这是消解不是删除，可在 Security 页重开**；两条都附了可核对的行号与判据，便于后来人复核。API 侧两个坑记一下：`dismissed_reason` 要传人类可读枚举（`used in tests` / `mitigated`），传 `used_in_tests` 会 422；`dismissed_comment` 上限 280 字符。另外用 `?ref=refs/pull/164/head` 才查得到 PR 维度的 alert——不带 ref 的列表端点只给默认分支，会显示 0 条 open，容易误判成「没有告警」。
 
 ### 本轮刻意不动
 
