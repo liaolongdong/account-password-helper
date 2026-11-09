@@ -115,7 +115,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-11-05"
+      content="2026-11-09"
     />
     <meta
       name="twitter:card"
@@ -142,7 +142,7 @@
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-11-05",
+  "dateModified": "2026-11-09",
   "author": {
     "@type": "Person",
     "name": "liaolongdong",
@@ -449,7 +449,7 @@
           <span aria-current="page" title="Sub-Second Chrome Side Panel on MV3">Sub-Second Chrome Side Panel on MV3</span>
         </nav>
         <h1>Sub-Second Chrome Side Panel on MV3</h1>
-        <p class="meta">2026-08-28 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 7 min read</p>
+        <p class="meta">2026-08-28 · Updated 2026-11-09 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 7 min read</p>
         <div class="tag-chips"><span class="tag-chip">chrome extension</span><span class="tag-chip">manifest v3</span><span class="tag-chip">service worker</span><span class="tag-chip">performance</span><span class="tag-chip">frontend engineering</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="Sub-Second Chrome Side Panel on MV3" />
         <nav class="toc" aria-label="On this page"><strong>On this page</strong><ol><li><a href="#first-where-does-the-white-screen-come-from">First: Where Does the White Screen Come From?</a></li><li><a href="#countermeasure-1-dual-layer-keep-alive">Countermeasure 1: Dual-Layer Keep-Alive</a></li><li><a href="#countermeasure-2-four-layer-resource-pre-warming">Countermeasure 2: Four-Layer Resource Pre-Warming</a></li><li><a href="#countermeasure-3-three-way-data-racing">Countermeasure 3: Three-Way Data Racing</a></li><li><a href="#countermeasure-4-non-blocking-css">Countermeasure 4: Non-Blocking CSS</a></li><li><a href="#one-iron-rule-never-await-before-a-user-gesture">One Iron Rule: Never await Before a User Gesture</a></li><li><a href="#verification-sub-second-is-measured-not-felt">Verification: Sub-Second Is Measured, Not Felt</a></li><li><a href="#retrospective-three-lessons">Retrospective: Three Lessons</a></li></ol></nav>
@@ -513,7 +513,7 @@
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>: cache re-warm and every lock path;</li>
 <li><code>sidePanelManager</code>: open sequencing.</li>
 </ul>
-<p>The repo now has 4856 automated tests across 336 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
+<p>The repo now has 5130 automated tests across 346 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
 <h2 id="retrospective-three-lessons">Retrospective: Three Lessons</h2>
 <ol>
 <li><strong>Don&#39;t fight MV3&#39;s lifecycle; design around it.</strong> The SW <em>will</em> be terminated. Assume it&#39;s never there: put state in <code>chrome.storage</code>, delegate wake-ups to alarms, and push costs forward into pre-warming.</li>

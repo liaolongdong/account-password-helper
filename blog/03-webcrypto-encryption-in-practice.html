@@ -115,7 +115,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-11-05"
+      content="2026-11-09"
     />
     <meta
       name="twitter:card"
@@ -142,7 +142,7 @@
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-11-05",
+  "dateModified": "2026-11-09",
   "author": {
     "@type": "Person",
     "name": "liaolongdong",
@@ -449,7 +449,7 @@
           <span aria-current="page" title="用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战">用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</span>
         </nav>
         <h1>用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</h1>
-        <p class="meta">2026-08-28 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 7 分钟</p>
+        <p class="meta">2026-08-28 · 更新于 2026-11-09 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 7 分钟</p>
         <div class="tag-chips"><span class="tag-chip">Web Crypto</span><span class="tag-chip">加密</span><span class="tag-chip">密码管理器</span><span class="tag-chip">安全</span><span class="tag-chip">Chrome扩展</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png" alt="用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战" />
         <nav class="toc" aria-label="目录"><strong>目录</strong><ol><li><a href="#为什么是-web-crypto-而不是加密库">为什么是 Web Crypto，而不是加密库</a></li><li><a href="#密钥派生-pbkdf2-sha256-600-000-次迭代">密钥派生：PBKDF2-SHA256，600,000 次迭代</a></li><li><a href="#数据加密-字段级-aes-256-gcm">数据加密：字段级 + AES-256-GCM</a></li><li><a href="#会话-密钥在内存里活多久">会话：密钥在内存里活多久</a></li><li><a href="#换钥-修改主密码的原子性">换钥：修改主密码的原子性</a></li><li><a href="#把一切输入当敌人">把一切输入当敌人</a></li><li><a href="#为什么从-mit-换到-gpl-3-0">为什么从 MIT 换到 GPL-3.0</a></li><li><a href="#最后的诚实声明">最后的诚实声明</a></li></ol></nav>
@@ -504,7 +504,7 @@
 </ul>
 <p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。已上架 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome 应用商店</a>，完全免费，GPL-3.0 开源。如果你也在做本地优先的安全工具，评论区聊聊你踩过的坑。</p>
 <hr>
-<p><em>本文涉及的关键文件：<code>utils/encryption.ts</code>（加密核心）、<code>utils/sessionManager.ts</code>（会话管理）、<code>tests/</code>（4856 项自动化测试，含加密与换钥路径）。</em></p>
+<p><em>本文涉及的关键文件：<code>utils/encryption.ts</code>（加密核心）、<code>utils/sessionManager.ts</code>（会话管理）、<code>tests/</code>（5130 项自动化测试，含加密与换钥路径）。</em></p>
 
         <aside class="author-card" aria-label="关于作者">
         <p><strong>关于作者</strong>：<a href="https://liaolongdong.github.io/account-password-helper/author.html" rel="author">liaolongdong</a>，开源爱好者与贡献者，利用业余时间维护账号密码管理助手、Transfer Any File、Cross-origin Proxy 等免费开源浏览器扩展，关注本地优先、离线可用与可审计的工程实现 · <a href="https://github.com/liaolongdong" target="_blank" rel="noopener noreferrer">GitHub</a></p>
