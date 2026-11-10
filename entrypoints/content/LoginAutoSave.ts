@@ -946,7 +946,13 @@ export class LoginAutoSave {
 
     // 优先使用实时读取的当前值，读取失败时回退到弹窗出现时捕获的 pending 值
     const finalUsername = current?.username ?? pending.username;
-    const finalPassword = current?.password ?? pending.password;
+    // 授权位与口令必须同源：`mobileLogin` 为真意味着捕获门认定「这次提交没有可用密码框」，
+    // 而 current 的口令来自全文档重读——引用失效时的兜底比捕获门的 form 作用域更宽，
+    // `data-aph-password` 还可由页面自设。弹窗开着的几十秒里别处出现一个非空口令框，
+    // 页面可控的值就会顶着「允许空口令」的授权位落盘，绕过存储层两道以 `!password` 为键的
+    // 闸门（空字段拒写、空口令不许覆盖已有真口令）并覆写用户已存的真实口令；而弹窗此刻
+    // 展示的是「短信验证码不保存」，用户正是据此点的保存。账号仍取重读值（用户可能改过号）。
+    const finalPassword = pending.mobileLogin === true ? '' : (current?.password ?? pending.password);
     // 清理字段引用（弹窗已关闭，不再需要）
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
@@ -975,7 +981,12 @@ export class LoginAutoSave {
 
       if (response?.success) {
         this.lastPromptSaved = true;
-        showNativeNotification(tl('cs.notify.saved'), 'success');
+        // 结局由存储层判定并本地化，内容侧只呈现：三种 success（新存一条 / 更新已有 /
+        // 「该账号已存有密码，本次未改动」）说的不是同一件事，最后一种一个字节都没写，
+        // 写死「账号密码已保存」会对用户说谎——他据此以为验证码登录已入库，下次仍填不出东西。
+        // 回执没带文案（旧版后台、异常路径）才退回通用串；跨上下文输入按 unknown 收窄。
+        const outcome: unknown = response?.message;
+        showNativeNotification(typeof outcome === 'string' && outcome ? outcome : tl('cs.notify.saved'), 'success');
       } else {
         showNativeNotification(
           tl('cs.notify.saveFailedMsg', { message: response?.message || tl('cs.notify.unknownReason') }),

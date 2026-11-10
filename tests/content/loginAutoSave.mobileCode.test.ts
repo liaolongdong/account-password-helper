@@ -16,11 +16,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageType } from '@/utils/types';
-import type { SavePromptData } from '@/entrypoints/content/types';
+import type { SavePromptData, SavePromptEditedData } from '@/entrypoints/content/types';
 
-/** 弹窗渲染入口的调用记录（返回真实形状的控制接口，供 `setupFieldSync` 的字段同步回调用） */
+/**
+ * 弹窗渲染入口的调用记录（返回真实形状的控制接口，供 `setupFieldSync` 的字段同步回调用）
+ *
+ * 第二个形参按真实签名声明为 `onSave`：保存出口那个用例要取的就是这份回调，
+ * 少声明一个参数会让 `calls[0][1]` 在 typecheck 里不存在（vitest 不查类型，只有 tsc 看得见）。
+ */
 const promptSpy = vi.hoisted(() =>
-  vi.fn<(data: SavePromptData) => Record<string, unknown>>(() => ({
+  vi.fn<(data: SavePromptData, onSave: (editedData: SavePromptEditedData) => void) => Record<string, unknown>>(() => ({
     updateUsername: vi.fn(),
     updatePassword: vi.fn(),
   })),
@@ -242,5 +247,109 @@ describe('手机号 + 短信码表单的捕获门', () => {
     await flush();
 
     expect(controls.updateUsername).toHaveBeenCalledWith('13900000001');
+  });
+});
+
+/**
+ * 保存出口载荷的不变量：`mobileLogin` 是「允许空口令写入」的授权位，它必须与口令同源。
+ *
+ * 捕获门（`readCredentials`）只在密码框为空时才置 `mobileLogin: true`，且此时 `passwordField`
+ * 为 null；而 `handleSave` 的口令来自 `captureCurrentCredentials()` 的实时重读，引用为 null 时
+ * 会退到**全文档** `querySelector`。弹窗开着的几十秒里页面别处出现一个非空口令框（另一个表单、
+ * 或站点把 OTP 做成掩码输入），重读就会取到它，而授权位仍原样取自 pending —— 两者不同源。
+ *
+ * 后果不是「多存一条」：存储层的两道闸门（空字段拒写、空口令不许覆盖已有真口令）都以
+ * `!data.password` 为键，非空即全部绕过，于是页面可控的值会覆写用户已存的真实口令；
+ * 而弹窗此刻展示的是「短信验证码不保存」，用户据此点的保存。
+ */
+/**
+ * 保存出口用的夹具：账号框是 `type="text"` + 手机号 placeholder。
+ *
+ * 不能复用上面的 `MOBILE_CODE_FORM`（`type="tel"`）：`findUsernameInPage` 只认
+ * `USERNAME_SELECTORS`，而 `type="tel"` 不在其中，兜底重读会在「取不到账号」那一步提前
+ * return null，于是整条不同源链路根本走不到。`type="text"][name*="mobile"]` 与
+ * `[placeholder*="手机号"]` 都命中该集合，是国内登录页最常见的标记。
+ */
+const MOBILE_CODE_FORM_TEXT = `
+  <form id="f">
+    <input type="text" name="mobile" placeholder="请输入手机号" value="13800000000" />
+    <input type="text" name="smsCode" placeholder="请输入验证码" value="246813" />
+    <button type="submit">登录</button>
+  </form>`;
+
+describe('手机号登录的保存出口载荷：授权位与口令必须同源', () => {
+  /** 取出本次保存真正发往 background 的那份载荷 */
+  const savedPayload = async (): Promise<Record<string, unknown>> => {
+    const sendSpy = vi.spyOn(chrome.runtime, 'sendMessage');
+    // beforeEach 只换实现不清记录， spy 的调用会跨用例累积；不清就会读到上一个用例的载荷
+    sendSpy.mockClear();
+    const onSave = promptSpy.mock.calls[0][1];
+    onSave({ tag: '', remark: '', tagEdited: false, remarkEdited: false });
+    await flush();
+
+    const calls = sendSpy.mock.calls.filter(
+      ([message]) => (message as { type?: MessageType })?.type === MessageType.AUTO_SAVE_PASSWORD,
+    );
+    expect(calls.length, '保存出口必须真的发出 AUTO_SAVE_PASSWORD').toBeGreaterThan(0);
+    // sendMessage 的重载把首参推成联合类型，只能经 unknown 收成载荷形状
+    const sent = calls[calls.length - 1]?.[0] as unknown as { data?: Record<string, unknown> };
+    expect(sent.data, 'AUTO_SAVE_PASSWORD 必须带上 data 载荷').toBeDefined();
+    return sent.data as Record<string, unknown>;
+  };
+
+  it('弹窗期间页面别处出现非空口令框：授权位为真时口令仍必须是空串', async () => {
+    mount(MOBILE_CODE_FORM_TEXT);
+    await submitForm();
+    expect(promptSpy).toHaveBeenCalledTimes(1);
+    expect(promptSpy.mock.calls[0][0].mobileLogin).toBe(true);
+
+    // 捕获时页面上没有密码框，弹窗打开后才出现（SPA 切视图 / 站点把 OTP 做成掩码框）
+    const stray = document.createElement('input');
+    stray.type = 'password';
+    stray.value = 'PAGE-CONTROLLED-VALUE';
+    document.body.appendChild(stray);
+
+    const data = await savedPayload();
+    expect(data.mobileLogin).toBe(true);
+    expect(data.password).toBe('');
+  });
+
+  it('页面自设 data-aph-password 的框同样不许把值带进授权为空的载荷', async () => {
+    mount(MOBILE_CODE_FORM_TEXT);
+    await submitForm();
+
+    const stray = document.createElement('input');
+    stray.type = 'text';
+    stray.setAttribute('data-aph-password', '');
+    stray.value = 'PAGE-SET-ATTRIBUTE';
+    document.body.appendChild(stray);
+
+    const data = await savedPayload();
+    expect(data.password).toBe('');
+  });
+
+  it('页面没有口令框时照常保存空口令（授权位的合法形态不被收口误伤）', async () => {
+    mount(MOBILE_CODE_FORM_TEXT);
+    await submitForm();
+
+    const data = await savedPayload();
+    expect(data).toMatchObject({ username: '13800000000', password: '', mobileLogin: true });
+  });
+
+  it('普通账号密码路径不受影响：口令仍取实时重读的值', async () => {
+    mount(`
+      <form id="f">
+        <input type="text" name="username" value="alice" />
+        <input type="password" value="S3cr3t!Passw0rd" />
+        <button type="submit">登录</button>
+      </form>`);
+    await submitForm();
+
+    const passwordField = document.querySelector('input[type="password"]') as HTMLInputElement;
+    passwordField.value = 'Retyped!Passw0rd';
+
+    const data = await savedPayload();
+    expect(data.password).toBe('Retyped!Passw0rd');
+    expect(data.mobileLogin).toBeFalsy();
   });
 });

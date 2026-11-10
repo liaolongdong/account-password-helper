@@ -106,6 +106,7 @@
           class="skipped-section"
         >
           <p class="skipped-section__title">{{ t('options.import.skippedTitle', { count: skippedRows.length }) }}</p>
+          <p class="skipped-section__scope">{{ t('options.import.skippedRowScope') }}</p>
           <p
             v-for="group in skippedGroups"
             :key="group.reason"
@@ -430,6 +431,7 @@ const handleImport = async () => {
 const handleClose = () => {
   dialogVisible.value = false;
   previewData.value = [];
+  skippedRows.value = [];
   selectedFile.value = undefined;
   showPreviewPassword.value = false;
   importFormat.value = 'auto';
@@ -600,6 +602,7 @@ const handleClose = () => {
 }
 
 .skipped-section__item,
+.skipped-section__scope,
 .skipped-section__hint {
   margin: 0;
   font-size: 12px;

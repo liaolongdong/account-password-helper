@@ -42,6 +42,15 @@ function validateAutoSavePayload(data: AutoSavePasswordData): AutoSavePayloadRes
     return { valid: false, message: tl('bg.autoSave.tooLong') };
   }
 
+  // 授权位与口令必须同源：`mobileLogin` 是「允许空口令写入」的授权位，声明为真却带非空口令，
+  // 说明发送方的捕获与重读不同源（或载荷被伪造）。存储层两道闸门都以 `!password` 为键，
+  // 非空即全部绕过并可能覆写用户已存的真实口令，因此这条不变量必须在边界上拒收，
+  // 不能只依赖内容脚本自己守规矩。
+  if (declaredMobileLogin === true && password) {
+    logger.warn('Background: 自动保存载荷声明手机号登录却携带非空口令，已拒收');
+    return { valid: false, message: tl('bg.autoSave.mobileLoginPasswordConflict') };
+  }
+
   return {
     valid: true,
     // `mobileLogin` 必须在这里收成真正的布尔：它是「允许空口令」的写入授权位，而载荷来自
@@ -92,12 +101,15 @@ export async function handleAutoSavePassword(
       // 额外的 port 通知会让同一次保存跑两遍全量 AES-GCM 解密，属重复刷新而非兜底。
       // 详见 quickAddHandler.ts 同名注释。
 
-      // 发送桌面通知提示用户已自动保存
+      // 发送桌面通知提示用户自动保存的结果。
+      // 标题只标事件、不承诺结局：存储层的 `success: true` 有三种（新存 / 更新 / 本次未改动），
+      // 第三种一个字节都没写（`utils/storage/autoSaveManager.ts:352-354`），标题若写「已保存」
+      // 就等于替正文说了它没做的事；结局由下面的 `result.message` 承担。
       try {
         await chrome.notifications.create('auto-save-password', {
           type: 'basic',
           iconUrl: chrome.runtime.getURL('icon/128.png'),
-          title: tl('bg.autoSave.savedTitle'),
+          title: tl('bg.autoSave.title'),
           message: `${payload.username} - ${payload.url} ${result.message}`,
         });
       } catch (notifyError) {

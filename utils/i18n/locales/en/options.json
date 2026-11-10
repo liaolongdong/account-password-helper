@@ -413,6 +413,7 @@
   "options.import.noValidData": "No valid password data found in the file",
   "options.import.parseSuccess": "Parsed successfully: {count} valid entries found",
   "options.import.skippedTitle": "Could not import {count} row(s)",
+  "options.import.skippedRowScope": "Row numbers count data rows only — the header and blank lines are excluded.",
   "options.import.skippedTooFewColumns": "Too few columns (an account plus at least one more): row(s) {rows}",
   "options.import.skippedMissingUsername": "No account value — the header may not have been read as the account column: row(s) {rows}",
   "options.import.skippedRowsMore": " (and {count} more)",

@@ -158,7 +158,7 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
       '您配置的自动备份时间已到，共有 {count} 条密码待备份。请在密码管理页面点击"备份到邮箱"按钮手动完成备份。',
     'bg.backup.messageChanged':
       '自上次成功备份后密码内容有变更，共有 {count} 条密码待备份。请在密码管理页面点击"备份到邮箱"按钮手动完成备份。',
-    'bg.autoSave.savedTitle': '账号密码已保存',
+    'bg.autoSave.title': '自动保存',
     'bg.autoSave.sessionExpired': '会话已过期，跳过自动保存',
     'bg.autoSave.disabled': '自动保存已禁用',
     'bg.autoSave.domainMismatch': '域名不匹配，跳过自动保存',
@@ -172,6 +172,7 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.busy': '正在更换主密码加密，本次自动保存稍后会自动重试',
     'bg.autoSave.conflict': '该账号在别的窗口已被修改，本次自动保存已取消，以免覆盖那边的改动',
     'bg.autoSave.passwordKept': '该账号已存有密码，本次未改动',
+    'bg.autoSave.mobileLoginPasswordConflict': '本次是验证码登录，却读到了密码值，为避免覆盖已存密码已跳过保存',
     'bg.quickAdd.invalidFields': '账号不能为空',
     'bg.quickAdd.tooLong': '账号或密码过长，请精简后重试',
     'bg.quickAdd.locked': '会话已过期，请先验证主密码',
@@ -344,7 +345,7 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
       'Your scheduled backup is due: {count} passwords to back up. Open the manager page and click "Back Up to Email" to finish manually.',
     'bg.backup.messageChanged':
       'Your passwords changed since the last successful backup: {count} entries to back up. Open the manager page and click "Back Up to Email" to finish manually.',
-    'bg.autoSave.savedTitle': 'Credentials saved',
+    'bg.autoSave.title': 'Auto-save',
     'bg.autoSave.sessionExpired': 'Session expired, auto-save skipped',
     'bg.autoSave.disabled': 'Auto-save is disabled',
     'bg.autoSave.domainMismatch': 'Domain does not match, auto-save skipped',
@@ -360,6 +361,8 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.conflict':
       'This account was changed in another window, so this auto-save was skipped to avoid overwriting it',
     'bg.autoSave.passwordKept': 'This account already has a saved password, so it was left unchanged',
+    'bg.autoSave.mobileLoginPasswordConflict':
+      'This was a code-based sign-in but a password value was read, so the save was skipped to avoid overwriting a stored password',
     'bg.quickAdd.invalidFields': 'Username cannot be empty',
     'bg.quickAdd.tooLong': 'Username or password is too long. Please shorten it and retry.',
     'bg.quickAdd.locked': 'Session expired. Please verify your master password first.',

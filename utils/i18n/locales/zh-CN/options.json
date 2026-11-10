@@ -413,6 +413,7 @@
   "options.import.noValidData": "文件中没有找到有效的密码数据",
   "options.import.parseSuccess": "解析成功，共找到 {count} 条有效数据",
   "options.import.skippedTitle": "未能带出 {count} 行",
+  "options.import.skippedRowScope": "行号按数据行计，不含表头与空行。",
   "options.import.skippedTooFewColumns": "列数不足（至少要有账号和另一列）：第 {rows} 行",
   "options.import.skippedMissingUsername": "这一行没有账号值，多半是表头没被认成账号列：第 {rows} 行",
   "options.import.skippedRowsMore": "（另有 {count} 行）",
