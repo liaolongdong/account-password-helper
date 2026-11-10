@@ -353,3 +353,84 @@ describe('手机号登录的保存出口载荷：授权位与口令必须同源'
     expect(data.mobileLogin).toBeFalsy();
   });
 });
+
+/**
+ * 语义标注齐全、写法不同的登录页（形态矩阵第 3 行）
+ *
+ * 判据此前只读字段自己的四个属性（`name` / `id` / `placeholder` / `aria-label`），
+ * 而 `<label for>` 与 `aria-labelledby` 是**同样明确、且无障碍上更规范**的写法。
+ * 结果很反直觉：越是按规范标注的页面越不被识别，作者把 label 换成 aria-label 才「修好」。
+ *
+ * 收口口径是等效标注，不是放宽：可及名只喂给各桶**已有**的 aria 关键词集（从
+ * `input[aria-label*="X"]` 条目里推导，不新增词），所以「用 label 标了手机号」与
+ * 「写了 aria-label=手机号」的判定必须完全一致——包括一起被邮编排除挡在外面。
+ */
+const LABELLED_MOBILE_CODE_FORM = `
+  <form id="f">
+    <label for="m">手机号</label><input id="m" type="text" value="13800000000" />
+    <label for="c">验证码</label><input id="c" type="text" value="246813" />
+    <button type="submit">登录</button>
+  </form>`;
+
+/** 收货地址页：手机号框与邮编框都按规范标注，任何时候都不该被读成短信码登录 */
+const LABELLED_ADDRESS_FORM = `
+  <form id="f">
+    <label for="m">手机号</label><input id="m" type="text" value="13800000000" />
+    <label for="z">邮政编码</label><input id="z" type="text" value="200000" />
+    <button type="submit">保存地址</button>
+  </form>`;
+
+/** 账号用 aria-labelledby、密码用包裹式 label 标注的常规登录页 */
+const LABELLED_PASSWORD_FORM = `
+  <form id="f">
+    <span id="lbl">登录账号</span><input type="text" aria-labelledby="lbl" value="alice@example.com" />
+    <label for="pw">登录密码</label><input id="pw" type="password" value="Synthetic!Label1" />
+    <button type="submit">登录</button>
+  </form>`;
+
+describe('按规范标注的登录页：可及名与 aria-label 同权', () => {
+  it('label 标注的手机号 + 验证码：弹窗，账号取手机号、授权位为真', async () => {
+    mount(LABELLED_MOBILE_CODE_FORM);
+    await submitForm();
+
+    expect(promptSpy, '两个框都按规范标注，捕获门却没认出短信码登录').toHaveBeenCalledTimes(1);
+    const data = promptSpy.mock.calls[0][0];
+    expect(data.username).toBe('13800000000');
+    expect(data.password).toBe('');
+    expect(data.mobileLogin).toBe(true);
+  });
+
+  it('label 标注的手机号 + 邮政编码：仍不弹（可及名进排除判据，放宽不越界）', async () => {
+    mount(LABELLED_ADDRESS_FORM);
+    await submitForm();
+
+    expect(promptSpy, '邮编框按规范标注后必须和写 aria-label 时一样被摘出去').not.toHaveBeenCalled();
+  });
+
+  it('label 标注的手机号 + 真密码框：走常规路径，授权位不得为真', async () => {
+    mount(`
+      <form id="f">
+        <label for="m">手机号</label><input id="m" type="text" value="13800000000" />
+        <label for="pw">登录密码</label><input id="pw" type="password" value="Synthetic!Label1" />
+        <button type="submit">登录</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy).toHaveBeenCalledTimes(1);
+    const data = promptSpy.mock.calls[0][0];
+    expect(data.username).toBe('13800000000');
+    expect(data.password).toBe('Synthetic!Label1');
+    expect(data.mobileLogin).toBeFalsy();
+  });
+
+  it('aria-labelledby 标注账号：账号值取得到，不再因为找不到账号整条放弃', async () => {
+    mount(LABELLED_PASSWORD_FORM);
+    await submitForm();
+
+    expect(promptSpy, '口令框有值但账号取不到时，readCredentials 会整条返回 null').toHaveBeenCalledTimes(1);
+    const data = promptSpy.mock.calls[0][0];
+    expect(data.username).toBe('alice@example.com');
+    expect(data.password).toBe('Synthetic!Label1');
+    expect(data.mobileLogin).toBeFalsy();
+  });
+});

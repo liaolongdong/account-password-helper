@@ -1,8 +1,14 @@
 # 自动保存捕获形态矩阵、可及名识别与影子树穿透（设计定稿）
 
-> 状态：**设计已定，实现待拍板**。三份判据撞在一起，任何一条落地都要先牺牲另一条，
-> 属于「改变隐私边界 / 交互行为」的取舍，按 `AGENTS.md`「必须暂停并询问确认」的口径停在设计层。
-> 本文给出矩阵、冲突点、三个可选切口与推荐方案，供下一次实现直接接手。
+> 状态：**可及名识别已落地（形态 3）**；形态 8（邮箱 + 验证码）与形态 9（影子树）仍是待拍板缺口。
+> 影子穿透撞在已钉住的设计基线上（§3.2），属于「改变隐私边界 / 交互承诺」的取舍，
+> 按 `AGENTS.md`「必须暂停并询问确认」的口径停在设计层。本文给出矩阵、冲突点与剩余切口。
+>
+> 已落地部分的实现：`entrypoints/content/fieldLabels.ts`（可及名解析 + 桶内 aria 关键词推导）、
+> `formSelectors.ts` 的 `declaredText()`（四个语义谓词共用一份文本）与
+> `hasVerifyCodeEvidence()`（捕获门的验证码正向证据，不改桶归属）、
+> `LoginAutoSave.findMobileCodeField` 改用后者。判据在
+> `tests/content/loginAutoSave.mobileCode.test.ts` 末尾那一组（1 正 3 负，先见红再转绿）。
 >
 > 相关评审：`docs/reports/` 下的自动保存链评审结论；行号以 `f20e709` 为准。
 
@@ -36,7 +42,7 @@ scope = form ?? document
 | --- | ---------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------- |
 | 1   | form + 密码框 + `name/id/placeholder` 命中的账号                 | ✅ 捕获                             | `:1161` + `:1181`                                                          |
 | 2   | form + 密码框 + 只有 `aria-label` 命中的账号                     | ✅ 捕获                             | `USERNAME_SELECTORS:35-40,70-76`                                           |
-| 3   | form + 密码框 + 账号只有 `<label for>` / `aria-labelledby` 标注  | ❌ **漏**                           | 四段文本读取里没有可及名（`:411-413`、`:267`、`:387`、`:436`）             |
+| 3   | form + 密码框 + 账号只有 `<label for>` / `aria-labelledby` 标注  | ✅ 捕获（本轮收口，见 §3.1）        | `fieldLabels.ts` 把可及名并进 `declaredText`，与 `aria-label` 同权         |
 | 4   | 无 form 的 SPA + 密码框 + 页面兜底账号                           | ✅ 捕获                             | `:1162` → `findUsernameInPage`                                             |
 | 5   | 手机号框 + 短信码框都有值                                        | ✅ 捕获（授权位为真、口令强制置空） | `:1121` + `:955`                                                           |
 | 6   | 手机号框有值、验证码框还空（点「获取验证码」那一下）             | ⛔ 不捕获（设计如此，噪声大于价值） | `:1126` 要求码框有值                                                       |
@@ -49,13 +55,21 @@ scope = form ?? document
 
 ## 3. 三处冲突
 
-### 3.1 可及名要改的是「共用尺子」，不只是捕获
+### 3.1 可及名改的是「共用尺子」本身（本轮已按此落地）
 
 `looksLikePhoneField` / `looksLikeCodeField` / `looksLikeEmailField` / `looksLikePostalCode`
 被分类、侧边栏自动打开、填充落点（`FormDetector.ts:983,1000,1419,1865,2054`、
-`selectorPicker.ts:337`）与自动保存共用，`formSelectors.ts:394` 明确写了理由：
-**同一字段在不同判定点不许被读成两种意图**。把可及名喂进这四个函数，等于同时改填充落点的选择；
-只在捕获侧另起一把尺子，则直接违反这条不变量。两条都要用户级回归，不是一行改动。
+`selectorPicker.ts:337`）与自动保存共用，`formSelectors.ts` 明确写了理由：
+**同一字段在不同判定点不许被读成两种意图**。因此本轮没有只在捕获侧另起一把尺子，
+而是把可及名并进四个谓词共用的 `declaredText()`——放宽一次、四处同权，
+填充落点与侧边栏触发也一并认识了按规范标注的框。代价是回归面覆盖整条填充链，
+本轮以 `tests/content/`（860 用例，含 `formDetector.mutationCost` 与 `formDetector.shadow`
+两条基线）全绿为据；桶归属判定（`matchesVerifyCodeSelectors`）刻意**没有**放宽，理由见 §3.3。
+
+成本口径：可及名解析只在字段自己声明的四个属性读完之后才发生，且 `<label>` 关系走原生
+`input.labels`（浏览器已维护 for / 包裹两种关联），不留每字段一次的文档级
+`label[for=...]` 扫描——那四个谓词都在 `detectForms` 的每轮扫描里。
+`aria-labelledby` 需要按 id 查引用元素，只对声明了该属性的字段发生。
 
 ### 3.2 影子穿透已被钉成「只走站点规则显式选择器」
 
@@ -78,10 +92,14 @@ Shadow DOM」的开关承诺。正确形态是复用 `collectShadowQueryRoots` �
    扩到「手机号语义 **或** 邮箱语义」，仍要求同 scope 内存在合格的一次性码框。
    改动面最小（一个候选谓词 + 一个桶），负例 6/7 不受影响，中英文案与
    `cs.save.mobileLoginNote` 的措辞需同步（现在说的是「短信验证码」）。
-2. **形态 3（可及名）**：先只改 `looksLikePostalCode` 与 `looksLikeCodeField` 的文本来源，
-   把 `<label>` 文本纳入**排除**判据（邮编框摘得更干净、口令次序判得更准），
-   暂不纳入**归属**判据——排除方向放宽不会新增误捕获，属单向收紧。
-   之后再单独评估归属方向（它才需要 §3.1 的共用尺子回归）。
+2. **形态 3（可及名）**：✅ 已落地。四个语义谓词（手机号 / 邮箱 / 一次性码 / 邮编排除）
+   共用的文本来源统一为 `declaredText()` = `name id placeholder (aria-label ‖ 可及名)`，
+   验证码的**捕获证据**另走 `hasVerifyCodeEvidence()`（不改桶归属）。
+   「排除」与「归属」两端同时读到可及名，所以收货地址页不会因放宽而变成登录页——
+   这条负例已由 `tests/content/loginAutoSave.mobileCode.test.ts` 钉住。
+   尚未做的是**账号桶**（`USERNAME_SELECTORS` 那 ~80 条选择器逐个 `querySelector` 的优先级语义）
+   里的可及名补位：目前它由「form 内可见 text/email/tel」兜底覆盖，等效结果已由负例与
+   正例共同验证，真要补的是一条优先级判据，需与 §2 第 1/2 行一起重测取值次序。
 3. **形态 9（影子树）**：把 `collectShadowQueryRoots` 提到可复用位置，
    让 `readCredentials` 在 `penetrateShadowEnabled` 为真时用它查询，为假时维持现状。
    这条改的是「自动识别范围」的产品承诺，需要同时更新 `formDetector.shadow.test.ts` 的基线

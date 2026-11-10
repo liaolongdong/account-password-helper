@@ -26,6 +26,7 @@ import {
   normalizeButtonText,
   looksLikePhoneField,
   matchesVerifyCodeSelectors,
+  hasVerifyCodeEvidence,
   isPhoneExtensionField,
   looksLikePostalCode,
   isOneTimeCodeValue,
@@ -1123,7 +1124,7 @@ export class LoginAutoSave {
       input => !!input.value && isElementVisible(input),
     );
     const hasSmsCode = filled.some(
-      input => matchesVerifyCodeSelectors(input) && !looksLikePostalCode(input) && isOneTimeCodeValue(input.value),
+      input => hasVerifyCodeEvidence(input) && !looksLikePostalCode(input) && isOneTimeCodeValue(input.value),
     );
     if (!hasSmsCode) return null;
 

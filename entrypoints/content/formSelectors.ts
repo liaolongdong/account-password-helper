@@ -2,6 +2,7 @@
  * 表单字段选择器常量
  * 集中管理所有用于检测登录表单的 CSS 选择器和关键词
  */
+import { accessibleNameOf, ariaKeywordsFrom, matchesBucketByLabel } from './fieldLabels';
 
 /** 用户名/邮箱/账号字段选择器 */
 export const USERNAME_SELECTORS = [
@@ -260,12 +261,26 @@ export function matchesVerifyCodeSelectors(input: HTMLInputElement): boolean {
 const POSTAL_CODE_TEXT = /zip|postal|postcode|area[-_ ]?code|邮编|邮政编码|区号/;
 
 /**
+ * 字段自己声明的语义文本
+ *
+ * 四个属性 + 一份可及名：`aria-label` 缺席时才取 `<label for>` / `aria-labelledby` 的文本，
+ * 于是「用 label 标注」与「写 aria-label」在这一把尺子上完全等效——关键词表一个都没扩。
+ * 四五个判定点（分类、侧边栏触发、填充落点、自动保存）必须共用它，否则同一字段在不同
+ * 判定点会被读成两种意图（本文件既有的口径）。
+ *
+ * @param input 待取文本的控件
+ */
+function declaredText(input: HTMLInputElement): string {
+  const ariaLabel = input.getAttribute('aria-label')?.trim();
+  return `${input.name} ${input.id} ${input.placeholder} ${ariaLabel || accessibleNameOf(input)}`;
+}
+
+/**
  * 判断一个框是不是邮编 / 邮政编码 / 区号，而非一次性短信码
  * @param input - 待判定的输入框
  */
 export function looksLikePostalCode(input: HTMLInputElement): boolean {
-  const text = `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
-  return POSTAL_CODE_TEXT.test(text);
+  return POSTAL_CODE_TEXT.test(declaredText(input).toLowerCase());
 }
 
 /**
@@ -384,8 +399,7 @@ export const CODE_FIELD_KEYWORDS = [
  */
 export function looksLikeCodeField(input: HTMLInputElement): boolean {
   if ((input.getAttribute('autocomplete') || '').toLowerCase().includes('one-time-code')) return true;
-  const text = `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
-  return CODE_FIELD_KEYWORDS.some(keyword => text.includes(keyword));
+  return CODE_FIELD_KEYWORDS.some(keyword => declaredText(input).toLowerCase().includes(keyword));
 }
 
 /**
@@ -408,9 +422,7 @@ export function looksLikePhoneField(input: HTMLInputElement): boolean {
 
   // 驼峰先切成词，否则 telCountryCode / cellPhone 里的短词没有分隔符可依，整词判据会漏。
   // autocomplete 不进这段文本：它是枚举值，上面那条分支已经按同样的三个词判过。
-  const rawText = `${input.name || ''} ${input.id || ''} ${input.placeholder || ''} ${
-    input.getAttribute('aria-label') || ''
-  }`;
+  const rawText = declaredText(input);
   const textToCheck = rawText.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
 
   if (MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword))) {
@@ -432,9 +444,24 @@ export function looksLikeEmailField(input: HTMLInputElement): boolean {
   if (input.type.toLowerCase() === 'email') return true;
   const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
   if (autocomplete.includes('email')) return true;
-  const textToCheck =
-    `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
-  return EMAIL_FIELD_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+  return EMAIL_FIELD_KEYWORDS.some(keyword => declaredText(input).toLowerCase().includes(keyword));
+}
+
+/** 验证码桶已经承认过的 aria 关键词（从 `VERIFY_CODE_SELECTORS` 自身推导，不另立词表） */
+const VERIFY_CODE_ARIA_KEYWORDS = ariaKeywordsFrom(VERIFY_CODE_SELECTORS);
+
+/**
+ * 这个框是否构成「一次性验证码」证据
+ *
+ * 与 `matchesVerifyCodeSelectors` 的分工是刻意的：归属判定（字段进哪个桶、填充落点）
+ * 必须继续用同一份选择器，否则被排除的字段会在两个桶之间两头落空（见其注释）；
+ * 这里只回答「这次提交看起来是不是在输验证码登录」，是捕获门的正向证据。
+ * 因此它可以接受等效标注的写法，但不改变任何桶归属。
+ *
+ * @param input - 待判定的输入框
+ */
+export function hasVerifyCodeEvidence(input: HTMLInputElement): boolean {
+  return matchesVerifyCodeSelectors(input) || matchesBucketByLabel(input, VERIFY_CODE_ARIA_KEYWORDS);
 }
 
 /**
