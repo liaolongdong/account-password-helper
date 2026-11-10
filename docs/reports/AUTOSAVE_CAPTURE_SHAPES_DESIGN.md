@@ -1,0 +1,100 @@
+# 自动保存捕获形态矩阵、可及名识别与影子树穿透（设计定稿）
+
+> 状态：**设计已定，实现待拍板**。三份判据撞在一起，任何一条落地都要先牺牲另一条，
+> 属于「改变隐私边界 / 交互行为」的取舍，按 `AGENTS.md`「必须暂停并询问确认」的口径停在设计层。
+> 本文给出矩阵、冲突点、三个可选切口与推荐方案，供下一次实现直接接手。
+>
+> 相关评审：`docs/reports/` 下的自动保存链评审结论；行号以 `f20e709` 为准。
+
+## 1. 判据本体：捕获门只有一条
+
+三个入口（表单提交 / 按钮点击 / Enter）都汇到 `entrypoints/content/LoginAutoSave.ts:1156` 的
+`readCredentials(form)`，它只有两条出路：
+
+```
+scope = form ?? document
+口令框 = scope.querySelector('input[type="password"], input[data-aph-password]')   // :61
+├─ 口令框有值  → 找账号（form 走 findUsernameInForm，无 form 走 findUsernameInPage）→ mobileLogin: false
+└─ 口令框无值  → findMobileCodeField(scope)                                        → mobileLogin: true
+```
+
+`findMobileCodeField`（`:1121`）的成立条件是三件事同时为真：作用域内**已填写且可见**的 input 里
+① 有一个命中 `matchesVerifyCodeSelectors` 且不是邮编框、且值形如 4~8 位字母数字（`:1126`），
+② 有一个命中 `looksLikePhoneField` 且不是国家码/区号/分机子段、且不命中验证码选择器（`:1132`），
+③ 二者都在同一个 scope 内（`:1122` 的一次 `querySelectorAll('input')`）。
+
+账号那侧（`findUsernameInForm` `:1175`）是三段式：`autocomplete="username"` →
+逐个试 `USERNAME_SELECTORS`（约 80 条，**数组顺序即优先级**）→ 兜底扫 form 内可见的
+`text/email/tel`。`findUsernameInPage`（`:1239`）口径不同：兜底段要求 `isElementVisible`。
+
+## 2. 形态矩阵（重推导）
+
+原始那份「7 种形态」清单只留在会话里、没有入库。下表按判据重新推导，
+「现状」一列全部由代码路径得出，不是推测：
+
+| #   | 形态                                                             | 现状                                | 依据                                                                       |
+| --- | ---------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| 1   | form + 密码框 + `name/id/placeholder` 命中的账号                 | ✅ 捕获                             | `:1161` + `:1181`                                                          |
+| 2   | form + 密码框 + 只有 `aria-label` 命中的账号                     | ✅ 捕获                             | `USERNAME_SELECTORS:35-40,70-76`                                           |
+| 3   | form + 密码框 + 账号只有 `<label for>` / `aria-labelledby` 标注  | ❌ **漏**                           | 四段文本读取里没有可及名（`:411-413`、`:267`、`:387`、`:436`）             |
+| 4   | 无 form 的 SPA + 密码框 + 页面兜底账号                           | ✅ 捕获                             | `:1162` → `findUsernameInPage`                                             |
+| 5   | 手机号框 + 短信码框都有值                                        | ✅ 捕获（授权位为真、口令强制置空） | `:1121` + `:955`                                                           |
+| 6   | 手机号框有值、验证码框还空（点「获取验证码」那一下）             | ⛔ 不捕获（设计如此，噪声大于价值） | `:1126` 要求码框有值                                                       |
+| 7   | 收货地址页：手机号框 + 邮编框                                    | ⛔ 不捕获（邮编摘除生效）           | `looksLikePostalCode:266`                                                  |
+| 8   | 邮箱 + 短信/邮件验证码登录（无手机号框）                         | ❌ **漏**                           | 账号侧只认 `looksLikePhoneField`，邮箱语义进不来（`:1132`）                |
+| 9   | 登录表单在**开放影子树**里（Web Components / Lightning / Ionic） | ❌ **整条漏**                       | 所有取值都是 `form.querySelector` / `document.querySelector`，不跨影子边界 |
+
+第 6、7 两行是**必须一直为负的负例**：任何放宽可及名或作用域的改动，只要让这两行变绿，
+就是把搜索框、注册页、收货页读成登录页。第 3、8、9 行才是缺口。
+
+## 3. 三处冲突
+
+### 3.1 可及名要改的是「共用尺子」，不只是捕获
+
+`looksLikePhoneField` / `looksLikeCodeField` / `looksLikeEmailField` / `looksLikePostalCode`
+被分类、侧边栏自动打开、填充落点（`FormDetector.ts:983,1000,1419,1865,2054`、
+`selectorPicker.ts:337`）与自动保存共用，`formSelectors.ts:394` 明确写了理由：
+**同一字段在不同判定点不许被读成两种意图**。把可及名喂进这四个函数，等于同时改填充落点的选择；
+只在捕获侧另起一把尺子，则直接违反这条不变量。两条都要用户级回归，不是一行改动。
+
+### 3.2 影子穿透已被钉成「只走站点规则显式选择器」
+
+`tests/content/formDetector.shadow.test.ts` 开头钉了五条事实，其中第 1 条：
+**自动识别的范围只有文档主树**，跨边界的唯一通道是站点规则自定义选择器，且受
+`penetrateShadowEnabled` 总闸约束（`FormDetector.ts:842-873`，全局配置或站点规则任一关闭就把
+查询根收回主树）。让 `readCredentials` 无条件下钻影子树会同时推翻这条基线与「别替我伸进
+Shadow DOM」的开关承诺。正确形态是复用 `collectShadowQueryRoots` 的 BFS + 尊重总闸，
+而不是再造一个无闸的遍历（本轮曾起草过一版独立 BFS，因与既有实现重复且绕过总闸已废弃）。
+
+### 3.3 「两头落空」不变量限制验证码桶
+
+`matchesVerifyCodeSelectors:244` 的注释写明：它必须与 `detectForms` 验证码桶用同一份选择器，
+否则被排除的字段会在两个桶之间落空。因此**不能**给它直接加可及名分支；
+可及名只能作为「本次提交是否算验证码登录」的正向证据参与，桶归属判定维持选择器口径。
+
+## 4. 建议切口（按性价比排序）
+
+1. **形态 8（邮箱 + 验证码登录）**：把 `findMobileCodeField` 的账号候选从「只认手机号语义」
+   扩到「手机号语义 **或** 邮箱语义」，仍要求同 scope 内存在合格的一次性码框。
+   改动面最小（一个候选谓词 + 一个桶），负例 6/7 不受影响，中英文案与
+   `cs.save.mobileLoginNote` 的措辞需同步（现在说的是「短信验证码」）。
+2. **形态 3（可及名）**：先只改 `looksLikePostalCode` 与 `looksLikeCodeField` 的文本来源，
+   把 `<label>` 文本纳入**排除**判据（邮编框摘得更干净、口令次序判得更准），
+   暂不纳入**归属**判据——排除方向放宽不会新增误捕获，属单向收紧。
+   之后再单独评估归属方向（它才需要 §3.1 的共用尺子回归）。
+3. **形态 9（影子树）**：把 `collectShadowQueryRoots` 提到可复用位置，
+   让 `readCredentials` 在 `penetrateShadowEnabled` 为真时用它查询，为假时维持现状。
+   这条改的是「自动识别范围」的产品承诺，需要同时更新 `formDetector.shadow.test.ts` 的基线
+   事实、选项页文案与 `docs/ARCHITECTURE.md` 的边界描述——**必须先拿到明确授权**。
+4. **配套判据**：形态矩阵应落成一张表驱动的测试（每行一条夹具，正例断言捕获结果与授权位，
+   负例断言不弹窗），否则下一次放宽仍会靠人脑记忆判断有没有踩到 6/7 两行。
+
+## 5. 另一条待处置的存量收口
+
+`captureCurrentCredentials:810-812`：存储引用失效时按 `mobileLogin` 为**假**的路径仍回退到
+**全文档**查询 `input[type="password"], input[data-aph-password]`。弹窗期间页面若移除原密码框并
+自设一个带值的 `data-aph-password` 框，页面可控的非空口令会走正常路径覆写库中已存真口令
+——两道以 `!password` 为键的闸门天然拦不住非空值。
+本轮已收口的是授权位为真的那一支（`:955`）。建议后续二选一：把兜底作用域收窄回
+`lastCapturedForm`，或引用失效时直接采用弹窗展示值 `pending.password`（后者更贴近「用户点保存时
+看到的是什么就存什么」）。取舍点是「SPA 重渲染后取到新值的鲜度」与「页面可控面」，需产品拍板。
