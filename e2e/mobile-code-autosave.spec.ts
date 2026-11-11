@@ -1,5 +1,5 @@
 import type { BrowserContext, CDPSession, Page } from '@playwright/test';
-import { E2E_PAGE_ORIGIN, expect, rowOf, test } from './harness';
+import { createEntry, E2E_PAGE_ORIGIN, expect, rowOf, test } from './harness';
 import { liteExactMatch, liteTextOf, textOf } from './i18n';
 import { byClass, queryPierced, type Rect } from './identityHintDom';
 
@@ -9,14 +9,17 @@ import { byClass, queryPierced, type Rect } from './identityHintDom';
  * 这条链路是 2026-11-06 那轮留存改造的主体：国内主流登录形态页面上**没有密码框**，
  * 而三个捕获入口此前都要求「存在密码框且值非空」，于是这类登录永远不弹保存、库里永远空着。
  * 单元测试钉住了判据本身（`tests/content/loginAutoSave.mobileCode.test.ts`），
- * 本文件钉住的是**只有真浏览器才能证明的四件事**：
+ * 本文件钉住的是**只有真浏览器才能证明的六件事**：
  * 1. 内容脚本真的注进了这个 http 源，且闭包影子树里的弹窗真的出现在页面上；
  * 2. 「保存」经 content → background → 加密落盘 → Options 列表整条跨入口链路走通；
  * 3. 密码框照常成立的老路径没有被放宽门影响（回归）；
- * 4. 弹窗开着时页面别处冒出的口令框进不了库：授权位与口令必须同源（Critical 的真机判据）。
+ * 4. 弹窗开着时页面别处冒出的口令框进不了库：授权位与口令必须同源（Critical 的真机判据）；
+ * 5. 出口轻提醒说的是存储层判定的那一条结局，不是通用的「已保存」（写死通用串会对用户说谎）；
+ * 6. 那条提醒在 3s 自删窗口里文案与几何都取得到：长文案折行后仍整块落在视口内。
  *
  * 前三条断言落在**宿主节点的挂载与否**上（捕获链跑完并决定弹窗的唯一外部信号）；
- * 第四条走 CDP pierce 视图读影子树内部、真鼠标点「保存」，再一路断言到管理页详情抽屉。
+ * 第四到第六条走 CDP pierce 视图读影子树内部、真鼠标点「保存」，再分别断言到管理页详情抽屉
+ * 与页面内那条 light DOM 轻提醒（文案整串比对 + 盒模型 + 截图归档）。
  */
 
 const PHONE = '13800000000';
@@ -66,6 +69,15 @@ const MOBILE_LOGIN_TEXT_HTML = `<!doctype html><html><head><title>手机号登�
  * `!password` 为键，非空即全部绕过，还能覆写用户已存的真实口令。
  */
 const STRAY_PASSWORD = 'PageControlled!E2e';
+
+/**
+ * 弹窗开着的那几秒里，另一张管理页给同一个账号设下的真口令（合成品）
+ *
+ * 用来复现 `persistAutoSavePassword` 注释里那个陈旧窗口：预检查时库里还没有这条，弹窗因此成立；
+ * 用户读弹窗时另一处把它建好并带上口令。此时点保存必须一个字节都不写——`passwordKept` 那条
+ * 结局只有这一条可达路径（预检查对「本次无口令、库里那条有」直接判 identical，根本不弹窗）。
+ */
+const STORED_ELSEWHERE_PASSWORD = 'AlreadyStored!E2e';
 
 /** 只有手机号填写（用户刚点「获取验证码」，登录还没发生） */
 const MOBILE_ONLY_SUBMIT_HTML = `<!doctype html><html><head><title>获取验证码 - e2e</title>${NO_NAVIGATE}</head><body>
@@ -176,6 +188,53 @@ const settle = async (site: Page): Promise<void> => {
 };
 
 /**
+ * 保存出口那条轻提醒
+ *
+ * 名字里有 native，但它**不是**操作系统通知：`showNativeNotification` 往宿主页面 body 挂一个
+ * light DOM 的 `.native-form-detector-notification`，3000ms 后自删。所以它不像弹窗那样需要
+ * CDP pierce，普通选择器读得到；代价是所有读数与截图都得挤在那 3 秒里。
+ */
+const notice = (site: Page) => site.locator('.native-form-detector-notification');
+
+/**
+ * 读一次保存出口轻提醒：文案、几何、截图，全在 3s 自删窗口内取完
+ *
+ * 这条提醒是「结局由存储层判定并本地化」那次改动唯一的外部可观察面：三种 success（新存一条 /
+ * 更新已有 / 该账号已存有密码本次未改动）说的不是同一件事，回落成通用的「账号密码已保存」
+ * 会对用户说谎——他据此以为短信码登录已入库，下次仍填不出东西。判据因此分三层：
+ *
+ * 1. 文案**整串等于**该结局的词条（`liteExactMatch`，中英任一份），且不得命中通用串；
+ * 2. 提醒里不回显账号（它只说结局，凭据不进这条呈现面）；
+ * 3. 盒子整块在视口内、右边缘锚在 20px、min-height 生效。英文那句 66 字符会在 max-width 处
+ *    折行把高度撑起来，只断言「看得见」量不到溢出与裁切，所以几何要单独读。
+ *
+ * 截图排在最后：它本身要几百毫秒，先取文案与盒模型才不会把 3s 窗口吃光后拿到一张空图。
+ */
+async function expectNotice(site: Page, key: string, artifact: string): Promise<void> {
+  const target = notice(site);
+  await expect(target).toBeVisible({ timeout: 15_000 });
+
+  // 提醒里有两个 span：图标在前、文案在后，读整块 textContent 会把 ✓ 也算进文案比对
+  const text = (await target.locator('span').last().textContent())?.trim() ?? '';
+  expect(liteExactMatch(key, text), `轻提醒说的是「${text}」，不是 ${key} 那条结局`).toBe(true);
+  expect(text, '轻提醒回落到了通用的「已保存」，会对用户说谎').not.toMatch(liteTextOf('cs.notify.saved'));
+  expect(text, '轻提醒回显了账号').not.toContain(PHONE);
+
+  const box = await target.boundingBox();
+  const viewport = site.viewportSize();
+  if (!box || !viewport) throw new Error('轻提醒没有布局盒，或取不到视口尺寸');
+  expect(box.x, '轻提醒左边出了视口').toBeGreaterThanOrEqual(0);
+  expect(box.y, '轻提醒上边出了视口').toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width, '轻提醒右边出了视口').toBeLessThanOrEqual(viewport.width);
+  expect(box.y + box.height, '折行后轻提醒下边出了视口').toBeLessThanOrEqual(viewport.height);
+  expect(Math.round(box.x + box.width), '右边缘没有锚在 20px').toBe(viewport.width - 20);
+  expect(box.height, 'min-height 40px 没生效').toBeGreaterThanOrEqual(40);
+
+  const body = await site.screenshot({ path: `test-results/artifacts/${artifact}.png` });
+  await test.info().attach(artifact, { body, contentType: 'image/png' });
+}
+
+/**
  * 会话前置：三条用例都必须取 `optionsPage`
  *
  * 这个 fixture 负责把主密码设好并解锁会话。少了它，捕获链在 `LoginAutoSave` 的
@@ -271,5 +330,40 @@ test.describe('手机号 + 短信验证码登录的自动保存', () => {
     ).toBeVisible();
     await expect(drawer.getByRole('button', { name: textOf('common.showPassword') })).toHaveCount(0);
     await expect(drawer).not.toContainText(STRAY_PASSWORD);
+  });
+
+  test('新存一条：出口轻提醒说的是「已自动保存新账号密码」，不是通用串', async ({ extContext, optionsPage }) => {
+    void optionsPage;
+    const site = await openSite(extContext, MOBILE_LOGIN_TEXT_HTML);
+    await site.fill('#m', PHONE);
+    await site.fill('#c', SMS_CODE);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+
+    const cdp = await pierceSession(site);
+    await clickPromptSave(site, cdp);
+
+    await expectNotice(site, 'bg.autoSave.savedNew', 'mobile-code-notice-saved-new');
+  });
+
+  test('弹窗开着时另一处给这条设了密码：出口轻提醒如实说「本次未改动」', async ({ extContext, optionsPage }) => {
+    const site = await openSite(extContext, MOBILE_LOGIN_TEXT_HTML);
+    await site.fill('#m', PHONE);
+    await site.fill('#c', SMS_CODE);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+    const cdp = await pierceSession(site);
+
+    // 预检查时库里没有这条，弹窗才成立；用户读弹窗的这几秒里另一张管理页把它建好并带上口令。
+    // 这是 passwordKept 唯一可达的生产路径，也是「静默清掉一把口令不可逆」那条守卫的现场。
+    await createEntry(optionsPage, {
+      username: PHONE,
+      password: STORED_ELSEWHERE_PASSWORD,
+      url: E2E_PAGE_ORIGIN,
+    });
+    await site.bringToFront();
+    await clickPromptSave(site, cdp);
+
+    await expectNotice(site, 'bg.autoSave.passwordKept', 'mobile-code-notice-password-kept');
   });
 });

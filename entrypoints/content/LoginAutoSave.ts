@@ -24,7 +24,7 @@ import {
   USERNAME_SELECTORS,
   LOGIN_BUTTON_KEYWORDS,
   normalizeButtonText,
-  looksLikePhoneField,
+  hasPhoneEvidence,
   matchesVerifyCodeSelectors,
   hasVerifyCodeEvidence,
   isPhoneExtensionField,
@@ -1111,9 +1111,12 @@ export class LoginAutoSave {
    * 一并判成登录页；而用户点「获取验证码」那一下手机号框已填、验证码框还空，此时登录尚未
    * 发生，弹「保存」只会变成噪声。两个框都有值才是「用户正在提交短信码登录」。
    *
-   * 值只看字段自己声明的语义（`looksLikePhoneField` / `matchesVerifyCodeSelectors`，与分类、
-   * 侧边栏触发、填充落点共用同一把尺子），不看输入内容——否则一个填着「iphone 15」的搜索框
-   * 会因为值里含 `phone` 被当成手机号。国家码 / 区号 / 分机这类拆号子段被排除：
+   * 值只看字段声明的语义，不看输入内容——否则一个填着「iphone 15」的搜索框会因为值里含
+   * `phone` 被当成手机号。语义走**捕获链**那把尺子（`hasPhoneEvidence` / `hasVerifyCodeEvidence`）：
+   * 它接受 `<label for>` / 包裹式 label / `aria-labelledby` 这些与 `aria-label` 等效的规范标注，
+   * 因为按规范写标注的登录页不该反而不被识别。填充落点与身份提示让位仍走窄谓词
+   * （`looksLikePhoneField`），两条链刻意不共用——捕获多认一个框只是多问一句「要不要保存」，
+   * 让位多认一个框会让填报页的气泡消失而钥匙又填不出值。国家码 / 区号 / 分机这类拆号子段被排除：
    * 那 3~4 位不是任何人的登录账号。
    *
    * @param scope 提交所在的 form，或无 form 时的 document
@@ -1130,7 +1133,7 @@ export class LoginAutoSave {
 
     return (
       filled.find(
-        input => looksLikePhoneField(input) && !isPhoneExtensionField(input) && !matchesVerifyCodeSelectors(input),
+        input => hasPhoneEvidence(input) && !isPhoneExtensionField(input) && !matchesVerifyCodeSelectors(input),
       ) ?? null
     );
   }
