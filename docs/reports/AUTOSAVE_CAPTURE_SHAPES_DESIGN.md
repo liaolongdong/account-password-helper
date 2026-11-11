@@ -1,9 +1,8 @@
 # 自动保存捕获形态矩阵、可及名识别与影子树穿透（设计定稿）
 
-> 状态：**可及名识别已落地并收窄到捕获链（形态 3）**；形态 8（邮箱 + 验证码）与形态 9（影子树）
-> 仍是待拍板缺口，§5 那条存量兜底同样待拍板。
-> 影子穿透撞在已钉住的设计基线上（§3.2），属于「改变隐私边界 / 交互承诺」的取舍，
-> 按 `AGENTS.md`「必须暂停并询问确认」的口径停在设计层。本文给出矩阵、冲突点与剩余切口。
+> 状态：**形态 3（可及名）、形态 8（邮箱 + 验证码）已落地；形态 9（影子树）已拍板「暂不做，
+> 维持主树基线」；§5 那条存量安全兜底已收口。** 本文的矩阵、冲突点与取舍记录保持原样，
+> 只把结论按代码现状对齐。
 >
 > 已落地部分的实现：`entrypoints/content/fieldLabels.ts`（可及名解析 + 桶内 aria 关键词推导）、
 > `formSelectors.ts` 的 `declaredText()`（**填充链**尺子，只读四个属性）与 `captureText()`
@@ -11,58 +10,71 @@
 > `hasVerifyCodeEvidence()`（捕获门的正向证据，不改桶归属）、`looksLikePostalCode()` 走捕获尺子，
 > `LoginAutoSave.findMobileCodeField` 改用 `hasPhoneEvidence`。判据在
 > `tests/content/loginAutoSave.mobileCode.test.ts` 末尾那一组、
-> `tests/content/formSelectors.labelScope.test.ts`（两把尺子的分界线，10 条）与
+> `tests/content/formSelectors.labelScope.test.ts`（两把尺子的分界线，12 条）与
 > `tests/content/formDetector.identityHint.test.ts`（label-only 联系电话框不让位，3 条）。
 >
 > **收窄记录（2026-11-11 用户拍板，`8de87c2`）**：`46bd26b` 曾把可及名并进共用尺子，
 > 连带改掉了填充落点与身份提示让位，踩出演示台第 ⑯ 区两行回归。现已把可及名的作用域
 > 限回捕获证据链，详见 §3.1。捕获能力 ⊇ `b0f66cd` 但 ⊂ `46bd26b`，是一次**有意收窄**。
 >
+> **形态 8 落地记录（2026-11-11 用户拍板）**：账号候选从「只认手机号证据」扩到
+> 「`hasPhoneEvidence` **或** `hasEmailEvidence`」，仍要求同 scope 内存在合格的一次性码框；
+> 未放宽 `declaredText`，填充链一字未动。详见 §4.1。授权位 `mobileLogin` 的**名字**保留
+> （它已进 sessionStorage 密文与跨入口消息契约），语义以 `utils/types.ts` 的 JSDoc 为准：
+> 「本次登录没有口令」，手机号与邮箱共用。
+>
+> **形态 9 决策记录（2026-11-11 用户拍板）**：**暂不做，维持「自动识别只在文档主树」的基线**，
+> 结论钉在 §3.2 与 §4.3，不再重开；`tests/content/formDetector.shadow.test.ts` 的五条基线事实
+> 保持原样。
+>
 > 相关评审：`docs/reports/` 下的自动保存链评审结论；行号以 `8de87c2` 为准。
 
 ## 1. 判据本体：捕获门只有一条
 
-三个入口（表单提交 / 按钮点击 / Enter）都汇到 `entrypoints/content/LoginAutoSave.ts:1160` 的
+三个入口（表单提交 / 按钮点击 / Enter）都汇到 `entrypoints/content/LoginAutoSave.ts:1169` 的
 `readCredentials(form)`，它只有两条出路：
 
 ```
-scope = form ?? document                                                          // :1161
-口令框 = scope.querySelector('input[type="password"], input[data-aph-password]')   // :62 + :1162
+scope = form ?? document                                                          // :1170
+口令框 = scope.querySelector('input[type="password"], input[data-aph-password]')   // :62 + :1171
 ├─ 口令框有值  → 找账号（form 走 findUsernameInForm，无 form 走 findUsernameInPage）→ mobileLogin: false
 └─ 口令框无值  → findMobileCodeField(scope)                                        → mobileLogin: true
 ```
 
-`findMobileCodeField`（`:1125`）的成立条件是三件事同时为真：作用域内**已填写且可见**的 input 里
-① 有一个构成验证码证据（`hasVerifyCodeEvidence`）且不是邮编框、且值形如 4~8 位字母数字（`:1129`），
-② 有一个构成手机号证据（`hasPhoneEvidence`）且不是国家码/区号/分机子段、且不命中验证码选择器（`:1136`），
-③ 二者都在同一个 scope 内（`:1126` 的一次 `querySelectorAll('input')`）。
+`findMobileCodeField`（`:1131`）的成立条件是三件事同时为真：作用域内**已填写且可见**的 input 里
+① 有一个构成验证码证据（`hasVerifyCodeEvidence`）且不是邮编框、且值形如 4~8 位字母数字（`:1135`），
+② 有一个构成账号证据——手机号（`hasPhoneEvidence`）**或邮箱（`hasEmailEvidence`，形态 8）**——
+且不是国家码/区号/分机子段、且不命中验证码选择器（`:1143`），
+③ 二者都在同一个 scope 内（`:1132` 的一次 `querySelectorAll('input')`）。
 
-两个「证据」谓词都是**窄谓词 ∪ 桶内 aria 关键词命中可及名**，只服务捕获门；
+三处捕获谓词（手机号证据 / 邮箱证据 / 验证码证据）都是**窄谓词 ∪ 桶内 aria 关键词命中可及名**，只服务捕获门；
 桶归属仍走 `matchesVerifyCodeSelectors`（理由见 §3.3），填充与让位仍走窄谓词（理由见 §3.1）。
+邮箱证据的 aria 词从 `USERNAME_SELECTORS` 里**只筛邮箱那几条**再推导（`formSelectors.ts:494`），
+不整桶端过来——整桶会把「账号 / 用户名 / 登录名」也算成账号证据。
 
-账号那侧（`findUsernameInForm` `:1179`）是三段式：`autocomplete="username"`（`:1181`）→
-逐个试 `USERNAME_SELECTORS`（约 80 条，**数组顺序即优先级**，`:1185`）→ 兜底扫 form 内可见的
-`text/email/tel`（`:1194`）。`findUsernameInPage`（`:1243`）口径不同：兜底段要求 `isElementVisible`。
+账号那侧（`findUsernameInForm` `:1188`）是三段式：`autocomplete="username"`（`:1190`）→
+逐个试 `USERNAME_SELECTORS`（约 80 条，**数组顺序即优先级**，`:1194`）→ 兜底扫 form 内可见的
+`text/email/tel`（`:1203`）。`findUsernameInPage`（`:1252`）口径不同：兜底段要求 `isElementVisible`。
 
 ## 2. 形态矩阵（重推导）
 
 原始那份「7 种形态」清单只留在会话里、没有入库。下表按判据重新推导，
 「现状」一列全部由代码路径得出，不是推测：
 
-| #   | 形态                                                             | 现状                                | 依据                                                                        |
-| --- | ---------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------- |
-| 1   | form + 密码框 + `name/id/placeholder` 命中的账号                 | ✅ 捕获                             | `:1165` + `:1185`                                                           |
-| 2   | form + 密码框 + 只有 `aria-label` 命中的账号                     | ✅ 捕获                             | `USERNAME_SELECTORS:36-41,71-77`                                            |
-| 3   | form + 密码框 + 账号只有 `<label for>` / `aria-labelledby` 标注  | ✅ 捕获（走兜底，不是走可及名）     | `:1194` 的「form 内可见 text/email/tel」兜底；可及名**不进**账号桶，见 §4.2 |
-| 4   | 无 form 的 SPA + 密码框 + 页面兜底账号                           | ✅ 捕获                             | `:1166` → `findUsernameInPage`                                              |
-| 5   | 手机号框 + 短信码框都有值                                        | ✅ 捕获（授权位为真、口令强制置空） | `:1125` + `:956`                                                            |
-| 6   | 手机号框有值、验证码框还空（点「获取验证码」那一下）             | ⛔ 不捕获（设计如此，噪声大于价值） | `:1126` 的已填写过滤 + `:1129` 要求码框有值                                 |
-| 7   | 收货地址页：手机号框 + 邮编框                                    | ⛔ 不捕获（邮编摘除生效）           | `looksLikePostalCode:301`，走 `captureText` 故 label 标注的邮编也摘得掉     |
-| 8   | 邮箱 + 短信/邮件验证码登录（无手机号框）                         | ❌ **漏**                           | 账号侧只认 `hasPhoneEvidence`，邮箱语义进不来（`:1136`）                    |
-| 9   | 登录表单在**开放影子树**里（Web Components / Lightning / Ionic） | ❌ **整条漏**                       | 所有取值都是 `form.querySelector` / `document.querySelector`，不跨影子边界  |
+| #   | 形态                                                             | 现状                                | 依据                                                                           |
+| --- | ---------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| 1   | form + 密码框 + `name/id/placeholder` 命中的账号                 | ✅ 捕获                             | `:1174` + `:1194`                                                              |
+| 2   | form + 密码框 + 只有 `aria-label` 命中的账号                     | ✅ 捕获                             | `USERNAME_SELECTORS:36-41,71-77`                                               |
+| 3   | form + 密码框 + 账号只有 `<label for>` / `aria-labelledby` 标注  | ✅ 捕获（走兜底，不是走可及名）     | `:1203` 的「form 内可见 text/email/tel」兜底；可及名**不进**账号桶，见 §4.2    |
+| 4   | 无 form 的 SPA + 密码框 + 页面兜底账号                           | ✅ 捕获                             | `:1175` → `findUsernameInPage`                                                 |
+| 5   | 手机号框 + 验证码框都有值                                        | ✅ 捕获（授权位为真、口令强制置空） | `:1131` + `:959`                                                               |
+| 6   | 手机号框有值、验证码框还空（点「获取验证码」那一下）             | ⛔ 不捕获（设计如此，噪声大于价值） | `:1132` 的已填写过滤 + `:1135` 要求码框有值                                    |
+| 7   | 收货地址页：手机号框 + 邮编框                                    | ⛔ 不捕获（邮编摘除生效）           | `looksLikePostalCode:301`，走 `captureText` 故 label 标注的邮编也摘得掉        |
+| 8   | 邮箱 + 邮件验证码登录（无手机号框）                              | ✅ 捕获（授权位为真、口令强制置空） | 账号候选 `hasPhoneEvidence` **或** `hasEmailEvidence`（`:1143`），码框同一道门 |
+| 9   | 登录表单在**开放影子树**里（Web Components / Lightning / Ionic） | ⛔ **不做**（2026-11-11 拍板）      | 维持「自动识别只在主文档」的基线，结论与理由见 §3.2                            |
 
 第 6、7 两行是**必须一直为负的负例**：任何放宽可及名或作用域的改动，只要让这两行变绿，
-就是把搜索框、注册页、收货页读成登录页。第 3、8、9 行才是缺口。
+就是把搜索框、注册页、收货页读成登录页。第 3 行由兜底覆盖（见 §4.2），第 8 行已落地（§4.1），第 9 行按 §3.2 的决定不做。
 
 ## 3. 三处冲突
 
@@ -102,10 +114,10 @@ scope = form ?? document                                                        
 label 标注的收货地址页不会重新变成登录页（矩阵第 7 行）。
 桶归属判定（`matchesVerifyCodeSelectors`）刻意**没有**放宽，理由见 §3.3。
 
-分界线两侧各配一把刀，均在 `tests/content/formSelectors.labelScope.test.ts`（10 条）：
+分界线两侧各配一把刀，均在 `tests/content/formSelectors.labelScope.test.ts`（现 12 条）：
 把可及名塞回 `declaredText` → 填充链那组见红（实测 7 条，含 `aria-labelledby` 邮箱半条）；
 把捕获门换回 `looksLikePhoneField` → `LABELLED_MOBILE_CODE_FORM` 那条见红（prompt 调用 0 次），
-其余 16 条照旧绿。让位那侧另由 `formDetector.identityHint.test.ts` 的 3 条钉住。
+其余用例照旧绿（那之后该文件又加了邮箱形态的 6 条，条数不再写死）。让位那侧另由 `formDetector.identityHint.test.ts` 的 3 条钉住。
 
 成本口径：可及名解析只在字段自己声明的四个属性读完之后才发生，且 `<label>` 关系走原生
 `input.labels`（浏览器已维护 for / 包裹两种关联），不留每字段一次的文档级
@@ -113,7 +125,7 @@ label 标注的收货地址页不会重新变成登录页（矩阵第 7 行）�
 四个谓词不再解析可及名，热路径比 `46bd26b` 更便宜。
 `aria-labelledby` 需要按 id 查引用元素，只对声明了该属性的字段发生。
 
-### 3.2 影子穿透已被钉成「只走站点规则显式选择器」
+### 3.2 影子穿透已被钉成「只走站点规则显式选择器」——并已拍板不做
 
 `tests/content/formDetector.shadow.test.ts` 开头钉了五条事实，其中第 1 条：
 **自动识别的范围只有文档主树**，跨边界的唯一通道是站点规则自定义选择器，且受
@@ -122,21 +134,33 @@ label 标注的收货地址页不会重新变成登录页（矩阵第 7 行）�
 Shadow DOM」的开关承诺。正确形态是复用 `collectShadowQueryRoots` 的 BFS + 尊重总闸，
 而不是再造一个无闸的遍历（本轮曾起草过一版独立 BFS，因与既有实现重复且绕过总闸已废弃）。
 
+**2026-11-11 用户拍板：形态 9 暂不做，维持主树基线。** 这条不做的是「自动识别的产品承诺」
+而不是一个缺失的启发式：影子树里的登录表单仍可由站点规则显式钉住（这才是受总闸管理的通道），
+而把无条件的影子下钻塞进捕获链，会让「关掉穿透」这个开关对自动保存失效。**结论不再重开**；
+`formDetector.shadow.test.ts` 的五条基线事实保持原样，改动它们需要与本节一起重新授权。
+
 ### 3.3 「两头落空」不变量限制验证码桶
 
 `matchesVerifyCodeSelectors:245` 的注释写明：它必须与 `detectForms` 验证码桶用同一份选择器，
 否则被排除的字段会在两个桶之间落空。因此**不能**给它直接加可及名分支；
 可及名只能作为「本次提交是否算验证码登录」的正向证据参与，桶归属判定维持选择器口径。
 
-## 4. 建议切口（按性价比排序）
+## 4. 切口与落地状态
 
-1. **形态 8（邮箱 + 验证码登录）**：把 `findMobileCodeField` 的账号候选从「只认手机号证据」
-   扩到「`hasPhoneEvidence` **或** 邮箱证据」，仍要求同 scope 内存在合格的一次性码框。
-   邮箱侧须照 §3.1 的两把尺子口径新增 `hasEmailEvidence`（窄谓词 `looksLikeEmailField` ∪
-   邮箱桶内 aria 词命中可及名），**不要**回头去放宽 `declaredText`——那会重演让位回归。
-   改动面最小（一个候选谓词 + 一个桶），负例 6/7 不受影响，但中英文案与
-   `cs.save.mobileLoginNote` 的措辞需同步（现在说的是「短信验证码」，邮箱收码不是短信）；
-   授权位 `mobileLogin` 的命名与语义也要一并交代（它实际含义已是「本次登录没有口令」）。
+1. **形态 8（邮箱 + 验证码登录）**：✅ **已落地（2026-11-11 用户拍板）**。
+   `findMobileCodeField` 的账号候选从「只认手机号证据」扩到「`hasPhoneEvidence` **或**
+   `hasEmailEvidence`」，仍要求同 scope 内存在合格的一次性码框（`:1143`）。
+   邮箱证据照 §3.1 的两把尺子口径新增：`hasEmailEvidence` = 窄谓词 `looksLikeEmailField`
+   **∪** 可及名命中邮箱桶的 aria 词；**没有**回头去放宽 `declaredText`，填充与让位一字未动。
+   邮箱没有独立的选择器数组，aria 词从 `USERNAME_SELECTORS` 里只筛含邮箱关键词的那几条推导
+   （`formSelectors.ts:494`）——整桶端过来会把「账号 / 用户名 / 登录名」一并算成账号证据，
+   于是任何「用户名 + 验证码」的注册页都会被判成登录页。
+   文案随之统一到「账号 + 验证码」：`cs.save.mobileLoginNote` 从「短信验证码不保存」改成
+   「验证码不保存」/「One-time code not saved」（英文选等长串，避免撑破弹窗值列的单行省略），
+   授权位 `mobileLogin` 的**名字**保留、语义在 `utils/types.ts` 的 JSDoc 里写明是「本次登录没有口令」。
+   判据：`tests/content/loginAutoSave.mobileCode.test.ts` 的「邮箱 + 验证码登录」6 条
+   （2 正 + 4 负：码框空 / 邮编框 / 订阅页 / 邮箱 + 真密码框）与
+   `tests/content/formSelectors.labelScope.test.ts` 的 2 条（等效标注成立；账号桶里的非邮箱词不成立）。
 2. **形态 3（可及名）**：✅ 已落地并收窄，口径见 §3.1——`declaredText()` 只读四属性（填充链），
    `captureText()` 才加可及名（捕获链），`hasPhoneEvidence` / `hasVerifyCodeEvidence` /
    `looksLikePostalCode` 走后者。排除与正向证据读同一份文本，所以收货地址页不会因放宽变登录页
@@ -145,19 +169,32 @@ Shadow DOM」的开关承诺。正确形态是复用 `collectShadowQueryRoots` �
    里的可及名补位：目前它由「form 内可见 text/email/tel」兜底覆盖（矩阵第 3 行），
    等效结果已由负例与正例共同验证，真要补的是一条优先级判据，需与 §2 第 1/2 行一起重测取值次序。
    这条补位属于**账号取值**而非让位判据，但动手前仍须确认它不会把 `declaredText` 重新拖宽。
-3. **形态 9（影子树）**：把 `collectShadowQueryRoots` 提到可复用位置，
-   让 `readCredentials` 在 `penetrateShadowEnabled` 为真时用它查询，为假时维持现状。
-   这条改的是「自动识别范围」的产品承诺，需要同时更新 `formDetector.shadow.test.ts` 的基线
-   事实、选项页文案与 `docs/ARCHITECTURE.md` 的边界描述——**必须先拿到明确授权**。
+3. **形态 9（影子树）**：⛔ **不做（2026-11-11 用户拍板）**。原方案是把
+   `collectShadowQueryRoots` 提到可复用位置，让 `readCredentials` 在 `penetrateShadowEnabled`
+   为真时用它查询；放弃的理由与边界见 §3.2。这条不留在待办里，也不再评估。
 4. **配套判据**：形态矩阵应落成一张表驱动的测试（每行一条夹具，正例断言捕获结果与授权位，
    负例断言不弹窗），否则下一次放宽仍会靠人脑记忆判断有没有踩到 6/7 两行。
 
-## 5. 另一条待处置的存量收口
+## 5. 存量兜底已收口：引用失效时存弹窗展示值（2026-11-11 用户拍板）
 
-`captureCurrentCredentials:810-812`：存储引用失效时按 `mobileLogin` 为**假**的路径仍回退到
-**全文档**查询 `input[type="password"], input[data-aph-password]`。弹窗期间页面若移除原密码框并
-自设一个带值的 `data-aph-password` 框，页面可控的非空口令会走正常路径覆写库中已存真口令
-——两道以 `!password` 为键的闸门天然拦不住非空值。
-本轮已收口的是授权位为真的那一支（`:956`）。建议后续二选一：把兜底作用域收窄回
-`lastCapturedForm`，或引用失效时直接采用弹窗展示值 `pending.password`（后者更贴近「用户点保存时
-看到的是什么就存什么」）。取舍点是「SPA 重渲染后取到新值的鲜度」与「页面可控面」，需产品拍板。
+`captureCurrentCredentials`（`:798`）在存储引用失效时曾回退到**全文档**查询
+`input[type="password"], input[data-aph-password]`，并把读到的值当口令返回。弹窗期间页面移除
+原密码框、再自设一个带值的 `data-aph-password` 框，页面可控的非空口令就会走 `mobileLogin`
+为假的那条正常路径覆写库中已存真口令——两道以 `!password` 为键的闸门天然拦不住非空值。
+授权位为真的那一支早在 `f20e709` 就已钉成空串（`:959`），这次收口的是为假的那一支。
+
+两个候选里用户选了**「改存弹窗展示值」**（另一个是把兜底作用域收窄回 `lastCapturedForm`）：
+它更贴近「用户点保存时看到的是什么就存什么」，代价是放弃 SPA 重渲染后取到新口令的鲜度。
+落地形态是把返回类型放宽成 `{ username: string; password: string | null } | null`，
+兜底那一支返回 `password: null`，由 `handleSave:959` 既有的 `?? pending.password` 接住，
+**出口那行一字未改**。那次全文档查询保留，但取到的口令值一律丢弃，只用来定位账号所在的 form：
+找到带值的框时账号照旧实时重读（用户可能在弹窗期间改过账号）；一个带值的框都找不到时整支返回
+null，账号与口令一起退回 pending——这是改动前就有的形状，本次一字未动。另一条候选（把兜底
+作用域收窄回 `lastCapturedForm`）会连带改掉账号的取值口径——无 form 的 SPA 形态下它为 null，
+兜底无从定位 form，账号只能退回 pending 值。
+
+判据：`tests/content/loginAutoSave.mobileCode.test.ts` 的「口令形态的保存兜底：引用失效时存
+弹窗展示值」3 条（两种选择器各一条 + 账号仍重读一条）；真机一条在
+`e2e/mobile-code-autosave.spec.ts`（换掉 `#p` 再插 `data-aph-password` 框，点保存后到管理页
+列表点开显隐比对明文）。两把刀都验过：`password: null` 改回 `passwordField.value` → 前两条
+见红（实测收到 `PAGE-CONTROLLED-VALUE`）；兜底改成整支 `return null` → 账号那条见红。

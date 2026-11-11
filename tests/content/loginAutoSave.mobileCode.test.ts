@@ -254,13 +254,10 @@ describe('手机号 + 短信码表单的捕获门', () => {
  * 保存出口载荷的不变量：`mobileLogin` 是「允许空口令写入」的授权位，它必须与口令同源。
  *
  * 捕获门（`readCredentials`）只在密码框为空时才置 `mobileLogin: true`，且此时 `passwordField`
- * 为 null；而 `handleSave` 的口令来自 `captureCurrentCredentials()` 的实时重读，引用为 null 时
- * 会退到**全文档** `querySelector`。弹窗开着的几十秒里页面别处出现一个非空口令框（另一个表单、
- * 或站点把 OTP 做成掩码输入），重读就会取到它，而授权位仍原样取自 pending —— 两者不同源。
- *
- * 后果不是「多存一条」：存储层的两道闸门（空字段拒写、空口令不许覆盖已有真口令）都以
- * `!data.password` 为键，非空即全部绕过，于是页面可控的值会覆写用户已存的真实口令；
- * 而弹窗此刻展示的是「短信验证码不保存」，用户据此点的保存。
+ * 为 null，弹窗展示的是「验证码不保存」——用户据此点的保存。授权位为真而口令非空，
+ * 就会绕过存储层两道以 `!data.password` 为键的闸门（空字段拒写、空口令不许覆盖已有真口令），
+ * 让页面可控的值覆写用户已存的真实口令。所以出口这一支必须在授权位为真时把口令钉成空串，
+ * 与「重读能取到什么」无关；重读自身的可信来源另由下面那个 describe 钉住。
  */
 /**
  * 保存出口用的夹具：账号框是 `type="text"` + 手机号 placeholder。
@@ -277,26 +274,26 @@ const MOBILE_CODE_FORM_TEXT = `
     <button type="submit">登录</button>
   </form>`;
 
+/** 点弹窗的「保存」，取出本次真正发往 background 的那份载荷 */
+const savedPayload = async (): Promise<Record<string, unknown>> => {
+  const sendSpy = vi.spyOn(chrome.runtime, 'sendMessage');
+  // beforeEach 只换实现不清记录， spy 的调用会跨用例累积；不清就会读到上一个用例的载荷
+  sendSpy.mockClear();
+  const onSave = promptSpy.mock.calls[0][1];
+  onSave({ tag: '', remark: '', tagEdited: false, remarkEdited: false });
+  await flush();
+
+  const calls = sendSpy.mock.calls.filter(
+    ([message]) => (message as { type?: MessageType })?.type === MessageType.AUTO_SAVE_PASSWORD,
+  );
+  expect(calls.length, '保存出口必须真的发出 AUTO_SAVE_PASSWORD').toBeGreaterThan(0);
+  // sendMessage 的重载把首参推成联合类型，只能经 unknown 收成载荷形状
+  const sent = calls[calls.length - 1]?.[0] as unknown as { data?: Record<string, unknown> };
+  expect(sent.data, 'AUTO_SAVE_PASSWORD 必须带上 data 载荷').toBeDefined();
+  return sent.data as Record<string, unknown>;
+};
+
 describe('手机号登录的保存出口载荷：授权位与口令必须同源', () => {
-  /** 取出本次保存真正发往 background 的那份载荷 */
-  const savedPayload = async (): Promise<Record<string, unknown>> => {
-    const sendSpy = vi.spyOn(chrome.runtime, 'sendMessage');
-    // beforeEach 只换实现不清记录， spy 的调用会跨用例累积；不清就会读到上一个用例的载荷
-    sendSpy.mockClear();
-    const onSave = promptSpy.mock.calls[0][1];
-    onSave({ tag: '', remark: '', tagEdited: false, remarkEdited: false });
-    await flush();
-
-    const calls = sendSpy.mock.calls.filter(
-      ([message]) => (message as { type?: MessageType })?.type === MessageType.AUTO_SAVE_PASSWORD,
-    );
-    expect(calls.length, '保存出口必须真的发出 AUTO_SAVE_PASSWORD').toBeGreaterThan(0);
-    // sendMessage 的重载把首参推成联合类型，只能经 unknown 收成载荷形状
-    const sent = calls[calls.length - 1]?.[0] as unknown as { data?: Record<string, unknown> };
-    expect(sent.data, 'AUTO_SAVE_PASSWORD 必须带上 data 载荷').toBeDefined();
-    return sent.data as Record<string, unknown>;
-  };
-
   it('弹窗期间页面别处出现非空口令框：授权位为真时口令仍必须是空串', async () => {
     mount(MOBILE_CODE_FORM_TEXT);
     await submitForm();
@@ -351,6 +348,80 @@ describe('手机号登录的保存出口载荷：授权位与口令必须同源'
     const data = await savedPayload();
     expect(data.password).toBe('Retyped!Passw0rd');
     expect(data.mobileLogin).toBeFalsy();
+  });
+});
+
+/**
+ * 口令形态的保存兜底：字段引用失效时存「弹窗展示的那份口令」，不存页面重读值
+ *
+ * `captureCurrentCredentials` 在 `lastCapturedPasswordField` 脱离文档后退到**全文档**
+ * `input[type="password"], input[data-aph-password]`。这个兜底比捕获门的 form 作用域宽，
+ * 且 `data-aph-password` 可由页面自设：SPA 重渲染换掉原密码框、或页面在弹窗开着的几十秒里
+ * 另插一个带值的框，重读就会取到页面可控的值。此时授权位为假，存储层两道以 `!password`
+ * 为键的闸门（空字段拒写、空口令不许覆盖已有真口令）全部失效，页面可控的非空口令于是覆写
+ * 库里已存的真实口令——而用户点「保存」时看到的是弹窗里那份口令。
+ *
+ * 口径：口令只认「仍连在文档上的原引用」或「捕获时那份展示值」；账号仍走实时重读
+ * （用户可能在弹窗期间改过账号），所以兜底不能整支返回 null。
+ */
+const PASSWORD_FORM = `
+  <form id="f">
+    <input type="text" name="username" value="alice" />
+    <input type="password" value="S3cr3t!Passw0rd" />
+    <button type="submit">登录</button>
+  </form>`;
+
+/** 摘掉原密码框（SPA 重渲染），再插一个页面可控的带值框 */
+const replaceCapturedPasswordField = (stray: HTMLInputElement): void => {
+  (document.querySelector('input[type="password"]') as HTMLInputElement).remove();
+  document.body.appendChild(stray);
+};
+
+describe('口令形态的保存兜底：引用失效时存弹窗展示值', () => {
+  it('页面自设 data-aph-password 框：存弹窗展示的口令，不存页面可控值', async () => {
+    mount(PASSWORD_FORM);
+    await submitForm();
+    expect(promptSpy).toHaveBeenCalledTimes(1);
+    const displayed = promptSpy.mock.calls[0][0].password;
+    expect(displayed).toBe('S3cr3t!Passw0rd');
+
+    const stray = document.createElement('input');
+    stray.type = 'text';
+    stray.setAttribute('data-aph-password', '');
+    stray.value = 'PAGE-CONTROLLED-VALUE';
+    replaceCapturedPasswordField(stray);
+
+    const data = await savedPayload();
+    expect(data.password).toBe(displayed);
+    expect(data.mobileLogin).toBeFalsy();
+  });
+
+  it('页面另插 type=password 框：同样只存弹窗展示的口令', async () => {
+    mount(PASSWORD_FORM);
+    await submitForm();
+    const displayed = promptSpy.mock.calls[0][0].password;
+
+    const stray = document.createElement('input');
+    stray.type = 'password';
+    stray.value = 'PAGE-CONTROLLED-VALUE';
+    replaceCapturedPasswordField(stray);
+
+    const data = await savedPayload();
+    expect(data.password).toBe(displayed);
+  });
+
+  it('账号仍取实时重读值：兜底只换口令来源，不许整支失效', async () => {
+    mount(PASSWORD_FORM);
+    await submitForm();
+
+    const stray = document.createElement('input');
+    stray.type = 'password';
+    stray.value = 'PAGE-CONTROLLED-VALUE';
+    replaceCapturedPasswordField(stray);
+    (document.querySelector('input[name="username"]') as HTMLInputElement).value = 'alice-renamed';
+
+    const data = await savedPayload();
+    expect(data.username).toBe('alice-renamed');
   });
 });
 
@@ -431,6 +502,102 @@ describe('按规范标注的登录页：可及名与 aria-label 同权', () => {
     const data = promptSpy.mock.calls[0][0];
     expect(data.username).toBe('alice@example.com');
     expect(data.password).toBe('Synthetic!Label1');
+    expect(data.mobileLogin).toBeFalsy();
+  });
+});
+
+/**
+ * 邮箱 + 验证码登录（形态矩阵第 8 行）
+ *
+ * 判据的账号侧此前只认手机号证据，于是「邮箱 + 邮件验证码」这类同样没有密码框的登录整条漏掉。
+ * 收口口径与手机号完全对称：账号候选扩成「手机号证据 **或** 邮箱证据」，仍要求同 scope 内
+ * 存在合格的一次性码框；邮箱证据走捕获尺子（`hasEmailEvidence`），填充链的 `looksLikeEmailField`
+ * 一字不动——否则又会重演让位回归。
+ *
+ * 负例必须一直为负：码框还空着（点「获取验证码」那一下）、邮编框（`name="postcode"` 会命中
+ * `input[type="text"][name*="code"]`，靠 `looksLikePostalCode` 摘出去）、以及只有邮箱框的订阅页。
+ */
+const EMAIL_CODE_FORM = `
+  <form id="f">
+    <input type="email" name="email" value="alice@example.com" />
+    <input type="text" name="mailCode" placeholder="请输入验证码" value="246813" />
+    <button type="submit">登录</button>
+  </form>`;
+
+describe('邮箱 + 验证码登录：与手机号同一条捕获门', () => {
+  it('type=email + 验证码框都有值：弹窗，账号取邮箱、授权位为真', async () => {
+    mount(EMAIL_CODE_FORM);
+    await submitForm();
+
+    expect(promptSpy, '邮箱 + 验证码同样是没有密码框的登录，捕获门必须认得').toHaveBeenCalledTimes(1);
+    const data = promptSpy.mock.calls[0][0];
+    expect(data.username).toBe('alice@example.com');
+    expect(data.password).toBe('');
+    expect(data.mobileLogin).toBe(true);
+  });
+
+  it('label 标注的邮箱 + 验证码：等效标注同样成立', async () => {
+    mount(`
+      <form id="f">
+        <label for="e">电子邮箱</label><input id="e" type="text" value="alice@example.com" />
+        <label for="c">验证码</label><input id="c" type="text" value="246813" />
+        <button type="submit">登录</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy, '按规范标注的邮箱登录页不该比写 aria-label 的更难识别').toHaveBeenCalledTimes(1);
+    expect(promptSpy.mock.calls[0][0].username).toBe('alice@example.com');
+    expect(promptSpy.mock.calls[0][0].mobileLogin).toBe(true);
+  });
+
+  it('验证码框还空着（点的是「获取验证码」）：不弹窗', async () => {
+    mount(`
+      <form id="f">
+        <input type="email" name="email" value="alice@example.com" />
+        <input type="text" name="mailCode" placeholder="请输入验证码" value="" />
+        <button type="submit">获取验证码</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy).not.toHaveBeenCalled();
+  });
+
+  it('邮箱 + 邮编框：不弹窗（邮编命中验证码选择器，靠排除判据摘出去）', async () => {
+    mount(`
+      <form id="f">
+        <input type="email" name="email" value="alice@example.com" />
+        <input type="text" name="postcode" placeholder="邮政编码" value="200000" />
+        <button type="submit">保存地址</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy, '收货地址页不是登录页').not.toHaveBeenCalled();
+  });
+
+  it('只有邮箱框、没有码框（订阅页）：不弹窗', async () => {
+    mount(`
+      <form id="f">
+        <input type="email" name="email" value="alice@example.com" />
+        <button type="submit">订阅</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy).not.toHaveBeenCalled();
+  });
+
+  it('邮箱 + 真密码框：仍走常规路径，授权位不得为真', async () => {
+    mount(`
+      <form id="f">
+        <input type="email" name="email" value="alice@example.com" />
+        <input type="password" value="Synthetic!Mail1" />
+        <button type="submit">登录</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy).toHaveBeenCalledTimes(1);
+    const data = promptSpy.mock.calls[0][0];
+    expect(data.username).toBe('alice@example.com');
+    expect(data.password).toBe('Synthetic!Mail1');
     expect(data.mobileLogin).toBeFalsy();
   });
 });

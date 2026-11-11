@@ -225,7 +225,7 @@ export function showSavePasswordPrompt(
   );
   const { row: passRow, valueEl: passwordValueEl } = createInfoRow(
     tl('cs.save.password'),
-    // 手机号登录没有口令可展示：空串经掩码分支渲染出来是「什么都不见的空白」，用户只会读成
+    // 验证码登录（手机号或邮箱）没有口令可展示：空串经掩码分支渲染出来是「什么都不见的空白」，用户只会读成
     // 「扩展没抓到密码」。这一行改说一句事实，且不做掩码（无值可遮）。
     data.mobileLogin === true ? tl('cs.save.mobileLoginNote') : data.password,
     data.mobileLogin !== true,
@@ -369,7 +369,7 @@ export function showSavePasswordPrompt(
   // 绑在 document 捕获阶段而非影子树内：宿主追加在 `<html>` 末尾，卡片里的控件要靠 Tab 走完
   // 整页才够得着，此刻焦点多半还留在页面的登录框上——挂在影子树内会让这条在最常见情形下失效
   // （口径同 InlineFillDropdown 的 `handleGlobalEscape`）。
-  // 刻意不 autofocus：焦点留在页面输入框里，用户才能接着填下一步（短信验证码等），
+  // 刻意不 autofocus：焦点留在页面输入框里，用户才能接着填下一步（验证码等），
   // 代价是读屏不主动播报这张卡片，与既有「非阻断、不抢焦点、不挡页面输入」的设计一致。
   const handleKeydown = (e: Event): void => {
     if (!(e instanceof KeyboardEvent) || e.key !== 'Escape') return;

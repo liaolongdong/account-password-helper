@@ -484,6 +484,30 @@ export function hasPhoneEvidence(input: HTMLInputElement): boolean {
   return looksLikePhoneField(input) || matchesBucketByLabel(input, PHONE_ARIA_KEYWORDS);
 }
 
+/**
+ * 邮箱桶已经承认过的 aria 关键词
+ *
+ * 邮箱语义没有独立的选择器数组，它的 `input[aria-label*="X"]` 条目寄在 `USERNAME_SELECTORS` 里
+ * （邮箱 / email / 邮箱地址 / 电子邮箱）。这里只筛出含邮箱关键词的那几条再推导，**不整桶端过来**：
+ * 整桶会连带收进「账号 / 用户名 / 登录名」，于是任何「用户名 + 验证码」的注册页都会被判成登录页。
+ */
+const EMAIL_ARIA_KEYWORDS = ariaKeywordsFrom(
+  USERNAME_SELECTORS.filter(selector => EMAIL_FIELD_KEYWORDS.some(keyword => selector.includes(keyword))),
+);
+
+/**
+ * 这个框是否构成「邮箱账号」证据
+ *
+ * 分工与 {@link hasPhoneEvidence} 完全一致：窄谓词 {@link looksLikeEmailField} 管填充落点与让位，
+ * 这里只回答「这次提交看起来是不是在用邮箱登录」，因此接受等效标注，是窄谓词的超集。
+ * 词表不新增——可及名分支只吃邮箱桶自己承认过的 aria 词。
+ *
+ * @param input - 待判定的输入框
+ */
+export function hasEmailEvidence(input: HTMLInputElement): boolean {
+  return looksLikeEmailField(input) || matchesBucketByLabel(input, EMAIL_ARIA_KEYWORDS);
+}
+
 /** 验证码桶已经承认过的 aria 关键词（从 `VERIFY_CODE_SELECTORS` 自身推导，不另立词表） */
 const VERIFY_CODE_ARIA_KEYWORDS = ariaKeywordsFrom(VERIFY_CODE_SELECTORS);
 

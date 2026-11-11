@@ -9,16 +9,18 @@ import { byClass, queryPierced, type Rect } from './identityHintDom';
  * 这条链路是 2026-11-06 那轮留存改造的主体：国内主流登录形态页面上**没有密码框**，
  * 而三个捕获入口此前都要求「存在密码框且值非空」，于是这类登录永远不弹保存、库里永远空着。
  * 单元测试钉住了判据本身（`tests/content/loginAutoSave.mobileCode.test.ts`），
- * 本文件钉住的是**只有真浏览器才能证明的六件事**：
+ * 本文件钉住的是**只有真浏览器才能证明的八件事**：
  * 1. 内容脚本真的注进了这个 http 源，且闭包影子树里的弹窗真的出现在页面上；
  * 2. 「保存」经 content → background → 加密落盘 → Options 列表整条跨入口链路走通；
  * 3. 密码框照常成立的老路径没有被放宽门影响（回归）；
  * 4. 弹窗开着时页面别处冒出的口令框进不了库：授权位与口令必须同源（Critical 的真机判据）；
  * 5. 出口轻提醒说的是存储层判定的那一条结局，不是通用的「已保存」（写死通用串会对用户说谎）；
- * 6. 那条提醒在 3s 自删窗口里文案与几何都取得到：长文案折行后仍整块落在视口内。
+ * 6. 那条提醒在 3s 自删窗口里文案与几何都取得到：长文案折行后仍整块落在视口内；
+ * 7. 原密码框被换掉后，页面另插的带值口令框同样进不了库：口令只认原引用或弹窗展示值；
+ * 8. 邮箱 + 邮件验证码（同样没有密码框）也能捕获并落库，存的是邮箱、口令为空。
  *
  * 前三条断言落在**宿主节点的挂载与否**上（捕获链跑完并决定弹窗的唯一外部信号）；
- * 第四到第六条走 CDP pierce 视图读影子树内部、真鼠标点「保存」，再分别断言到管理页详情抽屉
+ * 第四到第七条走 CDP pierce 视图读影子树内部、真鼠标点「保存」，再分别断言到管理页详情抽屉
  * 与页面内那条 light DOM 轻提醒（文案整串比对 + 盒模型 + 截图归档）。
  */
 
@@ -65,8 +67,9 @@ const MOBILE_LOGIN_TEXT_HTML = `<!doctype html><html><head><title>手机号登�
 /**
  * 弹窗打开后才由页面注入的口令值（合成品，不对应任何真实凭据）
  *
- * 它必须落不进库：`mobileLogin` 是「允许空口令写入」的授权位，存储层两道闸门都以
- * `!password` 为键，非空即全部绕过，还能覆写用户已存的真实口令。
+ * 两条用例共用它，都必须落不进库：授权位为真时非空值会绕过存储层两道以 `!password` 为键的闸门
+ * （空字段拒写、空口令不许覆盖已有真口令）；授权位为假时它干脆就是页面可控的口令本身，
+ * 会顶掉用户点保存时在弹窗里看到的那一份。
  */
 const STRAY_PASSWORD = 'PageControlled!E2e';
 
@@ -79,6 +82,16 @@ const STRAY_PASSWORD = 'PageControlled!E2e';
  */
 const STORED_ELSEWHERE_PASSWORD = 'AlreadyStored!E2e';
 
+/** 邮箱 + 邮件验证码，页面上没有密码框（形态矩阵第 8 行） */
+const EMAIL = 'alice-code@example.com';
+const EMAIL_LOGIN_HTML = `<!doctype html><html><head><title>邮箱登录 - e2e</title>${NO_NAVIGATE}</head><body>
+  <form id="f">
+    <input id="e" type="email" name="email" autocomplete="email">
+    <input id="c" type="text" name="mailCode" placeholder="请输入验证码">
+    <button id="go" type="submit">登录</button>
+  </form>
+</body></html>`;
+
 /** 只有手机号填写（用户刚点「获取验证码」，登录还没发生） */
 const MOBILE_ONLY_SUBMIT_HTML = `<!doctype html><html><head><title>获取验证码 - e2e</title>${NO_NAVIGATE}</head><body>
   <form id="f">
@@ -89,10 +102,12 @@ const MOBILE_ONLY_SUBMIT_HTML = `<!doctype html><html><head><title>获取验证�
 </body></html>`;
 
 /** 常规账号 + 密码（老路径，必须一字不变） */
+const PASSWORD_LOGIN_USERNAME = 'alice-e2e';
+const PASSWORD_LOGIN_PASSWORD = 'E2ePassw0rd!x';
 const PASSWORD_LOGIN_HTML = `<!doctype html><html><head><title>账号登录 - e2e</title>${NO_NAVIGATE}</head><body>
   <form id="f">
-    <input id="u" type="text" name="username" value="alice-e2e">
-    <input id="p" type="password" name="password" value="E2ePassw0rd!x">
+    <input id="u" type="text" name="username" value="${PASSWORD_LOGIN_USERNAME}">
+    <input id="p" type="password" name="password" value="${PASSWORD_LOGIN_PASSWORD}">
     <button id="go" type="submit">登录</button>
   </form>
 </body></html>`;
@@ -289,6 +304,37 @@ test.describe('手机号 + 短信验证码登录的自动保存', () => {
     await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
   });
 
+  test('邮箱 + 邮件验证码：同样决定弹窗，落库的是邮箱、口令为空', async ({ extContext, optionsPage }) => {
+    // 形态矩阵第 8 行：账号候选此前只认手机号证据，这类没有密码框的邮箱登录整条漏。
+    // 单测钉住判据本身，这一条钉住「内容脚本在真浏览器里真的走了新分支并落库」。
+    const site = await openSite(extContext, EMAIL_LOGIN_HTML);
+    await site.fill('#e', EMAIL);
+    await site.fill('#c', SMS_CODE);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+
+    const cdp = await pierceSession(site);
+    const text = await promptText(cdp);
+    expect(text, '弹窗里的账号不是邮箱').toContain(EMAIL);
+    expect(text, '弹窗没有告知验证码不保存').toMatch(liteTextOf('cs.save.mobileLoginNote'));
+
+    await clickPromptSave(site, cdp);
+    await expect(promptHost(site)).toHaveCount(0);
+
+    await optionsPage.bringToFront();
+    await optionsPage.reload({ waitUntil: 'domcontentloaded' });
+    const row = rowOf(optionsPage, EMAIL);
+    await expect(row, '邮箱登录没有落库').toBeVisible({ timeout: 30_000 });
+    // 落库形状与手机号形态一致：口令为空。用详情抽屉的「未设置密码」分支取证
+    // （列表的 .password-cell 对空口令同样渲染固定 8 位掩码，那是另一处存量口径，见评审记录）
+    await row.getByRole('button', { name: textOf('options.detail.viewDetail') }).click();
+    const drawer = optionsPage.getByRole('dialog').filter({ hasText: textOf('options.detail.title') });
+    await expect(drawer).toBeVisible();
+    await expect(
+      drawer.locator('.detail-muted').filter({ hasText: textOf('options.detail.noPassword') }),
+    ).toBeVisible();
+  });
+
   test('弹窗开着时页面别处冒出非空口令框：点保存后落库的仍是空口令', async ({ extContext, optionsPage }) => {
     const site = await openSite(extContext, MOBILE_LOGIN_TEXT_HTML);
     await site.fill('#m', PHONE);
@@ -307,7 +353,7 @@ test.describe('手机号 + 短信验证码登录的自动保存', () => {
       document.body.appendChild(stray);
     }, STRAY_PASSWORD);
 
-    // 用户此刻看到的是「短信验证码不保存」，并且正是据此点的保存
+    // 用户此刻看到的是「验证码不保存」，并且正是据此点的保存
     const text = await promptText(cdp);
     expect(text, '弹窗没有告知验证码不保存').toMatch(liteTextOf('cs.save.mobileLoginNote'));
     expect(text, '页面可控的口令值出现在了弹窗里').not.toContain(STRAY_PASSWORD);
@@ -330,6 +376,37 @@ test.describe('手机号 + 短信验证码登录的自动保存', () => {
     ).toBeVisible();
     await expect(drawer.getByRole('button', { name: textOf('common.showPassword') })).toHaveCount(0);
     await expect(drawer).not.toContainText(STRAY_PASSWORD);
+  });
+
+  test('原密码框被换掉、页面另插带值口令框：落库的仍是弹窗展示的那份口令', async ({ extContext, optionsPage }) => {
+    const site = await openSite(extContext, PASSWORD_LOGIN_HTML);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+    const cdp = await pierceSession(site);
+
+    // SPA 重渲染把捕获时那个密码框换掉，页面再自设一个带值的 data-aph-password 框。
+    // 兜底重读的作用域是全文档、比捕获门的 form 宽，而此刻授权位为假：存储层两道以
+    // `!password` 为键的闸门（空字段拒写、空口令不许覆盖已有真口令）都拦不住非空值，
+    // 页面可控的口令会直接落盘，而用户点保存时看到的是弹窗里那份。
+    await site.evaluate(value => {
+      document.querySelector('#p')?.remove();
+      const stray = document.createElement('input');
+      stray.type = 'text';
+      stray.setAttribute('data-aph-password', '');
+      stray.value = value;
+      document.body.appendChild(stray);
+    }, STRAY_PASSWORD);
+
+    await clickPromptSave(site, cdp);
+    await expect(promptHost(site)).toHaveCount(0);
+
+    await optionsPage.bringToFront();
+    await optionsPage.reload({ waitUntil: 'domcontentloaded' });
+    const cell = rowOf(optionsPage, PASSWORD_LOGIN_USERNAME).locator('.password-cell');
+    await expect(cell).toBeVisible({ timeout: 30_000 });
+    await cell.getByRole('button', { name: textOf('common.showPassword') }).click();
+    await expect(cell, '落库的不是弹窗展示的那份口令').toContainText(PASSWORD_LOGIN_PASSWORD);
+    await expect(cell, '页面可控的口令进了库').not.toContainText(STRAY_PASSWORD);
   });
 
   test('新存一条：出口轻提醒说的是「已自动保存新账号密码」，不是通用串', async ({ extContext, optionsPage }) => {

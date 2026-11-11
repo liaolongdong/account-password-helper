@@ -17,6 +17,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  hasEmailEvidence,
   hasPhoneEvidence,
   hasVerifyCodeEvidence,
   looksLikeCodeField,
@@ -100,5 +101,21 @@ describe('捕获链：等效标注与 aria-label 同权', () => {
     expect(looksLikePostalCode(mount('<label for="z">邮政编码</label><input id="z">'))).toBe(true);
     expect(looksLikePostalCode(mount('<label>邮编<input></label>'))).toBe(true);
     expect(looksLikePostalCode(mount('<label for="c">验证码</label><input id="c">'))).toBe(false);
+  });
+
+  it('label 标注的邮箱构成捕获证据，填充链那侧仍旧判假', () => {
+    const input = mount('<label for="e">电子邮箱</label><input id="e">');
+    expect(looksLikeEmailField(input)).toBe(false);
+    expect(hasEmailEvidence(input)).toBe(true);
+    expect(hasEmailEvidence(mount('<span id="l">邮箱地址</span><input aria-labelledby="l">'))).toBe(true);
+    expect(hasEmailEvidence(mount('<input aria-label="电子邮箱">'))).toBe(true);
+  });
+
+  it('账号桶里的非邮箱词不构成邮箱证据：只取邮箱那几条，不整桶端过来', () => {
+    // 「账号」「用户名」都在 USERNAME_SELECTORS 的 aria 条目里，整桶推导会让任何
+    // 「用户名 + 验证码」的注册页都变成登录页；邮箱证据只该认邮箱语义
+    expect(hasEmailEvidence(mount('<label for="a">账号</label><input id="a">'))).toBe(false);
+    expect(hasEmailEvidence(mount('<label for="u">用户名</label><input id="u">'))).toBe(false);
+    expect(hasEmailEvidence(mount('<label for="s">搜索</label><input id="s">'))).toBe(false);
   });
 });
