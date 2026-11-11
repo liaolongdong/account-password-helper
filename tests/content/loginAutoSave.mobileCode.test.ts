@@ -601,3 +601,41 @@ describe('邮箱 + 验证码登录：与手机号同一条捕获门', () => {
     expect(data.mobileLogin).toBeFalsy();
   });
 });
+
+/**
+ * 账号候选不得取到验证码框本身
+ *
+ * 可及名进了捕获证据之后，「验证码」证据与「账号」证据可能落在**同一个框**上：
+ * `<label>手机验证码</label><input value="246813">` 既构成码证据（label 命中验证码），
+ * 又因为 label 里的「手机」构成账号证据。而账号候选的排除项此前只查 `matchesVerifyCodeSelectors`
+ * （四个属性），这个框没有 name/id/placeholder/aria-label，于是排除不掉——它会被 `.find`
+ * 当成账号，一次性验证码就以 username 落库，而库里真正的账号一个字段都没存。
+ *
+ * 这违反「验证码不进任何字段」这条对外承诺；按 `hasVerifyCodeEvidence` 排除即与码证据同尺子，
+ * 也正好只多排除「可及名命中验证码语义」这一种情形。
+ */
+describe('账号候选不得取到验证码框本身', () => {
+  it('验证码框排在账号框之前：账号必须取手机号，不能取验证码', async () => {
+    mount(`
+      <form id="f">
+        <label for="c">手机验证码</label><input id="c" type="text" value="246813" />
+        <label for="m">手机号</label><input id="m" type="text" value="13800000000" />
+        <button type="submit">登录</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy).toHaveBeenCalledTimes(1);
+    expect(promptSpy.mock.calls[0][0].username, '一次性验证码被当成了账号').toBe('13800000000');
+  });
+
+  it('只有一个「邮箱验证码」框：没有账号可取，不许把验证码存成账号', async () => {
+    mount(`
+      <form id="f">
+        <label for="c">邮箱验证码</label><input id="c" type="text" value="AB12CD" />
+        <button type="submit">登录</button>
+      </form>`);
+    await submitForm();
+
+    expect(promptSpy, '页面上没有任何账号，只有验证码').not.toHaveBeenCalled();
+  });
+});

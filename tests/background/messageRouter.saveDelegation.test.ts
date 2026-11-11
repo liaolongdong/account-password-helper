@@ -120,16 +120,19 @@ describe('保存委托可信路由', () => {
     ).toHaveLength(1);
   });
 
-  it.each(['cross-domain', 'missing-document', 'external', 'oversized', 'url-mismatch'])(
+  it.each(['cross-domain', 'missing-document', 'external', 'oversized', 'url-mismatch', 'mobile-login-with-password'])(
     '拒绝 %s 请求，不投递凭据',
     async kind => {
       const source = sender();
-      const data = { ...prompt };
+      // 边界载荷按不可信输入构造：先脱掉具体形状，才能往下塞非法字段
+      const data: Record<string, unknown> = { ...prompt };
       if (kind === 'cross-domain') frames = [top, { ...child, url: 'https://evil.test/' }];
       if (kind === 'missing-document') delete source.documentId;
       if (kind === 'external') source.id = 'other-extension';
       if (kind === 'oversized') data.remark = 'x'.repeat(100_001);
       if (kind === 'url-mismatch') data.url = 'evil.test';
+      // 授权位说「这次登录没有口令」，却带着非空口令：两者必须同源，边界处一律拒收
+      if (kind === 'mobile-login-with-password') data.mobileLogin = true;
       const reply = vi.fn();
       listener({ type: 'DELEGATE_SAVE_PROMPT', data }, source, reply);
       await flush();
@@ -137,6 +140,21 @@ describe('保存委托可信路由', () => {
       expect(send).not.toHaveBeenCalled();
     },
   );
+
+  it('授权位为真的空口令委托仍被接受：收口不误伤合法形态', async () => {
+    const reply = vi.fn();
+    listener({ type: 'DELEGATE_SAVE_PROMPT', data: { ...prompt, password: '', mobileLogin: true } }, sender(), reply);
+    await flush();
+    expect(send).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'SHOW_DELEGATED_SAVE_PROMPT',
+        data: expect.objectContaining({ prompt: expect.objectContaining({ password: '', mobileLogin: true }) }),
+      }),
+      { documentId: top.documentId },
+    );
+    expect(reply).not.toHaveBeenCalled();
+  });
 
   it('授权等待中来源或顶层导航，不把凭据投给替代文档', async () => {
     let resume!: (valid: boolean) => void;

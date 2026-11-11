@@ -26,7 +26,6 @@ import {
   normalizeButtonText,
   hasPhoneEvidence,
   hasEmailEvidence,
-  matchesVerifyCodeSelectors,
   hasVerifyCodeEvidence,
   isPhoneExtensionField,
   looksLikePostalCode,
@@ -1142,7 +1141,10 @@ export class LoginAutoSave {
         input =>
           (hasPhoneEvidence(input) || hasEmailEvidence(input)) &&
           !isPhoneExtensionField(input) &&
-          !matchesVerifyCodeSelectors(input),
+          // 排除「这个框本身就是码框」时也必须读可及名：账号证据与码证据共用同一把尺子，
+          // 否则 `<label>手机验证码</label><input value="246813">` 会既算码证据又算账号证据，
+          // 一次性验证码就以 username 落库，而真正的账号一个字段都没存。
+          !hasVerifyCodeEvidence(input),
       ) ?? null
     );
   }

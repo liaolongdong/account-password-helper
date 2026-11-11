@@ -28,9 +28,12 @@ function isPrompt(value: unknown): value is DelegatedSavePromptData {
     return false;
   if (
     !value.username ||
-    // 空口令只在「手机号 + 短信验证码」委托里合法（iframe 内的登录页本来就没有密码框）。
+    // 空口令只在「账号 + 验证码」委托里合法（iframe 内的登录页本来就没有密码框）。
     // 必须显式声明该位，未声明/非布尔真值一律按缺字段拒收。
     (!value.password && value.mobileLogin !== true) ||
+    // 反向同理：声明了「这次登录没有口令」却带着非空口令，两者不同源，边界处直接拒收。
+    // 出口侧（`handleSave`）与落盘侧（`autoSavePassword`）已各自钉住这条不变量，这里是第三道。
+    (value.password !== '' && value.mobileLogin === true) ||
     !value.url ||
     (value.mode !== undefined && value.mode !== 'save' && value.mode !== 'update')
   )
