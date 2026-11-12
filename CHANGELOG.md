@@ -1,5 +1,35 @@
 # Changelog
 
+## [3.23.0](https://github.com/liaolongdong/account-password-helper/compare/v3.22.0...v3.23.0) (2026-11-12)
+
+
+### Features
+
+* **autosave:** 手机号 + 短信验证码登录页也保存凭据 ([dbd803b](https://github.com/liaolongdong/account-password-helper/commit/dbd803b51494b808b09bdf05debdce8baaf86140))
+* **capture:** 邮箱 + 验证码登录纳入捕获，引用失效时口令改存展示值 ([d3e155d](https://github.com/liaolongdong/account-password-helper/commit/d3e155d1c15688f1b5e0ba5e9de2fc1c3becce90))
+* **import:** 导入没能带出的行，逐条说清原因 ([7ffa932](https://github.com/liaolongdong/account-password-helper/commit/7ffa932f687408ea719005c492ff7887825e0f1b))
+* **seo:** sitemap 补 hreflang 三档声明，并与 HTML 侧互证 ([d16c483](https://github.com/liaolongdong/account-password-helper/commit/d16c483c5040e4daae60268de38990694a3b33da))
+* **seo:** 五波 SEO 与曝光优化——博客补缺、竞品事实复核、对外口径刷新 ([f3c79e2](https://github.com/liaolongdong/account-password-helper/commit/f3c79e23edadd79743fbaf83d4c60d64b3ebba19))
+* **seo:** 分享卡补齐 og:image alt/width/height，尺寸取 PNG 头真实值 ([979461f](https://github.com/liaolongdong/account-password-helper/commit/979461f86e2beab350676835ce988f36cf868765))
+* **seo:** 博客文章页补目录/阅读时长/标签 chip，守卫配刀 ([3610266](https://github.com/liaolongdong/account-password-helper/commit/3610266ffdd7fdf419d785693360350e42379c08))
+* **seo:** 博客补两篇中英科普，加密表述按源码收敛为「敏感字段密文」 ([e6cecde](https://github.com/liaolongdong/account-password-helper/commit/e6cecde1fb9ca7df56d46068b5b293276b8ca893))
+
+
+### Bug Fixes
+
+* **autosave:** 保存以弹窗确认值为准，拒收文案点名越限字段 ([2249d27](https://github.com/liaolongdong/account-password-helper/commit/2249d27ef5ad9fc20782f2e5610378949eec1edb))
+* **autosave:** 保存以弹窗确认值为准，拒收文案点名越限字段 ([14d87d9](https://github.com/liaolongdong/account-password-helper/commit/14d87d994bda6a7779c5663214deda26e4128633))
+* **autosave:** 授权位与口令同源，提示不再对「本次未改动」说谎 ([f20e709](https://github.com/liaolongdong/account-password-helper/commit/f20e7090400e9331b6fe476c4c22cc4bc4d55abf))
+* **blog:** 每页那条导航商店链接补上 ?ref=blog，并给归因配一把刀 ([c101a10](https://github.com/liaolongdong/account-password-helper/commit/c101a109983db30d90cfe1b800df63a203005da3))
+* **capture:** 可及名只进捕获证据链，填报页的身份提示不再让位 ([8de87c2](https://github.com/liaolongdong/account-password-helper/commit/8de87c27611d9238a528a01412404cb1791d823c))
+* **capture:** 规范标注的登录页同样被识别——可及名进共用尺子 ([46bd26b](https://github.com/liaolongdong/account-password-helper/commit/46bd26bef61b2f1bea9558381a447452783aec40))
+* **capture:** 账号候选排除可及名命中的验证码框，委托边界补上同源校验 ([796b992](https://github.com/liaolongdong/account-password-helper/commit/796b99271d98e7b6f1525120ab75ec2a8414c765))
+* **seo:** 修好两把尺子——英文页生成链可复现、商店说明预算进 CI ([bd52e50](https://github.com/liaolongdong/account-password-helper/commit/bd52e505969d5dc6e38556065330ff5e26876e88))
+* **seo:** 竞品事实按 2026-11 复核回灌，README 长 bullet 拆成分层列表 ([d967ff5](https://github.com/liaolongdong/account-password-helper/commit/d967ff58d307a4b1c27d69bab0463653e1fed5eb))
+* **seo:** 补上 product-site 两处测试数到 5,157 ([499cac5](https://github.com/liaolongdong/account-password-helper/commit/499cac51dbfdd162e89c47533d7286a1dbbac52b))
+* **seo:** 评审回灌四处——更正「已合入 main」的假陈述、消除 01/11 口径矛盾、补守卫假绿洞、计数跟到 5157 ([25240f4](https://github.com/liaolongdong/account-password-helper/commit/25240f40464621feeb2d892195c6bf186dd13646))
+* **vault:** 空口令条目不稀释体检评分、不占密码历史名额 ([4ce4a6f](https://github.com/liaolongdong/account-password-helper/commit/4ce4a6fec617139d925ccb1d8499101bfac6ebca))
+
 ## [3.22.0](https://github.com/liaolongdong/account-password-helper/compare/v3.21.0...v3.22.0) (2026-11-04)
 
 
