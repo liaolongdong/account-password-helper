@@ -28,12 +28,15 @@ vi.mock('@/utils/storage', () => ({
   },
 }));
 
-vi.mock('@/utils/i18n-lite', () => ({
-  tl: vi.fn((key: string) => key),
-}));
+// 走真实文案：容量拒收现在按字段组合「实际/上限」，identity 桩会把这层组合整个遮掉
+vi.mock('@/utils/i18n-lite', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/utils/i18n-lite')>();
+  return { tl: vi.fn((key: string, params?: Record<string, string | number>) => actual.tl(key, params)) };
+});
 
 import { ensureCredentialAccessAfterStartupRelock } from '@/entrypoints/background/passwordCache';
 import { StorageUtils } from '@/utils/storage';
+import { tl } from '@/utils/i18n-lite';
 
 const mockedEnsure = vi.mocked(ensureCredentialAccessAfterStartupRelock);
 const mockedAutoSave = vi.mocked(StorageUtils.autoSavePassword);
@@ -90,7 +93,7 @@ describe('handleAutoSavePassword 字段容量边界', () => {
     // 不能只依赖内容脚本自己守规矩。
     const result = await handleAutoSavePassword(makePayload({ password: 'PAGE-CONTROLLED-VALUE', mobileLogin: true }));
 
-    expect(result).toEqual({ success: false, message: 'bg.autoSave.mobileLoginPasswordConflict' });
+    expect(result).toEqual({ success: false, message: tl('bg.autoSave.mobileLoginPasswordConflict') });
     expect(mockedAutoSave).not.toHaveBeenCalled();
   });
 
@@ -99,11 +102,23 @@ describe('handleAutoSavePassword 字段容量边界', () => {
     ['url', PASSWORD_FIELD_LIMITS.url],
     ['remark', PASSWORD_FIELD_LIMITS.remark],
     ['password', PASSWORD_FIELD_LIMITS.password],
-  ] as const)('%s 超容量 1 个字符即拒收，且不触达存储层', (field, limit) => {
+  ] as const)('%s 超容量 1 个字符即拒收，文案指明该字段与实际/上限，且不触达存储层', (field, limit) => {
     return handleAutoSavePassword(makePayload({ [field]: 'x'.repeat(limit + 1) })).then(result => {
-      expect(result).toEqual({ success: false, message: 'bg.autoSave.tooLong' });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain(tl(`bg.autoSave.field.${field}`));
+      expect(result.message).toContain(`${limit + 1}/${limit}`);
       expect(mockedAutoSave).not.toHaveBeenCalled();
     });
+  });
+
+  it('多个字段同时越限时逐个点名，不让用户猜嫌疑字段', async () => {
+    const result = await handleAutoSavePassword(makePayload({ username: 'u'.repeat(51), remark: 'r'.repeat(1001) }));
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain(tl('bg.autoSave.field.username'));
+    expect(result.message).toContain(tl('bg.autoSave.field.remark'));
+    expect(result.message).toContain('51/50');
+    expect(result.message).toContain('1001/1000');
   });
 
   it.each([
@@ -132,7 +147,7 @@ describe('handleAutoSavePassword 字段容量边界', () => {
   it('字段类型异常按通用失败拒收，不误报成「过长」', async () => {
     const result = await handleAutoSavePassword(makePayload({ username: 12345 as unknown as string }));
 
-    expect(result).toEqual({ success: false, message: 'bg.autoSave.failedGeneric' });
+    expect(result).toEqual({ success: false, message: tl('bg.autoSave.failedGeneric') });
     expect(mockedAutoSave).not.toHaveBeenCalled();
   });
 
@@ -141,7 +156,7 @@ describe('handleAutoSavePassword 字段容量边界', () => {
 
     const result = await handleAutoSavePassword(makePayload({ username: 'x'.repeat(999) }));
 
-    expect(result).toEqual({ success: false, message: 'bg.autoSave.failedGeneric' });
+    expect(result).toEqual({ success: false, message: tl('bg.autoSave.failedGeneric') });
     expect(mockedAutoSave).not.toHaveBeenCalled();
   });
 });
@@ -224,7 +239,7 @@ describe('handleAutoSavePassword 的桌面通知', () => {
     await handleAutoSavePassword(makePayload({ password: '', mobileLogin: true }));
 
     expect(create, '保存成功却没有发出桌面通知').toHaveBeenCalledTimes(1);
-    expect(notified().title).toBe('bg.autoSave.title');
+    expect(notified().title).toBe(tl('bg.autoSave.title'));
     expect(notified().message).toContain(outcome);
   });
 

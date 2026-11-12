@@ -16,6 +16,7 @@ import type {
   NotificationType,
 } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { deriveCapturedTag } from '@/utils/capturedTag';
 import { logger } from '@/utils/logger';
 import { hashStringLight } from '@/utils/crypto-light';
@@ -60,6 +61,23 @@ const DISMISS_COOLDOWN_MS = 60_000;
  * 之后，光看 type 就认不出那是密码框了。
  */
 const PASSWORD_FIELD_SELECTOR = 'input[type="password"], input[data-aph-password]';
+
+/**
+ * 无用户意图信号的重读（挂载同步、保存重读）是否可采纳为确认值
+ *
+ * 站点常在提交处理器里把口令/账号原地改写成密文或令牌（前端 RSA/SM2 加密一类），
+ * 这类程序化改写不经过 input 事件、也从未出现在弹窗里。容量内的重读值才可能是
+ * 用户补敲的编辑；越限的一律保留确认值——否则用户确认的是明文、落盘的却是密文，
+ * 且必然撞后台容量闸门，而弹窗里账号/密码只读，用户删标签备注也救不回来（issue #167）。
+ * input 事件带用户意图，不走本判据（用户真粘贴了超长口令时应如实拒收并指明字段）。
+ *
+ * @param field 字段名
+ * @param value 重读到的 DOM 值
+ * @returns 是否采纳
+ */
+function isAdoptableReread(field: 'username' | 'password', value: string): boolean {
+  return value.length <= PASSWORD_FIELD_LIMITS[field];
+}
 
 /** 一次登录提交采集到的凭据 */
 interface CapturedCredentials {
@@ -159,6 +177,10 @@ export class LoginAutoSave {
   private lastCapturedPasswordField: HTMLInputElement | null = null;
   /** 最近一次捕获的表单 DOM 引用（用于查找用户名字段以实时同步） */
   private lastCapturedForm: HTMLFormElement | null = null;
+  /** 弹窗当前向用户展示的账号（捕获值 + 弹窗期间被采纳的编辑）；null 表示本轮无本地弹窗（iframe 委托） */
+  private confirmedUsername: string | null = null;
+  /** 弹窗当前向用户展示的口令；口径同 confirmedUsername */
+  private confirmedPassword: string | null = null;
   /**
    * 待保存状态的变更代数（每次写入与每次清除各自递增）
    *
@@ -262,6 +284,9 @@ export class LoginAutoSave {
       dismissSavePasswordPrompt();
       // 清理表单字段同步监听器
       this.teardownFieldSync();
+      // 卡片被外部移除后确认值再无展示载体，留着等于把明文挂在长生命周期实例上
+      this.confirmedUsername = null;
+      this.confirmedPassword = null;
     }
   };
 
@@ -653,6 +678,9 @@ export class LoginAutoSave {
     this.teardownFieldSync();
 
     try {
+      // 确认值以弹窗展示值为起点：保存时 DOM 重读越限（站点提交后改写）就回落到这里
+      this.confirmedUsername = pending.username;
+      this.confirmedPassword = pending.password;
       const controls = showSavePasswordPrompt(
         {
           username: pending.username,
@@ -802,7 +830,7 @@ export class LoginAutoSave {
         ? this.findUsernameInForm(this.lastCapturedForm)
         : this.findUsernameInPage();
       // 即使 username 查找失败（SPA 清空了用户名字段），
-      // 密码值从精确引用读取也是正确的，username 为空时由 handleSave 的 ?? 回退到 pending 值
+      // 密码值从精确引用读取也是正确的，空账号由 handleSave 视为无信号并回落确认值
       return { username: username || '', password: storedField.value };
     }
 
@@ -843,17 +871,20 @@ export class LoginAutoSave {
     }
 
     // 监听密码框 input 事件，实时更新弹窗密码展示
-    const onPasswordInput = () => {
-      controls.updatePassword(passwordField.value);
+    const adoptPassword = (value: string) => {
+      this.confirmedPassword = value;
+      controls.updatePassword(value);
       // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
-      void this.syncPendingToSession(passwordField.value);
+      void this.syncPendingToSession(value);
     };
+    const onPasswordInput = () => adoptPassword(passwordField.value);
     passwordField.addEventListener('input', onPasswordInput);
     this.fieldSyncCleanups.push(() => {
       passwordField.removeEventListener('input', onPasswordInput);
     });
-    // 立即同步当前值，避免弹窗显示时已存在延迟修改
-    onPasswordInput();
+    // 立即同步一次，覆盖「捕获到弹窗挂载之间用户又补敲了几键」（那段时间没有监听器）。
+    // 但此刻站点提交处理器可能已把口令原地改写成密文：越限的重读不采纳，保留捕获值。
+    if (isAdoptableReread('password', passwordField.value)) adoptPassword(passwordField.value);
 
     // 查找并监听用户名输入框
     const form = this.lastCapturedForm;
@@ -874,17 +905,19 @@ export class LoginAutoSave {
    * @param field - 账号输入框
    */
   private syncUsernameField(controls: SavePromptControls, field: HTMLInputElement): void {
-    const onUsernameInput = () => {
-      controls.updateUsername(field.value);
+    const adoptUsername = (value: string) => {
+      this.confirmedUsername = value;
+      controls.updateUsername(value);
       // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
-      void this.syncPendingToSession(undefined, field.value);
+      void this.syncPendingToSession(undefined, value);
     };
+    const onUsernameInput = () => adoptUsername(field.value);
     field.addEventListener('input', onUsernameInput);
     this.fieldSyncCleanups.push(() => {
       field.removeEventListener('input', onUsernameInput);
     });
-    // 立即同步当前值
-    onUsernameInput();
+    // 立即同步一次（口径同口令侧：越限的程序化改写不采纳）
+    if (isAdoptableReread('username', field.value)) adoptUsername(field.value);
   }
 
   /**
@@ -948,17 +981,32 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.clearPending();
 
-    // 优先使用实时读取的当前值，读取失败时回退到弹窗出现时捕获的 pending 值
-    const finalUsername = current?.username ?? pending.username;
+    // 重读只采纳容量内的值（那才可能是用户补敲的编辑）；越限即站点提交后的程序化改写，回落确认值。
+    // 回落用 `||` 而非 `??`：站点提交后清空字段（form.reset、密文改塞隐藏域）时挂载同步会把空串
+    // 采纳成确认值，`??` 只挡 null，空串便顶掉捕获值——新账号被空字段闸门拒收，改密则命中
+    // 「空口令不许覆盖已有真口令」后零写入却回成功。空账号/空口令重读同样视为无信号。
+    const rereadUsername = current?.username;
+    const finalUsername =
+      rereadUsername && isAdoptableReread('username', rereadUsername)
+        ? rereadUsername
+        : this.confirmedUsername || pending.username;
     // 授权位与口令同源：`mobileLogin` 为真即「这次提交没有可用密码框」，口令只能是空串——
     // 弹窗展示的是「验证码不保存」，用户据此点的保存。非空值会绕过存储层两道以 `!password`
     // 为键的闸门（空字段拒写、空口令不许覆盖已有真口令），覆写库里已存的真实口令。
     // 口令来源另由 captureCurrentCredentials 收口：只认仍连在文档上的原引用，否则用展示值。
-    // 账号仍取重读值（用户可能改过号）。
-    const finalPassword = pending.mobileLogin === true ? '' : (current?.password ?? pending.password);
+    // 账号优先取容量内的重读值（用户可能改过号），越限改写与口令同一口径回落确认值。
+    const rereadPassword = current?.password;
+    const finalPassword =
+      pending.mobileLogin === true
+        ? ''
+        : rereadPassword && isAdoptableReread('password', rereadPassword)
+          ? rereadPassword
+          : this.confirmedPassword || pending.password;
     // 清理字段引用（弹窗已关闭，不再需要）
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
 
     try {
       if (!chrome.runtime?.id) {
@@ -1013,6 +1061,8 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
     // lastPromptSaved 保持 false，lastPromptTime 保留用于冷却期计算
     this.clearPending();
   }
@@ -1029,6 +1079,8 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
     this.clearPending();
     try {
       await StorageUtils.addExcludedDomain(pending.url);
@@ -1340,6 +1392,8 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
     this.passwordFieldObserver?.disconnect();
     this.passwordFieldObserver = null;
     document.removeEventListener('submit', this.handleFormSubmit, { capture: true });

@@ -10,9 +10,11 @@ type AutoSavePayloadResult = { valid: true; payload: AutoSavePasswordData } | { 
 /**
  * 在落盘前收口自动保存载荷的类型与字段容量
  *
- * 载荷由内容脚本从宿主页面 DOM 采集，属跨上下文不可信输入：超出条目容量的账号一旦落盘，
- * Options 表单在编辑态必然按同一组容量（`PASSWORD_FIELD_LIMITS`）拒绝保存，用户只能删条
- * 重建，因此宁可在写入前拒收并给出可读原因。
+ * 载荷由内容脚本从宿主页面 DOM 采集，属跨上下文不可信输入，故在写入前按条目容量
+ * （`PASSWORD_FIELD_LIMITS`）兜底拒收并给出可读原因。注意编辑态对**存量**超容量条目
+ * 是按原长放行的（`createPasswordFormRules` 的 `initialLengths`），本闸门只约束新写入，
+ * 两者口径不同是有意的：拒收文案必须点名越限字段与实际长度，弹窗里账号/密码/网址只读，
+ * 笼统提示会把用户引去删唯一能编辑的备注/标签（issue #167）。
  *
  * `tag` 刻意不设长度上界：该字段在「密码已变更」分支会被弹窗预填为条目已有的标签串，而
  * 标签的真实口径由 Options 标签编辑器（`MAX_TAG_COUNT` × `MAX_TAG_LENGTH`，序列化串可长
@@ -33,13 +35,20 @@ function validateAutoSavePayload(data: AutoSavePasswordData): AutoSavePayloadRes
     return { valid: false, message: tl('bg.autoSave.failedGeneric') };
   }
 
-  if (
-    username.length > PASSWORD_FIELD_LIMITS.username ||
-    password.length > PASSWORD_FIELD_LIMITS.password ||
-    url.length > PASSWORD_FIELD_LIMITS.url ||
-    remark.length > PASSWORD_FIELD_LIMITS.remark
-  ) {
-    return { valid: false, message: tl('bg.autoSave.tooLong') };
+  const overlong = (
+    [
+      ['username', username],
+      ['password', password],
+      ['url', url],
+      ['remark', remark],
+    ] as const
+  ).filter(([field, value]) => value.length > PASSWORD_FIELD_LIMITS[field]);
+
+  if (overlong.length) {
+    const fields = overlong
+      .map(([field, value]) => `${tl(`bg.autoSave.field.${field}`)} ${value.length}/${PASSWORD_FIELD_LIMITS[field]}`)
+      .join(tl('bg.autoSave.tooLongSeparator'));
+    return { valid: false, message: tl('bg.autoSave.tooLongDetail', { fields }) };
   }
 
   // 授权位与口令必须同源：`mobileLogin` 是「允许空口令写入」的授权位，声明为真却带非空口令，
