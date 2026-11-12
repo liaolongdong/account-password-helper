@@ -2,6 +2,7 @@
  * 表单字段选择器常量
  * 集中管理所有用于检测登录表单的 CSS 选择器和关键词
  */
+import { accessibleNameOf, ariaKeywordsFrom, matchesBucketByLabel } from './fieldLabels';
 
 /** 用户名/邮箱/账号字段选择器 */
 export const USERNAME_SELECTORS = [
@@ -260,12 +261,45 @@ export function matchesVerifyCodeSelectors(input: HTMLInputElement): boolean {
 const POSTAL_CODE_TEXT = /zip|postal|postcode|area[-_ ]?code|邮编|邮政编码|区号/;
 
 /**
+ * 字段自己声明的语义文本——**填充链的尺子**
+ *
+ * 只读四个属性，刻意不含 `<label for>` / 包裹式 label / `aria-labelledby` 的可及名。
+ * 这把尺子决定填充落点、侧边栏触发与身份提示让位，多认一个框的代价是个人信息填报页上的
+ * 气泡消失、而钥匙又填不出身份库的值（2026-11-11 真机 e2e 在演示台第 ⑯ 区抓到两行：
+ * `isInLoginFormOrPopup` 有整页级回退，页面别处一个登录区就能把无关填报区一起拖进「已认领」）。
+ *
+ * 等效标注的收益归捕获链，见 {@link captureText} 与 `hasPhoneEvidence` / `hasVerifyCodeEvidence`：
+ * 那边多认一个框只是多问一句「要不要保存」，两条链的误判代价不对称，所以不共用一把尺子。
+ *
+ * @param input 待取文本的控件
+ */
+function declaredText(input: HTMLInputElement): string {
+  return `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`;
+}
+
+/**
+ * 捕获链的尺子：四个属性 + 一份可及名
+ *
+ * 只回答「这次提交算不算登录」，不参与任何桶归属或填充落点。`aria-label` 缺席时才解析可及名，
+ * 已写 `aria-label` 的框交回 {@link declaredText}，避免同一框被两套尺子各判一次。
+ *
+ * @param input 待取文本的控件
+ */
+function captureText(input: HTMLInputElement): string {
+  const ariaLabel = input.getAttribute('aria-label')?.trim();
+  return `${declaredText(input)} ${ariaLabel ? '' : accessibleNameOf(input)}`;
+}
+
+/**
  * 判断一个框是不是邮编 / 邮政编码 / 区号，而非一次性短信码
+ *
+ * 走捕获链的尺子：这是「这次提交算不算短信码登录」的**排除**判据，必须与正向证据读同一份
+ * 文本，否则 label 标注的收货地址页会因为「手机号框认得了、邮编框认不出」重新变成登录页。
+ *
  * @param input - 待判定的输入框
  */
 export function looksLikePostalCode(input: HTMLInputElement): boolean {
-  const text = `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
-  return POSTAL_CODE_TEXT.test(text);
+  return POSTAL_CODE_TEXT.test(captureText(input).toLowerCase());
 }
 
 /**
@@ -384,8 +418,7 @@ export const CODE_FIELD_KEYWORDS = [
  */
 export function looksLikeCodeField(input: HTMLInputElement): boolean {
   if ((input.getAttribute('autocomplete') || '').toLowerCase().includes('one-time-code')) return true;
-  const text = `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
-  return CODE_FIELD_KEYWORDS.some(keyword => text.includes(keyword));
+  return CODE_FIELD_KEYWORDS.some(keyword => declaredText(input).toLowerCase().includes(keyword));
 }
 
 /**
@@ -393,6 +426,7 @@ export function looksLikeCodeField(input: HTMLInputElement): boolean {
  *
  * 原为 `FormDetector.isLikelyMobileInput`，抽到这里是因为分类、侧边栏触发与「账号该进哪个框」
  * 三处必须用同一把尺子，否则同一字段在不同判定点会被读成两种意图。
+ * 自动保存的捕获门另走 {@link hasPhoneEvidence}（等效标注），不在这条链上放宽。
  *
  * @param input - 待判定的输入框
  */
@@ -408,9 +442,7 @@ export function looksLikePhoneField(input: HTMLInputElement): boolean {
 
   // 驼峰先切成词，否则 telCountryCode / cellPhone 里的短词没有分隔符可依，整词判据会漏。
   // autocomplete 不进这段文本：它是枚举值，上面那条分支已经按同样的三个词判过。
-  const rawText = `${input.name || ''} ${input.id || ''} ${input.placeholder || ''} ${
-    input.getAttribute('aria-label') || ''
-  }`;
+  const rawText = declaredText(input);
   const textToCheck = rawText.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
 
   if (MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword))) {
@@ -432,9 +464,65 @@ export function looksLikeEmailField(input: HTMLInputElement): boolean {
   if (input.type.toLowerCase() === 'email') return true;
   const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
   if (autocomplete.includes('email')) return true;
-  const textToCheck =
-    `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
-  return EMAIL_FIELD_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+  return EMAIL_FIELD_KEYWORDS.some(keyword => declaredText(input).toLowerCase().includes(keyword));
+}
+
+/** 手机号桶已经承认过的 aria 关键词（从 `MOBILE_SELECTORS` 自身推导，不另立词表） */
+const PHONE_ARIA_KEYWORDS = ariaKeywordsFrom(MOBILE_SELECTORS);
+
+/**
+ * 这个框是否构成「手机号账号」证据
+ *
+ * 与 {@link looksLikePhoneField} 的分工同 `hasVerifyCodeEvidence`：窄谓词管填充落点与让位，
+ * 这里只回答「这次提交看起来是不是在用手机号登录」，是捕获门的正向证据，因此接受等效标注。
+ * 它是窄谓词的超集——可及名分支只吃桶里已有的 aria 关键词，一个词都没加，所以原本认得的框
+ * 不会变得不认得；反过来，桶没收过的词（如「号码」）也不会顺着可及名溜进捕获门。
+ *
+ * @param input - 待判定的输入框
+ */
+export function hasPhoneEvidence(input: HTMLInputElement): boolean {
+  return looksLikePhoneField(input) || matchesBucketByLabel(input, PHONE_ARIA_KEYWORDS);
+}
+
+/**
+ * 邮箱桶已经承认过的 aria 关键词
+ *
+ * 邮箱语义没有独立的选择器数组，它的 `input[aria-label*="X"]` 条目寄在 `USERNAME_SELECTORS` 里
+ * （邮箱 / email / 邮箱地址 / 电子邮箱）。这里只筛出含邮箱关键词的那几条再推导，**不整桶端过来**：
+ * 整桶会连带收进「账号 / 用户名 / 登录名」，于是任何「用户名 + 验证码」的注册页都会被判成登录页。
+ */
+const EMAIL_ARIA_KEYWORDS = ariaKeywordsFrom(
+  USERNAME_SELECTORS.filter(selector => EMAIL_FIELD_KEYWORDS.some(keyword => selector.includes(keyword))),
+);
+
+/**
+ * 这个框是否构成「邮箱账号」证据
+ *
+ * 分工与 {@link hasPhoneEvidence} 完全一致：窄谓词 {@link looksLikeEmailField} 管填充落点与让位，
+ * 这里只回答「这次提交看起来是不是在用邮箱登录」，因此接受等效标注，是窄谓词的超集。
+ * 词表不新增——可及名分支只吃邮箱桶自己承认过的 aria 词。
+ *
+ * @param input - 待判定的输入框
+ */
+export function hasEmailEvidence(input: HTMLInputElement): boolean {
+  return looksLikeEmailField(input) || matchesBucketByLabel(input, EMAIL_ARIA_KEYWORDS);
+}
+
+/** 验证码桶已经承认过的 aria 关键词（从 `VERIFY_CODE_SELECTORS` 自身推导，不另立词表） */
+const VERIFY_CODE_ARIA_KEYWORDS = ariaKeywordsFrom(VERIFY_CODE_SELECTORS);
+
+/**
+ * 这个框是否构成「一次性验证码」证据
+ *
+ * 与 `matchesVerifyCodeSelectors` 的分工是刻意的：归属判定（字段进哪个桶、填充落点）
+ * 必须继续用同一份选择器，否则被排除的字段会在两个桶之间两头落空（见其注释）；
+ * 这里只回答「这次提交看起来是不是在输验证码登录」，是捕获门的正向证据。
+ * 因此它可以接受等效标注的写法，但不改变任何桶归属。
+ *
+ * @param input - 待判定的输入框
+ */
+export function hasVerifyCodeEvidence(input: HTMLInputElement): boolean {
+  return matchesVerifyCodeSelectors(input) || matchesBucketByLabel(input, VERIFY_CODE_ARIA_KEYWORDS);
 }
 
 /**

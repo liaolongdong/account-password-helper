@@ -5,7 +5,7 @@
  * 这一形态下没有口令可展示，而密码行是按 `isPassword` 渲染成 `'•'.repeat(value.length)` 的：
  * 空串渲染出一段**什么都没有的空白**（`SavePasswordPrompt.ts:671`）。用户看到的是
  * 「密码：␣␣␣」这样一行，读不出这是正常形态还是扩展没抓到口令——很可能当成缺陷去关开关。
- * 因此 `mobileLogin` 为真时该行改说一句「短信验证码不保存」，且不做掩码。
+ * 因此 `mobileLogin` 为真时该行改说一句「验证码不保存」，且不做掩码。
  *
  * 掩码路径本身必须照常：这是弹窗唯一的密码展示出口，改成明文就是往宿主页面右上角贴口令。
  */
@@ -90,7 +90,7 @@ describe('保存弹窗的手机号登录形态', () => {
 
     const value = rowValue('密码');
     expect(value).not.toBeNull();
-    expect(value).toBe('短信验证码不保存');
+    expect(value).toBe('验证码不保存');
   });
 
   it('英文态同样给出可读说明（该行不得留空，也不得只剩一个冒号）', () => {
@@ -102,7 +102,7 @@ describe('保存弹窗的手机号登录形态', () => {
       () => {},
     );
 
-    expect(rowValue('Password')).toBe('SMS codes are not saved');
+    expect(rowValue('Password')).toBe('One-time code not saved');
   });
 
   it('普通密码登录仍走掩码：口令不许以明文出现在宿主页面右上角', () => {

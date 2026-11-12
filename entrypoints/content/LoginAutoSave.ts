@@ -16,6 +16,7 @@ import type {
   NotificationType,
 } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { deriveCapturedTag } from '@/utils/capturedTag';
 import { logger } from '@/utils/logger';
 import { hashStringLight } from '@/utils/crypto-light';
@@ -24,8 +25,9 @@ import {
   USERNAME_SELECTORS,
   LOGIN_BUTTON_KEYWORDS,
   normalizeButtonText,
-  looksLikePhoneField,
-  matchesVerifyCodeSelectors,
+  hasPhoneEvidence,
+  hasEmailEvidence,
+  hasVerifyCodeEvidence,
   isPhoneExtensionField,
   looksLikePostalCode,
   isOneTimeCodeValue,
@@ -60,15 +62,32 @@ const DISMISS_COOLDOWN_MS = 60_000;
  */
 const PASSWORD_FIELD_SELECTOR = 'input[type="password"], input[data-aph-password]';
 
+/**
+ * 无用户意图信号的重读（挂载同步、保存重读）是否可采纳为确认值
+ *
+ * 站点常在提交处理器里把口令/账号原地改写成密文或令牌（前端 RSA/SM2 加密一类），
+ * 这类程序化改写不经过 input 事件、也从未出现在弹窗里。容量内的重读值才可能是
+ * 用户补敲的编辑；越限的一律保留确认值——否则用户确认的是明文、落盘的却是密文，
+ * 且必然撞后台容量闸门，而弹窗里账号/密码只读，用户删标签备注也救不回来（issue #167）。
+ * input 事件带用户意图，不走本判据（用户真粘贴了超长口令时应如实拒收并指明字段）。
+ *
+ * @param field 字段名
+ * @param value 重读到的 DOM 值
+ * @returns 是否采纳
+ */
+function isAdoptableReread(field: 'username' | 'password', value: string): boolean {
+  return value.length <= PASSWORD_FIELD_LIMITS[field];
+}
+
 /** 一次登录提交采集到的凭据 */
 interface CapturedCredentials {
-  /** 账号值（`mobileLogin` 为真时是手机号） */
+  /** 账号值（`mobileLogin` 为真时是手机号或邮箱） */
   username: string;
   /** 密码明文；`mobileLogin` 为真时为空串 */
   password: string;
-  /** 本次是否为「手机号 + 短信验证码」形态 */
+  /** 本次是否为「账号 + 验证码」形态（手机号或邮箱） */
   mobileLogin: boolean;
-  /** 捕获到的密码框引用，供弹窗显示期间同步展示值；手机号形态下为 null */
+  /** 捕获到的密码框引用，供弹窗显示期间同步展示值；验证码登录形态下为 null */
   passwordField: HTMLInputElement | null;
 }
 
@@ -158,6 +177,10 @@ export class LoginAutoSave {
   private lastCapturedPasswordField: HTMLInputElement | null = null;
   /** 最近一次捕获的表单 DOM 引用（用于查找用户名字段以实时同步） */
   private lastCapturedForm: HTMLFormElement | null = null;
+  /** 弹窗当前向用户展示的账号（捕获值 + 弹窗期间被采纳的编辑）；null 表示本轮无本地弹窗（iframe 委托） */
+  private confirmedUsername: string | null = null;
+  /** 弹窗当前向用户展示的口令；口径同 confirmedUsername */
+  private confirmedPassword: string | null = null;
   /**
    * 待保存状态的变更代数（每次写入与每次清除各自递增）
    *
@@ -261,6 +284,9 @@ export class LoginAutoSave {
       dismissSavePasswordPrompt();
       // 清理表单字段同步监听器
       this.teardownFieldSync();
+      // 卡片被外部移除后确认值再无展示载体，留着等于把明文挂在长生命周期实例上
+      this.confirmedUsername = null;
+      this.confirmedPassword = null;
     }
   };
 
@@ -384,9 +410,9 @@ export class LoginAutoSave {
   /**
    * 凭证捕获后的统一处理入口
    * 存入 sessionStorage 并显示确认弹窗
-   * @param username 用户名（手机号登录时是手机号）
+   * @param username 用户名（验证码登录时是手机号或邮箱）
    * @param password 密码；`mobileLogin` 为真时为空串
-   * @param mobileLogin 本次是否为「手机号 + 短信验证码」登录（页面无可用密码框）
+   * @param mobileLogin 本次是否为「账号 + 验证码」登录（手机号或邮箱，页面无可用密码框）
    */
   private async onCredentialsCaptured(username: string, password: string, mobileLogin = false): Promise<void> {
     // 配置未加载完成时跳过，防止竞态条件导致空规则匹配所有域名
@@ -482,7 +508,7 @@ export class LoginAutoSave {
    *
    * @param username 用户名
    * @param password 密码
-   * @param mobileLogin 本次是否为「手机号 + 短信验证码」登录，决定后台是否认这个空密码
+   * @param mobileLogin 本次是否为「账号 + 验证码」登录（手机号或邮箱），决定后台是否认这个空密码
    * @returns 凭证状态响应
    */
   private async resolveCredentialStatus(
@@ -596,8 +622,8 @@ export class LoginAutoSave {
       const pending = JSON.parse(raw) as PendingCredentials;
 
       // 校验数据有效性：必须有用户名，且在有效期内。空口令只在发送方声明了 `mobileLogin` 时合法
-      // （手机号 + 短信码登录本来就没有口令），必须是严格 true——这里读的是页面里的密文，
-      // 脏值不该换来一次弹窗；少了这一位，整页跳转式短信登录的弹窗会在恢复时被当脏数据静默删除。
+      // （验证码登录本来就没有口令），必须是严格 true——这里读的是页面里的密文，
+      // 脏值不该换来一次弹窗；少了这一位，整页跳转式验证码登录的弹窗会在恢复时被当脏数据静默删除。
       if (!pending.username || (!pending.password && pending.mobileLogin !== true)) {
         sessionStorage.removeItem(PENDING_SAVE_KEY);
         return;
@@ -652,6 +678,9 @@ export class LoginAutoSave {
     this.teardownFieldSync();
 
     try {
+      // 确认值以弹窗展示值为起点：保存时 DOM 重读越限（站点提交后改写）就回落到这里
+      this.confirmedUsername = pending.username;
+      this.confirmedPassword = pending.password;
       const controls = showSavePasswordPrompt(
         {
           username: pending.username,
@@ -788,13 +817,12 @@ export class LoginAutoSave {
   /**
    * 重新从 DOM 中捕获当前表单中的用户名和密码
    *
-   * 优先使用捕获时存储的精确字段引用（lastCapturedPasswordField），
-   * 避免全局 document.querySelector 在 SPA 清空字段后返回 null 导致回退到旧值。
-   * 仅在存储引用失效时回退到全局查询。
+   * 口令只认捕获时存下的那个精确字段引用（`lastCapturedPasswordField`）：它仍连在文档上就读实时值，
+   * 脱离文档就返回 `password: null`，由 `handleSave` 回退到弹窗展示值。账号不受此限，两条路径都实时重读。
    *
-   * @returns 当前表单中的用户名和密码，或 null
+   * @returns 当前账号与口令；`password` 为 null 表示「没有可信的口令来源，用弹窗展示值」
    */
-  private captureCurrentCredentials(): { username: string; password: string } | null {
+  private captureCurrentCredentials(): { username: string; password: string | null } | null {
     // 优先使用捕获时存储的精确字段引用
     const storedField = this.lastCapturedPasswordField;
     if (storedField?.isConnected && storedField.value) {
@@ -802,11 +830,15 @@ export class LoginAutoSave {
         ? this.findUsernameInForm(this.lastCapturedForm)
         : this.findUsernameInPage();
       // 即使 username 查找失败（SPA 清空了用户名字段），
-      // 密码值从精确引用读取也是正确的，username 为空时由 handleSave 的 ?? 回退到 pending 值
+      // 密码值从精确引用读取也是正确的，空账号由 handleSave 视为无信号并回落确认值
       return { username: username || '', password: storedField.value };
     }
 
-    // 引用失效时回退到全局查询
+    // 引用失效：这次查询只用来定位账号所在的 form，**取到的口令值一律丢弃**。
+    // 全文档作用域比捕获门的 form 宽，`data-aph-password` 还可由页面自设，弹窗开着的几十秒里
+    // 页面另插一个带值的框就能让页面可控的口令落盘；此时授权位为假，存储层两道以 `!password`
+    // 为键的闸门（空字段拒写、空口令不许覆盖已有真口令）全都拦不住非空值，库里已存的真实口令
+    // 会被覆写，而用户点保存时看到的是弹窗里那份。账号仍走重读（用户可能改过账号）。
     const passwordField = document.querySelector(
       'input[type="password"], input[data-aph-password]',
     ) as HTMLInputElement | null;
@@ -816,7 +848,7 @@ export class LoginAutoSave {
     const username = form ? this.findUsernameInForm(form) : this.findUsernameInPage();
     if (!username) return null;
 
-    return { username, password: passwordField.value };
+    return { username, password: null };
   }
 
   /**
@@ -830,8 +862,8 @@ export class LoginAutoSave {
   private setupFieldSync(controls: SavePromptControls): void {
     const passwordField = this.lastCapturedPasswordField;
     if (!passwordField) {
-      // 手机号 + 短信码形态没有密码框可跟（`lastCapturedPasswordField` 恒为 null），但账号那一侧
-      // 同样会在弹窗期间被改：不挂监听就会把提交时的旧号码存进库。用捕获时同一把尺子找回手机号框。
+      // 账号 + 验证码形态没有密码框可跟（`lastCapturedPasswordField` 恒为 null），但账号那一侧
+      // 同样会在弹窗期间被改：不挂监听就会把提交时的旧账号存进库。用捕获时同一把尺子找回账号框。
       const mobileField = this.findMobileCodeField(this.lastCapturedForm ?? document);
       if (!mobileField) return;
       this.syncUsernameField(controls, mobileField);
@@ -839,17 +871,20 @@ export class LoginAutoSave {
     }
 
     // 监听密码框 input 事件，实时更新弹窗密码展示
-    const onPasswordInput = () => {
-      controls.updatePassword(passwordField.value);
+    const adoptPassword = (value: string) => {
+      this.confirmedPassword = value;
+      controls.updatePassword(value);
       // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
-      void this.syncPendingToSession(passwordField.value);
+      void this.syncPendingToSession(value);
     };
+    const onPasswordInput = () => adoptPassword(passwordField.value);
     passwordField.addEventListener('input', onPasswordInput);
     this.fieldSyncCleanups.push(() => {
       passwordField.removeEventListener('input', onPasswordInput);
     });
-    // 立即同步当前值，避免弹窗显示时已存在延迟修改
-    onPasswordInput();
+    // 立即同步一次，覆盖「捕获到弹窗挂载之间用户又补敲了几键」（那段时间没有监听器）。
+    // 但此刻站点提交处理器可能已把口令原地改写成密文：越限的重读不采纳，保留捕获值。
+    if (isAdoptableReread('password', passwordField.value)) adoptPassword(passwordField.value);
 
     // 查找并监听用户名输入框
     const form = this.lastCapturedForm;
@@ -862,7 +897,7 @@ export class LoginAutoSave {
   /**
    * 监听一个账号框的 input 事件，实时同步弹窗展示与待确认凭证
    *
-   * 口令形态与手机号形态共用这一条，差别只在框是怎么找出来的。监听器一律登记进
+   * 口令形态与验证码形态共用这一条，差别只在框是怎么找出来的。监听器一律登记进
    * `fieldSyncCleanups`，由 `teardownFieldSync` 统一摘除——注册与清理必须成对，否则每次弹窗
    * 都会多留一个监听器。
    *
@@ -870,17 +905,19 @@ export class LoginAutoSave {
    * @param field - 账号输入框
    */
   private syncUsernameField(controls: SavePromptControls, field: HTMLInputElement): void {
-    const onUsernameInput = () => {
-      controls.updateUsername(field.value);
+    const adoptUsername = (value: string) => {
+      this.confirmedUsername = value;
+      controls.updateUsername(value);
       // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
-      void this.syncPendingToSession(undefined, field.value);
+      void this.syncPendingToSession(undefined, value);
     };
+    const onUsernameInput = () => adoptUsername(field.value);
     field.addEventListener('input', onUsernameInput);
     this.fieldSyncCleanups.push(() => {
       field.removeEventListener('input', onUsernameInput);
     });
-    // 立即同步当前值
-    onUsernameInput();
+    // 立即同步一次（口径同口令侧：越限的程序化改写不采纳）
+    if (isAdoptableReread('username', field.value)) adoptUsername(field.value);
   }
 
   /**
@@ -944,12 +981,32 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.clearPending();
 
-    // 优先使用实时读取的当前值，读取失败时回退到弹窗出现时捕获的 pending 值
-    const finalUsername = current?.username ?? pending.username;
-    const finalPassword = current?.password ?? pending.password;
+    // 重读只采纳容量内的值（那才可能是用户补敲的编辑）；越限即站点提交后的程序化改写，回落确认值。
+    // 回落用 `||` 而非 `??`：站点提交后清空字段（form.reset、密文改塞隐藏域）时挂载同步会把空串
+    // 采纳成确认值，`??` 只挡 null，空串便顶掉捕获值——新账号被空字段闸门拒收，改密则命中
+    // 「空口令不许覆盖已有真口令」后零写入却回成功。空账号/空口令重读同样视为无信号。
+    const rereadUsername = current?.username;
+    const finalUsername =
+      rereadUsername && isAdoptableReread('username', rereadUsername)
+        ? rereadUsername
+        : this.confirmedUsername || pending.username;
+    // 授权位与口令同源：`mobileLogin` 为真即「这次提交没有可用密码框」，口令只能是空串——
+    // 弹窗展示的是「验证码不保存」，用户据此点的保存。非空值会绕过存储层两道以 `!password`
+    // 为键的闸门（空字段拒写、空口令不许覆盖已有真口令），覆写库里已存的真实口令。
+    // 口令来源另由 captureCurrentCredentials 收口：只认仍连在文档上的原引用，否则用展示值。
+    // 账号优先取容量内的重读值（用户可能改过号），越限改写与口令同一口径回落确认值。
+    const rereadPassword = current?.password;
+    const finalPassword =
+      pending.mobileLogin === true
+        ? ''
+        : rereadPassword && isAdoptableReread('password', rereadPassword)
+          ? rereadPassword
+          : this.confirmedPassword || pending.password;
     // 清理字段引用（弹窗已关闭，不再需要）
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
 
     try {
       if (!chrome.runtime?.id) {
@@ -975,7 +1032,12 @@ export class LoginAutoSave {
 
       if (response?.success) {
         this.lastPromptSaved = true;
-        showNativeNotification(tl('cs.notify.saved'), 'success');
+        // 结局由存储层判定并本地化，内容侧只呈现：三种 success（新存一条 / 更新已有 /
+        // 「该账号已存有密码，本次未改动」）说的不是同一件事，最后一种一个字节都没写，
+        // 写死「账号密码已保存」会对用户说谎——他据此以为验证码登录已入库，下次仍填不出东西。
+        // 回执没带文案（旧版后台、异常路径）才退回通用串；跨上下文输入按 unknown 收窄。
+        const outcome: unknown = response?.message;
+        showNativeNotification(typeof outcome === 'string' && outcome ? outcome : tl('cs.notify.saved'), 'success');
       } else {
         showNativeNotification(
           tl('cs.notify.saveFailedMsg', { message: response?.message || tl('cs.notify.unknownReason') }),
@@ -999,6 +1061,8 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
     // lastPromptSaved 保持 false，lastPromptTime 保留用于冷却期计算
     this.clearPending();
   }
@@ -1015,6 +1079,8 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
     this.clearPending();
     try {
       await StorageUtils.addExcludedDomain(pending.url);
@@ -1093,40 +1159,52 @@ export class LoginAutoSave {
   // ── 表单字段查找工具方法 ──
 
   /**
-   * 读取「手机号 + 短信验证码」形态下的账号值
+   * 找出「账号 + 验证码」形态（没有密码框）里的账号框：手机号或邮箱
    *
-   * 判据刻意要求**两个框都已填写**：只认「有个手机号框」会把搜索框、注册表单、收货地址页
-   * 一并判成登录页；而用户点「获取验证码」那一下手机号框已填、验证码框还空，此时登录尚未
-   * 发生，弹「保存」只会变成噪声。两个框都有值才是「用户正在提交短信码登录」。
+   * 判据刻意要求**两个框都已填写**：只认「有个手机号/邮箱框」会把搜索框、注册表单、收货地址页
+   * 一并判成登录页；而用户点「获取验证码」那一下账号框已填、验证码框还空，此时登录尚未
+   * 发生，弹「保存」只会变成噪声。两个框都有值才是「用户正在提交验证码登录」。
    *
-   * 值只看字段自己声明的语义（`looksLikePhoneField` / `matchesVerifyCodeSelectors`，与分类、
-   * 侧边栏触发、填充落点共用同一把尺子），不看输入内容——否则一个填着「iphone 15」的搜索框
-   * 会因为值里含 `phone` 被当成手机号。国家码 / 区号 / 分机这类拆号子段被排除：
-   * 那 3~4 位不是任何人的登录账号。
+   * 值只看字段声明的语义，不看输入内容——否则一个填着「iphone 15」的搜索框会因为值里含
+   * `phone` 被当成手机号。语义走**捕获链**那把尺子（`hasPhoneEvidence` / `hasEmailEvidence` /
+   * `hasVerifyCodeEvidence`）：它接受 `<label for>` / 包裹式 label / `aria-labelledby` 这些与
+   * `aria-label` 等效的规范标注，因为按规范写标注的登录页不该反而不被识别。填充落点与身份提示
+   * 让位仍走窄谓词（`looksLikePhoneField` / `looksLikeEmailField`），两条链刻意不共用——
+   * 捕获多认一个框只是多问一句「要不要保存」，让位多认一个框会让填报页的气泡消失而钥匙又填不出值。
+   * 国家码 / 区号 / 分机这类拆号子段被排除：那 3~4 位不是任何人的登录账号。
+   *
+   * 方法名与授权位 `mobileLogin` 保留「mobile」字样是为了不动已落盘 / 跨入口的字段名，
+   * 实际语义已是「本次登录没有口令」，手机号与邮箱两种账号同等对待。
    *
    * @param scope 提交所在的 form，或无 form 时的 document
-   * @returns 手机号输入框；不构成该形态时 null
+   * @returns 账号输入框（手机号或邮箱）；不构成该形态时 null
    */
   private findMobileCodeField(scope: ParentNode): HTMLInputElement | null {
     const filled = Array.from(scope.querySelectorAll('input')).filter(
       input => !!input.value && isElementVisible(input),
     );
     const hasSmsCode = filled.some(
-      input => matchesVerifyCodeSelectors(input) && !looksLikePostalCode(input) && isOneTimeCodeValue(input.value),
+      input => hasVerifyCodeEvidence(input) && !looksLikePostalCode(input) && isOneTimeCodeValue(input.value),
     );
     if (!hasSmsCode) return null;
 
     return (
       filled.find(
-        input => looksLikePhoneField(input) && !isPhoneExtensionField(input) && !matchesVerifyCodeSelectors(input),
+        input =>
+          (hasPhoneEvidence(input) || hasEmailEvidence(input)) &&
+          !isPhoneExtensionField(input) &&
+          // 排除「这个框本身就是码框」时也必须读可及名：账号证据与码证据共用同一把尺子，
+          // 否则 `<label>手机验证码</label><input value="246813">` 会既算码证据又算账号证据，
+          // 一次性验证码就以 username 落库，而真正的账号一个字段都没存。
+          !hasVerifyCodeEvidence(input),
       ) ?? null
     );
   }
 
   /**
-   * 读取「手机号 + 短信验证码」形态下的账号值
+   * 读取「账号 + 验证码」形态下的账号值
    * @param scope 提交所在的 form，或无 form 时的 document
-   * @returns 手机号框的值；不构成该形态时空字符串
+   * @returns 账号框（手机号或邮箱）的值；不构成该形态时空字符串
    */
   private findMobileCodeAccount(scope: ParentNode): string {
     return this.findMobileCodeField(scope)?.value ?? '';
@@ -1137,7 +1215,7 @@ export class LoginAutoSave {
    *
    * 密码框有值 → 走原有的「账号 + 密码」路径，取值方式与历史完全一致（form 场景走
    * `findUsernameInForm`、无 form 的 SPA 走 `findUsernameInPage`，两者宽窄不同，不在此统一）。
-   * 密码框不存在或还没填 → 只可能由「手机号 + 短信码」形态成立，否则这次提交不产生凭据。
+   * 密码框不存在或还没填 → 只可能由「账号 + 验证码」形态成立，否则这次提交不产生凭据。
    *
    * @param form 提交所在的 form；无 form 的 SPA 场景传 null
    * @returns 采集结果；不构成可保存的凭据时返回 null
@@ -1314,6 +1392,8 @@ export class LoginAutoSave {
     this.teardownFieldSync();
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.confirmedUsername = null;
+    this.confirmedPassword = null;
     this.passwordFieldObserver?.disconnect();
     this.passwordFieldObserver = null;
     document.removeEventListener('submit', this.handleFormSubmit, { capture: true });

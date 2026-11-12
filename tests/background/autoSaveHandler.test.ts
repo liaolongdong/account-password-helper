@@ -28,12 +28,15 @@ vi.mock('@/utils/storage', () => ({
   },
 }));
 
-vi.mock('@/utils/i18n-lite', () => ({
-  tl: vi.fn((key: string) => key),
-}));
+// 走真实文案：容量拒收现在按字段组合「实际/上限」，identity 桩会把这层组合整个遮掉
+vi.mock('@/utils/i18n-lite', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/utils/i18n-lite')>();
+  return { tl: vi.fn((key: string, params?: Record<string, string | number>) => actual.tl(key, params)) };
+});
 
 import { ensureCredentialAccessAfterStartupRelock } from '@/entrypoints/background/passwordCache';
 import { StorageUtils } from '@/utils/storage';
+import { tl } from '@/utils/i18n-lite';
 
 const mockedEnsure = vi.mocked(ensureCredentialAccessAfterStartupRelock);
 const mockedAutoSave = vi.mocked(StorageUtils.autoSavePassword);
@@ -84,16 +87,38 @@ describe('handleAutoSavePassword 字段容量边界', () => {
     expect(mockedAutoSave.mock.calls[0][0]).toMatchObject({ password: '', mobileLogin: true });
   });
 
+  it('mobileLogin 为 true 却带非空口令：拒收且不触达存储层（授权位与口令必须同源）', async () => {
+    // 存储层的两道闸门（空字段拒写、空口令不许覆盖已有真口令）都以 !data.password 为键，
+    // 非空即全部绕过。载荷来自宿主页面 DOM，属不可信输入，这条不变量必须在边界上收口，
+    // 不能只依赖内容脚本自己守规矩。
+    const result = await handleAutoSavePassword(makePayload({ password: 'PAGE-CONTROLLED-VALUE', mobileLogin: true }));
+
+    expect(result).toEqual({ success: false, message: tl('bg.autoSave.mobileLoginPasswordConflict') });
+    expect(mockedAutoSave).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['username', PASSWORD_FIELD_LIMITS.username],
     ['url', PASSWORD_FIELD_LIMITS.url],
     ['remark', PASSWORD_FIELD_LIMITS.remark],
     ['password', PASSWORD_FIELD_LIMITS.password],
-  ] as const)('%s 超容量 1 个字符即拒收，且不触达存储层', (field, limit) => {
+  ] as const)('%s 超容量 1 个字符即拒收，文案指明该字段与实际/上限，且不触达存储层', (field, limit) => {
     return handleAutoSavePassword(makePayload({ [field]: 'x'.repeat(limit + 1) })).then(result => {
-      expect(result).toEqual({ success: false, message: 'bg.autoSave.tooLong' });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain(tl(`bg.autoSave.field.${field}`));
+      expect(result.message).toContain(`${limit + 1}/${limit}`);
       expect(mockedAutoSave).not.toHaveBeenCalled();
     });
+  });
+
+  it('多个字段同时越限时逐个点名，不让用户猜嫌疑字段', async () => {
+    const result = await handleAutoSavePassword(makePayload({ username: 'u'.repeat(51), remark: 'r'.repeat(1001) }));
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain(tl('bg.autoSave.field.username'));
+    expect(result.message).toContain(tl('bg.autoSave.field.remark'));
+    expect(result.message).toContain('51/50');
+    expect(result.message).toContain('1001/1000');
   });
 
   it.each([
@@ -122,7 +147,7 @@ describe('handleAutoSavePassword 字段容量边界', () => {
   it('字段类型异常按通用失败拒收，不误报成「过长」', async () => {
     const result = await handleAutoSavePassword(makePayload({ username: 12345 as unknown as string }));
 
-    expect(result).toEqual({ success: false, message: 'bg.autoSave.failedGeneric' });
+    expect(result).toEqual({ success: false, message: tl('bg.autoSave.failedGeneric') });
     expect(mockedAutoSave).not.toHaveBeenCalled();
   });
 
@@ -131,7 +156,7 @@ describe('handleAutoSavePassword 字段容量边界', () => {
 
     const result = await handleAutoSavePassword(makePayload({ username: 'x'.repeat(999) }));
 
-    expect(result).toEqual({ success: false, message: 'bg.autoSave.failedGeneric' });
+    expect(result).toEqual({ success: false, message: tl('bg.autoSave.failedGeneric') });
     expect(mockedAutoSave).not.toHaveBeenCalled();
   });
 });
@@ -169,5 +194,68 @@ describe('handleCheckCredentialStatus 透传与保底', () => {
     mockedCheck.mockRejectedValue(new Error('boom'));
 
     expect(await handleCheckCredentialStatus(request)).toEqual({ status: 'new' });
+  });
+});
+
+/**
+ * OS 通知的标题与正文分工
+ *
+ * 缺陷本体：标题写死成「账号密码已保存」（原 `bg.autoSave.savedTitle`，已更名为不承诺结局的
+ * `bg.autoSave.title`），而存储层的
+ * `success: true` 有三种结局，其中「该账号已存有密码，本次未改动」一条字节都没写
+ * （`utils/storage/autoSaveManager.ts:352-354`）。标题断言「存好了」、正文却说「没动」，
+ * 用户读的是标题。
+ *
+ * 口径：标题只标事件（自动保存），结局由正文里的存储层文案承担——三种 success 共用同一标题，
+ * 标题因此不可能对任何一种结局说谎。正文必须带上这份结局文案，否则收口失去意义。
+ */
+describe('handleAutoSavePassword 的桌面通知', () => {
+  /** `chrome.notifications` 的调用记录（fakeBrowser 不一定提供该 API，逐用例装桩） */
+  let create: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    create = vi.fn(async () => 'notification-id');
+    Object.defineProperty(chrome, 'notifications', { value: { create }, configurable: true, writable: true });
+    Object.defineProperty(chrome.runtime, 'getURL', {
+      value: (p: string) => `chrome-extension://test/${p}`,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  /** 取最近一次通知的参数（`.at()` 属 ES2022，本仓 lib 目标还没有，按下标取） */
+  const notified = () => {
+    expect(create.mock.calls.length, '保存成功却没有发出桌面通知').toBeGreaterThan(0);
+    return create.mock.calls[create.mock.calls.length - 1][1] as { title: string; message: string };
+  };
+
+  it.each([
+    ['新存一条', 'bg.autoSave.savedNew'],
+    ['更新已有', 'bg.autoSave.updated'],
+    ['本次未改动', 'bg.autoSave.passwordKept'],
+  ] as const)('%s 的标题用同一个不承诺结局的 key（标题不许对正文反悔）', async (_label, outcome) => {
+    mockedAutoSave.mockResolvedValue({ success: true, message: outcome });
+
+    await handleAutoSavePassword(makePayload({ password: '', mobileLogin: true }));
+
+    expect(create, '保存成功却没有发出桌面通知').toHaveBeenCalledTimes(1);
+    expect(notified().title).toBe(tl('bg.autoSave.title'));
+    expect(notified().message).toContain(outcome);
+  });
+
+  it('系统通知权限未开启时静默降级，仍把存储层结果回给内容脚本', async () => {
+    create.mockRejectedValue(new Error('notifications not allowed'));
+
+    const result = await handleAutoSavePassword(makePayload());
+
+    expect(result).toEqual({ success: true, message: 'bg.autoSave.savedNew' });
+  });
+
+  it('存储层判失败时不发「已保存」通知', async () => {
+    mockedAutoSave.mockResolvedValue({ success: false, message: 'bg.autoSave.sessionExpired' });
+
+    await handleAutoSavePassword(makePayload());
+
+    expect(create).not.toHaveBeenCalled();
   });
 });

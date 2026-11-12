@@ -47,6 +47,20 @@ const CSV_WITH_BOM = `\u{FEFF}username,password,url,remark
 ${IMPORT_ROWS.map(row => `${row.username},${row.password},${row.url},${row.remark}`).join('\n')}
 `;
 
+/**
+ * 带丢行的 CSV：一行只有单列（列数不足），一行账号为空（表头没被认成账号列）
+ *
+ * 中间刻意留一个空行：解析层先滤空行再编号（`utils/excelCsv.ts:115`，
+ * 由 `tests/utils/excelCsvSkippedRows.test.ts` 钉住），所以这两条丢行报的是「第 2 / 3 行」，
+ * 而不是用户在编辑器里数到的物理行号——清单标题必须把这个口径说出来。
+ */
+const CSV_WITH_SKIPPED = `username,password,url,remark
+e2e-skipped-ok,Synthetic!Skipped1,https://skipped-ok.e2e.test,ok row
+
+onlyonecolumn
+,Synthetic!NoUser,https://no-user.e2e.test,missing account
+`;
+
 const KEEP_ENTRY = { username: 'e2e-keep', password: 'Synthetic!Keep1', url: 'https://keep.e2e.test/' };
 const DUP_OLD = { username: 'e2e-dup', password: 'Synthetic!DupOld', url: 'https://dup.e2e.test/' };
 const DUP_NEW = { username: 'e2e-dup', password: 'Synthetic!DupNew', url: 'https://dup.e2e.test/' };
@@ -106,6 +120,47 @@ test.describe('导入导出与工具入口', () => {
     }
     expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(IMPORT_ROWS.length);
     expect(await leaksPlaintext(page, STORAGE_KEYS.PASSWORDS, IMPORT_ROWS[0].password)).toBe(false);
+  });
+
+  test('未能带出清单：取消关闭再打开，上一份文件的清单不残留', async ({ optionsPage: page }) => {
+    const dialog = await openImportDialog(page);
+    await dialog.locator('input[type=file]').setInputFiles({
+      name: 'e2e-skipped.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(CSV_WITH_SKIPPED, 'utf-8'),
+    });
+
+    // 先证明这份夹具真的触发了清单：两条丢行、两种原因各一条
+    const section = dialog.locator('.skipped-section');
+    await expect(section).toBeVisible();
+    await expect(section.locator('.skipped-section__title')).toContainText(
+      templatedOf('options.import.skippedTitle', { count: 2 }),
+    );
+    await expect(section.locator('.skipped-section__item')).toHaveCount(2);
+
+    // 取消（不是导入）：弹窗组件是常驻挂载的，关闭只翻 v-model，状态得自己清
+    await dialog.getByRole('button', { name: textOf('common.cancel') }).click();
+    await expect(dialog).toBeHidden();
+
+    const reopened = await openImportDialog(page);
+    await expect(reopened.locator('.skipped-section')).toHaveCount(0);
+    await expect(reopened.locator('.preview-section')).toHaveCount(0);
+  });
+
+  test('未能带出清单：标题说清行号按数据行计，不含表头与空行', async ({ optionsPage: page }) => {
+    const dialog = await openImportDialog(page);
+    await dialog.locator('input[type=file]').setInputFiles({
+      name: 'e2e-skipped.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(CSV_WITH_SKIPPED, 'utf-8'),
+    });
+
+    const section = dialog.locator('.skipped-section');
+    await expect(section).toBeVisible();
+    // 夹具里那个空行不占序号，两条丢行因此报数据行 2 / 3；用户若按编辑器物理行号去找会找错行
+    await expect(section).toContainText(templatedOf('options.import.skippedTooFewColumns', { rows: '2' }));
+    await expect(section).toContainText(templatedOf('options.import.skippedMissingUsername', { rows: '3' }));
+    await expect(section).toContainText(textOf('options.import.skippedRowScope'));
   });
 
   test('JSON 导出：空库先挡下，错密码原地拒绝，验通过后才产出明文文件', async ({ optionsPage: page }) => {

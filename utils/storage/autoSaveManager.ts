@@ -331,7 +331,7 @@ async function persistAutoSavePassword(data: AutoSavePasswordData): Promise<{ su
     return { success: false, message: tl('bg.autoSave.domainMismatch') };
   }
 
-  // 空口令只在「手机号 + 短信验证码」登录这一形态下合法，且必须由发送方显式声明；
+  // 空口令只在「账号 + 验证码」登录（手机号或邮箱）这一形态下合法，且必须由发送方显式声明；
   // 未声明的发送方一律按空字段拒写，免得谁都能往库里塞一条没有凭据的空记录。
   if (!data.username || (!data.password && data.mobileLogin !== true)) {
     return { success: false, message: tl('bg.autoSave.emptyFields') };
@@ -514,8 +514,8 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     }
 
     // 无账号可比对时按新账号处理，交由后续弹窗流程判定。空口令只有在发送方声明这是
-    // 「手机号 + 短信验证码」登录时才继续比对：这类页面本来就没有口令，但手机号本身
-    // 就是需要判重的账号——短路成 `new` 会让同一个号每次登录都重弹一次「保存」。
+    // 「账号 + 验证码」登录（手机号或邮箱）时才继续比对：这类页面本来就没有口令，但账号本身
+    // 就是需要判重的凭据——短路成 `new` 会让同一个账号每次登录都重弹一次「保存」。
     if (!data.username || (!data.password && data.mobileLogin !== true)) {
       return { status: 'new' };
     }
@@ -537,7 +537,7 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
       return { status: 'identical' };
     }
 
-    // 本次带不回口令（手机号登录）而库里那条有：没有新信息可比对，按「已是最新」静默跳过。
+    // 本次带不回口令（验证码登录）而库里那条有：没有新信息可比对，按「已是最新」静默跳过。
     // 绝不能落到 `password_changed`——那条弹窗会把用户已有的口令更新成空串。
     if (!data.password) {
       return { status: 'identical' };

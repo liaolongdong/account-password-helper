@@ -175,14 +175,18 @@ function decodeEntities(s) {
 
 /**
  * 给正文每个 `<h2>` 加锚点 id 并抽出目录项。id 由标题纯文本 slug 化（保留字母数字与 CJK，
- * 其余折成连字符），同名追加序号保证唯一；目录只收 h2——h3 太碎，收进来反而难扫。
+ * 其余折成连字符），重名追加序号保证唯一；目录只收 h2——h3 太碎，收进来反而难扫。
  * 标题里的内联标签（code/em/a）先剥掉、实体先解码再 slug，避免 id 里混进尖号或实体残数字。
+ *
+ * 判重按**最终 id**而不是 base slug 的出现次数：按次数追加时「Setup / Setup / Setup 2」
+ * 会产出 `setup`、`setup-2`、`setup-2`——第三节与前一个的序号撞车，页面两个同 id，
+ * 目录两条锚文本指向同一节。由 `tests/scripts/blogTocAnchors.test.ts` 钉住。
  *
  * @param {string} html 已渲染的正文 HTML
  * @returns {{html: string, items: {id: string, text: string}[]}} 改写后的 HTML 与目录项
  */
 function withToc(html) {
-  const seen = new Map();
+  const used = new Set();
   const items = [];
   const out = html.replace(/<h2>([\s\S]*?)<\/h2>/g, (_, inner) => {
     const text = decodeEntities(inner.replace(/<[^>]+>/g, '')).trim();
@@ -191,9 +195,9 @@ function withToc(html) {
         .toLowerCase()
         .replace(/[^\p{L}\p{N}]+/gu, '-')
         .replace(/^-+|-+$/g, '') || 'section';
-    const n = (seen.get(base) || 0) + 1;
-    seen.set(base, n);
-    const id = n > 1 ? `${base}-${n}` : base;
+    let id = base;
+    for (let n = 2; used.has(id); n++) id = `${base}-${n}`;
+    used.add(id);
     items.push({ id, text });
     return `<h2 id="${id}">${inner}</h2>`;
   });

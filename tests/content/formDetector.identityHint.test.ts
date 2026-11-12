@@ -381,6 +381,68 @@ describe('聚焦识别到身份提示的接线', () => {
     expect(shown()).toEqual(['phone']);
   });
 
+  /**
+   * 可及名只进捕获证据链，不进让位判据（2026-11-11 真机 e2e 抓到的回归现场）
+   *
+   * 把 `<label>` 文本喂进共用的 `declaredText` 之后，政务/快递页里「申请人联系电话」这类
+   * **只写了 label** 的个人信息框被 `getFieldType` 的手机号兜底认领；而 `isInLoginFormOrPopup`
+   * 有一条整页级回退（页面别处存在登录表单即判真），于是同一页上的登录区把无关填报区一起
+   * 拖进「快速填充认领」，气泡让位、钥匙又填不出身份库的手机号——正是让位守卫要防的两头落空。
+   *
+   * 夹具照抄 `docs/fixtures/identity-hint-demo.html` 第 ⑯ 区那两行的形状：框上除 id 外一无所有，
+   * 语义全在 label 里；登录区在另一张卡片上，两行都不在任何 `<form>` 内。
+   */
+  const LABEL_ONLY_PHONE_PAGE = `
+    <form>
+      <input name="username">
+      <input type="password" name="password">
+      <button type="submit">登录</button>
+    </form>
+    <section class="card">
+      <div class="field">
+        <label for="gz-lxdh">申请人联系电话</label>
+        <input id="gz-lxdh">
+      </div>
+      <div class="field">
+        <label>寄件人联系电话<input id="kd-jjdhh"></label>
+      </div>
+    </section>`;
+
+  it.each([2, 3])('只写 label 的联系电话框（第 %i 个控件）不让位：整页别处有登录表单也不算', async index => {
+    await mount(LABEL_ONLY_PHONE_PAGE, makeConfig());
+    scan();
+
+    // 前提自证：这一页确实被认成「有登录形态」，否则用例只是在测一张没有登录区的空页
+    expect((detector as any).loginButtons.length).toBeGreaterThan(0);
+    expect(
+      (detector as any).loginFormAnalyzer.isInLoginFormOrPopup(control(index), (detector as any).getFormFieldSets()),
+    ).toBe(true);
+
+    await focus(control(index));
+
+    expect(shown()).toEqual(['phone']);
+  });
+
+  it('同一框改写 aria-label 仍归快速填充：收窄只撤掉 label 那条通道，不动既有属性判据', async () => {
+    await mount(
+      `
+      <form>
+        <input name="username">
+        <input type="password" name="password">
+        <button type="submit">登录</button>
+      </form>
+      <div class="field"><input id="gz-lxdh" aria-label="联系电话"></div>`,
+      makeConfig(),
+    );
+    scan();
+
+    expect((detector as any).shouldShowSidePanel(control(2))).toBe(true);
+
+    await focus(control(2));
+
+    expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
+  });
+
   it('手机号 + 验证码的短信登录页仍让位给快速填充', async () => {
     await mount(
       '<form><label>手机号码<input name="mobile" type="tel"></label><input name="smsCode" type="text"></form>',

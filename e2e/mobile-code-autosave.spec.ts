@@ -1,5 +1,7 @@
-import type { BrowserContext, Page } from '@playwright/test';
-import { E2E_PAGE_ORIGIN, expect, test } from './harness';
+import type { BrowserContext, CDPSession, Page } from '@playwright/test';
+import { createEntry, E2E_PAGE_ORIGIN, expect, rowOf, test } from './harness';
+import { liteExactMatch, liteTextOf, textOf } from './i18n';
+import { byClass, queryPierced, type Rect } from './identityHintDom';
 
 /**
  * 手机号 + 短信验证码登录的自动保存（真机端到端）
@@ -7,13 +9,19 @@ import { E2E_PAGE_ORIGIN, expect, test } from './harness';
  * 这条链路是 2026-11-06 那轮留存改造的主体：国内主流登录形态页面上**没有密码框**，
  * 而三个捕获入口此前都要求「存在密码框且值非空」，于是这类登录永远不弹保存、库里永远空着。
  * 单元测试钉住了判据本身（`tests/content/loginAutoSave.mobileCode.test.ts`），
- * 本文件钉住的是**只有真浏览器才能证明的三件事**：
+ * 本文件钉住的是**只有真浏览器才能证明的八件事**：
  * 1. 内容脚本真的注进了这个 http 源，且闭包影子树里的弹窗真的出现在页面上；
  * 2. 「保存」经 content → background → 加密落盘 → Options 列表整条跨入口链路走通；
- * 3. 密码框照常成立的老路径没有被放宽门影响（回归）。
+ * 3. 密码框照常成立的老路径没有被放宽门影响（回归）；
+ * 4. 弹窗开着时页面别处冒出的口令框进不了库：授权位与口令必须同源（Critical 的真机判据）；
+ * 5. 出口轻提醒说的是存储层判定的那一条结局，不是通用的「已保存」（写死通用串会对用户说谎）；
+ * 6. 那条提醒在 3s 自删窗口里文案与几何都取得到：长文案折行后仍整块落在视口内；
+ * 7. 原密码框被换掉后，页面另插的带值口令框同样进不了库：口令只认原引用或弹窗展示值；
+ * 8. 邮箱 + 邮件验证码（同样没有密码框）也能捕获并落库，存的是邮箱、口令为空。
  *
- * 断言一律落在**外部可观察结果**上：弹窗在 closed shadow root 里，读不到不等于功能坏了，
- * 而「条目出现在管理页列表里」才是用户真正在意的那件事。
+ * 前三条断言落在**宿主节点的挂载与否**上（捕获链跑完并决定弹窗的唯一外部信号）；
+ * 第四到第七条走 CDP pierce 视图读影子树内部、真鼠标点「保存」，再分别断言到管理页详情抽屉
+ * 与页面内那条 light DOM 轻提醒（文案整串比对 + 盒模型 + 截图归档）。
  */
 
 const PHONE = '13800000000';
@@ -40,6 +48,50 @@ const MOBILE_LOGIN_HTML = `<!doctype html><html><head><title>手机号登录 - e
 /** 同上，但**不**挡默认行为：提交即整页跳转，用于验证「跳转后复现弹窗」那条恢复路径 */
 const MOBILE_LOGIN_NAVIGATING_HTML = MOBILE_LOGIN_HTML.replace(NO_NAVIGATE, '');
 
+/**
+ * 保存出口那条用例专用的账号框形态：`type="text"` + 手机号 placeholder
+ *
+ * 不能复用上面的 `type="tel"`：点「保存」时 `captureCurrentCredentials` 会做一次全文档重读，
+ * 而重读的账号兜底只认 `USERNAME_SELECTORS`（`type="tel"` 不在其中），取不到账号就提前
+ * return null，口令随之回退到捕获时的空串——于是「重读读到了页面可控的口令」这条链路
+ * 根本走不到，用例会恒绿地什么都没测。国内短信登录页最常见的正是这一种 text + placeholder 写法。
+ */
+const MOBILE_LOGIN_TEXT_HTML = `<!doctype html><html><head><title>手机号登录 - e2e</title>${NO_NAVIGATE}</head><body>
+  <form id="f">
+    <input id="m" type="text" name="mobile" placeholder="请输入手机号">
+    <input id="c" type="text" name="smsCode" placeholder="请输入验证码">
+    <button id="go" type="submit">登录</button>
+  </form>
+</body></html>`;
+
+/**
+ * 弹窗打开后才由页面注入的口令值（合成品，不对应任何真实凭据）
+ *
+ * 两条用例共用它，都必须落不进库：授权位为真时非空值会绕过存储层两道以 `!password` 为键的闸门
+ * （空字段拒写、空口令不许覆盖已有真口令）；授权位为假时它干脆就是页面可控的口令本身，
+ * 会顶掉用户点保存时在弹窗里看到的那一份。
+ */
+const STRAY_PASSWORD = 'PageControlled!E2e';
+
+/**
+ * 弹窗开着的那几秒里，另一张管理页给同一个账号设下的真口令（合成品）
+ *
+ * 用来复现 `persistAutoSavePassword` 注释里那个陈旧窗口：预检查时库里还没有这条，弹窗因此成立；
+ * 用户读弹窗时另一处把它建好并带上口令。此时点保存必须一个字节都不写——`passwordKept` 那条
+ * 结局只有这一条可达路径（预检查对「本次无口令、库里那条有」直接判 identical，根本不弹窗）。
+ */
+const STORED_ELSEWHERE_PASSWORD = 'AlreadyStored!E2e';
+
+/** 邮箱 + 邮件验证码，页面上没有密码框（形态矩阵第 8 行） */
+const EMAIL = 'alice-code@example.com';
+const EMAIL_LOGIN_HTML = `<!doctype html><html><head><title>邮箱登录 - e2e</title>${NO_NAVIGATE}</head><body>
+  <form id="f">
+    <input id="e" type="email" name="email" autocomplete="email">
+    <input id="c" type="text" name="mailCode" placeholder="请输入验证码">
+    <button id="go" type="submit">登录</button>
+  </form>
+</body></html>`;
+
 /** 只有手机号填写（用户刚点「获取验证码」，登录还没发生） */
 const MOBILE_ONLY_SUBMIT_HTML = `<!doctype html><html><head><title>获取验证码 - e2e</title>${NO_NAVIGATE}</head><body>
   <form id="f">
@@ -50,10 +102,12 @@ const MOBILE_ONLY_SUBMIT_HTML = `<!doctype html><html><head><title>获取验证�
 </body></html>`;
 
 /** 常规账号 + 密码（老路径，必须一字不变） */
+const PASSWORD_LOGIN_USERNAME = 'alice-e2e';
+const PASSWORD_LOGIN_PASSWORD = 'E2ePassw0rd!x';
 const PASSWORD_LOGIN_HTML = `<!doctype html><html><head><title>账号登录 - e2e</title>${NO_NAVIGATE}</head><body>
   <form id="f">
-    <input id="u" type="text" name="username" value="alice-e2e">
-    <input id="p" type="password" name="password" value="E2ePassw0rd!x">
+    <input id="u" type="text" name="username" value="${PASSWORD_LOGIN_USERNAME}">
+    <input id="p" type="password" name="password" value="${PASSWORD_LOGIN_PASSWORD}">
     <button id="go" type="submit">登录</button>
   </form>
 </body></html>`;
@@ -76,22 +130,124 @@ async function openSite(extContext: BrowserContext, html: string): Promise<Page>
 /**
  * 弹窗宿主节点
  *
- * 弹窗的内容全在 **closed** shadow root 里（`SavePasswordPrompt.ts` 的设计，用来隔离宿主页面样式）。
- * 后果是测试侧三条路都走不通：Playwright 的选择器引擎进不去；`toBeVisible()` 因为宿主 `div`
- * 自身没有布局盒而恒判 hidden；CDP 的 `DOM.getDocument{pierce:true}` 在这个 page target 上
- * 只返回根节点（实测 total=1，pierce 与不 pierce 一样）。所以本文件断言的是**宿主节点的挂载与否**——
- * 它是「捕获链跑完了、并且决定弹窗」的唯一外部可观察信号，而捕获判据正是这次改动的本体。
+ * 弹窗的内容全在 **closed** shadow root 里（`SavePasswordPrompt.ts` 的设计，用来隔离宿主页面样式），
+ * Playwright 的选择器引擎进不去，`toBeVisible()` 也因为宿主 `div` 自身没有布局盒而恒判 hidden。
+ * 捕获门那几条用例因此只断言**宿主节点的挂载与否**——它是「捕获链跑完了、并且决定弹窗」的
+ * 唯一外部可观察信号，而捕获判据正是那次改动的本体。
  *
- * 弹窗内部那句「短信验证码不保存」与点「保存」之后的落库，由真机之外的两层钉住：
- * `tests/content/savePasswordPrompt.mobileLogin.test.ts`（真实渲染函数 + closed 影子树截获）与
- * `tests/utils/autoSaveManager.test.ts` + `tests/background/autoSaveHandler.test.ts`（写入契约与授权位）。
+ * 影子树内部并非读不到：CDP 的 `DOM.getDocument` 必须同时给 `depth: -1` 与 `pierce: true`
+ * 才会把 closed shadow root 一并送回来（只给 pierce、depth 留默认 1 时只返回根节点，
+ * 本文件早前的注释据此误判成「这条路走不通」）。下面那条落库用例正是走 pierce 视图读文案、
+ * 取按钮盒模型，再用真鼠标点下去的。
  */
 const promptHost = (site: Page) => site.locator('[data-aph="save-password-prompt"]');
+
+/** 建一个能读 closed 影子树的 CDP 会话（口径同 `identityHintDom.openFormPage`） */
+async function pierceSession(site: Page): Promise<CDPSession> {
+  const cdp = await site.context().newCDPSession(site);
+  await cdp.send('DOM.enable');
+  return cdp;
+}
+
+/** 弹窗卡片的纯文本（标签抹掉；卡片内容全是文本节点） */
+async function promptText(cdp: CDPSession): Promise<string> {
+  const [card] = await queryPierced(cdp, byClass('aph-prompt'));
+  if (!card) throw new Error('pierce 视图里找不到保存弹窗卡片 .aph-prompt');
+  const { outerHTML } = (await cdp.send('DOM.getOuterHTML', { nodeId: card.nodeId })) as { outerHTML: string };
+  return outerHTML.replace(/<[^>]*>/g, '').trim();
+}
+
+/**
+ * 按产品文案在 pierce 视图里找到弹窗按钮并取它的视口矩形
+ *
+ * 找节点与读数必须在**同一次快照**内完成：下一次 `DOM.getDocument` 会换掉整批 nodeId，
+ * 旧 id 可能被复用到不相干的元素上，那时读到的几何来自别处而测试静默拿错读数
+ * （口径同 `identityHintDom.readFirst`）。这里复用它的 `queryPierced` 取快照，
+ * 之后不再取文档，故句柄全程有效。
+ */
+async function promptButtonRect(cdp: CDPSession, key: string): Promise<Rect> {
+  const buttons = await queryPierced(cdp, node => node.nodeName === 'BUTTON');
+  for (const node of buttons) {
+    const { outerHTML } = (await cdp.send('DOM.getOuterHTML', { nodeId: node.nodeId })) as { outerHTML: string };
+    if (!liteExactMatch(key, outerHTML.replace(/<[^>]*>/g, '').trim())) continue;
+    const { model } = (await cdp.send('DOM.getBoxModel', { nodeId: node.nodeId })) as {
+      model: { border: number[] };
+    };
+    // 四点顺时针：上边 y=[1]、下边 y=[5]、左边 x=[0]、右边 x=[2]
+    return { top: model.border[1], bottom: model.border[5], left: model.border[0], right: model.border[2] };
+  }
+  throw new Error(`pierce 视图里找不到文案为 ${key} 的弹窗按钮`);
+}
+
+/**
+ * 真鼠标点弹窗的「保存」
+ *
+ * 先命中测试确认坐标确实落在扩展宿主上再按下：坐标算错只会点到页面元素，
+ * 红灯会伪装成「保存没反应」（口径同 `vault-return-to-source.clickBubblePrimary`）。
+ */
+async function clickPromptSave(site: Page, cdp: CDPSession): Promise<void> {
+  const rect = await promptButtonRect(cdp, 'cs.save.save');
+  const x = (rect.left + rect.right) / 2;
+  const y = (rect.top + rect.bottom) / 2;
+  const marker = await site.evaluate(
+    ([px, py]) => document.elementFromPoint(px, py)?.getAttribute('data-aph') ?? '<no marker>',
+    [x, y],
+  );
+  expect(marker, '点击坐标没有落在保存弹窗宿主上').toBe('save-password-prompt');
+  await site.mouse.click(x, y);
+}
 
 /** 等一次跨入口往返：捕获 → 预检查 → 决定弹窗，留足余量再断言「没有」 */
 const settle = async (site: Page): Promise<void> => {
   await site.waitForTimeout(3_000);
 };
+
+/**
+ * 保存出口那条轻提醒
+ *
+ * 名字里有 native，但它**不是**操作系统通知：`showNativeNotification` 往宿主页面 body 挂一个
+ * light DOM 的 `.native-form-detector-notification`，3000ms 后自删。所以它不像弹窗那样需要
+ * CDP pierce，普通选择器读得到；代价是所有读数与截图都得挤在那 3 秒里。
+ */
+const notice = (site: Page) => site.locator('.native-form-detector-notification');
+
+/**
+ * 读一次保存出口轻提醒：文案、几何、截图，全在 3s 自删窗口内取完
+ *
+ * 这条提醒是「结局由存储层判定并本地化」那次改动唯一的外部可观察面：三种 success（新存一条 /
+ * 更新已有 / 该账号已存有密码本次未改动）说的不是同一件事，回落成通用的「账号密码已保存」
+ * 会对用户说谎——他据此以为短信码登录已入库，下次仍填不出东西。判据因此分三层：
+ *
+ * 1. 文案**整串等于**该结局的词条（`liteExactMatch`，中英任一份），且不得命中通用串；
+ * 2. 提醒里不回显账号（它只说结局，凭据不进这条呈现面）；
+ * 3. 盒子整块在视口内、右边缘锚在 20px、min-height 生效。英文那句 66 字符会在 max-width 处
+ *    折行把高度撑起来，只断言「看得见」量不到溢出与裁切，所以几何要单独读。
+ *
+ * 截图排在最后：它本身要几百毫秒，先取文案与盒模型才不会把 3s 窗口吃光后拿到一张空图。
+ */
+async function expectNotice(site: Page, key: string, artifact: string): Promise<void> {
+  const target = notice(site);
+  await expect(target).toBeVisible({ timeout: 15_000 });
+
+  // 提醒里有两个 span：图标在前、文案在后，读整块 textContent 会把 ✓ 也算进文案比对
+  const text = (await target.locator('span').last().textContent())?.trim() ?? '';
+  expect(liteExactMatch(key, text), `轻提醒说的是「${text}」，不是 ${key} 那条结局`).toBe(true);
+  expect(text, '轻提醒回落到了通用的「已保存」，会对用户说谎').not.toMatch(liteTextOf('cs.notify.saved'));
+  expect(text, '轻提醒回显了账号').not.toContain(PHONE);
+
+  const box = await target.boundingBox();
+  const viewport = site.viewportSize();
+  if (!box || !viewport) throw new Error('轻提醒没有布局盒，或取不到视口尺寸');
+  expect(box.x, '轻提醒左边出了视口').toBeGreaterThanOrEqual(0);
+  expect(box.y, '轻提醒上边出了视口').toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width, '轻提醒右边出了视口').toBeLessThanOrEqual(viewport.width);
+  expect(box.y + box.height, '折行后轻提醒下边出了视口').toBeLessThanOrEqual(viewport.height);
+  expect(Math.round(box.x + box.width), '右边缘没有锚在 20px').toBe(viewport.width - 20);
+  expect(box.height, 'min-height 40px 没生效').toBeGreaterThanOrEqual(40);
+
+  const body = await site.screenshot({ path: `test-results/artifacts/${artifact}.png` });
+  await test.info().attach(artifact, { body, contentType: 'image/png' });
+}
 
 /**
  * 会话前置：三条用例都必须取 `optionsPage`
@@ -146,5 +302,145 @@ test.describe('手机号 + 短信验证码登录的自动保存', () => {
     await site.click('#go');
 
     await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+  });
+
+  test('邮箱 + 邮件验证码：同样决定弹窗，落库的是邮箱、口令为空', async ({ extContext, optionsPage }) => {
+    // 形态矩阵第 8 行：账号候选此前只认手机号证据，这类没有密码框的邮箱登录整条漏。
+    // 单测钉住判据本身，这一条钉住「内容脚本在真浏览器里真的走了新分支并落库」。
+    const site = await openSite(extContext, EMAIL_LOGIN_HTML);
+    await site.fill('#e', EMAIL);
+    await site.fill('#c', SMS_CODE);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+
+    const cdp = await pierceSession(site);
+    const text = await promptText(cdp);
+    expect(text, '弹窗里的账号不是邮箱').toContain(EMAIL);
+    expect(text, '弹窗没有告知验证码不保存').toMatch(liteTextOf('cs.save.mobileLoginNote'));
+
+    await clickPromptSave(site, cdp);
+    await expect(promptHost(site)).toHaveCount(0);
+
+    await optionsPage.bringToFront();
+    await optionsPage.reload({ waitUntil: 'domcontentloaded' });
+    const row = rowOf(optionsPage, EMAIL);
+    await expect(row, '邮箱登录没有落库').toBeVisible({ timeout: 30_000 });
+    // 落库形状与手机号形态一致：口令为空。用详情抽屉的「未设置密码」分支取证
+    // （列表的 .password-cell 对空口令同样渲染固定 8 位掩码，那是另一处存量口径，见评审记录）
+    await row.getByRole('button', { name: textOf('options.detail.viewDetail') }).click();
+    const drawer = optionsPage.getByRole('dialog').filter({ hasText: textOf('options.detail.title') });
+    await expect(drawer).toBeVisible();
+    await expect(
+      drawer.locator('.detail-muted').filter({ hasText: textOf('options.detail.noPassword') }),
+    ).toBeVisible();
+  });
+
+  test('弹窗开着时页面别处冒出非空口令框：点保存后落库的仍是空口令', async ({ extContext, optionsPage }) => {
+    const site = await openSite(extContext, MOBILE_LOGIN_TEXT_HTML);
+    await site.fill('#m', PHONE);
+    await site.fill('#c', SMS_CODE);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+
+    const cdp = await pierceSession(site);
+    // 刻意在弹窗出现**之后**才注入：捕获时页面上没有口令框（授权位因此为真），
+    // 重读时才有——SPA 切视图、站点把 OTP 做成掩码框都是这个形状。
+    // 挂在 body 上而不是 form 里，重读的账号才会走全文档兜底而不是 form 作用域。
+    await site.evaluate(value => {
+      const stray = document.createElement('input');
+      stray.type = 'password';
+      stray.value = value;
+      document.body.appendChild(stray);
+    }, STRAY_PASSWORD);
+
+    // 用户此刻看到的是「验证码不保存」，并且正是据此点的保存
+    const text = await promptText(cdp);
+    expect(text, '弹窗没有告知验证码不保存').toMatch(liteTextOf('cs.save.mobileLoginNote'));
+    expect(text, '页面可控的口令值出现在了弹窗里').not.toContain(STRAY_PASSWORD);
+
+    await clickPromptSave(site, cdp);
+    await expect(promptHost(site)).toHaveCount(0);
+
+    // 落库断言：条目真的进了库，且详情抽屉走的是「未设置密码」那一支
+    // （显隐/复制按钮只挂在有口令的分支上，它们缺席才是空口令落盘的证据）
+    await optionsPage.bringToFront();
+    await optionsPage.reload({ waitUntil: 'domcontentloaded' });
+    await expect(rowOf(optionsPage, PHONE)).toBeVisible({ timeout: 30_000 });
+    await rowOf(optionsPage, PHONE)
+      .getByRole('button', { name: textOf('options.detail.viewDetail') })
+      .click();
+    const drawer = optionsPage.getByRole('dialog').filter({ hasText: textOf('options.detail.title') });
+    await expect(drawer).toBeVisible();
+    await expect(
+      drawer.locator('.detail-muted').filter({ hasText: textOf('options.detail.noPassword') }),
+    ).toBeVisible();
+    await expect(drawer.getByRole('button', { name: textOf('common.showPassword') })).toHaveCount(0);
+    await expect(drawer).not.toContainText(STRAY_PASSWORD);
+  });
+
+  test('原密码框被换掉、页面另插带值口令框：落库的仍是弹窗展示的那份口令', async ({ extContext, optionsPage }) => {
+    const site = await openSite(extContext, PASSWORD_LOGIN_HTML);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+    const cdp = await pierceSession(site);
+
+    // SPA 重渲染把捕获时那个密码框换掉，页面再自设一个带值的 data-aph-password 框。
+    // 兜底重读的作用域是全文档、比捕获门的 form 宽，而此刻授权位为假：存储层两道以
+    // `!password` 为键的闸门（空字段拒写、空口令不许覆盖已有真口令）都拦不住非空值，
+    // 页面可控的口令会直接落盘，而用户点保存时看到的是弹窗里那份。
+    await site.evaluate(value => {
+      document.querySelector('#p')?.remove();
+      const stray = document.createElement('input');
+      stray.type = 'text';
+      stray.setAttribute('data-aph-password', '');
+      stray.value = value;
+      document.body.appendChild(stray);
+    }, STRAY_PASSWORD);
+
+    await clickPromptSave(site, cdp);
+    await expect(promptHost(site)).toHaveCount(0);
+
+    await optionsPage.bringToFront();
+    await optionsPage.reload({ waitUntil: 'domcontentloaded' });
+    const cell = rowOf(optionsPage, PASSWORD_LOGIN_USERNAME).locator('.password-cell');
+    await expect(cell).toBeVisible({ timeout: 30_000 });
+    await cell.getByRole('button', { name: textOf('common.showPassword') }).click();
+    await expect(cell, '落库的不是弹窗展示的那份口令').toContainText(PASSWORD_LOGIN_PASSWORD);
+    await expect(cell, '页面可控的口令进了库').not.toContainText(STRAY_PASSWORD);
+  });
+
+  test('新存一条：出口轻提醒说的是「已自动保存新账号密码」，不是通用串', async ({ extContext, optionsPage }) => {
+    void optionsPage;
+    const site = await openSite(extContext, MOBILE_LOGIN_TEXT_HTML);
+    await site.fill('#m', PHONE);
+    await site.fill('#c', SMS_CODE);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+
+    const cdp = await pierceSession(site);
+    await clickPromptSave(site, cdp);
+
+    await expectNotice(site, 'bg.autoSave.savedNew', 'mobile-code-notice-saved-new');
+  });
+
+  test('弹窗开着时另一处给这条设了密码：出口轻提醒如实说「本次未改动」', async ({ extContext, optionsPage }) => {
+    const site = await openSite(extContext, MOBILE_LOGIN_TEXT_HTML);
+    await site.fill('#m', PHONE);
+    await site.fill('#c', SMS_CODE);
+    await site.click('#go');
+    await expect(promptHost(site)).toBeAttached({ timeout: 15_000 });
+    const cdp = await pierceSession(site);
+
+    // 预检查时库里没有这条，弹窗才成立；用户读弹窗的这几秒里另一张管理页把它建好并带上口令。
+    // 这是 passwordKept 唯一可达的生产路径，也是「静默清掉一把口令不可逆」那条守卫的现场。
+    await createEntry(optionsPage, {
+      username: PHONE,
+      password: STORED_ELSEWHERE_PASSWORD,
+      url: E2E_PAGE_ORIGIN,
+    });
+    await site.bringToFront();
+    await clickPromptSave(site, cdp);
+
+    await expectNotice(site, 'bg.autoSave.passwordKept', 'mobile-code-notice-password-kept');
   });
 });

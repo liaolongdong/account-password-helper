@@ -106,13 +106,52 @@ describe('parseRichText 的实体引用解码', () => {
 });
 
 describe('现存语言包文案与解析器的口径对齐', () => {
-  /** 逐语言、逐命名空间读出全部字符串值 */
-  const allLocaleValues = (): string[] =>
+  /** 逐语言、逐命名空间读出全部字符串值（带 key，供判据报出可定位的违规位置） */
+  const allLocaleEntries = (): { locale: string; key: string; value: string }[] =>
     readdirSync(LOCALES_DIR).flatMap(locale =>
       readdirSync(path.join(LOCALES_DIR, locale))
         .filter(f => f.endsWith('.json'))
-        .flatMap(f => Object.values(JSON.parse(readFileSync(path.join(LOCALES_DIR, locale, f), 'utf-8')) as string[])),
+        .flatMap(f =>
+          Object.entries(JSON.parse(readFileSync(path.join(LOCALES_DIR, locale, f), 'utf-8')) as Record<string, string>)
+            .filter(([, value]) => typeof value === 'string')
+            .map(([key, value]) => ({ locale, key, value })),
+        ),
     );
+
+  /** 逐语言、逐命名空间读出全部字符串值 */
+  const allLocaleValues = (): string[] => allLocaleEntries().map(entry => entry.value);
+
+  /**
+   * 会被原样上屏的 Markdown 强调写法
+   *
+   * 两条都有现成的白名单等价物（`<b>` / `<code>`），所以「想用强调」不是写 Markdown 的理由。
+   * 只认成对的双星号：`form.urlWildcardHint` 里的 `*.qq.com` 是产品语义，不是强调。
+   */
+  const MARKDOWN_EMPHASIS = [
+    { name: '**粗体**', pattern: /\*\*[^*\n]+\*\*/ },
+    { name: '`代码位`', pattern: /`[^`\n]+`/ },
+  ];
+
+  it('强调只能写成 `<b>` / `<code>`，Markdown 标记不会被解析、会带着符号上屏', () => {
+    const entries = allLocaleEntries();
+    expect(entries.length, '语言包一条文案都没读到，本用例的判据已失去意义').toBeGreaterThan(0);
+    // 白名单写法确实在用，判据不能被「全都不用标记」绕过
+    expect(
+      entries.some(e => e.value.includes('<b>')),
+      '语言包已不再使用 <b>，本用例的口径需重新确认',
+    ).toBe(true);
+    expect(
+      entries.some(e => e.value.includes('<code>')),
+      '语言包已不再使用 <code>，本用例的口径需重新确认',
+    ).toBe(true);
+
+    const offenders = entries.flatMap(({ locale, key, value }) =>
+      MARKDOWN_EMPHASIS.filter(({ pattern }) => pattern.test(value)).map(
+        ({ name }) => `${locale} ${key} 用了 Markdown ${name}：${value.slice(0, 60)}`,
+      ),
+    );
+    expect(offenders, 'richText 的白名单只有 b / code，Markdown 标记会原样渲染成字面文本').toEqual([]);
+  });
 
   it('文案里的每个裸 `<` 都是白名单标签的起点（新增标记写法必须先过这一关）', () => {
     const withMarkup = allLocaleValues().filter(v => v.includes('<'));
