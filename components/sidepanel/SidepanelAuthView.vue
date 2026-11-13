@@ -208,13 +208,23 @@ const toggleFilterTag = (tag: string) => {
 };
 
 /**
- * 筛选 chip 的主题色 CSS 变量（与列表条目标签同源 HSL 配色）
+ * 筛选 chip 的内联样式：主题色 CSS 变量（与列表条目标签同源 HSL 配色）+ 边框基线
  * @param tag 标签文本
- * @returns 供样式消费的 --tag-* 变量集
+ * @returns 供样式消费的 --tag-* 变量集与 border 基线声明
  */
 const tagChipVars = (tag: string): Record<string, string> => {
   const { background, text, border } = getTagColor(tag);
-  return { '--tag-bg': background, '--tag-text': text, '--tag-border': border };
+  return {
+    '--tag-bg': background,
+    '--tag-text': text,
+    '--tag-border': border,
+    // 边框基线必须内联：本组件样式随异步 chunk 注入，可能晚于 chip 首帧到达
+    // （__vitePreload 的去重分支不等已在加载中的 link，而 App.vue 有三处预热 import
+    // 与 loader 抢同一份 CSS），那个窗口里原生 button 穿的是 UA 的 2px outset 黑边。
+    // 内联在元素创建时即生效，早于任何样式表。颜色留一层自定义属性供 hover / 选中态
+    // 换色——内联优先级高于任何选择器，那两处直接写 border-color 会被压死。
+    border: '1px solid var(--tag-chip-border, #e2e8f0)',
+  };
 };
 
 const searchInputRef = ref();
@@ -762,7 +772,10 @@ onUnmounted(() => {
   background: transparent;
   border: 1px solid var(--aph-primary-border);
   border-radius: 999px;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease;
 }
 
 .scope-bar__back:hover {
@@ -779,6 +792,14 @@ onUnmounted(() => {
 /* 标签筛选外层 */
 .tag-filter-wrap {
   padding: 0 16px 10px;
+}
+
+/* 全站搜索条与标签面包屑之间留白：条带是实色填充块、chip 也是填充 pill，两团填充直接相接
+   会显得挤（条带自身 8px 下内边距是着色区内，不算间隔）。取 10px 与 .search-section 的下
+   内边距同档，让「有色块 → 白 → 有色块」的留白上下一致。只在条带存在时生效，常规（本站）
+   范围下标签区与搜索框的间距不受影响。 */
+.scope-bar + .tag-filter-wrap {
+  padding-top: 10px;
 }
 
 /* 标签多行 wrap 区：最多展示 2 行标签，超出部分纵向滚动；
@@ -806,7 +827,10 @@ onUnmounted(() => {
 }
 
 /* 未选中：中性描边；选中：切换为标签自身主题色（--tag-* 变量由组件注入）；
-   截断省略号作用于内层 span（button 匿名盒上 text-overflow 不可靠） */
+   截断省略号作用于内层 span（button 匿名盒上 text-overflow 不可靠）。
+   边框基线不在这里：见 tagChipVars 的内联声明，本表只改 --tag-chip-border 换色。
+   过渡必须枚举——`all` 会把「UA 默认样式 → 本表」那次换装也播成 200ms 动画，
+   把一帧的黑边破绽拉成肉眼可见的一段深色描边。 */
 .tag-chip {
   display: inline-flex;
   flex-shrink: 0;
@@ -819,9 +843,11 @@ onUnmounted(() => {
   white-space: nowrap;
   cursor: pointer;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
   border-radius: 999px;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease;
 }
 
 .tag-chip__label {
@@ -831,14 +857,16 @@ onUnmounted(() => {
 }
 
 .tag-chip:hover {
+  --tag-chip-border: var(--tag-border);
+
   color: var(--tag-text);
-  border-color: var(--tag-border);
 }
 
 .tag-chip--active {
+  --tag-chip-border: color-mix(in srgb, var(--tag-text) 45%, transparent);
+
   color: var(--tag-text);
   background: var(--tag-bg);
-  border-color: color-mix(in srgb, var(--tag-text) 45%, transparent);
 }
 
 .tag-chip:focus-visible {
@@ -886,7 +914,7 @@ onUnmounted(() => {
   background: transparent;
   border: none;
   border-radius: 6px;
-  transition: all 0.2s ease;
+  transition: color var(--aph-duration-mid) ease;
 }
 
 .cross-domain-hint:hover {
