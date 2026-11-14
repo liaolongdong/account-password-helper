@@ -1133,10 +1133,14 @@ export class FormDetector {
    * 密码可见性按钮是否锚定在 input 右内缘（钥匙图标需为其预留避让偏移）
    *
    * 按钮锚定父元素（可视字段盒）右缘时与 input 右缘不再相邻，钥匙图标无需预留偏移。
+   * 字段是否为密码框以稳定标记 data-aph-password 判定，而非当前 type：点眼睛揭示后
+   * type 被切为 text，眼睛按钮仍可见，若按 type 判定会误判「无眼睛」，钥匙图标避让
+   * 偏移落到 6px 压在眼睛占据的右缘 28px 区上（眼睛点击回调自身还会聚焦该字段）。
    * @param input 当前获焦/点击的输入框
    */
   private isEyeToggleAtInputRight(input: HTMLInputElement): boolean {
-    if (input.type !== 'password' || !this.floatingButtonConfig.passwordVisibilityToggle) return false;
+    if (!this.floatingButtonConfig.passwordVisibilityToggle) return false;
+    if (input.type !== 'password' && input.dataset.aphPassword !== 'true') return false;
     return this.passwordVisibilityToggle.anchorsToInputRight(input);
   }
 

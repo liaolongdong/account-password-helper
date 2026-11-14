@@ -210,8 +210,8 @@ export interface ToggleEntry {
   host: HTMLElement;
   /** 切换按钮（closed 影子树内，页面选择器不可达） */
   button: HTMLButtonElement;
-  /** input 事件监听器引用（用于解绑） */
-  onInput: () => void;
+  /** 可见态同步监听器引用（input/focus/change 共用，用于解绑） */
+  onSync: () => void;
   /** click 事件监听器引用（用于解绑） */
   onClick: () => void;
   /** 布局跟随上一帧的 input/parent 矩形指纹（变化时才重定位；跟随冷启动时被清空） */

@@ -206,8 +206,9 @@ const settle = async (site: Page): Promise<void> => {
  * 保存出口那条轻提醒
  *
  * 名字里有 native，但它**不是**操作系统通知：`showNativeNotification` 往宿主页面 body 挂一个
- * light DOM 的 `.native-form-detector-notification`，3000ms 后自删。所以它不像弹窗那样需要
- * CDP pierce，普通选择器读得到；代价是所有读数与截图都得挤在那 3 秒里。
+ * light DOM 的 `.native-form-detector-notification`，按类型分档自删（success 3s / info 4s /
+ * warning、error 6s，见 NativeNotification）。所以它不像弹窗那样需要 CDP pierce，普通选择器
+ * 读得到；本夹具只取 success 档，代价是读数与截图都得挤在那 3 秒里。
  */
 const notice = (site: Page) => site.locator('.native-form-detector-notification');
 

@@ -40,22 +40,58 @@ const NOTIFICATION_ICON_MAP: Record<NotificationType, string> = {
 };
 
 /**
+ * 通知类型 → 自动收起时长（毫秒）
+ *
+ * 失败/拒收档承载最长的文案（越限字段点名、容量上限、跨窗口冲突、带 URL 的去向说明），
+ * max-width 300px 下长句折行后需要更久的阅读窗口；成功提示保持短促不打扰。
+ */
+const NOTIFICATION_DWELL_MS: Record<NotificationType, number> = {
+  success: 3000,
+  info: 4000,
+  warning: 6000,
+  error: 6000,
+};
+
+/** 当前通知的自动收起定时器（同一时刻至多一条通知，模块级单槽即可） */
+let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 当前通知节点：到期、点击、被替换都经它收口，避免悬空定时器把新通知提前收走 */
+let activeNotification: HTMLElement | null = null;
+
+/** 清除自动收起定时器 */
+function clearHideTimer(): void {
+  if (hideTimer !== null) {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+}
+
+/** 收起当前通知并清表（到期 / 点击 / 被替换共用） */
+function dismissNotification(): void {
+  clearHideTimer();
+  activeNotification?.remove();
+  activeNotification = null;
+}
+
+/**
  * 显示原生通知（模拟 Element Plus ElMessage 样式）
- * 在页面右上角显示一个带图标的通知消息，3秒后自动消失
+ *
+ * 在页面右上角显示一个带图标的通知消息，按类型分档停留后自动消失；悬停暂停计时、
+ * 离开重新计时、点击立即收起（与 FillAckChip 同一交互口径），长文案不会读到一半被收走。
  * @param message - 通知消息内容
  * @param type - 通知类型，默认 'warning'
  */
 export function showNativeNotification(message: string, type: NotificationType = 'warning'): void {
-  // 移除已有的通知
-  const existingNotification = document.querySelector('.native-form-detector-notification') as HTMLElement;
-  if (existingNotification) {
-    existingNotification.remove();
-  }
+  // 移除已有通知并清掉它的定时器：旧表不得把新通知提前收走
+  dismissNotification();
+  // 兜底清扫不受管残留（dev 热重载等极端时序下模块状态与 DOM 可能不一致），守住「至多一条」
+  document.querySelector('.native-form-detector-notification')?.remove();
 
   const { bgColor, borderColor, textColor } = NOTIFICATION_COLOR_MAP[type];
 
   const notification = document.createElement('div');
   notification.className = 'native-form-detector-notification';
+  notification.setAttribute('role', type === 'success' || type === 'info' ? 'status' : 'alert');
   notification.style.cssText = `
     position: fixed;
     top: 20px;
@@ -86,11 +122,28 @@ export function showNativeNotification(message: string, type: NotificationType =
   notification.appendChild(icon);
   notification.appendChild(textSpan);
 
-  document.body.appendChild(notification);
+  const dwell = NOTIFICATION_DWELL_MS[type];
+  const armHideTimer = (): void => {
+    clearHideTimer();
+    hideTimer = setTimeout(dismissNotification, dwell);
+  };
+  // 存活守卫：通知条是 light DOM，宿主页面可持有被替换/收起的旧节点并向它派发合成事件。
+  // 旧节点的回调若仍读写模块单槽，就能停掉/重排/收走「当前」通知（orphan 监听器）。
+  // 与 FillAckChip 的 `if (this.visible)` 同一口径：非当前节点的事件一律忽略。
+  const isCurrent = (): boolean => activeNotification === notification;
+  // 悬停暂停计时：用户正读这句时让它消失，等于把长文案唯一的阅读窗口关掉；离开指针后重新计时
+  notification.addEventListener('mouseenter', () => {
+    if (isCurrent()) clearHideTimer();
+  });
+  notification.addEventListener('mouseleave', () => {
+    if (isCurrent()) armHideTimer();
+  });
+  // 点一下视为读完，立即收起
+  notification.addEventListener('click', () => {
+    if (isCurrent()) dismissNotification();
+  });
 
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
-    }
-  }, 3000);
+  document.body.appendChild(notification);
+  activeNotification = notification;
+  armHideTimer();
 }
