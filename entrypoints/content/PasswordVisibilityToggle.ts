@@ -84,6 +84,15 @@ const SHADOW_STYLES = `
 /** 按钮左边缘距锚点右边缘的距离 = 按钮宽度(24) + 间距(4) */
 const BUTTON_LEFT_OFFSET = 28;
 
+/**
+ * 触发可见态重同步的事件
+ *
+ * 仅靠 input 会漏掉「有值却没派发 input」的写入：浏览器原生自动填充、页面脚本直接
+ * `.value=` 赋值都不派发 input，框里有密码但眼睛不出现。focus/change 补上这两条路径
+ * （获焦与值提交时各重同步一次），低频事件不改变跟随循环以可见性启停的省帧设计。
+ */
+const SYNC_EVENTS = ['input', 'focus', 'change'] as const;
+
 /** 按钮水平定位的测量结果（锚点右缘 + 父元素左缘基准） */
 interface AnchorMeasurement {
   /** 水平锚点右缘（视口坐标） */
@@ -280,13 +289,13 @@ export class PasswordVisibilityToggle {
       setHostVisible(host, true);
     }
 
-    // input 事件：有值时显示按钮
-    const onInput = () => {
+    // 有值时显示按钮：input 逐键同步，focus/change 兜住不派发 input 的赋值（原生自动填充等）
+    const syncVisibility = () => {
       setHostVisible(host, input.value.length > 0);
       // 可见性是布局跟随唯一的启停信号：按钮隐藏期间无需逐帧测量宿主几何
       this.syncFollow();
     };
-    input.addEventListener('input', onInput);
+    for (const eventName of SYNC_EVENTS) input.addEventListener(eventName, syncVisibility);
 
     // click 事件：切换密码可见性
     let isRevealed = false;
@@ -314,7 +323,7 @@ export class PasswordVisibilityToggle {
       parent,
       host,
       button,
-      onInput,
+      onSync: syncVisibility,
       onClick,
       lastRectKey: '',
       anchorAtInputRight: true,
@@ -323,7 +332,7 @@ export class PasswordVisibilityToggle {
     this.liveEntries.add(entry);
 
     // 立即最佳努力定位；按钮可见期间发生的后续漂移由布局跟随逐帧修正
-    // （空字段下按钮不可见，无需修正；input 首次有值时 onInput 会启动跟随并强制重定位）
+    // （空字段下按钮不可见，无需修正；首次有值时 syncVisibility 会启动跟随并强制重定位）
     this.positionHost(input, host);
     this.syncFollow();
   }
@@ -402,7 +411,7 @@ export class PasswordVisibilityToggle {
    * @param entry 待释放的托管条目
    */
   private releaseEntry(entry: ToggleEntry): void {
-    entry.input.removeEventListener('input', entry.onInput);
+    for (const eventName of SYNC_EVENTS) entry.input.removeEventListener(eventName, entry.onSync);
     entry.button.removeEventListener('click', entry.onClick);
     entry.input.type = 'password';
     entry.host.remove();

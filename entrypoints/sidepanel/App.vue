@@ -1626,6 +1626,23 @@ body {
   height: 100%;
 }
 
+/* ========== 原生 button 的 UA 兜底 ==========
+   侧边栏的认证视图是 async chunk，它的样式表可能晚于首帧到达：`__vitePreload` 的去重分支
+   只为「还没人建过 link」的模块等 load 事件，已在加载中的直接返回；而 App.vue 有三处预热
+   import 与 loader 抢同一份 CSS。那个窗口里的原生 button 穿的是 UA 默认装——2px outset 黑边
+   配 #efefef 灰底，一帧就够看见，再被组件里的 `transition: all` 拉成一段可见的深色描边。
+
+   落在这里而不是各组件样式里：本块随首屏样式表一起下发，是唯一能覆盖「组件样式还没到」
+   那个窗口的位置。宽度写 0、颜色写 transparent 而不是 `border: none`——后者把 border-color
+   重置成 currentColor（黑），配上过渡仍会 animate 出一段深色边。
+   只覆盖 border 与 background-color，不碰 color / padding / font：这三项各按钮都可能
+   依赖 UA 值，而前两项侧边栏每个原生按钮的基础规则都自带（专用性 0,1,0 压过本条的 0,0,1），
+   所以稳态零变化——tests/architecture/nativeButtonBaseline.test.ts 逐类守着这条前提。 */
+button {
+  background-color: transparent;
+  border: 0 solid transparent;
+}
+
 /* ========== 认证视图 chunk 加载占位（h() 渲染的函数式组件，无 scoped 作用域） ========== */
 .sp-auth-view-loading {
   display: flex;

@@ -448,3 +448,63 @@ describe('Closed Shadow DOM 隔离', () => {
     expect(entryOf(inputs[0]).button.style.getPropertyValue('--aph-primary')).toBe('#69b599');
   });
 });
+
+describe('可见性同步的事件面（无 input 事件的赋值）', () => {
+  it('程序化赋值后聚焦：按钮出现（浏览器原生自动填充不派发 input）', () => {
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, PARENT_RECT);
+    layout.setRect(inputs[0], INPUT_RECT);
+    manager.init();
+    const host = hostsOf(parent)[0];
+    // 直接赋值不派发 input：复刻浏览器原生自动填充 / 页面脚本写入
+    inputs[0].value = 'autofilled';
+    expect(isVisible(host)).toBe(false);
+
+    inputs[0].dispatchEvent(new Event('focus', { bubbles: true }));
+
+    expect(isVisible(host)).toBe(true);
+  });
+
+  it('change 事件同样把可见态同步到有值', () => {
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, PARENT_RECT);
+    layout.setRect(inputs[0], INPUT_RECT);
+    manager.init();
+    const host = hostsOf(parent)[0];
+    inputs[0].value = 'committed';
+
+    inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(isVisible(host)).toBe(true);
+  });
+
+  it('空值聚焦不显示按钮', () => {
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, PARENT_RECT);
+    layout.setRect(inputs[0], INPUT_RECT);
+    manager.init();
+    const host = hostsOf(parent)[0];
+
+    inputs[0].dispatchEvent(new Event('focus', { bubbles: true }));
+
+    expect(isVisible(host)).toBe(false);
+  });
+
+  it('释放后 focus/change 监听一并解绑', () => {
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, PARENT_RECT);
+    layout.setRect(inputs[0], INPUT_RECT);
+    manager.init();
+    const host = hostsOf(parent)[0];
+    manager.destroy();
+    // 洗掉内联可见态，才能区分「未解绑」与「从未抹除」
+    host.style.removeProperty('visibility');
+    host.style.removeProperty('opacity');
+    inputs[0].value = 'again';
+
+    inputs[0].dispatchEvent(new Event('focus', { bubbles: true }));
+    inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(isVisible(host)).toBe(false);
+  });
+});
