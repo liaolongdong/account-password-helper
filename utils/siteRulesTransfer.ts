@@ -5,14 +5,16 @@
  * 用 DevTools 现抄，换机或重装后重配的代价远高于配置本身。因此这里给一条与密码库
  * 加密备份（`.aph`）完全分离的明文通道。
  *
- * 明文是有意为之：规则里只有域名与 CSS 选择器，不含账号、密码或任何可推导凭据的
- * 字段，用户可以直接打开文件肉眼核对、手改后回导。域名清单会随文件离开扩展，这是
- * 该通道已知的取舍，不要把这里当成可以放敏感数据的地方。
+ * 明文是有意为之：规则里只有域名、CSS 选择器与少量行为覆盖开关（填充档位 / 悬浮按钮
+ * 显隐 / 匹配档位 / 影子穿透），不含账号、密码或任何可推导凭据的字段，用户可以直接打开
+ * 文件肉眼核对、手改后回导。域名清单会随文件离开扩展，这是该通道已知的取舍，不要把
+ * 这里当成可以放敏感数据的地方。
  *
  * 导入侧的文件内容全部按不可信输入处理：结构、条数、体积、域名形态与选择器语法
  * 都要过一遍校验，不合法的条目逐条剔除而不是整份接受。
  */
 import { formatTimestampCompact } from '@/utils/dateFormat';
+import { isDomainMatchMode } from './domain';
 import { isFillEntry } from '@/utils/fillEntry';
 import { logger } from '@/utils/logger';
 import {
@@ -30,10 +32,11 @@ export const SITE_RULES_EXPORT_KIND = 'aphsr';
 /**
  * 导出格式版本，字段增删时提升，并在导入侧作为兼容判据
  *
- * `fillEntry`（按站点覆盖快速填充入口）没有提升版本：它是可选字段，缺省语义就是
- * 「跟随全局」，因此 v1 文件在新版本里读作「无覆盖」是正确结果，而新文件里的这个字段
- * 被旧版本忽略也不损失任何东西。一旦提升到 2，导入侧的严格相等校验会把用户手上现有的
- * v1 文件全部判成 `UNSUPPORTED_FILE`——那是为了一个不存在的兼容问题制造真实故障。
+ * `fillEntry` / `floatingButton` / `domainMatchMode`（按站点覆盖填充入口、悬浮按钮显隐、
+ * 跨子域匹配档位）都没有提升版本：它们都是可选字段，缺省语义就是「跟随全局」，因此
+ * v1 文件在新版本里读作「无覆盖」是正确结果，而新文件里的这些字段被旧版本忽略也不损失
+ * 任何东西。一旦提升到 2，导入侧的严格相等校验会把用户手上现有的 v1 文件全部判成
+ * `UNSUPPORTED_FILE`——那是为了一个不存在的兼容问题制造真实故障。
  */
 export const SITE_RULES_EXPORT_VERSION = 1;
 
@@ -98,8 +101,8 @@ export interface SiteRulesParseResult {
  * 精确匹配下静默失效。选择器两侧独立可选（只钉一侧是合法形态），但**写了的那一侧**
  * 语法非法时整条剔除：侧级丢弃不在「新增 / 更新 / 忽略」的条数口径里，静默收下会让用户
  * 以为两侧都钉住了，而实际有一侧悄悄回到自动检测——与本文件「不得静默丢数据」的约定相悖。
- * 空串与缺失同样按「该侧不覆盖」处理。三样覆盖项（选择器 / 影子穿透 / 填充档位）
- * 全不成立时返回 null，避免往存储里塞一条什么都不做的记录。
+ * 空串与缺失同样按「该侧不覆盖」处理。各覆盖项（选择器 / 影子穿透 / 填充档位 /
+ * 悬浮按钮显隐 / 匹配档位）全不成立时返回 null，避免往存储里塞一条什么都不做的记录。
  */
 function toSiteRule(rawDomain: unknown, rawRule: unknown): SiteRule | null {
   const domain = normalizeSiteRuleDomain(rawDomain);
@@ -128,8 +131,22 @@ function toSiteRule(rawDomain: unknown, rawRule: unknown): SiteRule | null {
   // 而不是把文件里的垃圾字符串存起来参与判定
   if (isFillEntry(source.fillEntry)) rule.fillEntry = source.fillEntry;
 
-  // 三样都没有才算空规则；只设档位（这个站别自动弹侧边栏）或只关穿透，都是有效规则
-  return rule.customSelectors || rule.penetrateShadow === false || rule.fillEntry !== undefined ? rule : null;
+  // 与 penetrateShadow 不同：显式 true 也是有效覆盖（全局默认显示可被用户改成隐藏，
+  // 不能把 true 当默认值丢弃），因此两个布尔值都收，脏值按「跟随全局」丢弃
+  if (typeof source.floatingButton === 'boolean') rule.floatingButton = source.floatingButton;
+
+  // 匹配档位与 fillEntry 同口径：替换语义、非法值丢弃；端口轴不在覆盖范围内
+  if (isDomainMatchMode(source.domainMatchMode)) rule.domainMatchMode = source.domainMatchMode;
+
+  // 全部覆盖项都没有才算空规则；只设其中任意一项（如「这个站别自动弹侧边栏」
+  // 或「这个站单独隐藏悬浮按钮」），都是有效规则
+  return rule.customSelectors ||
+    rule.penetrateShadow === false ||
+    rule.fillEntry !== undefined ||
+    rule.floatingButton !== undefined ||
+    rule.domainMatchMode !== undefined
+    ? rule
+    : null;
 }
 
 /**

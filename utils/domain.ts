@@ -586,6 +586,26 @@ export function isDomainMatchMode(value: unknown): value is DomainMatchMode {
 }
 
 /**
+ * 解析当前生效的跨子域匹配档位：站点规则优先于全局配置
+ *
+ * 与 `resolveFillEntry` 同口径的替换语义：站点规则只在用户显式选过某一档时才有值，
+ * 未配置（`undefined`）即「跟随全局」——一条只管选择器的规则不应顺带放宽匹配边界。
+ * 规则值来自 storage / 导入文件，先过 `isDomainMatchMode` 收窄，脏值按「跟随全局」处理，
+ * 绝不把未知字符串当成放宽档参与判定。
+ *
+ * @param globalMode 全局配置的档位
+ * @param rule 当前域名的站点规则（结构子集，避免反向依赖存储层；null / undefined 表示无规则）
+ * @returns 生效的档位
+ */
+export function resolveDomainMatchMode(
+  globalMode: DomainMatchMode,
+  rule?: { domainMatchMode?: unknown } | null,
+): DomainMatchMode {
+  const override = rule?.domainMatchMode;
+  return isDomainMatchMode(override) ? override : globalMode;
+}
+
+/**
  * 匹配层级：数字即排序权重，越小越靠前
  *
  * - 0 精确 host

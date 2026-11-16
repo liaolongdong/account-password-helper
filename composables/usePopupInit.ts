@@ -10,10 +10,13 @@ import {
   isLoopbackHost,
   matchesSiteWithEnv,
   parsePagePortContext,
+  rawPortOf,
+  resolveDomainMatchMode,
   type PagePortContext,
   type SitePolicy,
 } from '@/utils/domain';
 import { DEFAULT_DOMAIN_MATCH_MODE, DEFAULT_PORT_SCOPE } from '@/utils/storage/configManager';
+import { getSiteRules, resolveSiteRuleForHosts } from '@/utils/storage/siteRules';
 
 /**
  * Popup 初始化编排 Composable
@@ -37,7 +40,7 @@ export function usePopupInit() {
   const currentDomain = shallowRef('');
 
   /**
-   * 站点匹配策略（打开时读一次；读失败回落双缺省）
+   * 站点匹配策略（打开时读一次全局值，域名确定后再叠加站点级档位覆盖；读失败回落双缺省）
    *
    * Popup 只把它用于「此站已有账号数」的统计口径，不做列表、不加徽章。
    * 缺省值合起来即「端口隔离功能存在之前」的口径；本地开发域名此前完全不感知端口
@@ -120,6 +123,17 @@ export function usePopupInit() {
         } catch {
           // URL 解析失败，忽略
         }
+      }
+
+      // 站点级档位覆盖：域名确定后读一次规则（明文小配置，内部已把失败降级成空集），
+      // host 重建与侧边栏 currentSiteHost 同口径，保证「此站已有账号数」三入口一致
+      if (currentDomain.value) {
+        const rules = await getSiteRules();
+        const port = rawPortOf(currentPagePort.value);
+        const host = port ? `${currentDomain.value}:${port}` : currentDomain.value;
+        const rule = resolveSiteRuleForHosts(rules, host, currentDomain.value);
+        const mode = resolveDomainMatchMode(sitePolicy.value.mode, rule);
+        if (mode !== sitePolicy.value.mode) sitePolicy.value = { ...sitePolicy.value, mode };
       }
 
       // 环回页面才去读环境绑定：公网页面永远取不到值，多一次 IPC 没有意义，

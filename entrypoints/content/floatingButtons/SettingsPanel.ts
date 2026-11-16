@@ -10,7 +10,7 @@
 
 import type { FillEntry, FloatingButtonConfig } from '@/utils/types';
 import { isFillEntry } from '@/utils/fillEntry';
-import { getSiteRule } from '@/utils/storage/siteRules';
+import { getSiteRules, resolveSiteRuleForHosts } from '@/utils/storage/siteRules';
 import type { SettingsPanelOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
 import {
   getSettingsPanelHTML,
@@ -63,25 +63,32 @@ export class SettingsPanel {
     void getStoredPanelLocale().then(locale => this.viewHandle?.setLocale(locale));
 
     // 站点规则是异步读到的，构造期先取一次，让首次打开就带上覆盖提示
-    this.refreshSiteFillOverride();
+    this.refreshSiteOverrides();
   }
 
   /**
-   * 读取当前域名的站点规则，把覆盖的填充档位推给面板
+   * 读取当前域名的站点规则，把覆盖的填充档位与悬浮按钮显隐推给面板
    *
    * 这里自己读 storage，而不是由 FormDetector 把规则传进来：面板与表单检测器各有自己的
    * 生命周期，前者是用户点开设置时才存在。跨模块传状态要新增一条 FormDetector →
    * FloatingButtonManager → SettingsPanel 的边，还得处理「规则变了但面板还没打开过」的时序；
-   * 而 `getSiteRule` 读的是明文 storage 键、内部已把异常降级成「无规则」，只在面板构造与每次
+   * 而 `getSiteRules` 读的是明文 storage 键、内部已把异常降级成「无规则」，只在面板构造与每次
    * show 上各跑一次，代价可以忽略。
+   *
+   * host 解析与 FloatingButtonManager / FormDetector 同口径（host 含非默认端口优先，
+   * 回退 hostname，再兼容 document.domain），端口级规则的覆盖提示也能命中。
    */
-  private refreshSiteFillOverride(): void {
-    const domain = document.domain || window.location.hostname || '';
-    void getSiteRule(domain).then(rule => {
+  private refreshSiteOverrides(): void {
+    void getSiteRules().then(rules => {
+      const rule =
+        resolveSiteRuleForHosts(rules, window.location.host, window.location.hostname) ??
+        rules[(document.domain || '').toLowerCase()];
       const entry = rule?.fillEntry;
       const override: FillEntry | null = isFillEntry(entry) ? entry : null;
+      const visible = rule?.floatingButton;
       // destroy() 已把句柄置空时这里自然什么都不做，迟到的读取结果不会写到已移除的 DOM 上
       this.viewHandle?.setSiteFillOverride(override);
+      this.viewHandle?.setSiteVisibleOverride(typeof visible === 'boolean' ? visible : null);
     });
   }
 
@@ -93,7 +100,7 @@ export class SettingsPanel {
     this.isVisible = true;
 
     // 规则可能在面板上次打开之后被编辑（内容脚本无需刷新即生效），每次展示都重新取一次
-    this.refreshSiteFillOverride();
+    this.refreshSiteOverrides();
 
     this.overlay?.classList.add('visible');
     this.panel?.classList.add('visible');

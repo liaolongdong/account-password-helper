@@ -85,8 +85,10 @@ import {
   applyMetadataOnlyUpdate,
   consumePendingTotp,
   getCachedSitePolicy,
+  getCachedSiteRules,
   getDecryptedEntryById,
   getCachedPasswords,
+  getEffectiveSitePolicy,
   getInlineTotpCode,
   getMatchingAccounts,
   INLINE_MAX_RESULT_ROWS,
@@ -95,6 +97,7 @@ import {
   refreshSidepanelSortCache,
   resetCredentialAccessBarrierForStartup,
   resetDomainMatchModeMirror,
+  resetSiteRulesMirror,
   sortMatchesForDomain,
   updatePasswordCache,
 } from '@/entrypoints/background/passwordCache';
@@ -107,6 +110,8 @@ beforeEach(async () => {
   await chrome.storage.local.clear();
   await chrome.storage.session.clear();
   invalidatePasswordCache();
+  // 规则镜像不随密码缓存失效（规则是与明文配置、与会话无关），hermetic 需单独复位
+  resetSiteRulesMirror();
   resetCredentialAccessBarrierForStartup();
 });
 
@@ -504,6 +509,130 @@ describe('站点匹配策略镜像与 tier 下发', () => {
       ['p3000', 0],
       ['p8080', 0],
     ]);
+  });
+});
+
+/**
+ * 站点规则对匹配档位的按站覆盖（B1）
+ *
+ * 覆盖语义与 fillEntry 同口径：规则里的 domainMatchMode **替换**全局档位（不是收窄），
+ * 缺省 / 脏值 = 跟随全局；端口轴不在覆盖范围内。规则镜像与策略镜像一样只读一次，
+ * 由 storage.onChanged 的 SITE_RULES 分支复位（这里以 resetSiteRulesMirror 模拟），
+ * 避免每次防抖击键都多一趟 storage 读。
+ */
+describe('站点规则覆盖匹配档位（getEffectiveSitePolicy）', () => {
+  const QQ_ENTRIES: PasswordEntry[] = [
+    makePasswordEntry({ id: 'exact', url: 'mail.qq.com' }),
+    makePasswordEntry({ id: 'sibling', url: 'music.qq.com' }),
+    makePasswordEntry({ id: 'apex', url: 'qq.com' }),
+  ];
+
+  const setMode = async (mode: DomainMatchMode): Promise<void> => {
+    configMocks.getDomainMatchConfig.mockResolvedValue({ mode, portScope: 'loose' });
+    resetDomainMatchModeMirror();
+  };
+
+  const setRules = async (rules: Record<string, unknown>): Promise<void> => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.SITE_RULES]: rules });
+    resetSiteRulesMirror();
+  };
+
+  beforeEach(async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' } });
+    updatePasswordCache(QQ_ENTRIES, '*', true);
+    await setMode('off');
+    await setRules({});
+  });
+
+  it('规则镜像只读一次，复位后才重新读取（击键热路径不多读 storage）', async () => {
+    // 先读一次把镜像填成 beforeEach 的空集，再改 storage：不复位就必须仍读旧值
+    expect(await getCachedSiteRules()).toEqual({});
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SITE_RULES]: { 'a.com': { domain: 'a.com', domainMatchMode: 'wildcard' } },
+    });
+    expect(await getCachedSiteRules()).toEqual({});
+    resetSiteRulesMirror();
+    expect(Object.keys(await getCachedSiteRules())).toEqual(['a.com']);
+  });
+
+  it('无规则时返回全局策略本身；有覆盖时只换 mode，端口轴保持全局', async () => {
+    const global = await getCachedSitePolicy();
+    expect(await getEffectiveSitePolicy('mail.qq.com', page('https://mail.qq.com'))).toBe(global);
+
+    await setRules({ 'mail.qq.com': { domain: 'mail.qq.com', domainMatchMode: 'sameMainDomain' } });
+    expect(await getEffectiveSitePolicy('mail.qq.com', page('https://mail.qq.com'))).toEqual({
+      mode: 'sameMainDomain',
+      portScope: 'loose',
+    });
+    // 未覆盖的域名不受影响
+    expect(await getEffectiveSitePolicy('other.qq.com', page('https://other.qq.com'))).toBe(global);
+  });
+
+  it('脏值按跟随全局处理，不参与三档判定', async () => {
+    await setRules({ 'mail.qq.com': { domain: 'mail.qq.com', domainMatchMode: 'same-main-domain' } });
+    expect(await getEffectiveSitePolicy('mail.qq.com', page('https://mail.qq.com'))).toEqual({
+      mode: 'off',
+      portScope: 'loose',
+    });
+  });
+
+  it('含非默认端口的 host 键优先于 hostname 键（多测试环境按端口放宽）', async () => {
+    await setRules({
+      localhost: { domain: 'localhost', domainMatchMode: 'off' },
+      'localhost:3000': { domain: 'localhost:3000', domainMatchMode: 'sameMainDomain' },
+    });
+    expect(await getEffectiveSitePolicy('localhost', page('http://localhost:3000'))).toEqual({
+      mode: 'sameMainDomain',
+      portScope: 'loose',
+    });
+    expect(await getEffectiveSitePolicy('localhost', page('http://localhost:8080'))).toEqual({
+      mode: 'off',
+      portScope: 'loose',
+    });
+  });
+
+  it('全局 off + 站点放宽：只有被覆盖的域名看得见同主域条目', async () => {
+    await setRules({ 'chat.qq.com': { domain: 'chat.qq.com', domainMatchMode: 'sameMainDomain' } });
+
+    const widened = await getMatchingAccounts('chat.qq.com', page('https://chat.qq.com'));
+    expect(widened.accounts.map(a => a.id).sort()).toEqual(['apex', 'exact', 'sibling']);
+
+    const strict = await getMatchingAccounts('mail.qq.com', page('https://mail.qq.com'));
+    expect(strict.accounts.map(a => a.id)).toEqual(['exact']);
+  });
+
+  it('全局放宽 + 站点收紧：覆盖是替换而不是取交集', async () => {
+    await setMode('sameMainDomain');
+    await setRules({ 'fat.example.com': { domain: 'fat.example.com', domainMatchMode: 'off' } });
+    updatePasswordCache(
+      [
+        makePasswordEntry({ id: 'fat', url: 'fat.example.com' }),
+        makePasswordEntry({ id: 'uat', url: 'uat.example.com' }),
+      ],
+      '*',
+      true,
+    );
+
+    const isolated = await getMatchingAccounts('fat.example.com', page('https://fat.example.com'));
+    expect(isolated.accounts.map(a => a.id)).toEqual(['fat']);
+
+    const shared = await getMatchingAccounts('uat.example.com', page('https://uat.example.com'));
+    expect(shared.accounts.map(a => a.id).sort()).toEqual(['fat', 'uat']);
+  });
+
+  it('规则变更后复位镜像即生效（模拟 storage.onChanged 的 SITE_RULES 分支）', async () => {
+    const before = await getMatchingAccounts('chat.qq.com', page('https://chat.qq.com'));
+    expect(before.accounts).toHaveLength(0);
+
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SITE_RULES]: { 'chat.qq.com': { domain: 'chat.qq.com', domainMatchMode: 'sameMainDomain' } },
+    });
+    // 未复位前镜像仍是旧值：这正是 onChanged 分支必须存在的原因
+    expect((await getMatchingAccounts('chat.qq.com', page('https://chat.qq.com'))).accounts).toHaveLength(0);
+
+    resetSiteRulesMirror();
+    const after = await getMatchingAccounts('chat.qq.com', page('https://chat.qq.com'));
+    expect(after.accounts.map(a => a.id).sort()).toEqual(['apex', 'exact', 'sibling']);
   });
 });
 

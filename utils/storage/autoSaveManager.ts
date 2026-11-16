@@ -14,6 +14,7 @@ import {
   matchesPortScope,
   normalizeToHostname,
   pagePortFromHostLike,
+  resolveDomainMatchMode,
   resolveMatchTier,
   type PagePortContext,
   type PortScope,
@@ -460,7 +461,8 @@ function findCrossSubdomainTwin(
  * 生成「本次将新增一条」提示
  *
  * 只在确实存在同名跨子域候选时才读档位配置：普通新账号保存因此不产生额外存储读取。
- * `off` 档下这些条目既不出现在填充列表，也与本次保存无关，提示反而误导，故按档位丢弃。
+ * 档位取「全局 + 站点规则覆盖」后的生效值（与填充路径同一口径），`off` 档下这些条目
+ * 既不出现在填充列表，也与本次保存无关，提示反而误导，故按档位丢弃。
  *
  * @param passwords 已解密的全量条目
  * @param data 待保存的账号与网址
@@ -474,7 +476,15 @@ async function buildWillCreateNote(
   if (!twin?.url) return undefined;
 
   const { mode } = await getDomainMatchConfig();
-  return mode === 'off' ? undefined : { kind: 'willCreate', url: twin.url };
+  // 动态导入：本模块在 popup 首屏 eager 依赖图里（见文件头 VAULT_BUSY 的说明），
+  // 而这条提示只在存在同名跨子域候选的罕见路径触发，不值得为它把 siteRules 整个
+  // 模块挂进 popup.html 的 modulepreload。
+  const { getSiteRules, resolveSiteRuleForHosts } = await import('./siteRules');
+  const rules = await getSiteRules();
+  // data.url 是内容脚本上报的 location.host（非默认端口已含在内），可直接当 host 键
+  const rule = resolveSiteRuleForHosts(rules, data.url, normalizeToHostname(data.url));
+  const effectiveMode = resolveDomainMatchMode(mode, rule);
+  return effectiveMode === 'off' ? undefined : { kind: 'willCreate', url: twin.url };
 }
 
 /**
