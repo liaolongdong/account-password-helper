@@ -504,7 +504,7 @@ graph TB
 - 主题配置保存在悬浮按钮偏好中，有三种方式进入设置：①密码管理页「偏好设置」按钮；②悬浮按钮齿轮图标；③侧边栏右上角齿轮图标。
 - 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。该文件同时是**扩展页共用的 Element Plus 覆写层**：EP 的组件样式在打包后排在它之后，同特异性的规则会被 EP 反压，因此这里的覆写一律靠多带一层真实 DOM（如 `.el-alert.is-light .el-alert__content .el-alert__title`）抬特异性取胜，而不是靠样式顺序。浅色告警的标题 / 描述就是这样从 EP 的语义色（实测 2.04~~2.80:1，不达 WCAG AA）收回常规文字层级（11.7~~12.1:1 / 5.5~5.7:1），语义色留给图标与底色。同一处还定义了 `--aph-danger-strong` / `--aph-warning-strong`：语义色当**文字**压浅底时不达 AA（`--el-color-danger` 白底 2.90:1、`--el-color-warning` 2.19:1），而报错与安全披露恰恰最需要读清，因此文字一律走这两档（八种浅底最差 4.53 / 4.61:1），图标、圆点、填充与描边继续用 `--el-color-*` 原色；EP 自带的 `.el-form-item__error` 与 `.el-message-box__errormsg` 也一并接管。**中性文字三档（primary / secondary / muted）的取值以「设计系统里最暗的那面浅底」为准，不是白底**——`#6b7280` 白底 4.83:1 合格，压到 `.session-pill:hover` 的 #e2e8f0 上只剩 3.92:1；该族能达标的最浅值是 #616876（最差底 4.54:1），它就是 AA 地板，muted 与 placeholder 只能共用这一格，四级阶梯在数学上不存在。新增 `--aph-text-*` 会被这条地板直接卡住。守卫见 [themeContrast.test.ts](../tests/architecture/themeContrast.test.ts)，它同时钉住「全仓语义色 `color:` 只剩图形用法」这份白名单。内容脚本不用 Element Plus，但 `--aph-text-*` 会经 `utils/theme.ts` 的 `SHADOW_NEUTRAL_TOKENS` 镜像进影子树，改值必须同步（`shadowTokenCoverage.test.ts` 逐字比对，漏同步即红）。
 - 内容脚本注入式 UI 的换肤程度按实现如实区分：Closed Shadow DOM 一档（悬浮按钮、内联填充面板、活码胶囊、填充失败气泡、保存密码提示）把 `--aph-*` 令牌内联写入宿主，与扩展页面同步生效；light DOM 一档里密码可见性切换按钮把主题令牌内联写到自身元素（跟随换肤），原生通知条配色固定、不随换肤变化。
-- 切换主题即时生效，无需刷新页面。
+- 切换主题即时生效，无需刷新页面。侧边栏的六个静态主题面（认证图标底/图标、全站搜索状态条、空态图标底/图标、不可解密横幅）补了逐属性枚举的色彩过渡（`--aph-duration-mid` 档），换肤呈渐变而非瞬时跳色；带 hover 态的面刻意不加，避免改变悬浮手感。时长统一取 [tokens.css](../assets/theme/tokens.css) 的三档 `--aph-duration-*` 令牌（fast 0.15s / mid 0.2s / slow 0.3s，只在 `:root` 声明、不随主题块变化），守卫见 [sidepanelEntranceMotion.test.ts](../tests/architecture/sidepanelEntranceMotion.test.ts)（禁 `all` 与字面时长）与 [motionTokenWiring.test.ts](../tests/architecture/motionTokenWiring.test.ts)（令牌名解析）。
 
 ### 17. 内联填充
 
@@ -810,6 +810,7 @@ graph TB
 - 纯 `SIDEPANEL_SORT_CONFIG` 变更（密码数据没动）在后台走 [passwordCache.ts](../entrypoints/background/passwordCache.ts) 的 `refreshSidepanelSortCache()`：只换排序镜像并用内存明文覆盖式重建快照，**保留仍有效的明文缓存**；走原来的全量失效 + 回温会让下一次打开侧边栏重做整库解密（2000 条量级数百毫秒），而这次变更只影响「条目怎么排」。同一批 storage 事件里伴随会话键变更时，仍按锁定语义全量失效。
 - 浏览器启动重锁使用 `pending/complete/failed` 状态与独立认证 recovery 标记：`pending` 优先级不可被安装、配置变更或认证事件覆盖；Side Panel、快捷填充、内联账号/密码/TOTP、自动保存等所有凭据入口共用同一 fail-closed 屏障。成功重新认证仅恢复同一次 `failed`，不会释放仍在执行的启动清理（见 [browserStartupRelock.ts](../utils/browserStartupRelock.ts)）。
 - 首次填充不再固定等待 800ms：先 PING，缺失时只向顶层/同主域安全 frame 并行注入，再以有界短退避确认就绪；单个 iframe 导航消失不会阻断其他有效 frame（见 [contentScriptReadiness.ts](../utils/contentScriptReadiness.ts)）。
+- 首屏入场动画对秒开链路**零占用**：`finishOpen` 在 `LIST_RENDERED` 埋点与骨架屏淡出**之后**同步给面板根节点挂 `is-opened`，由 CSS 关键帧播放一次性 6px 上浮落定（仅 transform、slow 档令牌；刻意不做 opacity，可见性交由骨架屏交叉淡出负责，避免双层淡入拖慢「看得见」的观感）。不新增计时器/rAF；锁定→解锁不重播（容器不卸载）；减弱档由媒体查询摘除。守卫见 [sidepanelEntranceMotion.test.ts](../tests/architecture/sidepanelEntranceMotion.test.ts)（挂类唯一且位于埋点之后、关键帧只动 transform、减弱档撤销不被同选择器后来者压过）。
 
 **平台行为矩阵（SW 后台韧性层）**
 

@@ -792,6 +792,11 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--aph-primary);
   background: var(--aph-primary-bg);
+
+  /* 换肤 crossfade：静态面跟随主题渐变，与 __back / tag-chip 同档同枚举 */
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease;
 }
 
 .scope-bar__icon {
@@ -1013,6 +1018,9 @@ onUnmounted(() => {
   margin-bottom: 16px;
   background: rgb(var(--aph-primary-rgb) / 8%);
   border-radius: 50%;
+
+  /* 换肤 crossfade：--muted 变体切换也走同一条渐变，色彩状态切换统一 mid 档 */
+  transition: background-color var(--aph-duration-mid) ease;
 }
 
 .empty-icon-circle--muted {
@@ -1022,6 +1030,7 @@ onUnmounted(() => {
 .empty-icon {
   font-size: 24px;
   color: var(--aph-primary);
+  transition: color var(--aph-duration-mid) ease;
 }
 
 .empty-icon--muted {
@@ -1050,6 +1059,11 @@ onUnmounted(() => {
   background: var(--aph-surface-2);
   border: 1px solid var(--aph-surface-line);
   border-radius: 8px;
+
+  /* 换肤 crossfade：中性面（surface-2 / surface-line）也随主题渐变 */
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease;
 }
 
 /* 去添加密码按钮：圆角 + hover 上浮动效 */

@@ -1,6 +1,7 @@
 <template>
   <div
     v-show="showSidepanel"
+    ref="containerEl"
     class="sidepanel-container"
     @keydown="handleKeydown"
   >
@@ -480,6 +481,9 @@ const envPickerOpen = ref(false);
 
 /** 头部卡片根节点：判断「按下的是不是芯片那一块」 */
 const headerCardRef = ref<HTMLElement | null>(null);
+
+/** 面板根节点：首屏收尾时挂 is-opened 触发一次性入场动画（纯 CSS，不占测量链） */
+const containerEl = ref<HTMLElement | null>(null);
 
 /** 选择条包裹层：判断「按下的是不是选择条本身」 */
 const envBarEl = ref<HTMLElement | null>(null);
@@ -1430,6 +1434,11 @@ onMounted(async () => {
       setTimeout(() => skeletonEl.remove(), 250);
     }
 
+    // 入场动画只在此处触发一次（finishOpen 幂等）：挂类后由 CSS 关键帧播放，
+    // 不新增计时器/rAF、不延迟上面的 LIST_RENDERED 埋点与骨架屏淡出，秒开链路零占用。
+    // 锁屏→解锁不重播（容器不卸载）；减弱档由媒体查询摘除。
+    containerEl.value?.classList.add('is-opened');
+
     // 空闲预取：设置弹窗模块 + HelpDialog + QuickAddDialog + TotpCode + 认证视图 chunk（不阻塞首屏渲染），
     // 冷环境（Windows 会话失效期 / 浏览器重启引导期）下用户首次交互时 chunk 已温热、即时打开；
     // 认证视图 chunk 在锁屏态被跳过立即预取（见 onMounted 前段），此处补齐使解锁切换零等待；
@@ -1540,6 +1549,33 @@ onUnmounted(() => {
   background: #f0f2f5;
 }
 
+/*
+ * 首屏入场：骨架屏淡出的同时整块面板轻微上浮落定（仅 transform，合成器播放）。
+ * - 由 finishOpen 挂 is-opened 触发，一次性；结束帧 = 自然态，无需 fill 也无需清理；
+ * - 刻意不做 opacity：可见性交由骨架屏交叉淡出负责，双层淡入会拖慢「看得见」的观感；
+ * - 6px 位移期间的命中区随动画平移，落定后与无动画完全一致；body 底色与容器相同，
+ *   上浮露出的底边无色差；容器内无 fixed/absolute 后代，transform 不会改锚任何浮层。
+ */
+.sidepanel-container.is-opened {
+  animation: sp-settle var(--aph-duration-slow) ease-out;
+}
+
+@keyframes sp-settle {
+  from {
+    transform: translateY(6px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidepanel-container.is-opened {
+    animation: none;
+  }
+}
+
 /* ========== 卡片通用样式（search-card/list-card 已随认证态视图迁至 SidepanelAuthView） ========== */
 .header-card,
 .footer-card {
@@ -1616,11 +1652,15 @@ onUnmounted(() => {
   margin-bottom: 20px;
   background: var(--aph-primary-bg);
   border-radius: 50%;
+
+  /* 换肤 crossfade：与 tag-chip / scope-bar__back 同档同枚举，静态面不再瞬时跳色 */
+  transition: background-color var(--aph-duration-mid) ease;
 }
 
 .auth-icon {
   font-size: 28px;
   color: var(--aph-primary);
+  transition: color var(--aph-duration-mid) ease;
 }
 
 .auth-title {
