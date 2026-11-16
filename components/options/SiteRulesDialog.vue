@@ -207,7 +207,7 @@
         >
           <el-select
             v-model="formData.floatingButton"
-            class="fill-entry-select"
+            class="fab-visibility-select"
           >
             <el-option
               :value="FOLLOW_GLOBAL"
@@ -231,7 +231,7 @@
         >
           <el-select
             v-model="formData.domainMatchMode"
-            class="fill-entry-select"
+            class="match-mode-select"
           >
             <el-option
               :value="FOLLOW_GLOBAL"
@@ -1151,8 +1151,11 @@ function openPrefilledRule(rawDomain: string): void {
   margin-bottom: 18px;
 }
 
-/* 档位下拉与同列的输入框同宽（el-select 默认按内容收缩，跟隔壁 el-input 摆不齐） */
-.fill-entry-select {
+/* 三个覆盖下拉与同列的输入框同宽（el-select 默认按内容收缩，跟隔壁 el-input 摆不齐）。
+   类名必须各自独立：e2e 按 `.fill-entry-select` 唯一定位档位下拉，复用类名会撞 strict mode */
+.fill-entry-select,
+.fab-visibility-select,
+.match-mode-select {
   width: 100%;
 }
 
