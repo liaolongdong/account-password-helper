@@ -130,8 +130,8 @@ Add a site rule for that domain: your own CSS selectors for the username and pas
 - [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
 - [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
 - [English Version](https://liaolongdong.github.io/account-password-helper/en.html)
-- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — 10 篇技术文：本地优先产品故事、MV3 侧边栏秒开、Web Crypto 加密实战、登录链路实现笔记、跨子域三档判据、自带管理器选型、多环境账号管理、TOTP 指南、自动填充排障、密码库迁移导入
-- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) — the same ten posts in English: product story, sub-second side panel, Web Crypto in practice, login-flow notes, the three cross-subdomain tiers that decide which accounts appear, choosing a manager, multi-environment accounts, TOTP, autofill troubleshooting and vault migration
+- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — 12 篇技术文：本地优先产品故事、MV3 侧边栏秒开、Web Crypto 加密实战、登录链路实现笔记、跨子域三档判据、自带管理器选型、多环境账号管理、TOTP 指南、自动填充排障、密码库迁移导入、密码管理器安全科普、密码生成器与强度
+- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) — the same twelve posts in English: product story, sub-second side panel, Web Crypto in practice, login-flow notes, the three cross-subdomain tiers that decide which accounts appear, choosing a manager, multi-environment accounts, TOTP, autofill troubleshooting, vault migration, password-manager safety and password-generator strength
 - [Pricing](https://liaolongdong.github.io/account-password-helper/pricing.html) — 100% free, no paid tier, no subscription
 - [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
 - [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案十维度事实对比
@@ -158,7 +158,9 @@ Deep-dive pages — skip them for a summary, read them when a question needs the
 - [Blog 08 · TOTP two-factor guide](https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html) — TOTP 的时间窗口与 HMAC 原理、与短信/Passkey 的差异、迁移步骤，以及把密钥放进密码管理器的风险边界
 - [Blog 09 · Autofill not working](https://liaolongdong.github.io/account-password-helper/blog/09-autofill-not-working-fixes.html) — 七处判据依次排查：解锁态、填充入口三档与新装/存量的默认差异、匹配档位与公共后缀边界、`localhost` 端口与环境绑定、content script 未注入、跨域 iframe 的结构性限制、填充不等于提交
 - [Blog 10 · Migrating a vault in](https://liaolongdong.github.io/account-password-helper/blog/10-import-from-other-managers.html) — 五套表头映射如何命中、哪些行会被静默丢弃、导入为什么刻意不去重、CSV 与 JSON 与 `.aph` 各自带走什么丢掉什么、三道容量闸门与整批原子写
-- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all ten posts in Chinese; the English set is at `blog/index.en.html`
+- [Blog 11 · Is a password manager safe](https://liaolongdong.github.io/account-password-helper/blog/11-is-password-manager-safe.html) — 大众科普：从「密码存在哪、谁能读到、丢了怎么办」三个问题讲清浏览器自带与本地密码管理器的安全差别，附普通人能照着做的判断清单
+- [Blog 12 · Password generator strength](https://liaolongdong.github.io/account-password-helper/blog/12-password-generator-strength.html) — 密码生成器专题：长度与熵的关系、「看着复杂」的短密码为什么不堪一击、随机密码与助记词组各适合谁、强度条按什么打分
+- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all twelve posts in Chinese; the English set is at `blog/index.en.html`
 - [Architecture (English)](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.en.md) — module breakdown, message protocol, storage and crypto boundaries, cross-entry data flow
 - [README (English)](https://github.com/liaolongdong/account-password-helper/blob/main/README.en.md) — install, usage, feature table and screenshots for the English-speaking reader
 
