@@ -1,5 +1,6 @@
 /** 导入格式类型 */
-export type ImportFormat = 'auto' | 'native' | 'chrome' | 'lastpass' | 'bitwarden' | '1password';
+export type ImportFormat =
+  'auto' | 'native' | 'chrome' | 'lastpass' | 'bitwarden' | '1password' | 'firefox' | 'keepassxc';
 
 /** CSV 列映射配置 */
 export interface CsvColumnMapping {
@@ -21,6 +22,7 @@ export const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnM
     remark: ['备注', 'remark', 'Remark', '说明'],
     totp: ['两步验证', 'TOTP', 'totp', '密钥'],
   },
+  // Edge 的密码导出与 Chrome 同形（name,url,username,password），共用这一套映射
   chrome: {
     username: ['username', 'Username'],
     password: ['password', 'Password'],
@@ -52,5 +54,23 @@ export const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnM
     tag: ['Title', 'title'],
     remark: ['Notes', 'notes'],
     totp: ['OTPAuth', 'otpauth', 'totp'],
+  },
+  // Firefox（about:logins 导出）没有分组 / 备注 / TOTP 列，对应字段留空而非猜测映射
+  firefox: {
+    username: ['username', 'Username'],
+    password: ['password', 'Password'],
+    url: ['url', 'URL'],
+    tag: [],
+    remark: [],
+    totp: [],
+  },
+  // KeePassXC：Group 是文件夹路径（与 Bitwarden folder 同语义），为空时回退用条目标题当标签
+  keepassxc: {
+    username: ['Username', 'username'],
+    password: ['Password', 'password'],
+    url: ['URL', 'url'],
+    tag: ['Group', 'group', 'Title', 'title'],
+    remark: ['Notes', 'notes'],
+    totp: ['TOTP', 'totp'],
   },
 };

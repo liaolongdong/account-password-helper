@@ -397,7 +397,7 @@
   "options.import.formatLabel": "导入格式：",
   "options.import.autoDetect": "自动检测",
   "options.import.nativeTemplate": "自有模板",
-  "options.import.chromePasswords": "Chrome 密码",
+  "options.import.chromePasswords": "Chrome / Edge 密码",
   "options.import.dragText": "将文件拖拽到此处，或",
   "options.import.clickText": "点击选择文件",
   "options.import.acceptHint": "支持 .csv、.json 格式",

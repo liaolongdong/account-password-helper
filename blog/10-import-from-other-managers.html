@@ -115,7 +115,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-11-05"
+      content="2026-11-16"
     />
     <meta
       name="twitter:card"
@@ -142,7 +142,7 @@
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png",
   "datePublished": "2026-11-05",
-  "dateModified": "2026-11-05",
+  "dateModified": "2026-11-16",
   "author": {
     "@type": "Person",
     "name": "liaolongdong",
@@ -449,7 +449,7 @@
           <span aria-current="page" title="把密码从旧工具搬过来：表头识别、合并与加密备份">把密码从旧工具搬过来：表头识别、合并与加密备份</span>
         </nav>
         <h1>把密码从旧工具搬过来：表头识别、合并与加密备份</h1>
-        <p class="meta">2026-11-05 · 更新于 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 9 分钟</p>
+        <p class="meta">2026-11-05 · 更新于 2026-11-16 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.html">liaolongdong</a> · 约 9 分钟</p>
         <div class="tag-chips"><span class="tag-chip">密码管理器</span><span class="tag-chip">数据迁移</span><span class="tag-chip">CSV导入</span><span class="tag-chip">浏览器扩展</span><span class="tag-chip">加密备份</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png" alt="把密码从旧工具搬过来：表头识别、合并与加密备份" />
         <nav class="toc" aria-label="目录"><strong>目录</strong><ol><li><a href="#一-先搞清楚各家导出的是什么">一、先搞清楚各家导出的是什么</a></li><li><a href="#二-哪些行会静默消失">二、哪些行会静默消失</a></li><li><a href="#三-为什么导入刻意不去重">三、为什么导入刻意不去重</a></li><li><a href="#四-三道闸门-文件-条目-库容量">四、三道闸门：文件、条目、库容量</a></li><li><a href="#五-搬家时什么会被带过来-什么不会">五、搬家时什么会被带过来，什么不会</a></li><li><a href="#六-真正的备份是-aph-不是表格">六、真正的备份是 .aph，不是表格</a></li><li><a href="#七-站点规则也要搬">七、站点规则也要搬</a></li><li><a href="#八-代码里没有的东西">八、代码里没有的东西</a></li></ol></nav>
@@ -457,7 +457,7 @@
 <p>这篇按代码实际做的事来讲。先给三条最反直觉的结论：</p>
 <ol>
 <li><strong>导入是追加，不去重。</strong> 这不是缺陷，是刻意的设计，理由在下面。</li>
-<li>认表头这件事有<strong>五套映射</strong>，覆盖扩展自己的格式和四类主流工具的导出列名；认不出的列会变成空值，不会报错。</li>
+<li>认表头这件事有<strong>七套映射</strong>，覆盖扩展自己的格式和六类主流工具的导出列名；认不出的列会变成空值，不会报错。</li>
 <li>真正的备份不是导出表格，而是 <code>.aph</code> 那个加密文件——<strong>表格里的密码是明文</strong>。</li>
 </ol>
 <h2 id="一-先搞清楚各家导出的是什么">一、先搞清楚各家导出的是什么</h2>
@@ -485,13 +485,22 @@
 <td><code>两步验证</code> / <code>密钥</code></td>
 </tr>
 <tr>
-<td>浏览器自带</td>
+<td>Chrome / Edge</td>
 <td><code>username</code></td>
 <td><code>password</code></td>
 <td><code>url</code> / <code>origin</code></td>
 <td><code>name</code></td>
 <td><code>note</code></td>
 <td><code>otpauth</code> / <code>otp_auth</code></td>
+</tr>
+<tr>
+<td>Firefox</td>
+<td><code>username</code></td>
+<td><code>password</code></td>
+<td><code>url</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 </tr>
 <tr>
 <td>LastPass</td>
@@ -520,8 +529,18 @@
 <td><code>Notes</code></td>
 <td><code>OTPAuth</code> / <code>totp</code></td>
 </tr>
+<tr>
+<td>KeePassXC</td>
+<td><code>Username</code></td>
+<td><code>Password</code></td>
+<td><code>URL</code></td>
+<td><code>Group</code>（空则 <code>Title</code>）</td>
+<td><code>Notes</code></td>
+<td><code>TOTP</code></td>
+</tr>
 </tbody></table>
-<p>识别过程是这样走的：表头<strong>先按精确匹配</strong>，没命中再做<strong>大小写不敏感</strong>的回退；每个单元格进来都会 <code>trim</code>。自动判断来源那一档看的是「这行表头里有没有 <code>origin</code>」这类形状特征，默认落到浏览器自带那一套；如果第一轮一种格式都没认出内容，它会<strong>再遍历其余格式各试一次</strong>，而不是直接放弃。</p>
+<p>Firefox 的导出没有分组 / 备注 / TOTP 列，这三项就留空，不猜；KeePassXC 的 <code>Group</code> 是文件夹路径（和 Bitwarden 的 <code>folder</code> 同语义），那一格为空时回退用条目标题当标签。</p>
+<p>识别过程是这样走的：表头<strong>先按精确匹配</strong>，没命中再做<strong>大小写不敏感</strong>的回退；每个单元格进来都会 <code>trim</code>。自动判断来源那一档看的是「这行表头里有没有 <code>origin</code>」这类形状特征，默认落到 Chrome / Edge 那一套；如果第一轮一种格式都没认出内容，它会<strong>再遍历其余格式各试一次</strong>，而不是直接放弃。判定顺序是有讲究的：KeePassXC 的表头里同时有 <code>TOTP</code> 和 <code>Title</code>+<code>Notes</code>，会先撞上 LastPass 与 1Password 的形状特征，所以它（<code>Group</code>+<code>Title</code>）必须排在两者之前；Firefox 靠 <code>httpRealm</code> / <code>formActionOrigin</code> 这类独有列名命中。</p>
 <p>还有一条中文用户特别需要的：文件先按 UTF-8 解码，<strong>若那一轮解析不出任何结果，再用 GBK 重试一次</strong>。要说准一点：触发回退的是「没解析出东西」，不是「解码报错」——UTF-8 那一路走的是非致命解码，本身不会抛异常。国内各种工具导出的 CSV 经常是 GBK，少了这一步，导进来的账号名会是一堆乱码方块。</p>
 <h2 id="二-哪些行会静默消失">二、哪些行会静默消失</h2>
 <p>这是最容易让人以为「导入丢数据」的地方，规则其实写得很清楚，只是没人读：</p>
@@ -654,7 +673,7 @@
 <p>搬完家之后建议立刻做一件事：<strong>打开「加密备份导入」，把刚导出的那个 <code>.aph</code> 真的导一次</strong>，确认能解开、条数对得上。备份只有被还原成功过一次，才算存在过。</p>
 <p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。已上架 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome 应用商店</a>，完全免费，GPL-3.0 开源。</p>
 <hr>
-<p><em>本文涉及的关键文件：<code>utils/excelFormatMap.ts</code>（五套表头映射）、<code>utils/excelCsv.ts</code>（精确匹配→大小写回退、跳行规则、UTF-8/GBK 回退）、<code>utils/excelJson.ts</code>、<code>utils/excelExport.ts</code>（导出列与明文密码）、<code>components/options/ImportDialog.vue</code>（字节闸门与格式判定）、<code>composables/useImportCapacity.ts</code>（切片与二次确认）、<code>utils/storage/passwordCrud.ts</code>（整批原子写）、<code>utils/backupExport.ts</code>（<code>.aph</code> 容器、新盐新 IV、往返自检）、<code>utils/identity/backup.ts</code>（<code>.aphid</code> 按 id 合并）、<code>utils/siteRulesTransfer.ts</code>（规则迁移与 added/updated/dropped）。</em></p>
+<p><em>本文涉及的关键文件：<code>utils/excelFormatMap.ts</code>（七套表头映射）、<code>utils/excelCsv.ts</code>（精确匹配→大小写回退、跳行规则、UTF-8/GBK 回退）、<code>utils/excelJson.ts</code>、<code>utils/excelExport.ts</code>（导出列与明文密码）、<code>components/options/ImportDialog.vue</code>（字节闸门与格式判定）、<code>composables/useImportCapacity.ts</code>（切片与二次确认）、<code>utils/storage/passwordCrud.ts</code>（整批原子写）、<code>utils/backupExport.ts</code>（<code>.aph</code> 容器、新盐新 IV、往返自检）、<code>utils/identity/backup.ts</code>（<code>.aphid</code> 按 id 合并）、<code>utils/siteRulesTransfer.ts</code>（规则迁移与 added/updated/dropped）。</em></p>
 
         <aside class="author-card" aria-label="关于作者">
         <p><strong>关于作者</strong>：<a href="https://liaolongdong.github.io/account-password-helper/author.html" rel="author">liaolongdong</a>，开源爱好者与贡献者，利用业余时间维护账号密码管理助手、Transfer Any File、Cross-origin Proxy 等免费开源浏览器扩展，关注本地优先、离线可用与可审计的工程实现 · <a href="https://github.com/liaolongdong" target="_blank" rel="noopener noreferrer">GitHub</a></p>

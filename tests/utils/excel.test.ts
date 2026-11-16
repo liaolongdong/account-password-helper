@@ -129,6 +129,40 @@ describe('parseCSV：显式格式列映射', () => {
       totp: 'otpseed',
     });
   });
+
+  it('firefox 格式：url/username/password 映射，无分组/备注/TOTP 列时留空', () => {
+    const csv = [
+      '"url","username","password","httpRealm","formActionOrigin","guid","timeCreated","timeLastUsed","timePasswordChanged"',
+      '"https://ff.com","ffuser","ffpw","","https://ff.com/login","{guid-1}","1700000000000","1700000001000","1700000002000"',
+    ].join('\n');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'firefox');
+    expect(result[0]).toMatchObject({
+      username: 'ffuser',
+      password: 'ffpw',
+      url: 'https://ff.com',
+      tag: '',
+      remark: '',
+      totp: '',
+    });
+  });
+
+  it('keepassxc 格式：Group→tag、Notes→remark、TOTP→totp；Group 为空回退 Title', () => {
+    const csv = [
+      '"Group","Title","Username","Password","URL","Notes","TOTP","Icon","Last Modified","Created"',
+      '"Root/Social","GitHub","octocat","ghpw","https://github.com","my note","JBSWY3DPEHPK3PXP","0","2024-01-02T03:04:05Z","2023-01-01T00:00:00Z"',
+      '"","Mail","mailuser","mailpw","https://mail.com","","","","",""',
+    ].join('\n');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv), 'keepassxc');
+    expect(result[0]).toMatchObject({
+      username: 'octocat',
+      password: 'ghpw',
+      url: 'https://github.com',
+      tag: 'Root/Social',
+      remark: 'my note',
+      totp: 'JBSWY3DPEHPK3PXP',
+    });
+    expect(result[1]).toMatchObject({ username: 'mailuser', tag: 'Mail', remark: '', totp: '' });
+  });
 });
 
 describe('parseCSV：auto 自动检测与解析细节', () => {
@@ -169,6 +203,60 @@ describe('parseCSV：auto 自动检测与解析细节', () => {
     ].join('\n');
     const { entries: result } = ExcelUtils.parseCSV(buf(csv));
     expect(result[0]).toMatchObject({ username: 'bob', password: 'pw', url: 'https://b.com', tag: 'Work' });
+  });
+
+  it('auto 检测 firefox：httpRealm/formActionOrigin 形状特征命中', () => {
+    const csv = [
+      '"url","username","password","httpRealm","formActionOrigin","guid","timeCreated","timeLastUsed","timePasswordChanged"',
+      '"https://ff.com","ffuser","ffpw","","","{guid-1}","1700000000000","1700000001000","1700000002000"',
+    ].join('\n');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv));
+    expect(result[0]).toMatchObject({
+      username: 'ffuser',
+      password: 'ffpw',
+      url: 'https://ff.com',
+      tag: '',
+      remark: '',
+      totp: '',
+    });
+  });
+
+  it('auto 检测 keepassxc：TOTP/Title+Notes 不再误判为 lastpass/1password，Group/Notes 不丢失', () => {
+    const csv = [
+      '"Group","Title","Username","Password","URL","Notes","TOTP","Icon","Last Modified","Created"',
+      '"Root/Social","GitHub","octocat","ghpw","https://github.com","my note","JBSWY3DPEHPK3PXP","0","2024-01-02T03:04:05Z","2023-01-01T00:00:00Z"',
+    ].join('\n');
+    const { entries: result } = ExcelUtils.parseCSV(buf(csv));
+    expect(result[0]).toMatchObject({
+      username: 'octocat',
+      password: 'ghpw',
+      url: 'https://github.com',
+      tag: 'Root/Social',
+      remark: 'my note',
+      totp: 'JBSWY3DPEHPK3PXP',
+    });
+  });
+
+  it('auto 检测优先级回归：lastpass（grouping）与 1password（Title+Notes 无 Group）判定不受新格式影响', () => {
+    // 刻意不带 name 列：name+username+password 会先命中 chrome 判定（既有优先级，见上方用例）
+    const lastpassCsv = [
+      'url,username,password,totp,extra,grouping,fav',
+      'https://x.com,u1,p1,SEED,extra-note,Social,0',
+    ].join('\n');
+    expect(ExcelUtils.parseCSV(buf(lastpassCsv)).entries[0]).toMatchObject({
+      tag: 'Social',
+      remark: 'extra-note',
+      totp: 'SEED',
+    });
+    const onePasswordCsv = [
+      'Title,Url,Username,Password,Notes,OTPAuth',
+      'My Login,https://op.com,opuser,oppw,some notes,otpseed',
+    ].join('\n');
+    expect(ExcelUtils.parseCSV(buf(onePasswordCsv)).entries[0]).toMatchObject({
+      tag: 'My Login',
+      remark: 'some notes',
+      totp: 'otpseed',
+    });
   });
 
   it('支持引号包裹字段：内嵌逗号与转义双引号', () => {

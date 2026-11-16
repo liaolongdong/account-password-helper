@@ -241,7 +241,7 @@ graph TB
 │   ├── excelCsv.ts                 # CSV 上传解析（多格式列映射）
 │   ├── excelJson.ts              # JSON 上传解析（数组或 { entries } 包裹）
 │   ├── excelExport.ts              # CSV/JSON 导出与模板下载
-│   ├── excelFormatMap.ts           # 导入格式与 CSV 列映射表（Chrome/LastPass/Bitwarden/1Password）
+│   ├── excelFormatMap.ts           # 导入格式与 CSV 列映射表（Chrome/Edge/Firefox/LastPass/Bitwarden/1Password/KeePassXC）
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── passwordHealth.ts           # 密码健康体检（评分/弱密码/复用/泄露/陈旧检测）
 │   ├── tagUtils.ts                 # 标签颜色生成
@@ -352,7 +352,7 @@ graph TB
 - **两个派生域各有自己的提交锁**：密码历史 [passwordHistory.ts](../utils/storage/passwordHistory.ts) 的 `aph-password-history-commit`（`withHistoryCommit`）与到期提醒 [reminderManager.ts](../utils/storage/reminderManager.ts) 的 `aph-password-reminder-commit`（`withReminderCommit`）。两处的公开入口同样排在 vault shared 租约之内，而 shared 按定义不互斥写者，它们「读整包 → 改 → 写整包」的形状因此仍会互相回卷，或把刚被删掉的历史/提醒记录复活；锁只串行化落盘，同名的 `*Internal` 只假定调用方已持锁，绝不嵌套同一把锁；「租约内版本」（`*WithinLease`，回收站彻底删除与改密历史快照走它）省掉的只是嵌套的 vault 租约，本域这把提交锁一把都不能少——否则那两个来源会从锁外写同一个整包，把回卷缺陷原样留在域内。提醒的写入路径同时改走严格读取（`readRemindersForWrite`：读失败上抛，不再降级成空表再整包覆盖全库），展示路径 `getReminders` 的「读失败暂时为空」保持不变。
 - **敏感编辑的 `updateTime` 基线对账**：编辑弹窗打开那一刻记下该行当时的 `updateTime`（[usePasswordManagement.ts](../composables/usePasswordManagement.ts) 的 `editingBaselineTime`），提交时作第四参 `{ expectedUpdateTime }` 交给 `updatePassword`（[passwordCrud.ts](../utils/storage/passwordCrud.ts)），落盘前在提交锁内与重读到的最新行对账。基线不一致**且本次改动含任一敏感字段**时抛 `UPDATE_CONFLICT`——调用方手里只有密文，判不出对方改的是不是同一字段，而静默覆盖任一方都是不可逆的凭据丢失；界面保留用户已输入的内容、按 `form.updateConflict` 提示（中英文各一条）、刷新列表把基线推进到最新版本，用户重试即针对新版本提交。只改非敏感字段时不判冲突，而本次没显式改到的敏感字段与元数据一律取重读到的最新值，并发写者之间不互相回滚。网页自动保存更新既有条目时同样带上基线（[autoSaveManager.ts](../utils/storage/autoSaveManager.ts)），两侧都是凭据写入时后到的一方被拒，不覆盖用户刚改好的那一条。
 - 只读查看详情：列表每行的「查看详情」以抽屉形式展示该条目的全部字段（含备注全文与密码历史），无需进入编辑态（见第 23 节）。
-- 多格式 CSV 导入：自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式（见 [utils/excel.ts](../utils/excel.ts)）。
+- 多格式 CSV 导入：自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式（见 [utils/excel.ts](../utils/excel.ts)）。自动检测按形状特征排序，KeePassXC（`Group`+`Title`）必须先于 LastPass（`totp` 列）与 1Password（`Title`+`Notes`）判定，否则其分组与备注列会被误判吞掉。
 - **导入的「未能带出」清单**：`parseCSVBuffer` 返回 `{ entries, skipped }`，`skipped` 是 `{ row, reason }` 数组，`reason` 只有两个枚举值（`too-few-columns` / `missing-username`）。此前不合格的行直接 `continue`，表头不在识别范围时还会先兜底成 Chrome 映射再落进同一条丢弃分支，用户看到的是「导入 0 条」而没有第二句话——迁移是安装后第一件事，这一步哑掉等于把新用户退回未激活。三条口径钉死：① 跳过记录**只允许行号与原因，不得携带任何字段原值**（被丢掉的那一列很可能就是明文口令）；② `row` 是数据行序号，表头不算、空行不占号（解析前已滤掉空行，报「文件第 N 行」是假精度）；③ 编码与格式的**回退结论一起换**，被采纳的那次解析才决定 skipped，不能留下上一轮的陈旧原因。归组与行号截断是纯函数 `groupSkippedRows`（默认每组列 10 个行号，剩余数落进 `more`），界面只负责把一组拼成一句完整的话——中英文语序与标点不同，把「原因」和「行号」拆开再拼必然有一边读不通。JSON 与 `.aph` 路径不变（它们本就是整批抛错语义）。
 
 ### 4. 自动保存登录凭证

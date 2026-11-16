@@ -3,7 +3,7 @@ title: Move Passwords Out of Bitwarden or 1Password
 description: How CSV headers get matched, which rows vanish silently, why import never de-duplicates, and why an .aph encrypted backup beats an exported spreadsheet.
 tags: password manager,data migration,CSV import,Chrome extension,encrypted backup
 date: 2026-11-05
-modified: 2026-11-05
+modified: 2026-11-16
 author: liaolongdong
 image: imgs/blog-cover-10-import-migration.png
 ---
@@ -13,24 +13,28 @@ Migration is where a new password manager loses people. The tool can be good and
 Here is what the code really does. Three findings up front, because they're the counter-intuitive ones:
 
 1. **Import appends. It never de-duplicates.** That's a deliberate choice, not an oversight.
-2. Header recognition is driven by **five column maps** covering this extension's own format plus four common exports. A column it can't map becomes an empty field — it doesn't error.
+2. Header recognition is driven by **seven column maps** covering this extension's own format plus six common exports. A column it can't map becomes an empty field — it doesn't error.
 3. The real backup is not the spreadsheet. It's the `.aph` file, because **an exported CSV holds plaintext passwords**.
 
 ## 1. What each tool actually exports
 
 Nearly every manager can export CSV, but the column names barely resemble each other: one writes `URL`, another `origin`, a third `login_uri`. So compatibility isn't "supporting a product", it's "supporting a header shape".
 
-There are six internal fields — username, password, URL, tags, notes, TOTP — mapped from five header sets (`utils/excelFormatMap.ts`):
+There are six internal fields — username, password, URL, tags, notes, TOTP — mapped from seven header sets (`utils/excelFormatMap.ts`):
 
 | Map | Username | Password | URL | Tags | Notes | TOTP |
 | --- | --- | --- | --- | --- | --- | --- |
 | Native | `用户名(必填)` / `用户名` / `账号` / `username` | `密码` / `password` | `网址` / `URL` / `网站地址` / `链接` | `标签` / `分类` | `备注` / `说明` | `两步验证` / `密钥` |
-| Browser built-in | `username` | `password` | `url` / `origin` | `name` | `note` | `otpauth` / `otp_auth` |
+| Chrome / Edge | `username` | `password` | `url` / `origin` | `name` | `note` | `otpauth` / `otp_auth` |
+| Firefox | `username` | `password` | `url` | — | — | — |
 | LastPass | `username` | `password` | `url` | `grouping` | `extra` | `totp` |
 | Bitwarden | `login_username` | `login_password` | `login_uri` | `folder` | `notes` | `login_totp` |
 | 1Password | `Username` | `Password` | `Url` | `Title` | `Notes` | `OTPAuth` / `totp` |
+| KeePassXC | `Username` | `Password` | `URL` | `Group` (`Title` when empty) | `Notes` | `TOTP` |
 
-Recognition order matters: headers are matched **exactly first**, then a **case-insensitive** pass; every cell is trimmed. Auto-detection looks at shape (a `origin` column means the browser export) and defaults to that map. If the first pass yields nothing usable, it **retries against the remaining formats** rather than giving up.
+Firefox's export has no grouping / notes / TOTP columns, so those three stay empty rather than being guessed; KeePassXC's `Group` is a folder path (the same semantics as Bitwarden's `folder`), falling back to the entry title as the tag when that cell is empty.
+
+Recognition order matters: headers are matched **exactly first**, then a **case-insensitive** pass; every cell is trimmed. Auto-detection looks at shape (an `origin` column means the Chrome / Edge export) and defaults to that map. If the first pass yields nothing usable, it **retries against the remaining formats** rather than giving up. The ordering is deliberate: KeePassXC's header carries both `TOTP` and `Title`+`Notes`, which would trip the LastPass and 1Password shapes first, so its own shape (`Group`+`Title`) is tested before both; Firefox is recognised by distinctive columns such as `httpRealm` / `formActionOrigin`.
 
 One detail that matters a lot for Chinese users: the file is decoded as UTF-8, and **if that pass yields nothing parseable it retries once as GBK**. To be precise about the trigger — it's "nothing came out", not "decoding threw": the UTF-8 path uses non-fatal decoding and doesn't raise. Plenty of tools exported by Chinese services emit GBK CSVs; skip that fallback and every account name arrives as mojibake.
 
@@ -117,4 +121,4 @@ Source and discussion: [the GitHub repository](https://github.com/liaolongdong/a
 
 ---
 
-_Key files referenced: `utils/excelFormatMap.ts` (five header maps), `utils/excelCsv.ts` (exact→case-insensitive match, row skipping, UTF-8/GBK fallback), `utils/excelJson.ts`, `utils/excelExport.ts` (export columns and plaintext passwords), `components/options/ImportDialog.vue` (byte gate and format detection), `composables/useImportCapacity.ts` (slicing and confirmation), `utils/storage/passwordCrud.ts` (batch-atomic writes), `utils/backupExport.ts` (`.aph` container, fresh salt and IV, round-trip check), `utils/identity/backup.ts` (`.aphid` merge-by-id), `utils/siteRulesTransfer.ts` (rule migration with added/updated/dropped)._
+_Key files referenced: `utils/excelFormatMap.ts` (seven header maps), `utils/excelCsv.ts` (exact→case-insensitive match, row skipping, UTF-8/GBK fallback), `utils/excelJson.ts`, `utils/excelExport.ts` (export columns and plaintext passwords), `components/options/ImportDialog.vue` (byte gate and format detection), `composables/useImportCapacity.ts` (slicing and confirmation), `utils/storage/passwordCrud.ts` (batch-atomic writes), `utils/backupExport.ts` (`.aph` container, fresh salt and IV, round-trip check), `utils/identity/backup.ts` (`.aphid` merge-by-id), `utils/siteRulesTransfer.ts` (rule migration with added/updated/dropped)._

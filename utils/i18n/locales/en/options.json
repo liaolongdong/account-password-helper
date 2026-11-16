@@ -397,7 +397,7 @@
   "options.import.formatLabel": "Import format:",
   "options.import.autoDetect": "Auto-detect",
   "options.import.nativeTemplate": "Native template",
-  "options.import.chromePasswords": "Chrome passwords",
+  "options.import.chromePasswords": "Chrome / Edge passwords",
   "options.import.dragText": "Drag a file here, or",
   "options.import.clickText": "click to choose a file",
   "options.import.acceptHint": ".csv and .json formats supported",

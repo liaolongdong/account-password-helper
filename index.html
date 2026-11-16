@@ -178,7 +178,7 @@
           "密码生成器：随机密码与助记词组双模式",
           "四重填充策略：内联填充 / 侧边栏 / 右键菜单 / 快捷键",
           "站点规则：为域名自定义填充选择器，兜底识别不到的登录表单",
-          "CSV / JSON 导入导出，自动识别 Chrome、LastPass、Bitwarden、1Password 格式",
+          "CSV / JSON 导入导出，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 格式",
           "加密备份（.aph）与邮箱备份",
           "侧边栏全场景秒开（缓存快路径 20-50ms 拿到数据）",
           "6 款色彩主题 + 中英文双语界面",
@@ -337,7 +337,7 @@
             "name": "支持从其他密码管理器导入吗？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。"
+              "text": "支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。"
             }
           },
           {
@@ -449,7 +449,7 @@
             "name": "CSV 导入失败要怎么排查？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。"
+              "text": "点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式。"
             }
           },
           {
@@ -612,7 +612,7 @@
           {
             "@type": "HowToStep",
             "name": "导入或添加账号",
-            "text": "手动添加账号密码，或从 Chrome、LastPass、Bitwarden、1Password 一键导入 CSV/JSON 文件。"
+            "text": "手动添加账号密码，或从 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 一键导入 CSV/JSON 文件。"
           },
           {
             "@type": "HowToStep",
@@ -4932,7 +4932,8 @@
                   class="after"
                   data-i18n="problem.r5.after"
                 >
-                  自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式，CSV / JSON 双格式，30 秒搬完。
+                  自动识别 Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC 的导出格式，CSV / JSON
+                  双格式，30 秒搬完。
                 </td>
               </tr>
               <tr>
@@ -5477,8 +5478,8 @@
             </div>
             <h3 data-i18n="features.f7.title">导入导出与加密备份</h3>
             <p data-i18n="features.f7.desc">
-              CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph
-              加密备份导出/导入，邮箱备份 + 定时备份提醒。
+              CSV / JSON 双格式，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC
+              导出格式；.aph 加密备份导出/导入，邮箱备份 + 定时备份提醒。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
@@ -6319,7 +6320,8 @@
                   从别的管理器搬家
                 </th>
                 <td data-i18n="useCases.r8.how">
-                  CSV / JSON 双格式导入，自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式。
+                  CSV / JSON 双格式导入，自动识别 Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC
+                  的导出格式。
                 </td>
                 <td data-i18n="useCases.r8.where">管理页「导入数据」</td>
               </tr>
@@ -6882,11 +6884,11 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>CSV 导入失败要怎么排查？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>支持从其他密码管理器导入吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>支持 JSON 格式导入导出吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -7683,8 +7685,8 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'Migrating out of another password manager means retyping everything by hand, or giving up on the export format.',
         },
         'problem.r5.after': {
-          zh: '自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式，CSV / JSON 双格式，30 秒搬完。',
-          en: 'Export formats from Chrome / LastPass / Bitwarden / 1Password are detected automatically, as CSV or JSON, in about 30 seconds.',
+          zh: '自动识别 Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC 的导出格式，CSV / JSON 双格式，30 秒搬完。',
+          en: 'Export formats from Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC are detected automatically, as CSV or JSON, in about 30 seconds.',
         },
         'problem.r6.area': { zh: '哪些密码该换', en: 'Which passwords to change' },
         'problem.r6.before': {
@@ -7844,8 +7846,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'useCases.r8.scene': { zh: '从别的管理器搬家', en: 'Moving in from another manager' },
         'useCases.r8.how': {
-          zh: 'CSV / JSON 双格式导入，自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式。',
-          en: 'CSV and JSON imports, with Chrome / LastPass / Bitwarden / 1Password export formats detected automatically.',
+          zh: 'CSV / JSON 双格式导入，自动识别 Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC 的导出格式。',
+          en: 'CSV and JSON imports, with Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC export formats detected automatically.',
         },
         'useCases.r8.where': { zh: '管理页「导入数据」', en: '"Import data" on the manager page' },
         'useCases.r9.scene': { zh: '换电脑或重装系统', en: 'A new machine or a reinstalled OS' },
@@ -7923,8 +7925,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'features.f7.title': { zh: '导入导出与加密备份', en: 'Import, Export & Encrypted Backup' },
         'features.f7.desc': {
-          zh: 'CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份导出/导入，邮箱备份 + 定时备份提醒。',
-          en: 'CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; encrypted .aph backup export/import, plus email backup with scheduled reminders.',
+          zh: 'CSV / JSON 双格式，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 导出格式；.aph 加密备份导出/导入，邮箱备份 + 定时备份提醒。',
+          en: 'CSV / JSON formats with auto-detection of Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC exports; encrypted .aph backup export/import, plus email backup with scheduled reminders.',
         },
         'features.f11.title': { zh: '标签、收藏与智能搜索', en: 'Tags, Favorites & Smart Search' },
         'features.f11.desc': {
@@ -8478,15 +8480,15 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           q: { zh: 'CSV 导入失败要怎么排查？', en: 'How do I troubleshoot a failed CSV import?' },
           a: {
-            zh: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。',
-            en: 'Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats.',
+            zh: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式。',
+            en: 'Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats.',
           },
         },
         {
           q: { zh: '支持从其他密码管理器导入吗？', en: 'Can I import from other password managers?' },
           a: {
-            zh: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
-            en: 'Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.',
+            zh: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
+            en: 'Yes. Upload a CSV in the import dialog; Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.',
           },
         },
         {
