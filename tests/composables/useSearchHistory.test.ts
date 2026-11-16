@@ -287,6 +287,24 @@ describe('跨入口同步与锁定清除', () => {
     mounted = null;
     expect(changeListeners).toHaveLength(0);
   });
+
+  it('初始读取未回就卸载：迟到的读取不得再注册监听', async () => {
+    // 锁定切视图可能落在初始 storage.get 的窗口里；卸载后若仍 addListener，
+    // 监听器会挂在已死组件的引用上永不摘除（泄漏）
+    let resolveGet!: (value: Record<string, unknown>) => void;
+    const pending = new Promise<Record<string, unknown>>(resolve => {
+      resolveGet = resolve;
+    });
+    const session = (globalThis as unknown as { chrome: { storage: { session: { get: ReturnType<typeof vi.fn> } } } })
+      .chrome.storage.session;
+    session.get.mockReturnValueOnce(pending);
+    mounted = mountHistory();
+    mounted.unmount();
+    mounted = null;
+    resolveGet({ [KEY]: ['github'] });
+    await flush();
+    expect(changeListeners).toHaveLength(0);
+  });
 });
 
 describe('无 chrome 环境降级', () => {

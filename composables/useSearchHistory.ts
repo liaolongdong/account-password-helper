@@ -45,6 +45,8 @@ export function useSearchHistory(keyword: Ref<string>, applyKeyword: (value: str
 
   /** 本地已发生记录/清除时，迟到的初始读取不得整包覆盖，只能合并 */
   let touched = false;
+  /** 卸载可能落在初始读取的 await 窗口里（锁定切视图），此后不得再注册监听 */
+  let disposed = false;
 
   const sessionArea = () => globalThis.chrome?.storage?.session;
 
@@ -106,15 +108,18 @@ export function useSearchHistory(keyword: Ref<string>, applyKeyword: (value: str
     if (!area) return;
     try {
       const stored = await area.get(KEY);
+      if (disposed) return;
       const loaded = sanitize(stored[KEY]);
       recentSearches.value = touched ? sanitize([...recentSearches.value, ...loaded]) : loaded;
     } catch (error) {
       logger.error('读取最近搜索失败:', error);
     }
+    if (disposed) return;
     chrome.storage.onChanged.addListener(handleStorageChanged);
   });
 
   onUnmounted(() => {
+    disposed = true;
     if (globalThis.chrome?.storage?.onChanged) {
       chrome.storage.onChanged.removeListener(handleStorageChanged);
     }
