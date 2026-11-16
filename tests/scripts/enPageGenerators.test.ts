@@ -1,7 +1,7 @@
 /**
  * 英文兄弟页生成链的可复现性与语言分流守卫。
  *
- * 背景：`pricing.en.html` / `privacy.en.html` 是产物且被 `.prettierignore` 排除，所以它们的
+ * 背景：`en.html` / `pricing.en.html` / `privacy.en.html` 是产物且被 `.prettierignore` 排除，所以它们的
  * 换行形态由生成器决定、不由格式门禁决定。但**语言相关的取值**必须跟着目标语言走，这一条
  * 此前没人守：`build-pricing-en-page.mjs` 只替换 head meta 与链接，从不碰 JSON-LD，产出的英文页
  * 带着中文主名，跑一次 `pnpm gen:pricing-en` 必然让 `tests/docs/structuredData.test.ts` 判红——
@@ -34,11 +34,14 @@ interface Generator {
   script: string;
   source: string;
   output: string;
+  /** 漂移时提示用户重跑的命令（en.html 的命令名不是 `<页名>-en` 形） */
+  regen: string;
 }
 
 const GENERATORS: Generator[] = [
-  { script: 'build-pricing-en-page.mjs', source: 'pricing.html', output: 'pricing.en.html' },
-  { script: 'build-privacy-en-page.mjs', source: 'privacy.html', output: 'privacy.en.html' },
+  { script: 'build-en-page.mjs', source: 'index.html', output: 'en.html', regen: 'gen:en' },
+  { script: 'build-pricing-en-page.mjs', source: 'pricing.html', output: 'pricing.en.html', regen: 'gen:pricing-en' },
+  { script: 'build-privacy-en-page.mjs', source: 'privacy.html', output: 'privacy.en.html', regen: 'gen:privacy-en' },
 ];
 
 let sandbox: string;
@@ -103,10 +106,7 @@ describe('英文兄弟页生成链', () => {
         const committed = readFileSync(path.join(ROOT, generator.output), 'utf8');
         // 比字节而不是挑几个取值：历史事故正是「手改了一行 href」，只比 meta 会让那类漂移溜过去。
         // 生成器是确定性的，`.prettierignore` 排除的是格式门禁，不是可复现性门禁。
-        expect(
-          produced,
-          `${generator.output} 与生成器输出不一致，跑 pnpm gen:${generator.output.split('.')[0]}-en 重新生成`,
-        ).toBe(committed);
+        expect(produced, `${generator.output} 与生成器输出不一致，跑 pnpm ${generator.regen} 重新生成`).toBe(committed);
       });
 
       it('产物的语言标注确实翻成了英文（防止源页与产物一起错）', () => {
@@ -125,7 +125,7 @@ describe('英文兄弟页生成链', () => {
   }
 
   it('pricing 的 JSON-LD 品牌名跟着目标语言走（漏替换会让英文页带中文主名）', () => {
-    const generator = GENERATORS[0];
+    const generator = GENERATORS.find(g => g.script === 'build-pricing-en-page.mjs')!;
     seed(generator);
     const produced = generate(generator);
     const apps = brandNamesOf(produced);
@@ -139,7 +139,7 @@ describe('英文兄弟页生成链', () => {
   });
 
   it('牙齿：源页品牌顺序已是英文优先时，漏替换的生成器会判红', () => {
-    const generator = GENERATORS[0];
+    const generator = GENERATORS.find(g => g.script === 'build-pricing-en-page.mjs')!;
     const source = readFileSync(path.join(ROOT, generator.source), 'utf8');
     // 模拟「生成器没有做品牌分流」的产物形态：主名英文、别名中文，但脚本仍按中文优先匹配
     const mutated = source.replace(
