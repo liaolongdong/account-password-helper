@@ -184,6 +184,17 @@ describe.skipIf(!hasOutput)('身份库独立性 — 首屏产物闭包不含 ide
  * `sessionManager-storage`，于是 439 B 的锁模块跟着进了首屏 HTML。这里登记而不是改成动态
  * `import()`：懒加载会把一次请求压到「用户点解锁」那一刻，比现在多 439 B 更糟；sidepanel
  * 不 eager 引 `sessionManager-storage`，所以它的清单与 `total` 不变。
+ *
+ * **2026-11-17 读数（两入口登记 `siteRules`、popup `total` 44 → 43 的依据）**：站点级覆盖
+ * （B1）让 sidepanel 的 `loadSitePolicy` 与 popup 的 `usePopupInit` 在打开/初始化路径上静态
+ * 引用 `utils/storage/siteRules`（1,908 B，与 logger/storageKeys 共享依赖）——规则决定匹配
+ * 档位与悬浮按钮显隐，改成动态 `import()` 会把策略生效推迟到首帧之后，初始过滤/按钮状态
+ * 先按全局档位渲染再跳变，比多这 1.9 KB 更糟，故登记。同批 rolldown 重切了块：
+ * `useLocalOperationGuard` 并进 sidepanel 入口 chunk（`consumeLocalOperation` 绑定仍在），
+ * `vaultWriteLock` 与 `masterPassword` 并进 `sessionManager-storage`（`aph-vault-commit` /
+ * `verifyMasterPassword` 现量核过），三个基名从清单移除而非保留空额。对拍读数：
+ * sidepanel 33 文件 / 305,303 B（文件数持平）、popup 43 文件 / 325,776 B（请求数 −1），
+ * `total` 跟着实际读数收，新增一个 eager 文件仍然会红。
  */
 const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases: Readonly<Record<string, number>> }> = {
   'sidepanel.html': {
@@ -215,14 +226,14 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
       tagUtils: 1,
       searchMatch: 1,
       useKeywordDebounce: 1,
-      useLocalOperationGuard: 1,
       totp: 1,
       preWarmSw: 1,
       shareCard: 1,
+      siteRules: 1,
     },
   },
   'popup.html': {
-    total: 44,
+    total: 43,
     bases: {
       popup: 1,
       'rolldown-runtime': 1,
@@ -249,9 +260,7 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
       plaintextCacheCleanup: 1,
       browserStartupRelock: 1,
       'sessionManager-storage': 1,
-      vaultWriteLock: 1,
       facades: 1,
-      masterPassword: 1,
       concurrency: 1,
       passwordHistory: 1,
       constants: 1,
@@ -264,6 +273,7 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
       verify: 1,
       preWarmSw: 1,
       useShortcuts: 1,
+      siteRules: 1,
     },
   },
 };
