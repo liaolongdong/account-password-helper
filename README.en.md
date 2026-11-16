@@ -188,7 +188,7 @@ One fill takes four steps, all on your own machine:
   - **What one click does**: declares this page that environment's front-end — its accounts join the list and become fillable, each row showing where it came from. Click the current environment again to clear it
   - **How far it reaches**: a binding covers one host + port, lives only in browser memory (gone when the browser closes, never following you to another port), and never removes your own local accounts
   - **Guardrails**: candidates tagged `prod` / `online`, or whose name reveals no environment, are highlighted in the warning colour and ask for a one-time confirmation before binding
-- ➕ **Add in place & search beyond the site**: "+" in the side panel header saves credentials with the current domain prefilled; the search scope toggles between "This site" and "All entries", and off-site hits stay copyable, favoritable and editable
+- ➕ **Add in place & search beyond the site**: "+" in the side panel header saves credentials with the current domain prefilled; the search scope toggles between "This site" and "All entries", and off-site hits stay copyable, favoritable and editable; the search box remembers your recent keywords (up to 8, one click on the empty box to reuse) in browser memory only — wiped on lock, never written to disk
 - 📇 **Share card**: one click copies the username, password and URL as one plain-text block to the clipboard (the URL line is omitted when empty), from either the side panel row or the detail drawer; the card carries the plaintext password, so it is subject to the same timed clipboard clearing, and it only ever reaches your local clipboard with no network request
 
 ### 📦 Data Management

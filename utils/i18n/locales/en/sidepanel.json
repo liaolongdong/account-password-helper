@@ -4,6 +4,8 @@
   "sidepanel.verifyPassword": "Verify master password",
   "sidepanel.searchPlaceholder": "Account, tag, note, URL",
   "sidepanel.searchAriaLabel": "Search username, tag, note or URL; full pinyin and initial abbreviations supported",
+  "sidepanel.recentSearches": "Recent searches",
+  "sidepanel.clearRecentSearches": "Clear",
   "sidepanel.showAll": "Show all",
   "sidepanel.favoritesOnly": "Favorites only",
   "sidepanel.scope.toAll": "Search all entries",

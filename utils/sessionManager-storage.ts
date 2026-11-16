@@ -975,7 +975,12 @@ async function _doClearSession(): Promise<void> {
     await withSessionCommit(async () => {
       try {
         // 成对删除明文镜像与配对指纹；锁定镜像也必须在释放锁前写完。
-        await chrome.storage.session.remove([SESSION_MEMORY_KEYS.DATA_KEY, SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED]);
+        // 最近搜索是用户键入的明文词，随锁定一并清除，不跨会话存活。
+        await chrome.storage.session.remove([
+          SESSION_MEMORY_KEYS.DATA_KEY,
+          SESSION_MEMORY_KEYS.DATA_KEY_WRAPPED,
+          SESSION_MEMORY_KEYS.RECENT_SEARCHES,
+        ]);
         await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } });
       } catch {
         // storage.session 不可用时忽略

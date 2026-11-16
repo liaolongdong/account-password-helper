@@ -5501,7 +5501,8 @@
             <h3 data-i18n="features.f11.title">标签、收藏与智能搜索</h3>
             <p data-i18n="features.f11.desc">
               标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 +
-              命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。
+              命中高亮）与排序、最近搜索（会话级 ≤8
+              条，锁定即清）、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
@@ -7927,8 +7928,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'features.f11.title': { zh: '标签、收藏与智能搜索', en: 'Tags, Favorites & Smart Search' },
         'features.f11.desc': {
-          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。',
-          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.',
+          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、最近搜索（会话级 ≤8 条，锁定即清）、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。',
+          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, recent-search chips (session-only, up to 8, wiped on lock), one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.',
         },
         'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
         'features.f8.desc': {

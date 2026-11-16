@@ -126,6 +126,13 @@ export const STORAGE_KEYS = {
 export const SESSION_MEMORY_KEYS = {
   /** 会话期派生的 AES-256-GCM 数据密钥（hex） */
   DATA_KEY: 'session_data_key',
+  /**
+   * 最近搜索关键词（string[]，≤8 条，新→旧）
+   *
+   * 搜索词是用户键入的明文，可能含账号名：只存 storage.session（浏览器关闭即清、
+   * TRUSTED_CONTEXTS 内容脚本不可读），锁定清除会话时一并删除，绝不落 storage.local。
+   */
+  RECENT_SEARCHES: 'recent_searches',
   /** 将内存态密钥绑定到已提交的包裹密钥，拒绝换钥前的迟到缓存。 */
   DATA_KEY_WRAPPED: 'session_data_key_wrapped',
   /** 侧边栏打开请求记录（{ at: epoch 毫秒, trigger: 触发源 }），用于量化「用户点击 → 渲染进程 timeOrigin」耗时与打开路径归因 */
