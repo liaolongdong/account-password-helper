@@ -1306,6 +1306,13 @@ export interface FillResult {
   viaSiteRule?: boolean;
   /** 规则指定的密码落点自身是否声明了一次性口令语义且未打码（提示用户复核这条规则） */
   ruleTargetCodeLike?: boolean;
+  /**
+   * `no_form` 失败时内容脚本是否已弹出就地引导气泡（FillFailurePrompt）
+   *
+   * 供发起侧（background 的 FILL_BY_ID 提示条）避免同一失败叠加两条反馈；
+   * 气泡只在穿透开关开启且本页首次失败时出现，其余 `no_form` 场景此标记缺省。
+   */
+  failurePromptShown?: boolean;
   details: {
     usernameField: FieldFillResult;
     passwordField: FieldFillResult;

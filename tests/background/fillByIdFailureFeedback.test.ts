@@ -14,6 +14,11 @@
  * - 成功路径不补发；缺失 tabId 时不补发（没有可下发的标签页）；
  * - 被拒 frame 不会触达明文读取（`getDecryptedEntryById` 在门控之后）。
  *
+ * 内容侧失败（FILL_PASSWORD 已送达但 FillResult.success=false）同样补发：面板已收起，
+ * 不补发就是「点了没反应」。文案按结构化 reason 取 background 自己的 tl() 键，不透传
+ * content 侧 message（语言档位可能不一致）；no_form 且就地引导气泡已弹（failurePromptShown）
+ * 时不叠加第二条。
+ *
  * 反向验证——移除 messageRouter 中任一 `showPageNotice` 调用，对应断言必然失败。
  */
 import { type Mock, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
@@ -228,6 +233,66 @@ describe('FILL_BY_ID 下发异常时的页面反馈', () => {
 
     expect(mockedShowPageNotice).not.toHaveBeenCalled();
     expect(sendResponse).toHaveBeenCalledWith({ success: false, message: tl('bg.router.fillFailed') });
+  });
+});
+
+describe('FILL_BY_ID 内容侧失败时的页面反馈', () => {
+  /** 让填充指令送达并返回指定的内容脚本结果 */
+  const deliverContentResult = async (result: unknown, tabId = 7) => {
+    mockedGetEntry.mockResolvedValue({ id: 'entry-1', username: 'u', password: 'p' } as never);
+    mockedSend.mockResolvedValue(result as never);
+    const listener = captureListener();
+    const sendResponse = vi.fn();
+    sendFillById(listener, contentSender(tabId, 0), sendResponse);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledTimes(1));
+    return sendResponse;
+  };
+
+  it('no_form（气泡未弹）：按 reason 补发「未检测到表单」文案，结果原样回传', async () => {
+    const contentResult = { success: false, reason: 'no_form', message: 'CONTENT_MESSAGE' };
+    const sendResponse = await deliverContentResult(contentResult);
+
+    expect(mockedShowPageNotice).toHaveBeenCalledTimes(1);
+    expect(mockedShowPageNotice).toHaveBeenCalledWith(7, tl('bg.router.fillNoForm'));
+    // 跨上下文 message 不透传：content 侧语言档位可能与后台不一致
+    expect(mockedShowPageNotice.mock.calls[0][1]).not.toBe('CONTENT_MESSAGE');
+    expect(sendResponse).toHaveBeenCalledWith(contentResult);
+  });
+
+  it('no_form 且就地引导气泡已弹：不叠加第二条反馈', async () => {
+    const sendResponse = await deliverContentResult({
+      success: false,
+      reason: 'no_form',
+      message: 'x',
+      failurePromptShown: true,
+    });
+
+    expect(mockedShowPageNotice).not.toHaveBeenCalled();
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ failurePromptShown: true }));
+  });
+
+  it('nothing_filled：补发「填充可能未完成」文案', async () => {
+    await deliverContentResult({ success: false, reason: 'nothing_filled', message: 'x' });
+
+    expect(mockedShowPageNotice).toHaveBeenCalledWith(7, tl('bg.router.fillIncomplete'));
+  });
+
+  it('fill_error：补发通用失败文案', async () => {
+    await deliverContentResult({ success: false, reason: 'fill_error', message: 'x' });
+
+    expect(mockedShowPageNotice).toHaveBeenCalledWith(7, tl('bg.router.fillFailed'));
+  });
+
+  it('未知 reason（不可信跨上下文输入）：收窄到通用失败文案', async () => {
+    await deliverContentResult({ success: false, reason: 'made-up-reason', message: 'x' });
+
+    expect(mockedShowPageNotice).toHaveBeenCalledWith(7, tl('bg.router.fillFailed'));
+  });
+
+  it('内容脚本无应答（undefined）：同样补发通用失败文案，不留空点击', async () => {
+    await deliverContentResult(undefined);
+
+    expect(mockedShowPageNotice).toHaveBeenCalledWith(7, tl('bg.router.fillFailed'));
   });
 });
 

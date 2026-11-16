@@ -1698,6 +1698,9 @@ export class InlineFillDropdown {
 
   /**
    * 选择某个账号，经 background 复用 FILL_PASSWORD 完成填充
+   *
+   * 面板点击即收起；失败反馈由 background 按结构化 reason 补发页面提示条
+   * （handleFillById），这里只留日志，不再叠加第二条提示。
    * @param index 过滤后列表中的索引
    */
   private async select(index: number): Promise<void> {
