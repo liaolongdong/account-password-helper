@@ -256,6 +256,15 @@ function detectFormat(headers: string[]): CsvColumnMapping {
   if (headerSet.has('username (required)') || (headerSet.has('tag') && headerSet.has('remark'))) {
     return FORMAT_COLUMN_MAP.native;
   }
+  // Firefox: url,username,password,httpRealm,formActionOrigin,guid,timeCreated,timeLastUsed,timePasswordChanged
+  if (headerSet.has('httprealm') || headerSet.has('formactionorigin') || headerSet.has('timepasswordchanged')) {
+    return FORMAT_COLUMN_MAP.firefox;
+  }
+  // KeePassXC: Group,Title,Username,Password,URL,Notes,TOTP,Icon,Last Modified,Created
+  // 必须先于 LastPass（TOTP 列命中 totp 判定）与 1Password（Title+Notes）判定，否则 Group/Notes 列丢失
+  if (headerSet.has('group') && headerSet.has('title')) {
+    return FORMAT_COLUMN_MAP.keepassxc;
+  }
   // LastPass: url,username,password,totp,extra,name,grouping,fav
   if (headerSet.has('grouping') || headerSet.has('totp')) {
     return FORMAT_COLUMN_MAP.lastpass;

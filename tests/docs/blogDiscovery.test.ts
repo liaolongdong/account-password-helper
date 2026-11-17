@@ -196,6 +196,49 @@ describe('llms-full.txt 与 llms.txt 同源且覆盖全部正文', () => {
   });
 });
 
+/**
+ * llms.txt 是手维护的摘要，博客数曾静默停在「10 篇」而源文已有 12 篇。
+ * 判据从源 Markdown 数量反推三处计数短语与逐篇链接，新增文章漏更新即红。
+ */
+describe('llms.txt 博客计数与逐篇链接同源', () => {
+  const NUMBER_WORDS: Record<number, string> = {
+    10: 'ten',
+    11: 'eleven',
+    12: 'twelve',
+    13: 'thirteen',
+    14: 'fourteen',
+    15: 'fifteen',
+    16: 'sixteen',
+    17: 'seventeen',
+    18: 'eighteen',
+    19: 'nineteen',
+    20: 'twenty',
+  };
+  const summary = read('llms.txt');
+  const zhCount = sourceArticles(LANGS[0]).length;
+  const enCount = sourceArticles(LANGS[1]).length;
+
+  it('中英文源文数量一致（计数短语的前提）', () => {
+    expect(enCount).toBe(zhCount);
+  });
+
+  it('三处计数短语与实际文章数一致', () => {
+    const word = NUMBER_WORDS[zhCount];
+    expect(word, `文章数 ${zhCount} 超出 NUMBER_WORDS 词表，请扩充`).toBeDefined();
+    expect(summary, '中文计数短语过期').toContain(`${zhCount} 篇技术文`);
+    expect(summary, '英文计数短语过期').toContain(`the same ${word} posts`);
+    expect(summary, '索引行计数短语过期').toContain(`all ${word} posts`);
+  });
+
+  it('每篇中文文章都在 Optional 分区有链接，且 Blog 条目数与文章数一致', () => {
+    const blogEntries = summary.match(/^- \[Blog \d+ /gm) ?? [];
+    expect(blogEntries, 'Blog 条目数与源文数不一致').toHaveLength(zhCount);
+    for (const article of sourceArticles(LANGS[0])) {
+      expect(summary, `llms.txt 缺少 ${article.slug} 的链接`).toContain(`${SITE}/blog/${article.slug}.html`);
+    }
+  });
+});
+
 describe('博客页的无障碍与署名结构', () => {
   it.each(ALL_PAGES)('%s 有 skip link、main landmark 与导航标签', page => {
     const html = read(`blog/${page}`);

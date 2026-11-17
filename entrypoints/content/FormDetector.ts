@@ -1971,6 +1971,8 @@ export class FormDetector {
           // F1-C: 显示填充失败就地引导（仅首次，且受影子 DOM 穿透开关门控）
           if (this.penetrateShadowEnabled && !this.fillFailurePromptShown) {
             this.fillFailurePromptShown = true;
+            // 告诉发起侧气泡已弹出：FILL_BY_ID 的提示条据此不叠加第二条失败反馈
+            result.failurePromptShown = true;
             // 延迟渲染，避免阻塞主线程
             setTimeout(() => {
               try {
@@ -2060,8 +2062,8 @@ export class FormDetector {
       if (ackCodeLike) result.ruleTargetCodeLike = true;
 
       // 回执只跟着「真正写进去的字段」走：失败路径必然一个字段都没写（ackField 仍为 null），
-      // 此时提示语由发起方（侧边栏 / popup / 内联面板）展示且面板刻意保持打开，
-      // 再叠一枚胶囊就是同一件事说两遍
+      // 此时提示语由发起方展示——侧边栏 / popup 就地提示且面板刻意保持打开，内联面板已收起、
+      // 由 background 按 reason 补发页面提示条（见 handleFillById），再叠一枚胶囊就是同一件事说两遍
       this.showFillAck(ackField, this.pickFillAckKind(result.outcome, ackFromRule, ackCodeLike));
 
       // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）

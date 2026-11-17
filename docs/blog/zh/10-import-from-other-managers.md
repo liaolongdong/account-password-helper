@@ -3,7 +3,7 @@ title: 把密码从旧工具搬过来：表头识别、合并与加密备份
 description: CSV 与 JSON 怎么被认出来、哪些行会被丢掉、导入为什么不去重、.aph 加密备份和导出表格有何区别——搬家这一路的真实判据与代码依据。
 tags: 密码管理器,数据迁移,CSV导入,浏览器扩展,加密备份
 date: 2026-11-05
-modified: 2026-11-05
+modified: 2026-11-16
 author: liaolongdong
 image: imgs/blog-cover-10-import-migration.png
 ---
@@ -13,7 +13,7 @@ image: imgs/blog-cover-10-import-migration.png
 这篇按代码实际做的事来讲。先给三条最反直觉的结论：
 
 1. **导入是追加，不去重。** 这不是缺陷，是刻意的设计，理由在下面。
-2. 认表头这件事有**五套映射**，覆盖扩展自己的格式和四类主流工具的导出列名；认不出的列会变成空值，不会报错。
+2. 认表头这件事有**七套映射**，覆盖扩展自己的格式和六类主流工具的导出列名；认不出的列会变成空值，不会报错。
 3. 真正的备份不是导出表格，而是 `.aph` 那个加密文件——**表格里的密码是明文**。
 
 ## 一、先搞清楚各家导出的是什么
@@ -25,12 +25,16 @@ image: imgs/blog-cover-10-import-migration.png
 | 来源映射 | 用户名 | 密码 | 网址 | 标签 | 备注 | TOTP |
 | --- | --- | --- | --- | --- | --- | --- |
 | 扩展自身 | `用户名(必填)` / `用户名` / `账号` / `username` | `密码` / `password` | `网址` / `URL` / `网站地址` / `链接` | `标签` / `分类` | `备注` / `说明` | `两步验证` / `密钥` |
-| 浏览器自带 | `username` | `password` | `url` / `origin` | `name` | `note` | `otpauth` / `otp_auth` |
+| Chrome / Edge | `username` | `password` | `url` / `origin` | `name` | `note` | `otpauth` / `otp_auth` |
+| Firefox | `username` | `password` | `url` | — | — | — |
 | LastPass | `username` | `password` | `url` | `grouping` | `extra` | `totp` |
 | Bitwarden | `login_username` | `login_password` | `login_uri` | `folder` | `notes` | `login_totp` |
 | 1Password | `Username` | `Password` | `Url` | `Title` | `Notes` | `OTPAuth` / `totp` |
+| KeePassXC | `Username` | `Password` | `URL` | `Group`（空则 `Title`） | `Notes` | `TOTP` |
 
-识别过程是这样走的：表头**先按精确匹配**，没命中再做**大小写不敏感**的回退；每个单元格进来都会 `trim`。自动判断来源那一档看的是「这行表头里有没有 `origin`」这类形状特征，默认落到浏览器自带那一套；如果第一轮一种格式都没认出内容，它会**再遍历其余格式各试一次**，而不是直接放弃。
+Firefox 的导出没有分组 / 备注 / TOTP 列，这三项就留空，不猜；KeePassXC 的 `Group` 是文件夹路径（和 Bitwarden 的 `folder` 同语义），那一格为空时回退用条目标题当标签。
+
+识别过程是这样走的：表头**先按精确匹配**，没命中再做**大小写不敏感**的回退；每个单元格进来都会 `trim`。自动判断来源那一档看的是「这行表头里有没有 `origin`」这类形状特征，默认落到 Chrome / Edge 那一套；如果第一轮一种格式都没认出内容，它会**再遍历其余格式各试一次**，而不是直接放弃。判定顺序是有讲究的：KeePassXC 的表头里同时有 `TOTP` 和 `Title`+`Notes`，会先撞上 LastPass 与 1Password 的形状特征，所以它（`Group`+`Title`）必须排在两者之前；Firefox 靠 `httpRealm` / `formActionOrigin` 这类独有列名命中。
 
 还有一条中文用户特别需要的：文件先按 UTF-8 解码，**若那一轮解析不出任何结果，再用 GBK 重试一次**。要说准一点：触发回退的是「没解析出东西」，不是「解码报错」——UTF-8 那一路走的是非致命解码，本身不会抛异常。国内各种工具导出的 CSV 经常是 GBK，少了这一步，导进来的账号名会是一堆乱码方块。
 
@@ -121,4 +125,4 @@ image: imgs/blog-cover-10-import-migration.png
 
 ---
 
-_本文涉及的关键文件：`utils/excelFormatMap.ts`（五套表头映射）、`utils/excelCsv.ts`（精确匹配→大小写回退、跳行规则、UTF-8/GBK 回退）、`utils/excelJson.ts`、`utils/excelExport.ts`（导出列与明文密码）、`components/options/ImportDialog.vue`（字节闸门与格式判定）、`composables/useImportCapacity.ts`（切片与二次确认）、`utils/storage/passwordCrud.ts`（整批原子写）、`utils/backupExport.ts`（`.aph` 容器、新盐新 IV、往返自检）、`utils/identity/backup.ts`（`.aphid` 按 id 合并）、`utils/siteRulesTransfer.ts`（规则迁移与 added/updated/dropped）。_
+_本文涉及的关键文件：`utils/excelFormatMap.ts`（七套表头映射）、`utils/excelCsv.ts`（精确匹配→大小写回退、跳行规则、UTF-8/GBK 回退）、`utils/excelJson.ts`、`utils/excelExport.ts`（导出列与明文密码）、`components/options/ImportDialog.vue`（字节闸门与格式判定）、`composables/useImportCapacity.ts`（切片与二次确认）、`utils/storage/passwordCrud.ts`（整批原子写）、`utils/backupExport.ts`（`.aph` 容器、新盐新 IV、往返自检）、`utils/identity/backup.ts`（`.aphid` 按 id 合并）、`utils/siteRulesTransfer.ts`（规则迁移与 added/updated/dropped）。_

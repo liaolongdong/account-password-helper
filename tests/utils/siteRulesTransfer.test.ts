@@ -256,6 +256,67 @@ describe('parseSiteRulesImportText（结构与条目校验）', () => {
   });
 });
 
+describe('parseSiteRulesImportText（悬浮按钮显隐 / 匹配档位覆盖）', () => {
+  it('floatingButton 的 true 与 false 都是有效覆盖：全局默认显示可被用户改成隐藏，不能把 true 当默认丢弃', () => {
+    expect(parseRules(envelopeText([{ domain: 'a.com', floatingButton: false }]))).toEqual([
+      { domain: 'a.com', floatingButton: false },
+    ]);
+    expect(parseRules(envelopeText([{ domain: 'b.com', floatingButton: true }]))).toEqual([
+      { domain: 'b.com', floatingButton: true },
+    ]);
+  });
+
+  it('domainMatchMode 三档各自都是有效规则（只放宽一个开发站点是真实诉求）', () => {
+    for (const mode of ['off', 'wildcard', 'sameMainDomain'] as const) {
+      expect(parseRules(envelopeText([{ domain: 'dev.example.com', domainMatchMode: mode }]))).toEqual([
+        { domain: 'dev.example.com', domainMatchMode: mode },
+      ]);
+    }
+  });
+
+  it('脏值按未设置丢弃，但同条规则里其它有效覆盖照常落库', () => {
+    const rules = parseRules(
+      envelopeText([
+        { domain: 'a.com', floatingButton: 'false', domainMatchMode: 'OFF', fillEntry: 'manual' },
+        { domain: 'b.com', floatingButton: 0, domainMatchMode: true, penetrateShadow: false },
+        { domain: 'c.com', floatingButton: null, domainMatchMode: 'same-main-domain' },
+      ]),
+    );
+
+    expect(rules).toEqual([
+      { domain: 'a.com', fillEntry: 'manual' },
+      { domain: 'b.com', penetrateShadow: false },
+    ]);
+  });
+
+  it('只带脏值新字段的条目算空规则：计入 dropped，整份只有它时报 NO_VALID_RULES', () => {
+    const { dropped } = parseSiteRulesImportText(
+      envelopeText([
+        { domain: 'good.com', floatingButton: false },
+        { domain: 'junk.com', floatingButton: 'hide', domainMatchMode: 'wide' },
+      ]),
+    );
+    expect(dropped).toBe(1);
+    expect(codeOf(() => parseSiteRulesImportText(envelopeText([{ domain: 'a.com', domainMatchMode: 'wide' }])))).toBe(
+      'NO_VALID_RULES',
+    );
+  });
+
+  it('新字段参与导出往返，且不带新字段的旧 v1 文件不会被凭空补出覆盖', () => {
+    const payload = buildSiteRulesExportPayload([
+      { domain: 'a.com', floatingButton: true, domainMatchMode: 'sameMainDomain' },
+    ]);
+    expect(parseRules(JSON.stringify(payload))).toEqual(payload.rules);
+
+    const legacy = parseRules(envelopeText([{ domain: 'b.com', fillEntry: 'inline' }]));
+    expect(legacy).toEqual([{ domain: 'b.com', fillEntry: 'inline' }]);
+    for (const rule of legacy) {
+      expect('floatingButton' in rule).toBe(false);
+      expect('domainMatchMode' in rule).toBe(false);
+    }
+  });
+});
+
 describe('mergeSiteRules（按域名合并）', () => {
   it('同域名计为更新且以文件内容为准，新域名计为新增，未命中的本机规则原样保留', () => {
     const { added, updated, rules } = mergeSiteRules(

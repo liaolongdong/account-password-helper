@@ -3,14 +3,28 @@
     class="filters"
     data-tour="search"
   >
-    <el-input
-      :model-value="searchKeyword"
-      :placeholder="t('options.filter.searchPlaceholder')"
-      :aria-label="t('options.filter.searchPlaceholder')"
-      :prefix-icon="Search"
-      clearable
-      @update:model-value="$emit('update:searchKeyword', $event)"
-    />
+    <div class="search-input-wrap">
+      <el-input
+        :model-value="searchKeyword"
+        :placeholder="t('options.filter.searchPlaceholder')"
+        :aria-label="t('options.filter.searchPlaceholder')"
+        :prefix-icon="Search"
+        clearable
+        @update:model-value="$emit('update:searchKeyword', $event)"
+        @click="openHistoryPanel"
+        @blur="handleSearchBlur"
+        @keydown.enter="recordCurrentSearch"
+        @keydown.esc="closeHistoryPanel"
+      />
+      <!-- 最近搜索：筛选栏无 overflow 裁切，走输入框下方悬浮层（侧边栏因圆角裁切走内联形态） -->
+      <SearchHistoryPanel
+        class="search-history-overlay"
+        :history="recentSearches"
+        :visible="historyPanelOpen"
+        @select="selectHistory"
+        @clear="clearSearchHistory"
+      />
+    </div>
     <!--
       批量操作按钮置于标签筛选左侧：按钮随选中态显隐时，
       由 flex:1 的搜索框吸收宽度变化，右侧筛选控件位置保持稳定，
@@ -136,6 +150,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Search, Delete, Star, StarFilled, PriceTag, Download } from '@element-plus/icons-vue';
+import SearchHistoryPanel from '@/components/SearchHistoryPanel.vue';
+import { useSearchHistory } from '@/composables/useSearchHistory';
 import { useI18n } from '@/utils/i18n';
 import { GENERIC_SITE_KEY, type SiteOption } from '@/utils/siteUtils';
 import type { TagOption } from '@/utils/tagUtils';
@@ -169,7 +185,7 @@ const props = defineProps<{
   filterSites: string[];
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update:searchKeyword': [value: string];
   'update:favoriteOnly': [value: boolean];
   'update:filterTags': [value: string[]];
@@ -187,6 +203,26 @@ const TAG_OPTION_PROPS = { label: 'tag', value: 'tag' };
 const SITE_OPTION_PROPS = { label: 'label', value: 'site' };
 
 const { t } = useI18n();
+
+/** 最近搜索（会话级，锁定即清）：点击空框 / 清空关键词才展开候选 */
+const {
+  recentSearches,
+  historyPanelOpen,
+  recordCurrentSearch,
+  clearSearchHistory,
+  openHistoryPanel,
+  closeHistoryPanel,
+  selectHistory,
+} = useSearchHistory(
+  computed(() => props.searchKeyword),
+  value => emit('update:searchKeyword', value),
+);
+
+/** blur 把当前关键词记入历史并收起面板（chip 点击经 pointerdown.prevent 不触发 blur） */
+const handleSearchBlur = () => {
+  recordCurrentSearch();
+  closeHistoryPanel();
+};
 
 /**
  * 站点候选的展示集：通用条目桶换成本地化文案，其余仍是 hostname。
@@ -232,9 +268,25 @@ const siteOptions = computed(() =>
   box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
 }
 
-/* 搜索框占据剩余空间 */
-.filters > :deep(.el-input) {
+/* 搜索框容器占据剩余空间，并作为最近搜索悬浮层的定位基准 */
+.filters > .search-input-wrap {
+  position: relative;
   flex: 1;
+  min-width: 0;
+}
+
+/* 最近搜索悬浮层：锚定搜索框正下方，盖过表格首行（表格无定位层级） */
+.search-history-overlay {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 30;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
 }
 
 /* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。

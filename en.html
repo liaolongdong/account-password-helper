@@ -161,7 +161,7 @@
         "browserRequirements": "Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.",
         "softwareVersion": "3.22.0",
         "datePublished": "2026-05-23",
-        "dateModified": "2026-11-09",
+        "dateModified": "2026-11-16",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -330,7 +330,7 @@
             "name": "What if the login fields are not detected and nothing fills?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open \"Site rules\" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a \"Shadow DOM penetration\" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file."
+              "text": "Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open \"Site rules\" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a \"Shadow DOM penetration\" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Each rule can also override the quick-fill entry, floating-button visibility and cross-subdomain matching tier for that one site; all three default to follow-global. Rules export as plain-text JSON (domains, selectors and behaviour overrides, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file."
             }
           },
           {
@@ -338,7 +338,7 @@
             "name": "Can I import from other password managers?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it."
+              "text": "Yes. Upload a CSV in the import dialog; Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats are auto-detected and mapped. Just export a CSV from the source manager and select it."
             }
           },
           {
@@ -450,7 +450,7 @@
             "name": "How do I troubleshoot a failed CSV import?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Click \"Download Template\" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats."
+              "text": "Click \"Download Template\" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats."
             }
           },
           {
@@ -4758,7 +4758,7 @@
       <div class="container">
         <div class="metrics-inner reveal">
           <div class="metric">
-            <b>5157</b>
+            <b>5356</b>
             <span data-i18n="metrics.cases">automated test cases</span>
             <i aria-hidden="true"></i>
           </div>
@@ -4881,7 +4881,7 @@
                 <td
                   class="after"
                   data-i18n="problem.r5.after"
-                >Export formats from Chrome / LastPass / Bitwarden / 1Password are detected automatically, as CSV or JSON, in about 30 seconds.</td>
+                >Export formats from Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC are detected automatically, as CSV or JSON, in about 30 seconds.</td>
               </tr>
               <tr>
                 <th
@@ -5390,7 +5390,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f7.title">Import, Export &amp; Encrypted Backup</h3>
-            <p data-i18n="features.f7.desc">CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; encrypted .aph backup export/import, plus email backup with scheduled reminders.</p>
+            <p data-i18n="features.f7.desc">CSV / JSON formats with auto-detection of Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC exports; encrypted .aph backup export/import, plus email backup with scheduled reminders.</p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -5410,7 +5410,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f11.title">Tags, Favorites &amp; Smart Search</h3>
-            <p data-i18n="features.f11.desc">Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.</p>
+            <p data-i18n="features.f11.desc">Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, recent-search chips (session-only, up to 8, wiped on lock), one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.</p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
             <div class="feature-icon">
@@ -5686,7 +5686,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f13.title">Site Rules Fallback</h3>
-            <p data-i18n="features.f13.desc">Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain's username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.</p>
+            <p data-i18n="features.f13.desc">Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain's username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Each rule can also override the quick-fill entry, floating-button visibility and cross-subdomain matching tier for that one site (all default to follow-global). Rules export as plain-text JSON (domains, selectors and behaviour overrides, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.</p>
           </article>
           <article class="feature-card reveal reveal-delay-1">
             <div class="feature-icon">
@@ -6100,7 +6100,7 @@
                   scope="row"
                   data-i18n="useCases.r8.scene"
                 >Moving in from another manager</th>
-                <td data-i18n="useCases.r8.how">CSV and JSON imports, with Chrome / LastPass / Bitwarden / 1Password export formats detected automatically.</td>
+                <td data-i18n="useCases.r8.how">CSV and JSON imports, with Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC export formats detected automatically.</td>
                 <td data-i18n="useCases.r8.where">"Import data" on the manager page</td>
               </tr>
               <tr data-cat="migrate">
@@ -6567,7 +6567,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>What if the login fields are not detected and nothing fills?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Each rule can also override the quick-fill entry, floating-button visibility and cross-subdomain matching tier for that one site; all three default to follow-global. Rules export as plain-text JSON (domains, selectors and behaviour overrides, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I customize shortcuts?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6603,11 +6603,11 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I troubleshoot a failed CSV import?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>Can I import from other password managers?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Upload a CSV in the import dialog; Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>Is JSON import/export supported?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6955,7 +6955,7 @@ pnpm lint:style  # Stylelint</code></pre>
                 <span data-i18n="footer.repo">GitHub Repo</span>
               </a>
             </span>
-            <span data-i18n="footer.updated">Updated: Nov 9, 2026 · v3.22.0</span>
+            <span data-i18n="footer.updated">Updated: Nov 16, 2026 · v3.22.0</span>
           </div>
         </div>
         <!-- id 是 FAQ 右栏出口卡「微信交流群」那条内链的落点（见 I18N 的 faqRail.help） -->
@@ -7391,8 +7391,8 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'Migrating out of another password manager means retyping everything by hand, or giving up on the export format.',
         },
         'problem.r5.after': {
-          zh: '自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式，CSV / JSON 双格式，30 秒搬完。',
-          en: 'Export formats from Chrome / LastPass / Bitwarden / 1Password are detected automatically, as CSV or JSON, in about 30 seconds.',
+          zh: '自动识别 Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC 的导出格式，CSV / JSON 双格式，30 秒搬完。',
+          en: 'Export formats from Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC are detected automatically, as CSV or JSON, in about 30 seconds.',
         },
         'problem.r6.area': { zh: '哪些密码该换', en: 'Which passwords to change' },
         'problem.r6.before': {
@@ -7552,8 +7552,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'useCases.r8.scene': { zh: '从别的管理器搬家', en: 'Moving in from another manager' },
         'useCases.r8.how': {
-          zh: 'CSV / JSON 双格式导入，自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式。',
-          en: 'CSV and JSON imports, with Chrome / LastPass / Bitwarden / 1Password export formats detected automatically.',
+          zh: 'CSV / JSON 双格式导入，自动识别 Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC 的导出格式。',
+          en: 'CSV and JSON imports, with Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC export formats detected automatically.',
         },
         'useCases.r8.where': { zh: '管理页「导入数据」', en: '"Import data" on the manager page' },
         'useCases.r9.scene': { zh: '换电脑或重装系统', en: 'A new machine or a reinstalled OS' },
@@ -7631,13 +7631,13 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'features.f7.title': { zh: '导入导出与加密备份', en: 'Import, Export & Encrypted Backup' },
         'features.f7.desc': {
-          zh: 'CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份导出/导入，邮箱备份 + 定时备份提醒。',
-          en: 'CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; encrypted .aph backup export/import, plus email backup with scheduled reminders.',
+          zh: 'CSV / JSON 双格式，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 导出格式；.aph 加密备份导出/导入，邮箱备份 + 定时备份提醒。',
+          en: 'CSV / JSON formats with auto-detection of Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC exports; encrypted .aph backup export/import, plus email backup with scheduled reminders.',
         },
         'features.f11.title': { zh: '标签、收藏与智能搜索', en: 'Tags, Favorites & Smart Search' },
         'features.f11.desc': {
-          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。',
-          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.',
+          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、最近搜索（会话级 ≤8 条，锁定即清）、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。',
+          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, recent-search chips (session-only, up to 8, wiped on lock), one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.',
         },
         'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
         'features.f8.desc': {
@@ -7677,8 +7677,8 @@ pnpm lint:style  # Stylelint</code></pre>
         },
         'features.f13.title': { zh: '站点规则兜底', en: 'Site Rules Fallback' },
         'features.f13.desc': {
-          zh: '登录框藏在自定义组件里、识别不到输入框？在密码管理页「站点规则」为该域名手写用户名与密码框的 CSS 选择器（规则域名需与登录页域名完全一致），每条规则自带「Shadow DOM 穿透」开关，默认开启、只作用于开放影子根。规则可导出为纯文本 JSON（只含域名与选择器，不含凭据）并按域名合并导入，团队共享一套配置，不必逐台浏览器调。',
-          en: 'Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain\'s username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.',
+          zh: '登录框藏在自定义组件里、识别不到输入框？在密码管理页「站点规则」为该域名手写用户名与密码框的 CSS 选择器（规则域名需与登录页域名完全一致），每条规则自带「Shadow DOM 穿透」开关，默认开启、只作用于开放影子根。每条规则还可按站点覆盖快速填充方式、悬浮按钮显隐与跨子域匹配档位（缺省跟随全局）。规则可导出为纯文本 JSON（只含域名、选择器与行为覆盖项，不含凭据）并按域名合并导入，团队共享一套配置，不必逐台浏览器调。',
+          en: 'Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain\'s username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Each rule can also override the quick-fill entry, floating-button visibility and cross-subdomain matching tier for that one site (all default to follow-global). Rules export as plain-text JSON (domains, selectors and behaviour overrides, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.',
         },
         'features.f14.title': { zh: '域名与端口两级隔离', en: 'Domain & Port Isolation' },
         'features.f14.desc': {
@@ -7856,7 +7856,7 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
         },
         'footer.repo': { zh: 'GitHub 仓库', en: 'GitHub Repo' },
-        'footer.updated': { zh: '最后更新：2026-11-09 · v3.22.0', en: 'Updated: Nov 9, 2026 · v3.22.0' },
+        'footer.updated': { zh: '最后更新：2026-11-16 · v3.22.0', en: 'Updated: Nov 16, 2026 · v3.22.0' },
         'wechat.title': { zh: '微信交流群', en: 'WeChat Group' },
         'wechat.desc': {
           zh: '扫码添加作者微信，备注「aph」邀你加入插件交流群',
@@ -8116,8 +8116,8 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'What if the login fields are not detected and nothing fills?',
           },
           a: {
-            zh: '先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框或密码框的 CSS 选择器即可：只需钉住识别错的那一侧，另一侧留空仍走自动检测（短信验证码登录页没有密码框，密码选择器留空即可）；落点始终以你配的规则为准，但填充回执会写明这次写入来自站点规则，被指认为密码框的输入框看着像验证码 / 动态口令框时还会直接点破（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。规则可导出为纯文本 JSON（只含域名与选择器，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。',
-            en: 'Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.',
+            zh: '先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框或密码框的 CSS 选择器即可：只需钉住识别错的那一侧，另一侧留空仍走自动检测（短信验证码登录页没有密码框，密码选择器留空即可）；落点始终以你配的规则为准，但填充回执会写明这次写入来自站点规则，被指认为密码框的输入框看着像验证码 / 动态口令框时还会直接点破（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。每条规则还可按站点覆盖快速填充方式、悬浮按钮显隐与跨子域匹配档位，缺省跟随全局。规则可导出为纯文本 JSON（只含域名、选择器与行为覆盖项，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。',
+            en: 'Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selector for the field that is misdetected: the side you leave empty is still detected automatically (an SMS-code login page has no password field, so leave the password selector empty), and every fill honours your rule exactly, while the receipt states that the write came from your site rule — called out outright when the pinned password field looks like a verification-code input (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Each rule can also override the quick-fill entry, floating-button visibility and cross-subdomain matching tier for that one site; all three default to follow-global. Rules export as plain-text JSON (domains, selectors and behaviour overrides, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.',
           },
         },
         {
@@ -8186,15 +8186,15 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           q: { zh: 'CSV 导入失败要怎么排查？', en: 'How do I troubleshoot a failed CSV import?' },
           a: {
-            zh: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。',
-            en: 'Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats.',
+            zh: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式。',
+            en: 'Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats.',
           },
         },
         {
           q: { zh: '支持从其他密码管理器导入吗？', en: 'Can I import from other password managers?' },
           a: {
-            zh: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
-            en: 'Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.',
+            zh: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
+            en: 'Yes. Upload a CSV in the import dialog; Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.',
           },
         },
         {

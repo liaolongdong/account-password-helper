@@ -158,6 +158,24 @@ async function handleGetInitialData(_domain?: string) {
 }
 
 /**
+ * 按结构化失败原因取页面提示条文案键
+ *
+ * reason 来自跨上下文消息，按不可信输入收窄：未知/缺省一律落通用失败文案。
+ * @param reason 内容脚本回报的失败原因
+ * @returns i18n-lite 文案键
+ */
+function fillFailureNoticeKey(reason: FillFailureReason | undefined): string {
+  switch (reason) {
+    case 'no_form':
+      return 'bg.router.fillNoForm';
+    case 'nothing_filled':
+      return 'bg.router.fillIncomplete';
+    default:
+      return 'bg.router.fillFailed';
+  }
+}
+
+/**
  * 处理 FILL_BY_ID：按条目 ID 从缓存取明文，复用 FILL_PASSWORD 下发到发起填充的 frame
  *
  * 安全：明文仅在此刻经 FILL_PASSWORD 瞬时下发到内容脚本所在 frame（与侧边栏填充暴露面一致），
@@ -201,6 +219,14 @@ async function handleFillById(
   };
   // 定向授权时的那个文档；导航或身份变化时抛「接收端不存在」，绝不回退 frameId 广播。
   const result = (await sendToAuthorizedDocument(tabId, target, fillMessage)) as FillResult | undefined;
+
+  // 内容侧失败（未检测到表单 / 一格都没写进去 / 填充异常）与上面的拒绝分支同口径补发提示条：
+  // 内联面板点击后已收起，不补发就是「点了没反应」。文案按结构化 reason 取 tl() 固定键，
+  // 不透传 result.message——它由 content 侧 tl() 产出，语言档位可能与后台不一致
+  // （见 FillFailureReason 注释）。唯一例外：no_form 且内容脚本已弹就地引导气泡时不叠加第二条。
+  if (!result?.success && !result?.failurePromptShown) {
+    void showPageNotice(tabId, tl(fillFailureNoticeKey(result?.reason)));
+  }
 
   // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致
   void _getCrudModule()

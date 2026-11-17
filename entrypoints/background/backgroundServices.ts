@@ -27,6 +27,7 @@ import {
   clearAllPendingTotp,
   resetCredentialAccessBarrierForStartup,
   resetDomainMatchModeMirror,
+  resetSiteRulesMirror,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 import { refreshActionIcon, setActionIconState } from './actionIcon';
@@ -746,6 +747,12 @@ export function setupBackgroundServices(): void {
       // 那会删除 storage.session 快照并触发全量解密回温，让「切档后侧边栏仍秒开」失效。
       if (STORAGE_KEYS.DOMAIN_MATCH_CONFIG in changes) {
         resetDomainMatchModeMirror();
+      }
+
+      // 站点规则变更：同理只复位规则镜像。站点级档位覆盖在每次匹配查询时经
+      // getEffectiveSitePolicy 现算，规则一变即生效，不触碰缓存明文与快照。
+      if (STORAGE_KEYS.SITE_RULES in changes) {
+        resetSiteRulesMirror();
       }
 
       const relevantKeys = [

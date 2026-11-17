@@ -86,6 +86,9 @@ type PanelMessageKey =
   | 'fillInline'
   | 'fillManual'
   | 'fillOverrideNote'
+  | 'visibleOverrideNote'
+  | 'visibleStateShow'
+  | 'visibleStateHide'
   | 'autoTriggerLogin'
   | 'autoTriggerTip'
   | 'passwordVisibility'
@@ -111,6 +114,10 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     fillManual: '仅手动',
     // 以 textContent 渲染（不进 data-i18n 的 innerHTML 通道），`{entry}` 由内建档位标签替换，不含外部数据
     fillOverrideNote: '当前站点已被站点规则覆盖为「{entry}」，此处改动的是全局设置，对该站点不生效',
+    // 与 fillOverrideNote 同口径：`{state}` 由内建显隐标签替换，textContent 渲染
+    visibleOverrideNote: '当前站点已被站点规则覆盖为「{state}」，此处改动的是全局设置，对该站点不生效',
+    visibleStateShow: '显示',
+    visibleStateHide: '隐藏',
     autoTriggerLogin: '自动触发登录',
     autoTriggerTip:
       '开启后，在侧边栏或页面内联快速填充密码成功后将自动点击登录按钮<span class="highlight-tip">（仅账号密码场景）</span>',
@@ -138,6 +145,10 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     fillInline: 'Inline',
     fillManual: 'Manual',
     fillOverrideNote: 'A site rule overrides this site to "{entry}". Settings here apply globally and not to this site',
+    visibleOverrideNote:
+      'A site rule overrides this site to "{state}". Settings here apply globally and not to this site',
+    visibleStateShow: 'shown',
+    visibleStateHide: 'hidden',
     autoTriggerLogin: 'Auto-submit login',
     autoTriggerTip:
       'When enabled, the login button is clicked automatically after a successful quick fill from the sidebar or inline panel<span class="highlight-tip"> (username &amp; password forms only)</span>',
@@ -473,7 +484,8 @@ export const settingsPanelViewStyles = `
  * 用告警色而非常规灰，是因为它解释的是「你在这里改了也没用」——静默混在说明文字里
  * 等于没有提示。隐藏由 hidden 属性负责（本类不设置 display，浏览器默认生效）。
  */
-.setting-fill-override {
+.setting-fill-override,
+.setting-visible-override {
   color: ${WARNING_COLOR};
   font-weight: 500;
 }
@@ -684,6 +696,47 @@ function renderFillOverride(
 }
 
 /**
+ * 组装「悬浮按钮显隐已被站点规则覆盖」提示文案
+ *
+ * `{state}` 只由本模块内建的显隐标签替换，不含域名或任何外部数据，textContent 渲染。
+ * @param locale 面板语言
+ * @param visible 站点规则覆盖到的显隐
+ * @returns 提示文案
+ */
+function visibleOverrideNote(locale: PanelLocale, visible: boolean): string {
+  const label = PANEL_MESSAGES[locale][visible ? 'visibleStateShow' : 'visibleStateHide'];
+  return PANEL_MESSAGES[locale].visibleOverrideNote.replace('{state}', label);
+}
+
+/**
+ * 刷新「显隐已被站点规则覆盖」提示的文案与显隐
+ *
+ * 与 renderFillOverride 同构：有覆盖 **且** 与全局开关不同值时才有话可说，
+ * 语言切换、配置刷新、覆盖值变化三处共用这一出口。元素不存在时静默返回
+ * （侧边栏 / Options 复用面板不渲染站点覆盖提示）。
+ *
+ * @param panelRoot 面板根元素
+ * @param locale 面板语言
+ * @param config 当前配置（用于比对全局开关）
+ * @param siteVisibleOverride 站点规则覆盖的显隐，无覆盖传 null
+ */
+function renderVisibleOverride(
+  panelRoot: HTMLElement,
+  locale: PanelLocale,
+  config: FloatingButtonConfig,
+  siteVisibleOverride: boolean | null,
+): void {
+  const el = panelRoot.querySelector<HTMLElement>('[data-visible-override]');
+  if (!el) return;
+  const note =
+    siteVisibleOverride !== null && siteVisibleOverride !== config.visible
+      ? visibleOverrideNote(locale, siteVisibleOverride)
+      : '';
+  el.hidden = !note;
+  el.textContent = note;
+}
+
+/**
  * 重新量一次面板几何，刷新底栏摘要与「滚到底就摘掉淡出」这个类
  *
  * 判据取「底边还在折叠线以下的行数」而不是滚动偏移比例：行高互不相等，百分比读不出人话，
@@ -763,11 +816,13 @@ function setPressedState(items: HTMLElement[], isActive: (item: HTMLElement) => 
  * @param config 悬浮按钮配置
  * @param locale 面板语言（扩展页传 currentLocale，content script 经 getStoredPanelLocale 获取）
  * @param siteFillOverride 当前站点由站点规则覆盖的档位（无覆盖时传 null；侧边栏与 Options 的全局设置不传）
+ * @param siteVisibleOverride 当前站点由站点规则覆盖的悬浮按钮显隐（无覆盖时传 null；全局设置宿主不传）
  */
 export function getSettingsPanelHTML(
   config: FloatingButtonConfig,
   locale: PanelLocale = 'zh-CN',
   siteFillOverride?: FillEntry | null,
+  siteVisibleOverride?: boolean | null,
 ): string {
   const msg = PANEL_MESSAGES[locale];
   const opacityPct = Math.round(config.opacity * 100);
@@ -776,6 +831,11 @@ export function getSettingsPanelHTML(
   // 因为悬浮按钮面板先于 storage 读取渲染，档位是之后由 setSiteFillOverride 点亮的。
   const overrideNote =
     siteFillOverride && siteFillOverride !== fillEntry ? fillOverrideNote(locale, siteFillOverride) : '';
+  // 显隐覆盖提示同理：构造期先按传入值渲染，之后由 setSiteVisibleOverride 点亮 / 收回
+  const visibleNote =
+    siteVisibleOverride !== null && siteVisibleOverride !== undefined && siteVisibleOverride !== config.visible
+      ? visibleOverrideNote(locale, siteVisibleOverride)
+      : '';
   const themeSwatches = THEME_OPTIONS.map(
     option =>
       `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${getThemeLabel(option, locale)}" aria-pressed="${config.theme === option.name}" style="--swatch: ${option.swatch}"></button>`,
@@ -807,6 +867,7 @@ export function getSettingsPanelHTML(
           <div class="switch-handle"></div>
         </div>
       </div>
+      <div class="setting-tip setting-visible-override" data-visible-override${visibleNote ? '' : ' hidden'}>${visibleNote}</div>
 
       <div class="setting-item setting-item-stack">
         <span class="setting-label" data-i18n="fillMode">${msg.fillMode}</span>
@@ -873,12 +934,14 @@ export function getSettingsPanelHTML(
  * @param locale 目标语言
  * @param config 当前配置（用于计算填充提示文案）
  * @param siteFillOverride 当前站点的覆盖档位（用于刷新覆盖提示文案）
+ * @param siteVisibleOverride 当前站点的覆盖显隐（用于刷新显隐覆盖提示文案）
  */
 function applyPanelLocale(
   panelRoot: HTMLElement,
   locale: PanelLocale,
   config: FloatingButtonConfig,
   siteFillOverride: FillEntry | null,
+  siteVisibleOverride: boolean | null,
 ): void {
   const msg = PANEL_MESSAGES[locale];
 
@@ -900,6 +963,7 @@ function applyPanelLocale(
 
   // 站点覆盖提示的文案也要跟着换语言
   renderFillOverride(panelRoot, locale, config, siteFillOverride);
+  renderVisibleOverride(panelRoot, locale, config, siteVisibleOverride);
 
   // 主题色块 tooltip
   panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {
@@ -944,6 +1008,8 @@ export function bindSettingsPanelView(
   let locale: PanelLocale = initialLocale;
   /** 当前站点的覆盖档位；由调用方在异步读到站点规则后经 `setSiteFillOverride` 写入 */
   let siteFillOverride: FillEntry | null = null;
+  /** 当前站点的覆盖显隐；由调用方在异步读到站点规则后经 `setSiteVisibleOverride` 写入 */
+  let siteVisibleOverride: boolean | null = null;
   const cleanups: Array<() => void> = [];
 
   // 关闭按钮
@@ -1002,6 +1068,12 @@ export function bindSettingsPanelView(
       el.classList.toggle('active', next);
       // 开关是 div，选中态既要用类名给眼睛，也要用 aria-checked 给读屏
       el.setAttribute('aria-checked', String(next));
+      // 全局显隐一旦改到与站点覆盖同值，提示就失去可解释的差异，跟着收回去；
+      // 提示的收放会挪动折叠线，底栏摘要随之重算
+      if (key === 'visible') {
+        renderVisibleOverride(panelRoot, locale, config, siteVisibleOverride);
+        sync();
+      }
       options.onConfigChange({ [key]: next } as Partial<FloatingButtonConfig>);
     };
     const onClick = () => toggle();
@@ -1048,7 +1120,7 @@ export function bindSettingsPanelView(
   const setPanelLocale = (next: PanelLocale) => {
     if (locale === next) return;
     locale = next;
-    applyPanelLocale(panelRoot, next, config, siteFillOverride);
+    applyPanelLocale(panelRoot, next, config, siteFillOverride, siteVisibleOverride);
     // 换语言等于换一整套文案长度，折叠线会挪到另一行字上，摘要与淡出都得重算
     sync();
   };
@@ -1226,6 +1298,7 @@ export function bindSettingsPanelView(
     const fillTip = panelRoot.querySelector('[data-fill-tip]');
     if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[locale][currentEntry];
     renderFillOverride(panelRoot, locale, config, siteFillOverride);
+    renderVisibleOverride(panelRoot, locale, config, siteVisibleOverride);
 
     // 更新主题色块选中态
     setPressedState(
@@ -1253,10 +1326,29 @@ export function bindSettingsPanelView(
     sync();
   };
 
+  /**
+   * 写入/清除当前站点的覆盖显隐
+   *
+   * 与 setSiteFillOverride 同理：规则异步读到后点亮，删除或改回跟随全局时传 null 收回。
+   * 非布尔值按「无覆盖」处理，不让 storage 里的脏值参与判定。
+   */
+  const setSiteVisibleOverride = (visible: boolean | null): void => {
+    siteVisibleOverride = typeof visible === 'boolean' ? visible : null;
+    renderVisibleOverride(panelRoot, locale, config, siteVisibleOverride);
+    sync();
+  };
+
   const destroy = () => {
     cleanups.forEach(fn => fn());
     cleanups.length = 0;
   };
 
-  return { updateConfig, setLocale: setPanelLocale, setSiteFillOverride, refresh: sync, destroy };
+  return {
+    updateConfig,
+    setLocale: setPanelLocale,
+    setSiteFillOverride,
+    setSiteVisibleOverride,
+    refresh: sync,
+    destroy,
+  };
 }

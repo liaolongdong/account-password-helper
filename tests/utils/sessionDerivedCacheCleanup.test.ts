@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 
 /**
  * 锁定 / 过期时清空「以明文为键」的派生记忆缓存
@@ -91,6 +92,16 @@ describe('本上下文 clearSession()', () => {
     // 只丢记忆：颜色与名称逐项等价（同一标签恒得同一颜色）
     expect(after.map(r => r.name)).toEqual(['锁定-标签甲', '锁定-标签乙']);
     expect(after[0].style).toEqual(before[0].style);
+  });
+
+  it('最近搜索明文词随锁定一并清除（不跨会话存活）', async () => {
+    await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.RECENT_SEARCHES]: ['示例搜索词'] });
+
+    await clearSession();
+    await flush();
+
+    const stored = await chrome.storage.session.get(SESSION_MEMORY_KEYS.RECENT_SEARCHES);
+    expect(stored[SESSION_MEMORY_KEYS.RECENT_SEARCHES]).toBeUndefined();
   });
 });
 

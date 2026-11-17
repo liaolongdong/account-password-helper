@@ -26,9 +26,15 @@ export const floatingButtonStyles = `
   z-index: 2147483647;
   top: 50%;
   transform: translateY(-50%);
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              right 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.3s ease,
+  /*
+   * 基态只过渡 opacity / visibility：
+   * - left/right 只在 data-position 两档间取 6px ↔ auto，auto 不可插值，
+   *   写进过渡列表也永远不会播放（换边本就是瞬时落位），故不列；
+   * - transform 由拖拽逐帧写入（AnimationController.updateDragPosition），
+   *   top 由吸附/配置直接落位，两者都**不得**进基态过渡，否则按钮会滞后于鼠标；
+   *   滑出动画只在 .hidden 态自带的过渡里声明。
+   */
+  transition: opacity 0.3s ease,
               visibility 0s linear 0s;
   pointer-events: auto;
 }
@@ -52,7 +58,9 @@ export const floatingButtonStyles = `
   gap: 10px;
   padding: 0;
   background: transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* data-state 三档里组自身只有 gap 变化（0 ↔ 10px），枚举出来即可，
+     不用 all 去盯继承属性；按钮自身的尺寸/颜色过渡在 .btn 上声明 */
+  transition: gap 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 按钮基础样式 - 圆形按钮 */

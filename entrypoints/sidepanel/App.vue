@@ -1,6 +1,7 @@
 <template>
   <div
     v-show="showSidepanel"
+    ref="containerEl"
     class="sidepanel-container"
     @keydown="handleKeydown"
   >
@@ -176,6 +177,7 @@ import {
   DEFAULT_PORT_SCOPE,
 } from '@/utils/storage/configManager';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { getSiteRules, resolveSiteRuleForHosts, type SiteRule } from '@/utils/storage/siteRules';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
@@ -202,6 +204,7 @@ import {
   isLoopbackHost,
   toNavigableUrl,
   resolveMatchTier,
+  resolveDomainMatchMode,
   isCrossSubdomainTier,
   isDomainMatchMode,
   isPortScope,
@@ -429,12 +432,21 @@ const openQuickAddDialog = (): void => {
 // ==================== 排序与过滤 ====================
 
 /**
- * 跨子域匹配档位
+ * 跨子域匹配档位（全局持久化值）
  *
  * 打开时读一次并随 storage.onChanged 更新；缺省 `off` 与引入跨子域之前的行为逐条一致。
  * 只作为筛选/排序的入参，不进入任何缓存键，切档因此不触发解密重算。
+ * 生效档位是它经站点规则覆盖后的 `domainMatchMode`（见 currentSiteHost 下方）。
  */
-const domainMatchMode = ref<DomainMatchMode>(DEFAULT_DOMAIN_MATCH_MODE);
+const globalDomainMatchMode = ref<DomainMatchMode>(DEFAULT_DOMAIN_MATCH_MODE);
+
+/**
+ * 站点规则集（明文小配置，打开时读一次并随 SITE_RULES 存储变更刷新）
+ *
+ * 与全局档位一样只影响过滤判定，不进任何缓存键；切标签页时由 currentSiteRule
+ * 现算覆盖，无需按域名重复读 storage。
+ */
+const siteRules = ref<Record<string, SiteRule>>({});
 
 /**
  * 端口隔离范围（持久化值）
@@ -469,6 +481,9 @@ const envPickerOpen = ref(false);
 
 /** 头部卡片根节点：判断「按下的是不是芯片那一块」 */
 const headerCardRef = ref<HTMLElement | null>(null);
+
+/** 面板根节点：首屏收尾时挂 is-opened 触发一次性入场动画（纯 CSS，不占测量链） */
+const containerEl = ref<HTMLElement | null>(null);
 
 /** 选择条包裹层：判断「按下的是不是选择条本身」 */
 const envBarEl = ref<HTMLElement | null>(null);
@@ -566,17 +581,20 @@ const applyEnvBinding = async (host: string | null, ack = false): Promise<void> 
   }
 };
 
-/** 读取站点匹配策略；失败回落双缺省，宁可少显示条目也不放宽匹配边界 */
+/** 读取站点匹配策略与站点规则；失败回落双缺省，宁可少显示条目也不放宽匹配边界 */
 const loadSitePolicy = async (): Promise<void> => {
+  // 规则与全局档位并行读：两者独立降级，任一失败不拖累另一个（getSiteRules 内部已降级为空集）
+  const rulesPromise = getSiteRules();
   try {
     const config = await getDomainMatchConfig();
-    domainMatchMode.value = config.mode;
+    globalDomainMatchMode.value = config.mode;
     portScope.value = config.portScope;
   } catch (error) {
     logger.warn('SidePanel: 读取站点匹配策略失败，回落精确匹配与不限端口', error);
-    domainMatchMode.value = DEFAULT_DOMAIN_MATCH_MODE;
+    globalDomainMatchMode.value = DEFAULT_DOMAIN_MATCH_MODE;
     portScope.value = DEFAULT_PORT_SCOPE;
   }
+  siteRules.value = await rulesPromise;
 };
 
 /** 当前活动标签页的域名匹配上下文（供范围过滤与「能否填充当前页」判定共用） */
@@ -599,6 +617,21 @@ const currentSiteHost = computed(() => {
   const port = rawPortOf(currentPagePort.value);
   return port ? `${domain}:${port}` : domain;
 });
+
+/** 当前站点的规则：host（含非默认端口）优先、hostname 回退，与内容脚本 / background 同口径 */
+const currentSiteRule = computed(() =>
+  resolveSiteRuleForHosts(siteRules.value, currentSiteHost.value, currentDomain.value),
+);
+
+/**
+ * 生效跨子域档位：全局档位经站点规则覆盖（缺省跟随全局）
+ *
+ * 下游 sitePolicy / crossDomainIds / 切标签页 watch 一律读它，站点级放宽或收紧
+ * 因此与全局切档走完全相同的过滤路径；规则脏值由 resolveDomainMatchMode 收窄。
+ */
+const domainMatchMode = computed<DomainMatchMode>(() =>
+  resolveDomainMatchMode(globalDomainMatchMode.value, currentSiteRule.value),
+);
 
 /** 持久化策略：填充门控与徽章的唯一口径 */
 const sitePolicy = computed<SitePolicy>(() => ({
@@ -1252,7 +1285,8 @@ const autoTriggerLogin = ref(false);
 /**
  * chrome.storage.local 变更监听：把「在别处改了、侧边栏需即时生效」的配置收敛到一处处理，
  * 避免为每个键各挂一个 listener——悬浮按钮/侧边栏设置弹窗内切换「自动触发登录」，
- * 以及 Options 页切换跨子域匹配档位，都不需要重开侧边栏。
+ * Options 页切换跨子域匹配档位，以及管理页编辑站点规则（站点级档位覆盖），
+ * 都不需要重开侧边栏。
  */
 const handleLocalConfigChange = (
   changes: Record<string, chrome.storage.StorageChange>,
@@ -1268,8 +1302,14 @@ const handleLocalConfigChange = (
   if (STORAGE_KEYS.DOMAIN_MATCH_CONFIG in changes) {
     const next = changes[STORAGE_KEYS.DOMAIN_MATCH_CONFIG].newValue as
       { mode?: unknown; portScope?: unknown } | undefined;
-    domainMatchMode.value = isDomainMatchMode(next?.mode) ? next.mode : DEFAULT_DOMAIN_MATCH_MODE;
+    globalDomainMatchMode.value = isDomainMatchMode(next?.mode) ? next.mode : DEFAULT_DOMAIN_MATCH_MODE;
     portScope.value = isPortScope(next?.portScope) ? next.portScope : DEFAULT_PORT_SCOPE;
+  }
+
+  // 站点规则变更：刷新规则集即可，生效档位由 domainMatchMode computed 现算，
+  // 管理页编辑规则后侧边栏无需重开即按新覆盖过滤
+  if (STORAGE_KEYS.SITE_RULES in changes) {
+    siteRules.value = (changes[STORAGE_KEYS.SITE_RULES].newValue ?? {}) as Record<string, SiteRule>;
   }
 };
 
@@ -1394,6 +1434,11 @@ onMounted(async () => {
       setTimeout(() => skeletonEl.remove(), 250);
     }
 
+    // 入场动画只在此处触发一次（finishOpen 幂等）：挂类后由 CSS 关键帧播放，
+    // 不新增计时器/rAF、不延迟上面的 LIST_RENDERED 埋点与骨架屏淡出，秒开链路零占用。
+    // 锁屏→解锁不重播（容器不卸载）；减弱档由媒体查询摘除。
+    containerEl.value?.classList.add('is-opened');
+
     // 空闲预取：设置弹窗模块 + HelpDialog + QuickAddDialog + TotpCode + 认证视图 chunk（不阻塞首屏渲染），
     // 冷环境（Windows 会话失效期 / 浏览器重启引导期）下用户首次交互时 chunk 已温热、即时打开；
     // 认证视图 chunk 在锁屏态被跳过立即预取（见 onMounted 前段），此处补齐使解锁切换零等待；
@@ -1504,6 +1549,33 @@ onUnmounted(() => {
   background: #f0f2f5;
 }
 
+/*
+ * 首屏入场：骨架屏淡出的同时整块面板轻微上浮落定（仅 transform，合成器播放）。
+ * - 由 finishOpen 挂 is-opened 触发，一次性；结束帧 = 自然态，无需 fill 也无需清理；
+ * - 刻意不做 opacity：可见性交由骨架屏交叉淡出负责，双层淡入会拖慢「看得见」的观感；
+ * - 6px 位移期间的命中区随动画平移，落定后与无动画完全一致；body 底色与容器相同，
+ *   上浮露出的底边无色差；容器内无 fixed/absolute 后代，transform 不会改锚任何浮层。
+ */
+.sidepanel-container.is-opened {
+  animation: sp-settle var(--aph-duration-slow) ease-out;
+}
+
+@keyframes sp-settle {
+  from {
+    transform: translateY(6px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidepanel-container.is-opened {
+    animation: none;
+  }
+}
+
 /* ========== 卡片通用样式（search-card/list-card 已随认证态视图迁至 SidepanelAuthView） ========== */
 .header-card,
 .footer-card {
@@ -1580,11 +1652,15 @@ onUnmounted(() => {
   margin-bottom: 20px;
   background: var(--aph-primary-bg);
   border-radius: 50%;
+
+  /* 换肤 crossfade：与 tag-chip / scope-bar__back 同档同枚举，静态面不再瞬时跳色 */
+  transition: background-color var(--aph-duration-mid) ease;
 }
 
 .auth-icon {
   font-size: 28px;
   color: var(--aph-primary);
+  transition: color var(--aph-duration-mid) ease;
 }
 
 .auth-title {

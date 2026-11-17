@@ -29,7 +29,9 @@ import {
   Warning,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
+import SearchHistoryPanel from '@/components/SearchHistoryPanel.vue';
 import { useListRenderWindow } from '@/composables/useListRenderWindow';
+import { useSearchHistory } from '@/composables/useSearchHistory';
 import type { PasswordEntry } from '@/utils/types';
 import type { SearchScope } from '@/utils/passwordFilter';
 import { getTagColor } from '@/utils/tagUtils';
@@ -130,6 +132,26 @@ const emit = defineEmits<Emits>();
 
 /** 搜索关键字（双向绑定至父级） */
 const searchKeyword = defineModel<string>('searchKeyword', { required: true });
+
+/** 最近搜索（会话级，锁定即清）：点击空框 / 清空关键词才展开，自动聚焦不弹，不干扰秒开首屏 */
+const {
+  recentSearches,
+  historyPanelOpen,
+  recordCurrentSearch,
+  clearSearchHistory,
+  openHistoryPanel,
+  closeHistoryPanel,
+  selectHistory,
+} = useSearchHistory(searchKeyword, value => {
+  searchKeyword.value = value;
+  emit('search');
+});
+
+/** blur 把当前关键词记入历史并收起面板（chip 点击经 pointerdown.prevent 不触发 blur） */
+const handleSearchBlur = () => {
+  recordCurrentSearch();
+  closeHistoryPanel();
+};
 
 /** 是否仅显示收藏条目（双向绑定至父级） */
 const favoriteOnly = defineModel<boolean>('favoriteOnly', { required: true });
@@ -354,16 +376,22 @@ onUnmounted(() => {
         ::placeholder 再收 1px 字号（覆写在 assets/theme/tokens.css，扩展页输入框统一），
         两语不裁切阈值降到 312 / 328px
       -->
-      <el-input
-        ref="searchInputRef"
-        v-model="searchKeyword"
-        :placeholder="t('sidepanel.searchPlaceholder')"
-        :aria-label="t('sidepanel.searchAriaLabel')"
-        :title="t('sidepanel.searchAriaLabel')"
-        :prefix-icon="Search"
-        clearable
-        @input="emit('search')"
-      />
+      <div class="search-input-wrap">
+        <el-input
+          ref="searchInputRef"
+          v-model="searchKeyword"
+          :placeholder="t('sidepanel.searchPlaceholder')"
+          :aria-label="t('sidepanel.searchAriaLabel')"
+          :title="t('sidepanel.searchAriaLabel')"
+          :prefix-icon="Search"
+          clearable
+          @input="emit('search')"
+          @click="openHistoryPanel"
+          @blur="handleSearchBlur"
+          @keydown.enter="recordCurrentSearch"
+          @keydown.esc="closeHistoryPanel"
+        />
+      </div>
       <el-tooltip
         :content="scopeTooltip"
         placement="top"
@@ -478,6 +506,15 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
+    <!-- 最近搜索：卡内内联展开。search-card 的 overflow:hidden 承担圆角条带裁切，
+         悬浮层会被裁掉，故走撑高卡片的内联形态（仅在用户点击空框/清空关键词时出现） -->
+    <SearchHistoryPanel
+      class="search-history-inline"
+      :history="recentSearches"
+      :visible="historyPanelOpen"
+      @select="selectHistory"
+      @clear="clearSearchHistory"
+    />
     <!-- 全站搜索状态条：显式告知当前范围并常驻「回到本站」出口，
          避免用户把外站条目误当作可直接填充当前页的账号（图标 + 文案 + 按钮三重表达，不仅靠颜色） -->
     <div
@@ -718,10 +755,17 @@ onUnmounted(() => {
   padding: 10px 16px;
 }
 
-.search-section :deep(.el-input) {
-  /* 提示文字的对比度与字号已上收到 assets/theme/tokens.css 的「Element Plus 覆写」段，
-     扩展页输入框共用一套（本搜索框为默认档，calc(1em - 1px) 即 13px），不再局部重复声明 */
+/* 搜索框容器吃掉剩余宽度；提示文字的对比度与字号已上收到 assets/theme/tokens.css
+   的「Element Plus 覆写」段，扩展页输入框共用一套，不再局部重复声明 */
+.search-input-wrap {
   flex: 1;
+  min-width: 0;
+}
+
+/* 最近搜索内联面板：与 search-section 同左右内边距，顶部分隔线示意从属关系 */
+.search-history-inline {
+  padding: 10px 16px;
+  border-top: 1px solid var(--aph-surface-line);
 }
 
 /* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。
@@ -748,6 +792,11 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--aph-primary);
   background: var(--aph-primary-bg);
+
+  /* 换肤 crossfade：静态面跟随主题渐变，与 __back / tag-chip 同档同枚举 */
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease;
 }
 
 .scope-bar__icon {
@@ -969,6 +1018,9 @@ onUnmounted(() => {
   margin-bottom: 16px;
   background: rgb(var(--aph-primary-rgb) / 8%);
   border-radius: 50%;
+
+  /* 换肤 crossfade：--muted 变体切换也走同一条渐变，色彩状态切换统一 mid 档 */
+  transition: background-color var(--aph-duration-mid) ease;
 }
 
 .empty-icon-circle--muted {
@@ -978,6 +1030,7 @@ onUnmounted(() => {
 .empty-icon {
   font-size: 24px;
   color: var(--aph-primary);
+  transition: color var(--aph-duration-mid) ease;
 }
 
 .empty-icon--muted {
@@ -1006,6 +1059,11 @@ onUnmounted(() => {
   background: var(--aph-surface-2);
   border: 1px solid var(--aph-surface-line);
   border-radius: 8px;
+
+  /* 换肤 crossfade：中性面（surface-2 / surface-line）也随主题渐变 */
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease;
 }
 
 /* 去添加密码按钮：圆角 + hover 上浮动效 */

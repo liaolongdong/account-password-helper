@@ -21,12 +21,14 @@ import {
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import {
   resolveMatchTier,
+  resolveDomainMatchMode,
   countSameMainDomainCandidates,
   isAdmittedByEnvOnly,
   type MatchTier,
   type PagePortContext,
   type SitePolicy,
 } from '@/utils/domain';
+import { getSiteRules, resolveSiteRuleForHosts, type SiteRule } from '@/utils/storage/siteRules';
 import { getEnvBinding } from './environmentBinding';
 import { filterByKeyword } from '@/utils/keywordMatch';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch/core';
@@ -55,6 +57,14 @@ let _cachedSortConfig: { prop: string; order: string } | null | undefined = unde
  * 因此变更时仅需复位本镜像，绝不触发解密重算。
  */
 let _cachedSitePolicy: SitePolicy | undefined = undefined;
+
+/**
+ * 缓存的站点规则（避免内联下拉每次防抖检索都读 storage）
+ *
+ * 与 _cachedSitePolicy 同构的 SW 内存镜像：规则是明文小配置（≤500 条），
+ * 只影响过滤与显隐判定，不影响缓存明文与快照内容，变更时仅复位本镜像。
+ */
+let _cachedSiteRules: Record<string, SiteRule> | undefined = undefined;
 
 /**
  * 缓存预热的 in-flight Promise（并发去重）
@@ -514,13 +524,54 @@ export function resetDomainMatchModeMirror(): void {
   _cachedSitePolicy = undefined;
 }
 
+/**
+ * 获取缓存的站点规则（SW 内存镜像）
+ *
+ * `getSiteRules` 内部已把读取失败降级成空对象（无规则 = 全部跟随全局），
+ * 这里不再叠加兜底，镜像只负责省去重复的 storage 往返。
+ */
+export async function getCachedSiteRules(): Promise<Record<string, SiteRule>> {
+  if (_cachedSiteRules !== undefined) return _cachedSiteRules;
+  _cachedSiteRules = await getSiteRules();
+  return _cachedSiteRules;
+}
+
+/**
+ * 复位站点规则镜像
+ *
+ * 供 storage.onChanged 在 SITE_RULES 键变更时调用；与档位镜像同理，
+ * 绝不可借道 invalidatePasswordCache（规则不影响缓存明文与快照内容）。
+ */
+export function resetSiteRulesMirror(): void {
+  _cachedSiteRules = undefined;
+}
+
+/**
+ * 解析当前页面生效的站点匹配策略：全局策略叠加站点级档位覆盖
+ *
+ *  host 重建与内容脚本 / 侧边栏同口径：非默认端口才拼 `domain:port`
+ * （`location.host` 在默认端口下本就省略端口），先查端口规则再回退主机规则。
+ * 站点只覆盖档位轴，端口轴仍取全局——覆盖项的语义边界见 `SiteRule.domainMatchMode`。
+ *
+ * @param domain 当前页面域名（hostname）
+ * @param page 当前页面端口上下文（null 表示取不到，按无端口 host 查规则）
+ * @returns 生效策略；无覆盖时返回全局策略对象本身（引用不变，省一次展开）
+ */
+export async function getEffectiveSitePolicy(domain: string, page: PagePortContext | null): Promise<SitePolicy> {
+  const [policy, rules] = await Promise.all([getCachedSitePolicy(), getCachedSiteRules()]);
+  const host = page && !page.atDefaultPort && page.port ? `${domain}:${page.port}` : domain;
+  const rule = resolveSiteRuleForHosts(rules, host, domain);
+  const mode = resolveDomainMatchMode(policy.mode, rule);
+  return mode === policy.mode ? policy : { ...policy, mode };
+}
+
 // ==================== 内联下拉/一键填充：域名匹配与条目查询 ====================
 
 /**
  * 按域名过滤并按侧边栏展示顺序排序（带缓存排序配置与匹配策略读取）
  *
- * 在纯函数 filterAndSortEntriesForDomain 基础上叠加侧边栏排序配置与站点匹配策略
- * （跨子域档位 + 端口范围）的缓存读取，供 getMatchingAccounts（内联下拉）、
+ * 在纯函数 filterAndSortEntriesForDomain 基础上叠加侧边栏排序配置与生效站点匹配策略
+ * （全局跨子域档位 + 端口范围，再叠加站点级档位覆盖）的缓存读取，供 getMatchingAccounts（内联下拉）、
  * handleQuickFill（一键填充取首条）与右键菜单填充共用，保证三处的列表顺序与侧边栏完全一致。
  *
  * @param passwords 全量密码条目
@@ -535,7 +586,7 @@ export async function sortMatchesForDomain(
 ): Promise<PasswordEntry[]> {
   const [sortConfig, policy, envHost] = await Promise.all([
     getCachedSortConfig(),
-    getCachedSitePolicy(),
+    getEffectiveSitePolicy(domain, page),
     getEnvBinding(domain, page?.port ?? null),
   ]);
   const sortState: SortState = sortConfig
@@ -646,7 +697,7 @@ export async function getMatchingAccounts(
   // 复用 sortMatchesForDomain（侧边栏排序配置 + 匹配层级 + 收藏置顶）
   const [matched, policy, envHost] = await Promise.all([
     sortMatchesForDomain(cache.passwords, domain, page),
-    getCachedSitePolicy(),
+    getEffectiveSitePolicy(domain, page),
     getEnvBinding(domain, page?.port ?? null),
   ]);
 

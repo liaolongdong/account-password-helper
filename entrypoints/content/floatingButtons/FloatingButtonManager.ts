@@ -9,6 +9,13 @@ import { MessageType } from '@/utils/types';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { applyThemeTokensToHost } from '@/utils/theme';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+import {
+  getSiteRules,
+  resolveSiteRuleForHosts,
+  resolveFloatingButtonVisible,
+  type SiteRule,
+} from '@/utils/storage/siteRules';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { floatingButtonStyles, settingsPanelStyles } from '@/entrypoints/content/floatingButtons/styles';
 import {
@@ -27,13 +34,17 @@ export class FloatingButtonManager {
   private container: HTMLElement | null = null;
   private buttonGroup: HTMLElement | null = null;
   private config: FloatingButtonConfig;
+  /** 当前域名的站点规则（悬浮按钮显隐覆盖的来源；无规则为 null，随 SITE_RULES 存储变更刷新） */
+  private siteRule: SiteRule | null = null;
 
   private animationController: AnimationController | null = null;
   private dragHandler: DragHandler | null = null;
   private settingsPanel: SettingsPanel | null = null;
 
   private isInitialized: boolean = false;
-  private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
+  private storageListener:
+    ((changes: { [key: string]: chrome.storage.StorageChange }, areaName: chrome.storage.AreaName) => void) | null =
+    null;
   /** 密码管理按钮点击处理中的标记，防止连点重复触发 */
   private isHandlingOptionsClick: boolean = false;
   /** 语言变更订阅的取消函数（销毁时解除，避免残留回调） */
@@ -50,11 +61,13 @@ export class FloatingButtonManager {
     if (this.isInitialized) return;
 
     try {
-      // 加载配置
-      this.config = await StorageUtils.getFloatingButtonConfig();
+      // 加载配置与站点规则（两者独立，并行读；规则是小份明文配置，不是密码库）
+      const [config, rules] = await Promise.all([StorageUtils.getFloatingButtonConfig(), getSiteRules()]);
+      this.config = config;
+      this.siteRule = this.pickSiteRule(rules);
 
-      // 如果配置为不显示，则不创建元素
-      if (!this.config.visible) {
+      // 生效显隐 = 全局开关经站点规则覆盖后的结果；隐藏时不创建元素，只留监听等待改回
+      if (!this.isEffectivelyVisible()) {
         this.setupStorageListener();
         this.isInitialized = true;
         return;
@@ -89,6 +102,25 @@ export class FloatingButtonManager {
     } catch (error) {
       logger.error('FloatingButtonManager: 初始化失败:', error);
     }
+  }
+
+  /**
+   * 从规则集里挑出当前域名的站点规则
+   *
+   * 与 FormDetector.loadSiteRule 同口径：先按 host（含非默认端口）精确匹配，
+   * 回退 hostname，再兼容页面显式设置 document.domain 的旧场景。
+   */
+  private pickSiteRule(rules: Record<string, SiteRule>): SiteRule | null {
+    return (
+      resolveSiteRuleForHosts(rules, window.location.host, window.location.hostname) ??
+      rules[(document.domain || '').toLowerCase()] ??
+      null
+    );
+  }
+
+  /** 生效显隐：站点规则替换全局开关（缺省跟随全局），DOM 创建与 hidden 类共用这一判定 */
+  private isEffectivelyVisible(): boolean {
+    return resolveFloatingButtonVisible(this.config.visible, this.siteRule);
   }
 
   /**
@@ -388,8 +420,8 @@ export class FloatingButtonManager {
     // 应用透明度
     this.animationController.setOpacity(this.config.opacity);
 
-    // 应用显示状态
-    if (this.config.visible) {
+    // 应用显示状态（站点规则可覆盖全局开关，判定与 init 门禁同源）
+    if (this.isEffectivelyVisible()) {
       this.container.classList.remove('hidden');
     } else {
       this.container.classList.add('hidden');
@@ -400,18 +432,25 @@ export class FloatingButtonManager {
    * 设置存储监听器
    */
   private setupStorageListener(): void {
-    this.storageListener = changes => {
-      if (changes.floating_button_config) {
-        const rawConfig = changes.floating_button_config.newValue as Partial<FloatingButtonConfig> | undefined;
-        if (rawConfig) {
-          // 合并默认值兜底：升级钩子 freezeLegacyFillDefaults 可能写入部分对象，
-          // 避免 visible 等字段缺失时悬浮按钮被误隐藏
-          this.handleStorageChange({
-            ...StorageUtils.getDefaultFloatingButtonConfig(),
-            ...rawConfig,
-          });
-        }
+    this.storageListener = (changes, areaName) => {
+      if (areaName !== 'local') return;
+      const rawConfig = changes[STORAGE_KEYS.FLOATING_BUTTON_CONFIG]?.newValue as
+        Partial<FloatingButtonConfig> | undefined;
+      const rulesChange = changes[STORAGE_KEYS.SITE_RULES];
+      if (!rawConfig && !rulesChange) return;
+
+      // 先记下变更前的生效显隐，再落地两份新值：创建 / 隐藏过渡只认「前后差」，
+      // 全局开关与站点规则同批变更时也只触发一次过渡
+      const wasVisible = this.isEffectivelyVisible();
+      if (rawConfig) {
+        // 合并默认值兜底：升级钩子 freezeLegacyFillDefaults 可能写入部分对象，
+        // 避免 visible 等字段缺失时悬浮按钮被误隐藏
+        this.config = { ...StorageUtils.getDefaultFloatingButtonConfig(), ...rawConfig };
       }
+      if (rulesChange) {
+        this.siteRule = this.pickSiteRule((rulesChange.newValue ?? {}) as Record<string, SiteRule>);
+      }
+      void this.handleStorageChange(wasVisible);
     };
 
     if (chrome?.storage?.onChanged) {
@@ -420,19 +459,18 @@ export class FloatingButtonManager {
   }
 
   /**
-   * 处理存储变化
+   * 处理存储变化（全局配置 / 站点规则已在监听器里落地，这里只做过渡与刷新）
+   *
+   * @param wasVisible 变更前的生效显隐（含站点覆盖），用于判定是否需要补建 DOM
    */
-  private async handleStorageChange(newConfig: FloatingButtonConfig): Promise<void> {
-    const wasVisible = this.config.visible;
-    this.config = { ...newConfig };
-
+  private async handleStorageChange(wasVisible: boolean): Promise<void> {
     // 主题变更时重新写入 shadow host 令牌，实现悬浮按钮实时换肤
     if (this.shadowHost) {
       applyThemeTokensToHost(this.shadowHost, this.config.theme);
     }
 
     // 如果从隐藏变为显示，需要创建元素
-    if (!wasVisible && newConfig.visible && !this.container) {
+    if (!wasVisible && this.isEffectivelyVisible() && !this.container) {
       this.createShadowDOM();
       this.renderButtons();
       this.initAnimationController();
@@ -453,11 +491,11 @@ export class FloatingButtonManager {
    */
   async show(): Promise<void> {
     if (!this.container) {
-      // 如果元素未创建，重新初始化
+      // 如果元素未创建，重新初始化（写入的是全局开关；站点覆盖为隐藏时不补建 DOM）
       this.config.visible = true;
       await StorageUtils.saveFloatingButtonConfig({ visible: true });
 
-      if (!this.shadowRoot) {
+      if (!this.shadowRoot && this.isEffectivelyVisible()) {
         this.createShadowDOM();
         this.renderButtons();
         this.initAnimationController();
@@ -469,7 +507,10 @@ export class FloatingButtonManager {
 
     this.config.visible = true;
     this.applyConfig();
-    await this.animationController?.show();
+    // 站点覆盖为隐藏时不做展示动画：applyConfig 刚挂上 hidden 类，动画再摘掉就与覆盖判定打架
+    if (this.isEffectivelyVisible()) {
+      await this.animationController?.show();
+    }
   }
 
   /**

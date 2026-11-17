@@ -55,6 +55,14 @@
               label="1Password"
               value="1password"
             />
+            <el-option
+              label="Firefox"
+              value="firefox"
+            />
+            <el-option
+              label="KeePassXC"
+              value="keepassxc"
+            />
           </el-select>
         </div>
 

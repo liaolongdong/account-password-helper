@@ -1,6 +1,6 @@
 <template>
   <!-- 720px 是列表四列的地板：弹窗左右各 16px padding + 滚动容器 4px padding-right，
-       表格可用宽度 = 720 − 36 = 684 ≥ 160+260+110+130 = 660；再窄一格表格就会横向滚动。 -->
+       表格可用宽度 = 720 − 36 = 684 ≥ 160+250+140+130 = 680；再窄一格表格就会横向滚动。 -->
   <el-dialog
     v-model="visible"
     :title="dialogTitle"
@@ -30,7 +30,7 @@
           />
           <el-table-column
             :label="t('options.siteRules.columnSelectors')"
-            min-width="260"
+            min-width="250"
           >
             <template #default="{ row }">
               <div
@@ -69,17 +69,23 @@
             </template>
           </el-table-column>
           <el-table-column
-            :label="t('options.siteRules.columnFillEntry')"
-            width="110"
+            :label="t('options.siteRules.columnOverrides')"
+            width="140"
             align="center"
           >
             <template #default="{ row }">
-              <span
-                v-if="row.fillEntry"
-                class="fill-entry-tag"
+              <div
+                v-if="overrideLines(row).length"
+                class="override-cell"
               >
-                {{ fillEntryLabel(row.fillEntry) }}
-              </span>
+                <div
+                  v-for="line in overrideLines(row)"
+                  :key="line.prefix"
+                  class="fill-entry-tag"
+                >
+                  {{ line.prefix }}{{ line.value }}
+                </div>
+              </div>
               <span
                 v-else
                 class="text-gray"
@@ -193,6 +199,58 @@
             />
           </el-select>
           <div class="field-tip">{{ t('options.siteRules.fillEntryHint') }}</div>
+        </el-form-item>
+
+        <el-form-item
+          :label="t('options.siteRules.formFloatingButton')"
+          prop="floatingButton"
+        >
+          <el-select
+            v-model="formData.floatingButton"
+            class="fab-visibility-select"
+          >
+            <el-option
+              :value="FOLLOW_GLOBAL"
+              :label="t('options.siteRules.fillFollowGlobal')"
+            />
+            <el-option
+              value="show"
+              :label="t('options.siteRules.fabShow')"
+            />
+            <el-option
+              value="hide"
+              :label="t('options.siteRules.fabHide')"
+            />
+          </el-select>
+          <div class="field-tip">{{ t('options.siteRules.floatingButtonHint') }}</div>
+        </el-form-item>
+
+        <el-form-item
+          :label="t('options.siteRules.formDomainMatchMode')"
+          prop="domainMatchMode"
+        >
+          <el-select
+            v-model="formData.domainMatchMode"
+            class="match-mode-select"
+          >
+            <el-option
+              :value="FOLLOW_GLOBAL"
+              :label="t('options.siteRules.fillFollowGlobal')"
+            />
+            <el-option
+              value="off"
+              :label="t('options.siteRules.matchOffShort')"
+            />
+            <el-option
+              value="wildcard"
+              :label="t('options.siteRules.matchWildcardShort')"
+            />
+            <el-option
+              value="sameMainDomain"
+              :label="t('options.siteRules.matchSameMainDomainShort')"
+            />
+          </el-select>
+          <div class="field-tip">{{ t('options.siteRules.domainMatchModeHint') }}</div>
         </el-form-item>
 
         <el-form-item
@@ -342,6 +400,7 @@ import {
 } from '@/utils/types';
 import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { logger } from '@/utils/logger';
+import { isDomainMatchMode, type DomainMatchMode } from '@/utils/domain';
 import {
   getSiteRules,
   setSiteRule,
@@ -611,6 +670,10 @@ interface FormData {
   penetrateShadow: boolean;
   /** 覆盖的填充档位；`FOLLOW_GLOBAL` 表示跟随全局（存储里以「不写该字段」表达） */
   fillEntry: FillEntry | typeof FOLLOW_GLOBAL;
+  /** 覆盖的悬浮按钮显隐；哨兵同上，提交时换算成布尔（显式 true / false 都是有效覆盖） */
+  floatingButton: 'show' | 'hide' | typeof FOLLOW_GLOBAL;
+  /** 覆盖的跨子域匹配档位；哨兵同上（端口轴不在覆盖范围内） */
+  domainMatchMode: DomainMatchMode | typeof FOLLOW_GLOBAL;
 }
 
 const formData = reactive<FormData>({
@@ -619,6 +682,8 @@ const formData = reactive<FormData>({
   passwordSelector: '',
   penetrateShadow: true,
   fillEntry: FOLLOW_GLOBAL,
+  floatingButton: FOLLOW_GLOBAL,
+  domainMatchMode: FOLLOW_GLOBAL,
 });
 
 /** 档位 → 文案 key，与列表列、下拉选项共用同一份标签 */
@@ -628,8 +693,42 @@ const FILL_ENTRY_I18N_KEYS: Record<FillEntry, string> = {
   manual: 'options.siteRules.fillManual',
 };
 
-/** 列表列与表单复用的档位标签 */
-const fillEntryLabel = (entry: FillEntry): string => t(FILL_ENTRY_I18N_KEYS[entry]);
+/** 匹配档位 → 短文案 key：列表覆盖项列只有 140px，全局设置里的长标签（带「默认」等后缀）放不下 */
+const MATCH_MODE_I18N_KEYS: Record<DomainMatchMode, string> = {
+  off: 'options.siteRules.matchOffShort',
+  wildcard: 'options.siteRules.matchWildcardShort',
+  sameMainDomain: 'options.siteRules.matchSameMainDomainShort',
+};
+
+/** 列表「覆盖项」列的一行：前缀标明覆盖的是哪一轴，值用与表单下拉一致的标签 */
+interface OverrideLine {
+  prefix: string;
+  value: string;
+}
+
+/** 汇总一条规则的全部行为覆盖；全空时列表显示「跟随全局」 */
+const overrideLines = (rule: SiteRule): OverrideLine[] => {
+  const lines: OverrideLine[] = [];
+  if (rule.fillEntry) {
+    lines.push({
+      prefix: t('options.siteRules.overridePrefixFill'),
+      value: t(FILL_ENTRY_I18N_KEYS[rule.fillEntry]),
+    });
+  }
+  if (typeof rule.floatingButton === 'boolean') {
+    lines.push({
+      prefix: t('options.siteRules.overridePrefixFab'),
+      value: t(rule.floatingButton ? 'options.siteRules.fabShow' : 'options.siteRules.fabHide'),
+    });
+  }
+  if (isDomainMatchMode(rule.domainMatchMode)) {
+    lines.push({
+      prefix: t('options.siteRules.overridePrefixMatch'),
+      value: t(MATCH_MODE_I18N_KEYS[rule.domainMatchMode]),
+    });
+  }
+  return lines;
+};
 
 /** 该规则是否钉住了任一字段来源（两侧都空 = 只覆盖档位/穿透，选择器列显示空态文案） */
 const hasAnySelector = (rule: SiteRule): boolean =>
@@ -738,6 +837,8 @@ const resetForm = () => {
   formData.passwordSelector = '';
   formData.penetrateShadow = true;
   formData.fillEntry = FOLLOW_GLOBAL;
+  formData.floatingButton = FOLLOW_GLOBAL;
+  formData.domainMatchMode = FOLLOW_GLOBAL;
   formRef.value?.clearValidate();
 };
 
@@ -758,6 +859,9 @@ const handleEdit = (rule: SiteRule) => {
   formData.passwordSelector = rule.customSelectors?.password ?? '';
   formData.penetrateShadow = rule.penetrateShadow ?? true;
   formData.fillEntry = rule.fillEntry ?? FOLLOW_GLOBAL;
+  formData.floatingButton =
+    typeof rule.floatingButton === 'boolean' ? (rule.floatingButton ? 'show' : 'hide') : FOLLOW_GLOBAL;
+  formData.domainMatchMode = isDomainMatchMode(rule.domainMatchMode) ? rule.domainMatchMode : FOLLOW_GLOBAL;
   formRef.value?.clearValidate();
   showForm.value = true;
 };
@@ -785,9 +889,14 @@ const handleSubmit = async () => {
   const domain = editingRule.value?.domain ?? normalizeSiteRuleDomain(formData.domain) ?? formData.domain.trim();
   const username = formData.usernameSelector.trim();
   const password = formData.passwordSelector.trim();
-  // 三项覆盖全为空：新增态是在造一条空壳，编辑态是在撤销这个站点的全部特殊处理，两种意图
+  // 全部覆盖为空：新增态是在造一条空壳，编辑态是在撤销这个站点的全部特殊处理，两种意图
   // 不能按同一条规则处置（见下面 clearingAll 分支）。
-  const clearingAll = formData.fillEntry === FOLLOW_GLOBAL && formData.penetrateShadow && !(username || password);
+  const clearingAll =
+    formData.fillEntry === FOLLOW_GLOBAL &&
+    formData.floatingButton === FOLLOW_GLOBAL &&
+    formData.domainMatchMode === FOLLOW_GLOBAL &&
+    formData.penetrateShadow &&
+    !(username || password);
   // 新增态拒绝入库：只带一个域名的规则什么都不做，却会在列表里长期占一行，
   // 让人以为这个站点已被管住（导入侧对同样的空规则也是直接剔除）。
   if (clearingAll && !editingRule.value) {
@@ -804,8 +913,10 @@ const handleSubmit = async () => {
     };
   }
   // 「跟随全局」= 不写该字段，而不是写死当前全局档位：写死会让用户之后的全局设置变更
-  // 在这个站点上被永久挡掉，而那并不是他设规则时的意思。
+  // 在这个站点上被永久挡掉，而那并不是他设规则时的意思。三个覆盖轴同一口径。
   if (formData.fillEntry !== FOLLOW_GLOBAL) patch.fillEntry = formData.fillEntry;
+  if (formData.floatingButton !== FOLLOW_GLOBAL) patch.floatingButton = formData.floatingButton === 'show';
+  if (formData.domainMatchMode !== FOLLOW_GLOBAL) patch.domainMatchMode = formData.domainMatchMode;
   saving.value = true;
   try {
     // 编辑态把唯一覆盖改回跟随全局时整条规则移除，而不是拦下来报「请至少设置一项」：
@@ -997,7 +1108,7 @@ function openPrefilledRule(rawDomain: string): void {
   color: var(--aph-text-muted);
 }
 
-/* 覆盖档位标签：与选择器行的 .selector-tag 同族，但它是「一档设置」不是「一段代码」，
+/* 覆盖项标签：与选择器行的 .selector-tag 同族，但它是「一档设置」不是「一段代码」，
    用中性底色而不是主色胶囊，避免列表里两类信息看起来同等重要 */
 .fill-entry-tag {
   display: inline-block;
@@ -1007,6 +1118,14 @@ function openPrefilledRule(rawDomain: string): void {
   color: var(--el-text-color-primary);
   background: var(--el-fill-color-light);
   border-radius: 3px;
+}
+
+/* 覆盖项列：每个覆盖轴一行纵向堆叠，行距与选择器列一致 */
+.override-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
 }
 
 .empty-tip {
@@ -1032,8 +1151,11 @@ function openPrefilledRule(rawDomain: string): void {
   margin-bottom: 18px;
 }
 
-/* 档位下拉与同列的输入框同宽（el-select 默认按内容收缩，跟隔壁 el-input 摆不齐） */
-.fill-entry-select {
+/* 三个覆盖下拉与同列的输入框同宽（el-select 默认按内容收缩，跟隔壁 el-input 摆不齐）。
+   类名必须各自独立：e2e 按 `.fill-entry-select` 唯一定位档位下拉，复用类名会撞 strict mode */
+.fill-entry-select,
+.fab-visibility-select,
+.match-mode-select {
   width: 100%;
 }
 

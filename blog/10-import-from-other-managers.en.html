@@ -115,7 +115,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-11-05"
+      content="2026-11-16"
     />
     <meta
       name="twitter:card"
@@ -142,7 +142,7 @@
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png",
   "datePublished": "2026-11-05",
-  "dateModified": "2026-11-05",
+  "dateModified": "2026-11-16",
   "author": {
     "@type": "Person",
     "name": "liaolongdong",
@@ -449,7 +449,7 @@
           <span aria-current="page" title="Move Passwords Out of Bitwarden or 1Password">Move Passwords Out of Bitwarden or 1Password</span>
         </nav>
         <h1>Move Passwords Out of Bitwarden or 1Password</h1>
-        <p class="meta">2026-11-05 · Updated 2026-11-05 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 9 min read</p>
+        <p class="meta">2026-11-05 · Updated 2026-11-16 · <a rel="author" href="https://liaolongdong.github.io/account-password-helper/author.en.html">liaolongdong</a> · 9 min read</p>
         <div class="tag-chips"><span class="tag-chip">password manager</span><span class="tag-chip">data migration</span><span class="tag-chip">CSV import</span><span class="tag-chip">Chrome extension</span><span class="tag-chip">encrypted backup</span></div>
         <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-10-import-migration.png" alt="Move Passwords Out of Bitwarden or 1Password" />
         <nav class="toc" aria-label="On this page"><strong>On this page</strong><ol><li><a href="#1-what-each-tool-actually-exports">1. What each tool actually exports</a></li><li><a href="#2-which-rows-disappear-silently">2. Which rows disappear silently</a></li><li><a href="#3-why-import-never-de-duplicates">3. Why import never de-duplicates</a></li><li><a href="#4-three-gates-bytes-entries-capacity">4. Three gates: bytes, entries, capacity</a></li><li><a href="#5-what-survives-the-move-and-what-doesn-t">5. What survives the move, and what doesn't</a></li><li><a href="#6-the-backup-that-actually-works">6. The backup that actually works</a></li><li><a href="#7-site-rules-need-moving-too">7. Site rules need moving too</a></li><li><a href="#8-things-that-do-not-exist">8. Things that do not exist</a></li></ol></nav>
@@ -457,12 +457,12 @@
 <p>Here is what the code really does. Three findings up front, because they&#39;re the counter-intuitive ones:</p>
 <ol>
 <li><strong>Import appends. It never de-duplicates.</strong> That&#39;s a deliberate choice, not an oversight.</li>
-<li>Header recognition is driven by <strong>five column maps</strong> covering this extension&#39;s own format plus four common exports. A column it can&#39;t map becomes an empty field — it doesn&#39;t error.</li>
+<li>Header recognition is driven by <strong>seven column maps</strong> covering this extension&#39;s own format plus six common exports. A column it can&#39;t map becomes an empty field — it doesn&#39;t error.</li>
 <li>The real backup is not the spreadsheet. It&#39;s the <code>.aph</code> file, because <strong>an exported CSV holds plaintext passwords</strong>.</li>
 </ol>
 <h2 id="1-what-each-tool-actually-exports">1. What each tool actually exports</h2>
 <p>Nearly every manager can export CSV, but the column names barely resemble each other: one writes <code>URL</code>, another <code>origin</code>, a third <code>login_uri</code>. So compatibility isn&#39;t &quot;supporting a product&quot;, it&#39;s &quot;supporting a header shape&quot;.</p>
-<p>There are six internal fields — username, password, URL, tags, notes, TOTP — mapped from five header sets (<code>utils/excelFormatMap.ts</code>):</p>
+<p>There are six internal fields — username, password, URL, tags, notes, TOTP — mapped from seven header sets (<code>utils/excelFormatMap.ts</code>):</p>
 <table>
 <thead>
 <tr>
@@ -485,13 +485,22 @@
 <td><code>两步验证</code> / <code>密钥</code></td>
 </tr>
 <tr>
-<td>Browser built-in</td>
+<td>Chrome / Edge</td>
 <td><code>username</code></td>
 <td><code>password</code></td>
 <td><code>url</code> / <code>origin</code></td>
 <td><code>name</code></td>
 <td><code>note</code></td>
 <td><code>otpauth</code> / <code>otp_auth</code></td>
+</tr>
+<tr>
+<td>Firefox</td>
+<td><code>username</code></td>
+<td><code>password</code></td>
+<td><code>url</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 </tr>
 <tr>
 <td>LastPass</td>
@@ -520,8 +529,18 @@
 <td><code>Notes</code></td>
 <td><code>OTPAuth</code> / <code>totp</code></td>
 </tr>
+<tr>
+<td>KeePassXC</td>
+<td><code>Username</code></td>
+<td><code>Password</code></td>
+<td><code>URL</code></td>
+<td><code>Group</code> (<code>Title</code> when empty)</td>
+<td><code>Notes</code></td>
+<td><code>TOTP</code></td>
+</tr>
 </tbody></table>
-<p>Recognition order matters: headers are matched <strong>exactly first</strong>, then a <strong>case-insensitive</strong> pass; every cell is trimmed. Auto-detection looks at shape (a <code>origin</code> column means the browser export) and defaults to that map. If the first pass yields nothing usable, it <strong>retries against the remaining formats</strong> rather than giving up.</p>
+<p>Firefox&#39;s export has no grouping / notes / TOTP columns, so those three stay empty rather than being guessed; KeePassXC&#39;s <code>Group</code> is a folder path (the same semantics as Bitwarden&#39;s <code>folder</code>), falling back to the entry title as the tag when that cell is empty.</p>
+<p>Recognition order matters: headers are matched <strong>exactly first</strong>, then a <strong>case-insensitive</strong> pass; every cell is trimmed. Auto-detection looks at shape (an <code>origin</code> column means the Chrome / Edge export) and defaults to that map. If the first pass yields nothing usable, it <strong>retries against the remaining formats</strong> rather than giving up. The ordering is deliberate: KeePassXC&#39;s header carries both <code>TOTP</code> and <code>Title</code>+<code>Notes</code>, which would trip the LastPass and 1Password shapes first, so its own shape (<code>Group</code>+<code>Title</code>) is tested before both; Firefox is recognised by distinctive columns such as <code>httpRealm</code> / <code>formActionOrigin</code>.</p>
 <p>One detail that matters a lot for Chinese users: the file is decoded as UTF-8, and <strong>if that pass yields nothing parseable it retries once as GBK</strong>. To be precise about the trigger — it&#39;s &quot;nothing came out&quot;, not &quot;decoding threw&quot;: the UTF-8 path uses non-fatal decoding and doesn&#39;t raise. Plenty of tools exported by Chinese services emit GBK CSVs; skip that fallback and every account name arrives as mojibake.</p>
 <h2 id="2-which-rows-disappear-silently">2. Which rows disappear silently</h2>
 <p>This is where &quot;it lost my data&quot; reports come from. The rules are explicit, just rarely read:</p>
@@ -652,7 +671,7 @@
 <p>When the move is done, do one thing immediately: open the encrypted-backup importer and <strong>actually restore the <code>.aph</code> you just made</strong>. Confirm it decrypts and the entry count matches. A backup only exists once it has been restored successfully at least once.</p>
 <p>Source and discussion: <a href="https://github.com/liaolongdong/account-password-helper">the GitHub repository</a>. It&#39;s listed on the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli?ref=blog">Chrome Web Store</a>, completely free, open source under GPL-3.0.</p>
 <hr>
-<p><em>Key files referenced: <code>utils/excelFormatMap.ts</code> (five header maps), <code>utils/excelCsv.ts</code> (exact→case-insensitive match, row skipping, UTF-8/GBK fallback), <code>utils/excelJson.ts</code>, <code>utils/excelExport.ts</code> (export columns and plaintext passwords), <code>components/options/ImportDialog.vue</code> (byte gate and format detection), <code>composables/useImportCapacity.ts</code> (slicing and confirmation), <code>utils/storage/passwordCrud.ts</code> (batch-atomic writes), <code>utils/backupExport.ts</code> (<code>.aph</code> container, fresh salt and IV, round-trip check), <code>utils/identity/backup.ts</code> (<code>.aphid</code> merge-by-id), <code>utils/siteRulesTransfer.ts</code> (rule migration with added/updated/dropped).</em></p>
+<p><em>Key files referenced: <code>utils/excelFormatMap.ts</code> (seven header maps), <code>utils/excelCsv.ts</code> (exact→case-insensitive match, row skipping, UTF-8/GBK fallback), <code>utils/excelJson.ts</code>, <code>utils/excelExport.ts</code> (export columns and plaintext passwords), <code>components/options/ImportDialog.vue</code> (byte gate and format detection), <code>composables/useImportCapacity.ts</code> (slicing and confirmation), <code>utils/storage/passwordCrud.ts</code> (batch-atomic writes), <code>utils/backupExport.ts</code> (<code>.aph</code> container, fresh salt and IV, round-trip check), <code>utils/identity/backup.ts</code> (<code>.aphid</code> merge-by-id), <code>utils/siteRulesTransfer.ts</code> (rule migration with added/updated/dropped).</em></p>
 
         <aside class="author-card" aria-label="About the author">
         <p><strong>About the author</strong>: <a href="https://liaolongdong.github.io/account-password-helper/author.en.html" rel="author">liaolongdong</a> is an open-source enthusiast and contributor who maintains free, open-source browser extensions including Account Password Helper, Transfer Any File and Cross-origin Proxy in their spare time, with a focus on local-first, offline-capable and auditable engineering · <a href="https://github.com/liaolongdong" target="_blank" rel="noopener noreferrer">GitHub</a></p>

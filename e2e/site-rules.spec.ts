@@ -126,14 +126,16 @@ test.describe('站点规则表单与存储', () => {
 });
 
 test.describe('按站点覆盖快速填充方式（C6）', () => {
-  /** 表单里的档位下拉（本弹窗只有这一个 el-select，选择器天然唯一） */
+  /** 表单里的档位下拉（B1 后弹窗有三个覆盖下拉，类名各自独立，见 SiteRulesDialog 样式注释） */
   const fillSelect = (page: Page) => page.locator('.fill-entry-select');
 
   /** 打开档位下拉并选中指定文案对应的选项 */
   async function pickFillEntry(page: Page, textKey: string): Promise<void> {
     await fillSelect(page).locator('.el-select__wrapper').click();
+    // 三个下拉的浮层都 teleport 到 body 且关闭后仍留在 DOM（display:none），
+    // 「跟随全局」选项文案相同，必须收窄到当前展开的那一层，否则撞 strict mode
     await page
-      .locator('.el-select-dropdown__item')
+      .locator('.el-select-dropdown__item:visible')
       .filter({ hasText: textOf(textKey) })
       .click();
   }

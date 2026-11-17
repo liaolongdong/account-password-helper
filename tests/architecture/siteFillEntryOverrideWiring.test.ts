@@ -89,7 +89,9 @@ describe('站点覆盖快速填充入口的接线', () => {
   });
 
   it('悬浮按钮面板把当前站点的档位真的送进视图', () => {
-    expect(settingsPanel).toContain('getSiteRule(');
+    // 规则查找必须走 host 优先的解析（含非默认端口的规则才命得到），而不是只查 hostname
+    expect(settingsPanel).toContain('getSiteRules(');
+    expect(settingsPanel).toContain('resolveSiteRuleForHosts(');
     expect(settingsPanel).toContain('setSiteFillOverride(');
     // 句柄契约缺这一位时，SettingsPanel 的调用会红在类型层，守卫再兜一道口径
     expect(readSource(PANEL_TYPES)).toContain('setSiteFillOverride(entry: FillEntry | null)');

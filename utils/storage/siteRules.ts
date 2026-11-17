@@ -7,6 +7,7 @@
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import type { FillEntry } from '@/utils/types';
+import type { DomainMatchMode } from '@/utils/domain';
 
 /**
  * 自定义选择器配置
@@ -48,6 +49,41 @@ export interface SiteRule {
    * 当前这一个域名，用户是在明确知道站点的前提下逐条设的。
    */
   fillEntry?: FillEntry;
+  /**
+   * 覆盖该站点的悬浮按钮显隐（可选，缺省即「跟随全局设置」）
+   *
+   * 与 `fillEntry` 同口径：站点**替换**全局 `visible`，而不是与它取 AND——
+   * 全局隐藏时仍可为个别站点单独唤出按钮，全局显示时也可让个别站点保持清净。
+   * 显式 `true` 与 `false` 都是有效覆盖（全局默认值可被用户改写，不能把 `true` 当默认丢弃）。
+   */
+  floatingButton?: boolean;
+  /**
+   * 覆盖该站点的跨子域匹配档位（可选，缺省即「跟随全局设置」）
+   *
+   * 与 `fillEntry` 同口径的替换语义：多测试环境共用一个主域时，可只把开发站点放宽到
+   * `sameMainDomain`，其余站点保持全局的精确隔离。非法值按「跟随全局」处理（见
+   * `resolveDomainMatchMode`），端口轴不在本字段覆盖范围内。
+   */
+  domainMatchMode?: DomainMatchMode;
+}
+
+/**
+ * 解析当前生效的悬浮按钮显隐：站点规则优先于全局配置
+ *
+ * 与 `resolveFillEntry` 同构：未配置（`undefined`）即「跟随全局」，一条只管选择器的
+ * 规则不应顺带改变按钮显隐。规则值来自 storage，先收窄成布尔再参与判定，
+ * 脏值（字符串 / null / 对象）一律按「跟随全局」处理。
+ *
+ * @param globalVisible 全局配置的显隐
+ * @param rule 当前域名的站点规则（可为 null / undefined，表示无规则或读取失败）
+ * @returns 生效的显隐
+ */
+export function resolveFloatingButtonVisible(
+  globalVisible: boolean,
+  rule?: { floatingButton?: unknown } | null,
+): boolean {
+  const override = rule?.floatingButton;
+  return typeof override === 'boolean' ? override : globalVisible;
 }
 
 /**
