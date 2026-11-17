@@ -28,7 +28,7 @@ import {
   type PagePortContext,
   type SitePolicy,
 } from '@/utils/domain';
-import { getSiteRules, resolveSiteRuleForHosts, type SiteRule } from '@/utils/storage/siteRules';
+import { readSiteRules, resolveSiteRuleForHosts, type SiteRule } from '@/utils/storage/siteRules';
 import { getEnvBinding } from './environmentBinding';
 import { filterByKeyword } from '@/utils/keywordMatch';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch/core';
@@ -65,6 +65,8 @@ let _cachedSitePolicy: SitePolicy | undefined = undefined;
  * 只影响过滤与显隐判定，不影响缓存明文与快照内容，变更时仅复位本镜像。
  */
 let _cachedSiteRules: Record<string, SiteRule> | undefined = undefined;
+/** 规则镜像代际：复位自增，供 in-flight 读取识别「读取期间发生过复位」 */
+let _siteRulesMirrorGeneration = 0;
 
 /**
  * 缓存预热的 in-flight Promise（并发去重）
@@ -527,13 +529,18 @@ export function resetDomainMatchModeMirror(): void {
 /**
  * 获取缓存的站点规则（SW 内存镜像）
  *
- * `getSiteRules` 内部已把读取失败降级成空对象（无规则 = 全部跟随全局），
- * 这里不再叠加兜底，镜像只负责省去重复的 storage 往返。
+ * 读失败按次降级为空规则（无规则 = 全部跟随全局），但降级值绝不写镜像：
+ * 一次瞬时 IO 失败若落进长寿命缓存，站点级覆盖会静默失效到下次规则变更。
+ * in-flight 读取期间若发生复位（onChanged），迟到旧值只服务当次调用，不写回。
  */
 export async function getCachedSiteRules(): Promise<Record<string, SiteRule>> {
   if (_cachedSiteRules !== undefined) return _cachedSiteRules;
-  _cachedSiteRules = await getSiteRules();
-  return _cachedSiteRules;
+  const generation = _siteRulesMirrorGeneration;
+  const rules = await readSiteRules().catch(() => null);
+  if (rules === null) return {};
+  if (generation !== _siteRulesMirrorGeneration) return rules;
+  _cachedSiteRules = rules;
+  return rules;
 }
 
 /**
@@ -544,6 +551,7 @@ export async function getCachedSiteRules(): Promise<Record<string, SiteRule>> {
  */
 export function resetSiteRulesMirror(): void {
   _cachedSiteRules = undefined;
+  _siteRulesMirrorGeneration += 1;
 }
 
 /**

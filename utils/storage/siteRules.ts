@@ -92,15 +92,25 @@ export function resolveFloatingButtonVisible(
 type SiteRuleStore = Record<string, SiteRule>;
 
 /**
+ * 读取所有站点规则（原始出口，失败抛错）
+ *
+ * 供需要区分「读失败」与「规则为空」的调用方使用（如 SW 镜像层：
+ * 降级值绝不能写进长寿命缓存）。一般调用方用 getSiteRules 的安全降级口径。
+ */
+export async function readSiteRules(): Promise<SiteRuleStore> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.SITE_RULES);
+  const rules = result[STORAGE_KEYS.SITE_RULES] as SiteRuleStore | undefined;
+  return rules ?? {};
+}
+
+/**
  * 读取所有站点规则
  *
  * 读取失败返回空对象（安全降级：无规则时走默认检测逻辑）
  */
 export async function getSiteRules(): Promise<SiteRuleStore> {
   try {
-    const result = await chrome.storage.local.get(STORAGE_KEYS.SITE_RULES);
-    const rules = result[STORAGE_KEYS.SITE_RULES] as SiteRuleStore | undefined;
-    return rules ?? {};
+    return await readSiteRules();
   } catch (error) {
     logger.error('获取站点规则失败:', error);
     return {};

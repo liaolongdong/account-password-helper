@@ -637,6 +637,50 @@ describe('站点规则覆盖匹配档位（getEffectiveSitePolicy）', () => {
 });
 
 /**
+ * 站点规则镜像的失败与复位竞态
+ *
+ * 镜像是 SW 常驻期的长寿命缓存：读失败的降级值（空规则）一旦写进镜像，
+ * 站点级覆盖会静默失效到下次规则变更；in-flight 读取期间 onChanged 复位后
+ * 迟到的旧值写回镜像同理。两条都要求「降级/旧值只服务当次调用，不落镜像」。
+ *
+ * 反向验证——恢复「_cachedSiteRules = await getSiteRules()」直写、或去掉代际守卫，对应用例必红。
+ */
+describe('站点规则镜像的失败与复位竞态', () => {
+  it('读失败只降级当次调用，不写镜像：下一次调用重新读取 storage', async () => {
+    const getSpy = vi.spyOn(chrome.storage.local, 'get');
+    getSpy.mockRejectedValueOnce(new Error('storage io'));
+
+    expect(await getCachedSiteRules()).toEqual({});
+
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SITE_RULES]: { 'a.com': { domain: 'a.com', domainMatchMode: 'wildcard' } },
+    });
+    expect(Object.keys(await getCachedSiteRules())).toEqual(['a.com']);
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('in-flight 读取期间复位：迟到旧值只服务当次调用，不写回镜像', async () => {
+    let resolveRead!: (value: Record<string, unknown>) => void;
+    const deferred = new Promise<Record<string, unknown>>(resolve => {
+      resolveRead = resolve;
+    });
+    vi.spyOn(chrome.storage.local, 'get').mockImplementationOnce(async () => deferred as never);
+
+    const pending = getCachedSiteRules();
+    // 读取未回时规则变更（storage.onChanged 的 SITE_RULES 分支复位镜像）
+    resetSiteRulesMirror();
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SITE_RULES]: { 'new.com': { domain: 'new.com' } },
+    });
+    resolveRead({ [STORAGE_KEYS.SITE_RULES]: { 'old.com': { domain: 'old.com' } } });
+
+    expect(Object.keys(await pending)).toEqual(['old.com']);
+    // 镜像未被旧值污染：下一次调用重新读到变更后的规则
+    expect(Object.keys(await getCachedSiteRules())).toEqual(['new.com']);
+  });
+});
+
+/**
  * 内联下拉一次下发的条目上界
  *
  * 放宽档位下本站匹配集可以覆盖整库（2000 条上限），而内联面板是贴在登录框上的下拉层：
