@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.24.0](https://github.com/liaolongdong/account-password-helper/compare/v3.23.0...v3.24.0) (2026-11-17)
+
+
+### Features
+
+* **import:** CSV 导入扩面 Firefox / KeePassXC，Chrome 档标注 Edge ([d694e50](https://github.com/liaolongdong/account-password-helper/commit/d694e50c5f51a3a68ddc645842f3bbd54cf4b4e0))
+* **search:** 会话级最近搜索（≤8 条、锁定即清、绝不落盘） ([5abad1a](https://github.com/liaolongdong/account-password-helper/commit/5abad1a370ef21d5be99d97cb93e13a3a1719ec0))
+* **sidepanel:** 首屏一次性入场动画与换肤色彩过渡 ([d01dd96](https://github.com/liaolongdong/account-password-helper/commit/d01dd96cdca321cb635300ecd0550a733705bdd7))
+* **site-rules:** 按站点覆盖悬浮按钮显隐与跨子域匹配档位 ([9a399f1](https://github.com/liaolongdong/account-password-helper/commit/9a399f1ad5ffcbfbcb304e474fa99e1c0aba36f6))
+* **ux:** 最近搜索历史、站点级覆盖与交互动效打磨（波次1–3） ([a9d23cf](https://github.com/liaolongdong/account-password-helper/commit/a9d23cffb2a01e892e520d616cab9365c2d68868))
+
+
+### Bug Fixes
+
+* **fill:** 内联面板选账号失败补发页面提示条，闭合零反馈缺口 ([7eb854c](https://github.com/liaolongdong/account-password-helper/commit/7eb854caa494d6d0dee1ad3993fdf7e9ae455746))
+* **options:** 站点规则覆盖下拉类名各自独立，e2e 选项定位收窄到可见浮层 ([d83e170](https://github.com/liaolongdong/account-password-helper/commit/d83e1707b8747f4f8c4d6ea7a0f18f16a7cd49bf))
+* **search:** 初始读取未回即卸载时不再注册存储监听 ([02fd702](https://github.com/liaolongdong/account-password-helper/commit/02fd702527e4f7c25c77e8ab2d810f6915be14f6))
+* **seo:** llms.txt 博客数订正到 12 篇并配计数守卫 ([70f5056](https://github.com/liaolongdong/account-password-helper/commit/70f505684eb409f2f5bf80d4f473ec0ad9937597))
+* **tests:** 登记 siteRules eager 块并收紧 popup 首屏预算 ([65bddab](https://github.com/liaolongdong/account-password-helper/commit/65bddab776e173f56287a62917fabda1aea00d49))
+
+
+### Performance Improvements
+
+* **floating-button:** 撤掉永不播放的 left/right 过渡，按钮组过渡收窄为 gap ([cbb497a](https://github.com/liaolongdong/account-password-helper/commit/cbb497a3178cdef70b1b57538cc97ec86db92c71))
+
 ## [3.23.0](https://github.com/liaolongdong/account-password-helper/compare/v3.22.0...v3.23.0) (2026-11-15)
 
 
