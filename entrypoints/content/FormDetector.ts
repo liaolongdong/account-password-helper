@@ -1971,22 +1971,18 @@ export class FormDetector {
           // F1-C: 显示填充失败就地引导（仅首次，且受影子 DOM 穿透开关门控）
           if (this.penetrateShadowEnabled && !this.fillFailurePromptShown) {
             this.fillFailurePromptShown = true;
-            // 告诉发起侧气泡已弹出：FILL_BY_ID 的提示条据此不叠加第二条失败反馈
-            result.failurePromptShown = true;
-            // 延迟渲染，避免阻塞主线程
-            setTimeout(() => {
-              try {
-                import('./FillFailurePrompt')
-                  .then(module => {
-                    module.showFillFailurePrompt(this.domain);
-                  })
-                  .catch(err => {
-                    logger.debug('加载 FillFailurePrompt 失败:', err);
-                  });
-              } catch (err) {
-                logger.debug('显示填充失败提示失败:', err);
-              }
-            }, 0);
+            try {
+              const module = await import('./FillFailurePrompt');
+              if (this.disposed) return result;
+              module.showFillFailurePrompt(this.domain);
+              // 渲染真正落地才回执「气泡已弹」：FILL_BY_ID 提示条据此不叠加第二条失败反馈。
+              // 加载/渲染失败时保持标记缺省，由提示条接管，避免「点了没反应」
+              result.failurePromptShown = true;
+            } catch (err) {
+              // 气泡没落地：归还一次性门，让下一次失败仍能重试气泡
+              this.fillFailurePromptShown = false;
+              logger.debug('显示填充失败提示失败:', err);
+            }
           }
 
           return result;
