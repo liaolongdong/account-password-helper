@@ -48,7 +48,7 @@ One click audits your whole vault and produces a 0–100 score built from four w
 
 ### Migration and Backup
 
-Import auto-detects export formats from Chrome, LastPass, Bitwarden, and 1Password; the dialog accepts CSV and JSON (save a spreadsheet as CSV first — there is no `.xlsx` parser), with Chinese/English column-name mapping. Backup comes in three layers: encrypted backup files (.aph, AES-256-GCM over the whole vault, previewable after decryption on import), email backup, and scheduled backup reminders. Deletes go through a 30-day trash first, and password changes keep snapshots you can restore from — 3 per entry by default, configurable from 1 to 10.
+Import auto-detects export formats from Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, and KeePassXC; the dialog accepts CSV and JSON (save a spreadsheet as CSV first — there is no `.xlsx` parser), with Chinese/English column-name mapping. Backup comes in three layers: encrypted backup files (.aph, AES-256-GCM over the whole vault, previewable after decryption on import), email backup, and scheduled backup reminders. Deletes go through a 30-day trash first, and password changes keep snapshots you can restore from — 3 per entry by default, configurable from 1 to 10.
 
 ### Experience Layer
 

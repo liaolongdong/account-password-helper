@@ -79,7 +79,7 @@ const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored f
           {
             "@type": "HowToStep",
             "name": "Import or add accounts",
-            "text": "Add accounts manually, or import CSV/JSON files from Chrome, LastPass, Bitwarden or 1Password in one click."
+            "text": "Add accounts manually, or import CSV/JSON files from Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password or KeePassXC in one click."
           },
           {
             "@type": "HowToStep",
