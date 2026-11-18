@@ -1077,7 +1077,7 @@
         text-underline-offset: 3px;
       }
       .hero-hint a:hover {
-        color: var(--primary-ink);
+        text-decoration-thickness: 2px;
       }
 
       .hero-visual {
@@ -2635,7 +2635,9 @@
         margin: 0;
         font-size: 13.5px;
         line-height: 1.65;
-        color: var(--text-muted);
+        /* --text-muted 压出口卡绿底仅 4.48:1，差 0.02 不过小字 4.5 及格线；
+           改走 --text-strong（亮 9.75），只影响这 4 个 <p>，不牵动全站 102 处 muted 消费点。 */
+        color: var(--text-strong);
       }
       .faq-rail-help p + p {
         margin-top: 8px;
