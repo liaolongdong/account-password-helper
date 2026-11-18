@@ -16,7 +16,7 @@
         @keydown.enter="recordCurrentSearch"
         @keydown.esc="closeHistoryPanel"
       />
-      <!-- 最近搜索：筛选栏无 overflow 裁切，走输入框下方悬浮层（侧边栏因圆角裁切走内联形态） -->
+      <!-- 最近搜索：筛选栏无 overflow 裁切，走输入框下方悬浮层（历史展示面只在管理页） -->
       <SearchHistoryPanel
         class="search-history-overlay"
         :history="recentSearches"

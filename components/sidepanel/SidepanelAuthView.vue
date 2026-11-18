@@ -29,7 +29,6 @@ import {
   Warning,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
-import SearchHistoryPanel from '@/components/SearchHistoryPanel.vue';
 import { useListRenderWindow } from '@/composables/useListRenderWindow';
 import { useSearchHistory } from '@/composables/useSearchHistory';
 import type { PasswordEntry } from '@/utils/types';
@@ -133,24 +132,15 @@ const emit = defineEmits<Emits>();
 /** 搜索关键字（双向绑定至父级） */
 const searchKeyword = defineModel<string>('searchKeyword', { required: true });
 
-/** 最近搜索（会话级，锁定即清）：点击空框 / 清空关键词才展开，自动聚焦不弹，不干扰秒开首屏 */
-const {
-  recentSearches,
-  historyPanelOpen,
-  recordCurrentSearch,
-  clearSearchHistory,
-  openHistoryPanel,
-  closeHistoryPanel,
-  selectHistory,
-} = useSearchHistory(searchKeyword, value => {
+/** 最近搜索（会话级，锁定即清）：侧边栏只记录、不展示候选——展示面在管理页筛选栏，两入口共用同一份历史 */
+const { recordCurrentSearch } = useSearchHistory(searchKeyword, value => {
   searchKeyword.value = value;
   emit('search');
 });
 
-/** blur 把当前关键词记入历史并收起面板（chip 点击经 pointerdown.prevent 不触发 blur） */
+/** blur 把当前关键词记入共享会话历史（管理页展示面消费） */
 const handleSearchBlur = () => {
   recordCurrentSearch();
-  closeHistoryPanel();
 };
 
 /** 是否仅显示收藏条目（双向绑定至父级） */
@@ -386,10 +376,8 @@ onUnmounted(() => {
           :prefix-icon="Search"
           clearable
           @input="emit('search')"
-          @click="openHistoryPanel"
           @blur="handleSearchBlur"
           @keydown.enter="recordCurrentSearch"
-          @keydown.esc="closeHistoryPanel"
         />
       </div>
       <el-tooltip
@@ -506,15 +494,6 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
-    <!-- 最近搜索：卡内内联展开。search-card 的 overflow:hidden 承担圆角条带裁切，
-         悬浮层会被裁掉，故走撑高卡片的内联形态（仅在用户点击空框/清空关键词时出现） -->
-    <SearchHistoryPanel
-      class="search-history-inline"
-      :history="recentSearches"
-      :visible="historyPanelOpen"
-      @select="selectHistory"
-      @clear="clearSearchHistory"
-    />
     <!-- 全站搜索状态条：显式告知当前范围并常驻「回到本站」出口，
          避免用户把外站条目误当作可直接填充当前页的账号（图标 + 文案 + 按钮三重表达，不仅靠颜色） -->
     <div
@@ -760,12 +739,6 @@ onUnmounted(() => {
 .search-input-wrap {
   flex: 1;
   min-width: 0;
-}
-
-/* 最近搜索内联面板：与 search-section 同左右内边距，顶部分隔线示意从属关系 */
-.search-history-inline {
-  padding: 10px 16px;
-  border-top: 1px solid var(--aph-surface-line);
 }
 
 /* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。
