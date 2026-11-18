@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.24.1](https://github.com/liaolongdong/account-password-helper/compare/v3.24.0...v3.24.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **fill:** 失败气泡渲染落地才回执，站点规则镜像不落降级值 ([a480ec1](https://github.com/liaolongdong/account-password-helper/commit/a480ec14ff67bdd24e40437d277927dba788b1bf))
+* **fill:** 失败气泡渲染落地才回执，站点规则镜像不落降级值与迟到旧值 ([e1e2acc](https://github.com/liaolongdong/account-password-helper/commit/e1e2accc6b53c9e248198576407a80d019817625))
+* **search:** 最近搜索展示面收口管理页，去重键归一化防变体重复占位 ([04a4d44](https://github.com/liaolongdong/account-password-helper/commit/04a4d4476ecf2d44aa18f6950397b2e3a769e0de))
+* **search:** 最近搜索展示面收口管理页，去重键归一化防变体重复占位 ([f74c5fb](https://github.com/liaolongdong/account-password-helper/commit/f74c5fb07b8396dfb2bbd9b75259ffe0511aa292))
+
 ## [3.24.0](https://github.com/liaolongdong/account-password-helper/compare/v3.23.0...v3.24.0) (2026-11-17)
 
 
