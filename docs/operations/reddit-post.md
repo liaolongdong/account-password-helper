@@ -30,7 +30,7 @@ So I built **Account Password Helper** — an open-source Chrome extension.
 
 1. Install from Chrome Web Store (or GitHub Releases)
 2. Set a master password (PBKDF2, 600K iterations → AES-256-GCM key)
-3. Import from Chrome / Bitwarden / 1Password CSV, or add manually
+3. Import from Chrome / Edge, Firefox, LastPass, Bitwarden, 1Password, KeePassXC CSV, or add manually
 4. Press **Ctrl+Shift+F** on any login page → it fills credentials, ticks consent checkboxes, and clicks login — all in one step
 
 ## Security architecture

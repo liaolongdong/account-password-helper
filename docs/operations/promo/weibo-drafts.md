@@ -15,7 +15,7 @@
 📱 内置 TOTP 两步验证，GitHub 式登录自动锚定活码，告别手机验证器
 🛡 PBKDF2(60 万迭代)+AES-256-GCM 逐字段本地加密，密码数据不上传、免注册（唯一出站请求是每 6 小时一次的匿名版本检查）
 🩺 离线安全体检：0–100 分，四项加权（复用 35/弱 25/泄露 20/过期 20），未开 2FA 另行列示
-📦 支持从 Chrome / LastPass / Bitwarden / 1Password 一键导入
+📦 支持从 Chrome / Edge / Firefox / LastPass / Bitwarden / 1Password / KeePassXC 一键导入
 
 没有云端服务器、不要账号、不要订阅。缺点也很实在：没有云同步、没有手机端。
 

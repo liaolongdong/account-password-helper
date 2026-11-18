@@ -5,8 +5,8 @@ import { t } from '@/utils/i18n';
  * 最近搜索候选面板（展示层）
  *
  * 只负责头部（标题 + 清除）与关键词 chip 列表；定位、底色、边框由消费端
- * 通过 fallthrough class 决定——侧边栏 search-card 有 overflow:hidden（圆角裁切），
- * 面板走卡内内联展开；管理页筛选栏无裁切，走输入框下方悬浮层。
+ * 通过 fallthrough class 决定——当前唯一消费端是管理页筛选栏（无裁切，
+ * 走输入框下方悬浮层）。侧边栏只记录不展示，历史候选不在快速填充场景出现。
  *
  * chip 与清除按钮的 `pointerdown.prevent` 阻止焦点离开搜索框：
  * 否则 blur 先于 click 触发，消费端的 blur 收起会让点击落空。

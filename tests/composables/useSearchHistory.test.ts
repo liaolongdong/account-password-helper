@@ -6,8 +6,8 @@
  * 锁住三类契约：
  * 1. 隐私——只写 chrome.storage.session，绝不触碰 storage.local；锁定清除经
  *    onChanged（newValue === undefined）传导到 UI；日志与断言都不携带真实凭据。
- * 2. 列表语义——trim、去重、新→旧、≤8 条、短词不记；迟到的初始读取不得整包
- *    覆盖本地已发生的记录（只能合并）。
+ * 2. 列表语义——trim、去重（大小写 / 全半角归一化键，展示保留原形态）、新→旧、
+ *    ≤8 条、短词不记；迟到的初始读取不得整包覆盖本地已发生的记录（只能合并）。
  * 3. 面板开合——点击空框才展开（自动聚焦不弹）、键入即收起、清空已有关键词
  *    重新展开、选中回填并收起；监听器随卸载摘除。
  *
@@ -161,6 +161,48 @@ describe('记录语义与持久化边界', () => {
     expect(api.recentSearches.value).toEqual([]);
     expect(api.historyPanelOpen.value).toBe(false);
     expect(sessionData[KEY]).toBeUndefined();
+  });
+});
+
+describe('去重键归一化（大小写 / 全半角变体不重复占位）', () => {
+  it('大小写变体合并为一条，最新键入形态提到最前', async () => {
+    mounted = mountHistory();
+    await flush();
+    const { api, keyword } = mounted;
+    keyword.value = 'GitHub';
+    api.recordCurrentSearch();
+    keyword.value = 'github';
+    api.recordCurrentSearch();
+    expect(api.recentSearches.value).toEqual(['github']);
+    expect(sessionData[KEY]).toEqual(['github']);
+  });
+
+  it('全角变体与半角原词合并（「行Ｅ通」不再与「行E通」各占一枚 chip）', async () => {
+    mounted = mountHistory();
+    await flush();
+    const { api, keyword } = mounted;
+    keyword.value = '行E通';
+    api.recordCurrentSearch();
+    keyword.value = '行Ｅ通';
+    api.recordCurrentSearch();
+    expect(api.recentSearches.value).toEqual(['行Ｅ通']);
+    expect(sessionData[KEY]).toEqual(['行Ｅ通']);
+  });
+
+  it('展示文本不被归一化改写：trim 之外原样保留大小写与全半角', async () => {
+    mounted = mountHistory();
+    await flush();
+    const { api, keyword } = mounted;
+    keyword.value = '  GitHub  ';
+    api.recordCurrentSearch();
+    expect(api.recentSearches.value).toEqual(['GitHub']);
+  });
+
+  it('存储里的变体脏数据按归一化键收窄：只留首见形态', async () => {
+    installChrome({ [KEY]: ['GitHub', 'github', 'ＧＩＴＨＵＢ', 'gitlab'] });
+    mounted = mountHistory();
+    await flush();
+    expect(mounted.api.recentSearches.value).toEqual(['GitHub', 'gitlab']);
   });
 });
 

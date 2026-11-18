@@ -9,6 +9,9 @@ const MIN_QUERY_LENGTH = 2;
 
 const KEY = SESSION_MEMORY_KEYS.RECENT_SEARCHES;
 
+/** 去重键：trim + NFKC + 小写，大小写 / 全半角变体共用一个名额；展示文本仍保留原形态 */
+const historyKey = (query: string): string => query.trim().normalize('NFKC').toLowerCase();
+
 /** 把不可信的存储值收窄为去重、截断后的关键词列表 */
 function sanitize(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -17,8 +20,10 @@ function sanitize(raw: unknown): string[] {
   for (const item of raw) {
     if (typeof item !== 'string') continue;
     const query = item.trim();
-    if (query.length < MIN_QUERY_LENGTH || seen.has(query)) continue;
-    seen.add(query);
+    if (query.length < MIN_QUERY_LENGTH) continue;
+    const key = historyKey(query);
+    if (seen.has(key)) continue;
+    seen.add(key);
     result.push(query);
     if (result.length >= MAX_RECENT_SEARCHES) break;
   }
@@ -32,12 +37,16 @@ function sanitize(raw: unknown): string[] {
  * （浏览器关闭即清、TRUSTED_CONTEXTS 内容脚本不可读），锁定时由 clearSession 一并删除，
  * 绝不写 storage.local。日志不携带关键词本身。
  *
- * 面板开合规则刻意避开侧边栏的自动聚焦：挂载即 focus 不弹面板（不干扰秒开首屏），
+ * 展示面只在管理页筛选栏；侧边栏只记录、不展示（快速填充场景里内联历史块会把
+ * 匹配列表挤出首屏），两个入口共用同一份会话历史。去重按归一化键（trim + NFKC +
+ * 小写），大小写 / 全半角变体不各占一个名额，展示保留键入原形态。
+ *
+ * 面板开合规则刻意避开自动聚焦：挂载即 focus 不弹面板，
  * 只有用户**点击空输入框**或**把已有关键词清空**时才展开；键入非空即收起。
  * 记录时机是 blur 与回车（搜索已被实际使用），不是每次击键——防抖中间态不进历史。
  *
  * @param keyword 搜索框当前值（只读消费，写入走 applyKeyword）
- * @param applyKeyword 选中历史词后的回填动作（sidepanel 写 model，options 发 emit）
+ * @param applyKeyword 选中历史词后的回填动作（管理页发 update:searchKeyword）
  */
 export function useSearchHistory(keyword: Ref<string>, applyKeyword: (value: string) => void) {
   const recentSearches = ref<string[]>([]);
@@ -54,7 +63,11 @@ export function useSearchHistory(keyword: Ref<string>, applyKeyword: (value: str
     const trimmed = query.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) return;
     touched = true;
-    const next = [trimmed, ...recentSearches.value.filter(item => item !== trimmed)].slice(0, MAX_RECENT_SEARCHES);
+    const key = historyKey(trimmed);
+    const next = [trimmed, ...recentSearches.value.filter(item => historyKey(item) !== key)].slice(
+      0,
+      MAX_RECENT_SEARCHES,
+    );
     recentSearches.value = next;
     void sessionArea()
       ?.set({ [KEY]: next })

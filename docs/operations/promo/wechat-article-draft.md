@@ -63,7 +63,7 @@ dev / test / staging / prod 的账号按域名精确匹配，同一站点不同�
 
 ### 从别的工具搬家？30 秒搞定
 
-支持 CSV / JSON 导入，自动识别 **Chrome、LastPass、Bitwarden、1Password** 导出格式，列名自动映射；导出同样方便，数据随时能带走，绝不锁定。
+支持 CSV / JSON 导入，自动识别 **Chrome / Edge、Firefox、LastPass、Bitwarden、1Password、KeePassXC** 导出格式，列名自动映射；导出同样方便，数据随时能带走，绝不锁定。
 
 🖼 配图建议：`assets/cws-store/screen-12-import-backup.png`
 
