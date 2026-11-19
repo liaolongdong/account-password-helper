@@ -33,6 +33,7 @@ const PASSWORD = makePasswordEntry({
   password: 'Fixture-password!789',
   username: 'fixture-user',
   totp: 'JBSWY3DPEHPK3PXP',
+  pathScope: '',
 });
 let oldConfig: MasterPasswordConfig;
 let oldKey: string;

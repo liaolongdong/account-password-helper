@@ -328,7 +328,7 @@ describe('getMatchingAccounts 的关键词检索（内联下拉的拼音档）',
 
   /** 取某个关键词下的命中 id 序列（省略关键词即全量口径） */
   const idsOf = async (keyword?: string): Promise<string[]> => {
-    const { accounts } = await getMatchingAccounts('example.com', page('https://example.com'), keyword);
+    const { accounts } = await getMatchingAccounts('example.com', page('https://example.com'), undefined, keyword);
     return accounts.map(a => a.id);
   };
 
@@ -370,7 +370,12 @@ describe('getMatchingAccounts 的关键词检索（内联下拉的拼音档）',
   });
 
   it('检索不改变 crossDomainCount 的口径：本站有账号时恒为 0', async () => {
-    const { crossDomainCount } = await getMatchingAccounts('example.com', page('https://example.com'), 'zzzz-无匹配');
+    const { crossDomainCount } = await getMatchingAccounts(
+      'example.com',
+      page('https://example.com'),
+      undefined,
+      'zzzz-无匹配',
+    );
     expect(crossDomainCount).toBe(0);
   });
 });
@@ -739,7 +744,7 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
     const hitCount = INLINE_MAX_RESULT_ROWS + 10;
     updatePasswordCache(buildEntries(OVER_CAP_TOTAL, hitCount), '*', true);
 
-    const response = await getMatchingAccounts('example.com', page('https://example.com'), 'alp');
+    const response = await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'alp');
 
     // 未命中的 10 条不该被算进 totalMatched，否则尾部的「还有 N 条」读数会虚高
     expect(response.totalMatched).toBe(hitCount);
@@ -756,7 +761,7 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
     expect(all.totalMatched).toBe(3);
 
     // 检索后一条不剩：总数与列表同为 0，而不是留下「还有 3 条」的错误读数
-    const none = await getMatchingAccounts('example.com', page('https://example.com'), 'zzzz-无匹配');
+    const none = await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'zzzz-无匹配');
     expect(none.accounts).toEqual([]);
     expect(none.totalMatched).toBe(0);
   });
@@ -780,7 +785,7 @@ describe('getMatchingAccounts 读取主密码配置的时机', () => {
 
     const response = await getMatchingAccounts('example.com', page('https://example.com'));
     expect(response.locked).toBe(false);
-    await getMatchingAccounts('example.com', page('https://example.com'), 'a');
+    await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'a');
 
     expect(masterPasswordMocks.hasMasterPassword).not.toHaveBeenCalled();
   });
