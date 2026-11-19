@@ -44,7 +44,7 @@ import {
   extractHostname,
   UNLOCK_NOTIFICATION_ID,
 } from './quickFillHandler';
-import { parsePagePortContext } from '@/utils/domain';
+import { pagePathFromUrl, parsePagePortContext } from '@/utils/domain';
 import { resolveSourceTabId } from '@/utils/sourceTab';
 import { tryOpenInlineDropdown } from './inlineDropdownHandler';
 import { openOptionsAndSendMessage, openOptionsPage } from './optionsPageManager';
@@ -314,7 +314,12 @@ async function handleContextMenuFill(
       passwords = (await getOrWarmCache())?.passwords ?? [];
     }
 
-    const matched = await sortMatchesForDomain(passwords, hostname, parsePagePortContext(tab.url));
+    const matched = await sortMatchesForDomain(
+      passwords,
+      hostname,
+      parsePagePortContext(tab.url),
+      pagePathFromUrl(tab.url),
+    );
 
     // 解析明文值：TOTP 单独处理（需异步计算动态码），其余经纯函数解析
     if (action === 'totp') {

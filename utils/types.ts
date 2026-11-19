@@ -59,6 +59,14 @@ export interface PasswordEntry {
    */
   totp?: string;
   /**
+   * 路径作用域（可选，加密存储）
+   *
+   * 把条目绑定到同一域名下的某个路径前缀（含 SPA hash 路由，如 `/#/desktop`），
+   * 用于「同域不同路由存不同账号」的场景。归一化后保留前导 `/`、剥离 query；
+   * 空串或 undefined 表示不限路径（与旧数据一致，匹配任意路径）。
+   */
+  pathScope?: string;
+  /**
    * 创建时间
    */
   createTime: number;

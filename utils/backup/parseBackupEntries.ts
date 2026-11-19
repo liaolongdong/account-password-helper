@@ -136,6 +136,7 @@ export function validateAndBoundEntries(rows: unknown): ImportedPasswordEntry[] 
       tag: readBoundedText(row.tag, MAX_TAG_LEN),
       remark: readBoundedText(row.remark, MAX_REMARK_LEN),
       totp: readBoundedText(row.totp, MAX_TOTP_LEN),
+      pathScope: readBoundedText(row.pathScope, MAX_URL_LEN),
       createTime: readTimestamp(row.createTime, now),
       updateTime: readTimestamp(row.updateTime, now),
     };

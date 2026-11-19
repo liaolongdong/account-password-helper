@@ -275,6 +275,7 @@ export async function encryptPasswordEntry(
       url: entry.url ? await encryptData(entry.url, key) : '',
       remark: entry.remark ? await encryptData(entry.remark, key) : '',
       totp: entry.totp ? await encryptData(entry.totp, key) : '',
+      pathScope: entry.pathScope ? await encryptData(entry.pathScope, key) : '',
       encrypted: true,
     } as EncryptedPasswordEntry;
     logger.debug('条目加密完成');
@@ -307,6 +308,7 @@ export async function decryptPasswordEntry(
       url: await decryptFieldSafely(entry.url, key, 'url'),
       remark: await decryptFieldSafely(entry.remark, key, 'remark'),
       totp: await decryptFieldSafely(entry.totp ?? '', key, 'totp'),
+      pathScope: await decryptFieldSafely(entry.pathScope ?? '', key, 'pathScope'),
     };
     logger.debug('条目解密完成');
     return decryptedEntry;

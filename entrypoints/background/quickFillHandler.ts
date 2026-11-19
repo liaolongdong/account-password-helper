@@ -23,7 +23,7 @@ import { tl } from '@/utils/i18n-lite';
 import { MessageType } from '@/utils/types';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getFillableDocuments, fillPasswordInFrames } from '@/utils/frameFill';
-import { parsePagePortContext } from '@/utils/domain';
+import { pagePathFromUrl, parsePagePortContext } from '@/utils/domain';
 import {
   ensureCredentialAccessAfterStartupRelock,
   getCachedPasswords,
@@ -267,6 +267,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
     return;
   }
   const page = parsePagePortContext(tab.url);
+  const path = pagePathFromUrl(tab.url);
 
   // 检查会话有效性：优先同步快路径，SW 冷启动后模块状态为空时
   // 才回退到异步 isSessionValid() 从 storage 恢复会话
@@ -299,7 +300,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
 
   // 按域名过滤并按侧边栏展示顺序排序（域名匹配优先 + 收藏置顶 + 排序配置），
   // 首条即侧边栏列表第一条
-  const matched = await sortMatchesForDomain(passwords, hostname, page);
+  const matched = await sortMatchesForDomain(passwords, hostname, page, path);
 
   if (matched.length === 0) {
     await notifyFailure(tl('bg.quickFill.noMatch'));

@@ -585,12 +585,14 @@ export async function getEffectiveSitePolicy(domain: string, page: PagePortConte
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
  * @param page 当前页面端口上下文（null 表示取不到，端口门自动放行，与迁移前一致）
+ * @param path 当前页面路径（pathname + hash，见 `pagePathOf`），缺省表示取不到，路径门放行
  * @returns 过滤并排序后的新数组（首条即侧边栏展示第一条）
  */
 export async function sortMatchesForDomain(
   passwords: PasswordEntry[],
   domain: string,
   page: PagePortContext | null,
+  path?: string,
 ): Promise<PasswordEntry[]> {
   const [sortConfig, policy, envHost] = await Promise.all([
     getCachedSortConfig(),
@@ -600,7 +602,7 @@ export async function sortMatchesForDomain(
   const sortState: SortState = sortConfig
     ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  return filterAndSortEntriesForDomain(passwords, domain, sortState, page, policy, envHost);
+  return filterAndSortEntriesForDomain(passwords, domain, sortState, page, policy, envHost, path);
 }
 
 /**
@@ -679,12 +681,14 @@ async function buildLockedResponse(): Promise<MatchingAccountsResponse> {
  *
  * @param domain 当前页面顶层域名（hostname）
  * @param page 当前页面端口上下文（null 表示取不到，端口门放行）
+ * @param path 当前页面路径（pathname + hash），缺省表示取不到，路径门放行
  * @param keyword 检索关键词（可选，拼音/首字母缩写，保序过滤，空串等价不过滤）
  * @returns 锁定标记、匹配账号元数据列表（最多 `INLINE_MAX_RESULT_ROWS` 条）与命中总数
  */
 export async function getMatchingAccounts(
   domain: string,
   page: PagePortContext | null,
+  path?: string,
   keyword?: string,
 ): Promise<MatchingAccountsResponse> {
   // 启动重锁窗口：只报「锁定」，不据此推断主密码是否存在（此刻会话状态本就不可信）
@@ -704,7 +708,7 @@ export async function getMatchingAccounts(
   // 唯一的例外是本地页的环境绑定（用户在侧边栏芯片上点选，会话级、只对这一个端点有效）。
   // 复用 sortMatchesForDomain（侧边栏排序配置 + 匹配层级 + 收藏置顶）
   const [matched, policy, envHost] = await Promise.all([
-    sortMatchesForDomain(cache.passwords, domain, page),
+    sortMatchesForDomain(cache.passwords, domain, page, path),
     getEffectiveSitePolicy(domain, page),
     getEnvBinding(domain, page?.port ?? null),
   ]);

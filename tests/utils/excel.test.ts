@@ -286,7 +286,17 @@ describe('parseJSON', () => {
       { username: 'a', password: 'p', url: 'u', tag: 't', remark: 'r', totp: 'x', createTime: 100, updateTime: 200 },
     ]);
     expect(ExcelUtils.parseJSON(text)).toEqual([
-      { username: 'a', password: 'p', url: 'u', tag: 't', remark: 'r', totp: 'x', createTime: 100, updateTime: 200 },
+      {
+        username: 'a',
+        password: 'p',
+        url: 'u',
+        tag: 't',
+        remark: 'r',
+        totp: 'x',
+        pathScope: '',
+        createTime: 100,
+        updateTime: 200,
+      },
     ]);
   });
 

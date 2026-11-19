@@ -80,6 +80,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
         tag: p.tag,
         remark: p.remark,
         totp: p.totp,
+        pathScope: p.pathScope,
         createTime: p.createTime,
         updateTime: p.updateTime,
         favorite: p.favorite,
@@ -138,6 +139,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
           tag: (p.tag ?? '').trim(),
           remark: (p.remark ?? '').trim(),
           totp: (p.totp ?? '').trim(),
+          pathScope: (p.pathScope ?? '').trim(),
           createTime: p.createTime,
           updateTime: p.updateTime,
           favorite: !!p.favorite,
@@ -152,6 +154,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
               got.tag !== source[i].tag ||
               got.remark !== source[i].remark ||
               got.totp !== source[i].totp ||
+              got.pathScope !== source[i].pathScope ||
               got.createTime !== source[i].createTime ||
               got.updateTime !== source[i].updateTime ||
               !!got.favorite !== source[i].favorite,

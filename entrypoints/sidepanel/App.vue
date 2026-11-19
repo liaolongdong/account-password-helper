@@ -314,6 +314,7 @@ const {
   isAuthenticated,
   currentDomain,
   currentPagePort,
+  currentPath,
   showSidepanel,
   sortConfig,
   loadFailed,
@@ -602,6 +603,7 @@ const scopeContext = computed<ScopeContext>(() => ({
   domain: currentDomain.value,
   page: currentPagePort.value,
   envHost: boundEnvHost.value,
+  path: currentPath.value,
 }));
 
 /**

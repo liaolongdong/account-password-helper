@@ -68,6 +68,7 @@ const expectedImported = (passwords: PasswordEntry[]) =>
     tag: p.tag,
     remark: p.remark,
     totp: p.totp,
+    pathScope: p.pathScope ?? '',
     createTime: p.createTime,
     updateTime: p.updateTime,
     favorite: p.favorite,

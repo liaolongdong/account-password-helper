@@ -218,6 +218,7 @@ describe('encryptPasswordEntry / decryptPasswordEntry', () => {
       url: 'https://example.com',
       remark: 'note',
       totp: 'JBSWY3DPEHPK3PXP',
+      pathScope: '/#/desktop',
       tag: 'work',
       favorite: true,
       order: 2,
@@ -230,6 +231,7 @@ describe('encryptPasswordEntry / decryptPasswordEntry', () => {
     // 敏感字段被加密（不等于明文）
     expect(enc.username).not.toBe('alice');
     expect(enc.password).not.toBe('secret');
+    expect(enc.pathScope).not.toBe('/#/desktop');
     // 非敏感字段透传
     expect(enc.id).toBe('e1');
     expect(enc.tag).toBe('work');
@@ -241,15 +243,17 @@ describe('encryptPasswordEntry / decryptPasswordEntry', () => {
     expect('encrypted' in dec).toBe(false);
   });
 
-  it("空敏感字段不加密；无 totp 往返后为空串（现有 undefined→'' 行为）", async () => {
+  it("空敏感字段不加密；无 totp / pathScope 往返后为空串（现有 undefined→'' 行为）", async () => {
     const original = makePasswordEntry({ username: '', password: '', url: '', remark: '' });
     const enc = await encryptPasswordEntry(original, '', KEY);
     expect(enc.username).toBe('');
     expect(enc.totp).toBe('');
+    expect(enc.pathScope).toBe('');
 
     const dec = await decryptPasswordEntry(enc, '', KEY);
     expect(dec.username).toBe('');
     expect(dec.totp).toBe('');
+    expect(dec.pathScope).toBe('');
   });
 
   it('decryptPasswordEntry 对未加密条目仅剥离 encrypted 标志，不做解密', async () => {

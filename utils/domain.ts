@@ -1239,6 +1239,127 @@ export function countPortHiddenCandidates(
 }
 
 /**
+ * 路径作用域（path scope）匹配
+ *
+ * 背景（F-2 URL 粒度匹配）：同一域名下的 SPA 可能用 hash 路由区分多个身份
+ * （`domain.com/#/` 与 `domain.com/#/desktop` 是两套账号），而主机级匹配只认 hostname，
+ * 无法区分。`PasswordEntry.pathScope` 让条目可选地绑定到一个路径前缀，
+ * 在主机门之内再收窄一层，实现「同域不同路由存不同账号」。
+ *
+ * 路径口径统一为 `pathname + hash`（query 不参与路由身份）：
+ * - `https://a.com/#/desktop` → `/#/desktop`
+ * - `https://a.com/login`      → `/login`
+ * - `https://a.com/`           → `/`
+ */
+
+/**
+ * 由 pathname 与 hash 合成规范化页面路径
+ *
+ * @param pathname - `location.pathname`（恒以 `/` 开头）
+ * @param hash - `location.hash`（无 hash 时空串）
+ * @returns 规范化路径；两者皆空时返回 `/`
+ */
+export function pagePathOf(pathname: string | undefined, hash: string | undefined): string {
+  const p = pathname?.trim() || '/';
+  const h = hash?.trim() || '';
+  // query 不是路径身份的一部分（路由要么在 pathname 要么在 hash），即便调用方误传也剥掉
+  const withoutQuery = (p + h).split('?')[0];
+  return withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+}
+
+/**
+ * 归一化路径作用域字符串
+ *
+ * 接受完整 URL、绝对路径（`/desktop`、`/#/desktop`）或裸片段（`desktop`、`#/desktop`），
+ * 统一成 `pathname + hash` 口径、剥掉 query。空串表示「不限路径」。
+ *
+ * @param value - 用户录入或自动保存的路径作用域
+ * @returns 归一化路径；无法归一化时返回空串（等同不限路径）
+ *
+ * @example
+ * normalizePathScope('https://a.com/#/desktop') // → '/#/desktop'
+ * normalizePathScope('/desktop')                 // → '/desktop'
+ * normalizePathScope('desktop')                  // → '/desktop'
+ * normalizePathScope('#/desktop')                // → '/#/desktop'
+ * normalizePathScope('')                         // → ''
+ */
+export function normalizePathScope(value: string | undefined | null): string {
+  const raw = value?.trim();
+  if (!raw) return '';
+  let path: string;
+  if (raw.includes('://')) {
+    try {
+      const url = new URL(raw);
+      path = url.pathname + url.hash;
+    } catch {
+      return '';
+    }
+  } else if (raw.startsWith('#')) {
+    path = `/${raw}`;
+  } else if (raw.startsWith('/')) {
+    path = raw;
+  } else {
+    path = `/${raw}`;
+  }
+  const withoutQuery = path.split('?')[0];
+  return withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+}
+
+/**
+ * 判定条目路径作用域是否命中当前页面路径
+ *
+ * 语义是「主机门之内的硬过滤」：
+ * - 无 scope（空串/undefined）→ 恒命中：存量条目不受影响，行为与引入路径隔离前一致；
+ * - 无页面路径（取不到）→ 恒命中：少一份路径信息不该变成少一批条目（与端口轴同口径）；
+ * - 命中 = 页面路径与 scope 相等，或以 `scope + '/'` 为前缀（避免 `/desktop` 误配 `/desktopx`）。
+ *
+ * @param scope - 条目归一化后的路径作用域
+ * @param pagePath - 当前页面路径（见 {@link pagePathOf}）
+ * @returns 是否命中
+ */
+export function matchesPathScope(scope: string | undefined, pagePath: string | undefined): boolean {
+  if (!scope) return true;
+  if (!pagePath) return true;
+  if (pagePath === scope) return true;
+  return pagePath.startsWith(`${scope}/`);
+}
+
+/**
+ * 路径作用域的排序权重（数值越小越靠前）
+ *
+ * 过滤阶段已把「scope 不命中」的条目剔除，因此这里只区分两档：
+ * - 命中 scope（有显式路径绑定）→ 0，排在同主机档位的最前；
+ * - 无 scope（通用条目）→ 1，作为回退。
+ *
+ * @param scope - 条目归一化后的路径作用域
+ * @param pagePath - 当前页面路径
+ * @returns 排序权重
+ */
+export function pathScopePriority(scope: string | undefined, pagePath: string | undefined): number {
+  return scope && matchesPathScope(scope, pagePath) ? 0 : 1;
+}
+
+/**
+ * 从完整 URL 派生规范化页面路径
+ *
+ * 三个填充入口（内联下拉 / 一键填充 / 右键菜单）都只拿到 `tab.url` 全串，
+ * 统一走这个解析器，避免各自重复 `new URL` 再拼 pathname + hash。
+ *
+ * @param rawUrl - 完整 URL（`tab.url` / `location.href`）
+ * @returns 规范化路径；入参为空或解析失败时返回 undefined（路径门放行）
+ */
+export function pagePathFromUrl(rawUrl: string | undefined | null): string | undefined {
+  const s = rawUrl?.trim();
+  if (!s) return undefined;
+  try {
+    const url = new URL(s);
+    return pagePathOf(url.pathname, url.hash);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * 剥离网址最左侧的通配段
  *
  * `*.qq.com` 表达的是「适用范围」而非可导航主机：直接补协议会得到 `https://*.qq.com/`

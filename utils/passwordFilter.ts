@@ -17,7 +17,7 @@
  * 就是它的降级形态；而下拉需要贴在当前页上，展示外站条目没有可填充的目标。
  */
 import type { PasswordEntry } from '@/utils/types';
-import { matchesSiteWithEnv, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
+import { matchesPathScope, matchesSiteWithEnv, type EffectiveSitePolicy, type PagePortContext } from '@/utils/domain';
 import { filterByKeyword, type KeywordMatcher } from '@/utils/keywordMatch';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { parseTags } from '@/utils/tagUtils';
@@ -49,6 +49,12 @@ export interface ScopeContext {
    * `matchesSiteWithEnv` 内部一律失效，所以传错方向也是安全的（只会当没绑定）。
    */
   envHost: string | null;
+  /**
+   * 当前标签页路径（pathname + hash，见 `pagePathOf`）
+   *
+   * 可选：缺省表示取不到（如无域名的新标签页），路径门自动放行，与不传路径的旧行为一致。
+   */
+  path?: string;
 }
 
 /** 列表级过滤条件（三者为叠加关系） */
@@ -87,7 +93,9 @@ export interface ListFilterOptions {
  */
 export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, policy: EffectiveSitePolicy): boolean {
   if (!ctx.domain) return true;
-  return matchesSiteWithEnv(entry.url, ctx.domain, ctx.page, policy, ctx.envHost);
+  if (!matchesSiteWithEnv(entry.url, ctx.domain, ctx.page, policy, ctx.envHost)) return false;
+  // 主机门 ∧ 端口门之后再过路径门：有 pathScope 的条目只在命中其路径时出现
+  return matchesPathScope(entry.pathScope, ctx.path);
 }
 
 /**
