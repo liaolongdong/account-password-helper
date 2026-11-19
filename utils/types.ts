@@ -970,6 +970,8 @@ export interface PasswordFormModel {
   remark: string;
   /** TOTP 密钥 */
   totp: string;
+  /** 路径作用域（可选，空串 = 不限路径，见 `PasswordEntry.pathScope`） */
+  pathScope: string;
 }
 
 /**

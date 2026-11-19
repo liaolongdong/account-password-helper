@@ -30,6 +30,7 @@ import { useVaultListPagination } from '@/composables/useVaultListPagination';
 import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
 import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
+import { normalizePathScope } from '@/utils/domain';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 import { restoreFromTrash } from '@/utils/storage/trashManager';
 
@@ -62,7 +63,15 @@ export const ROW_HIGHLIGHT_MS = 6000;
 export const UNDO_DELETE_WINDOW_MS = 5000;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
-const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
+const EMPTY_PASSWORD_FORM = {
+  username: '',
+  password: '',
+  url: '',
+  tag: '',
+  remark: '',
+  totp: '',
+  pathScope: '',
+} as const;
 
 /**
  * TOTP 密钥自定义校验器
@@ -157,6 +166,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tag: '',
     remark: '',
     totp: '',
+    pathScope: '',
   });
 
   /**
@@ -648,6 +658,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       tag: password.tag,
       remark: password.remark,
       totp: password.totp ?? '',
+      pathScope: password.pathScope ?? '',
     };
     showPasswordDialog.value = true;
   };
@@ -847,6 +858,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           tag: normalizedTag,
           remark: passwordForm.value.remark.trim(),
           totp: passwordForm.value.totp.trim(),
+          pathScope: normalizePathScope(passwordForm.value.pathScope),
           updateTime: Date.now(),
         };
         await runLocalOperation(async () => {
@@ -875,6 +887,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
             tag: normalizedTag,
             remark: passwordForm.value.remark.trim(),
             totp: passwordForm.value.totp.trim(),
+            pathScope: normalizePathScope(passwordForm.value.pathScope),
             createTime: now,
             updateTime: now,
           });

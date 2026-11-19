@@ -184,6 +184,30 @@
             {{ t('options.form.totpTip') }}
           </div>
         </el-form-item>
+
+        <!-- 高级选项折叠区：路径作用域是进阶字段，默认收起避免主表单噪音 -->
+        <el-collapse v-model="activePanels">
+          <el-collapse-item
+            :title="t('options.form.advancedOptions')"
+            name="advanced"
+          >
+            <el-form-item
+              :label="t('options.form.pathScope')"
+              prop="pathScope"
+            >
+              <el-input
+                v-model="localForm.pathScope"
+                :placeholder="t('options.form.pathScopePlaceholder')"
+                :disabled="loading"
+                clearable
+                :maxlength="PASSWORD_FIELD_LIMITS.url"
+              />
+              <div class="form-tip">
+                {{ t('options.form.pathScopeTip') }}
+              </div>
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
       </el-form>
 
       <!-- 密码修改历史（仅编辑模式且有历史记录时展示） -->
@@ -315,6 +339,7 @@ const localForm = reactive({
   url: props.form.url,
   remark: props.form.remark,
   totp: props.form.totp,
+  pathScope: props.form.pathScope,
 });
 
 /**
@@ -338,6 +363,7 @@ watch(
     localForm.url = val.url;
     localForm.remark = val.remark;
     localForm.totp = val.totp;
+    localForm.pathScope = val.pathScope;
   },
 );
 
@@ -349,11 +375,23 @@ watch(localForm, val => {
     url: val.url,
     remark: val.remark,
     totp: val.totp,
+    pathScope: val.pathScope,
   });
 });
 
 /** 本地表单引用 */
 const localFormRef = ref<FormInstance>();
+
+/** 高级选项折叠区激活面板（默认收起，路径作用域为进阶字段） */
+const activePanels = ref<string[]>([]);
+
+/** 打开弹窗时，若正在编辑带路径作用域的条目，自动展开高级选项，避免「填过却看不到」 */
+watch(
+  () => props.modelValue,
+  visible => {
+    if (visible) activePanels.value = props.form.pathScope.trim() ? ['advanced'] : [];
+  },
+);
 
 /** 密码输入框焦点状态 */
 const formPasswordInputFocused = ref(false);

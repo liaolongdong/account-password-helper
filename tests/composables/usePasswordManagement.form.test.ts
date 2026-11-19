@@ -89,6 +89,7 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
       tag: '',
       remark: '',
       totp: '',
+      pathScope: '',
     });
   });
 
@@ -102,6 +103,7 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
       tag: '',
       remark: '',
       totp: '',
+      pathScope: '',
     });
 
     mgmt.tagArray.value = ['生活'];
