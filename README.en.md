@@ -17,7 +17,7 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 5367 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 5403 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
@@ -175,6 +175,7 @@ One fill takes four steps, all on your own machine:
   - **Portable**: rules export as plain-text JSON (domains, selectors and behaviour overrides only, never credentials) and merge-import by domain with an added / updated / skipped report, so a second machine or a teammate does not rebuild them one by one
 - 💾 **Auto-save credentials**: Chrome-style capture with a save confirmation, smart dedup (identical credentials never re-prompt, a changed password triggers an "Update" confirmation); domain allow/block lists and "Never for this site", and the prompt flags weak or reused passwords inline; **phone or email code sign-in pages (no password field at all) are captured too** — the phone number or email address is stored, the code never is, and an empty password can never clear a password already on file
 - 🎯 **Exact domain matching**: by default every fill entry point and list shows only entries whose host exactly matches the current page, keeping dev / test / staging / prod apart
+- 🧭 **Per-route accounts (path limit)**: when one domain needs two accounts for different SPA routes (e.g. `/#/desktop` and `/#/admin`), set a route prefix under "Advanced options → Path limit" in the manager page. The entry then shows up in the side panel, in-page panel and quick fill only on pages whose **host matches and whose path matches**; leave it empty for any path (older entries keep working). A full URL can be pasted and is normalized on save (query string and trailing slash dropped); the encrypted backup and JSON export carry the field
 - 🌐 **Cross-subdomain matching (off by default)**: the manager page header exposes three tiers
   - **"Exact + wildcard entries"** lets accounts saved as `*.qq.com` span subdomains
   - **"Same root domain"** falls back to `qq.com` and then `music.qq.com` when the current domain has no accounts, labelling those rows "Cross-subdomain"
