@@ -184,15 +184,44 @@ export function filterAndSortEntriesForDomain(
     return matchesPathScope(p.pathScope, path);
   });
 
-  // 关联度即排序权重：off 档下退化为迁移前的 0/1 二值（通用条目仍在其后），
-  // 且与侧边栏列表共用 `siteRankOf` 那一阶梯——两个入口的首条必须是同一条。
-  // 路径细化以 `* 2 + pathScopePriority` 叠加：同主机档位内，显式路径绑定排最前、
-  // 通用条目作回退；`* 2` 只拉开数值间隔，不改变既有相对顺序。
-  const getDomainPriority = (entry: PasswordEntry): number => {
-    if (!domain) return 0;
-    // 过滤阶段已保证只有匹配（tier ≥ 0）且通过端口门的条目进入此分支
-    return siteRankWithEnv(entry.url, domain, page, policy, envHost) * 2 + pathScopePriority(entry.pathScope, path);
-  };
+  return sortPasswordEntries(matched, sort, entry =>
+    domainPriorityWithPath(entry, domain, page, policy, envHost, path),
+  );
+}
 
-  return sortPasswordEntries(matched, sort, getDomainPriority);
+/**
+ * 域名档位 + 路径档位的组合排序权重（数值越小越靠前）
+ *
+ * 这是「侧边栏列表首条 == 内联下拉首条 == 一键填充首条」这条既有不变量的**唯一**实现：
+ * 侧边栏（`App.vue` 的 `domainPriorityOf`）、内联下拉与一键填充（本文件
+ * `filterAndSortEntriesForDomain`）都必须调它，任何一处自行拼权重都会让两个入口
+ * 对同一条目给出不同名次——实测过一次：路径绑定条目在下拉里排第一、在侧边栏却排第二，
+ * 快捷键填到的账号与列表第一行不是同一条。
+ *
+ * 权重构成：
+ * - `siteRankWithEnv * 2`：匹配阶梯（当前端点 → 同主机其他端口 → 通配 → apex → 同主域 →
+ *   通用 → 无关站点）乘 2 只为给路径档位腾出间隔，不改变既有相对顺序（档位差 1 仍大于
+ *   路径差 1）；
+ * - `pathScopePriority`：命中路径绑定取 0、通用条目取 1，于是同档位内显式路径排在前面，
+ *   无路径的条目作回退。
+ *
+ * @param entry 待排序条目
+ * @param domain 当前页面域名（hostname）；空串表示无域名场景，直接返回 0（与调用方口径一致）
+ * @param page 当前页面端口上下文（null 表示取不到）
+ * @param policy 站点匹配策略（档位 + 端口范围）
+ * @param envHost 本地页声明的环境主机
+ * @param path 当前页面路径；缺省表示取不到，路径档位自动放行
+ * @returns 排序权重
+ */
+export function domainPriorityWithPath(
+  entry: PasswordEntry,
+  domain: string,
+  page: PagePortContext | null,
+  policy: EffectiveSitePolicy,
+  envHost: string | null,
+  path?: string,
+): number {
+  if (!domain) return 0;
+  // 调用方已保证只有匹配（tier ≥ 0）且通过端口门的条目进入排序
+  return siteRankWithEnv(entry.url, domain, page, policy, envHost) * 2 + pathScopePriority(entry.pathScope, path);
 }

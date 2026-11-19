@@ -77,6 +77,9 @@ export function parsePasswordJSON(text: string): Omit<PasswordEntry, 'id' | 'ord
         tag: firstPresent(r.tag, r['标签'], r['分类']),
         remark: firstPresent(r.remark, r['备注'], r['说明']),
         totp: firstPresent(r.totp, r['两步验证'], r.otpauth),
+        // 与 exportToJSON 对偶：漏映射会让「导出再导入」把路径作用域静默丢掉，
+        // 条目从「只在某路由出现」变成「全站可见」。具体归一化在边界层统一做。
+        pathScope: firstPresent(r.pathScope, r.path_scope, r['路径作用域'], r['限定路径']),
         createTime: cTime ?? uTime ?? now,
         updateTime: uTime ?? cTime ?? now,
       };

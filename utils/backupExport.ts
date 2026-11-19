@@ -5,6 +5,7 @@ import { formatTimestampCompact } from '@/utils/dateFormat';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { parseBackupContainer, PasswordBackupError } from '@/utils/backup/parseBackupEntries';
+import { normalizePathScope } from './domain';
 import { markVerifiedBackupAt } from '@/utils/storage/configManager';
 import { PBKDF2_ITERATIONS } from '@/utils/cryptoParams';
 
@@ -80,7 +81,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
         tag: p.tag,
         remark: p.remark,
         totp: p.totp,
-        pathScope: p.pathScope,
+        pathScope: normalizePathScope(p.pathScope),
         createTime: p.createTime,
         updateTime: p.updateTime,
         favorite: p.favorite,
@@ -139,7 +140,9 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
           tag: (p.tag ?? '').trim(),
           remark: (p.remark ?? '').trim(),
           totp: (p.totp ?? '').trim(),
-          pathScope: (p.pathScope ?? '').trim(),
+          // 口径必须与解析器一致（它也走 normalizePathScope），否则尾斜杠这类历史值
+          // 会让合法自导出被判成字段漂移、备份不可用
+          pathScope: normalizePathScope(p.pathScope),
           createTime: p.createTime,
           updateTime: p.updateTime,
           favorite: !!p.favorite,

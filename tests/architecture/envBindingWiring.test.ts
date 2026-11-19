@@ -63,7 +63,9 @@ describe('环境绑定门禁（纯函数层）', () => {
 
 describe('环境绑定接线（六个消费面）', () => {
   it('侧边栏把绑定同时用于可见集、排序与徽章', () => {
-    for (const needle of ['envHost: boundEnvHost.value', 'siteRankWithEnv(', 'isAdmittedByEnvOnly(']) {
+    // 排序档位由 `passwordSort.domainPriorityWithPath` 单点给出（它与内联下拉/一键填充共用，
+    // 侧边栏只负责把绑定值传进去），因此这里认的是共享权重函数而不是 `siteRankWithEnv` 本身
+    for (const needle of ['envHost: boundEnvHost.value', 'domainPriorityWithPath(', 'isAdmittedByEnvOnly(']) {
       expect(SIDEPANEL_SRC, `侧边栏缺少接线 ${needle}`).toContain(needle);
     }
   });

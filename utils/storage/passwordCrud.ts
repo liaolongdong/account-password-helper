@@ -31,8 +31,15 @@ import { verifyMasterPassword } from './masterPassword';
  */
 const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 
-/** 敏感字段集合：仅这些字段以密文形式存储，其余为明文元数据 */
-const SENSITIVE_FIELDS = ['username', 'password', 'url', 'remark', 'totp'] as const;
+/**
+ * 敏感字段集合：仅这些字段以密文形式存储，其余为明文元数据
+ *
+ * 必须与 `utils/encryption.ts` 的 `encryptPasswordEntry` 逐字段加密清单保持一致：
+ * 任一处漏登记都会让该字段走「仅元数据」分支以明文写进 `encrypted: true` 的行，
+ * 之后 `decryptPasswordEntry` 解密它会抛错，整条条目连带解密失败。
+ * `pathScope` 与 `url` 同级敏感（都直接暴露账号归属的站点/路由），故在此登记。
+ */
+const SENSITIVE_FIELDS = ['username', 'password', 'url', 'remark', 'totp', 'pathScope'] as const;
 
 /**
  * 敏感编辑落盘时「本次没写到就取最新值」的元数据字段

@@ -16,7 +16,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FormItemRule, FormRules } from 'element-plus';
-import { createPasswordFormRules, createUrlValidator } from '@/utils/formValidators';
+import { createPasswordFormRules, createPathScopeValidator, createUrlValidator } from '@/utils/formValidators';
 import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH, MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 import { MAX_PASSWORD_LEN, MAX_REMARK_LEN, MAX_URL_LEN, MAX_USERNAME_LEN } from '@/utils/backup/constants';
 import { MAX_PASSPHRASE_LENGTH } from '@/utils/passphraseGenerator';
@@ -60,20 +60,43 @@ function validateUrl(value: string): string | undefined {
   return message;
 }
 
+/**
+ * 执行路径作用域校验器并返回错误消息
+ *
+ * @param value 待校验的路径作用域输入
+ * @returns 错误消息（即 i18n 键）；通过校验时为 undefined
+ */
+function validatePathScope(value: string): string | undefined {
+  let message: string | undefined;
+  createPathScopeValidator(t)(undefined, value, error => {
+    message = error?.message;
+  });
+  return message;
+}
+
 describe('createPasswordFormRules', () => {
   beforeEach(() => {
     requestedKeys.length = 0;
   });
 
-  it('只约束 username / password / url / remark，不含 tag', () => {
-    expect(Object.keys(createPasswordFormRules(t)).sort()).toEqual(['password', 'remark', 'url', 'username']);
+  it('只约束 username / password / url / remark / pathScope，不含 tag', () => {
+    expect(Object.keys(createPasswordFormRules(t)).sort()).toEqual([
+      'password',
+      'pathScope',
+      'remark',
+      'url',
+      'username',
+    ]);
   });
 
   it('消费的 i18n 键与保留字段一一对应（不含已删除的 form.tagMax）', () => {
     createPasswordFormRules(t);
 
+    // `form.pathScopeInvalid` 只在触发校验（失焦/提交）时按需取词，不在工厂构建期消费，
+    // 其存在性由 `createPathScopeValidator` 一节断言
     expect([...new Set(requestedKeys)].sort()).toEqual([
       'form.passwordMax',
+      'form.pathScopeMax',
       'form.remarkMax',
       'form.urlMax',
       'form.usernameMax',
@@ -97,6 +120,14 @@ describe('createPasswordFormRules', () => {
     expect(urlRules[0]).toEqual({ max: 100, message: 'form.urlMax', trigger: 'blur' });
     expect(urlRules[1].trigger).toBe('blur');
     expect(typeof urlRules[1].validator).toBe('function');
+
+    const pathScopeRules = rulesOf(rules, 'pathScope');
+    expect(pathScopeRules[0]).toEqual({
+      max: PASSWORD_FIELD_LIMITS.pathScope,
+      message: 'form.pathScopeMax',
+      trigger: 'blur',
+    });
+    expect(typeof pathScopeRules[1].validator).toBe('function');
   });
 
   it('password 上限可容纳生成器最长输出（长助记词组编辑态不被拒）', () => {
@@ -120,6 +151,25 @@ describe('createPasswordFormRules', () => {
     // 92 字符远超修复前规则的 max: 50，正是当时误拦合法组合的根因
     expect(longestLegalTag.length).toBeGreaterThan(50);
     expect(createPasswordFormRules(t)).not.toHaveProperty('tag');
+  });
+});
+
+describe('createPathScopeValidator', () => {
+  it('空值通过（选填字段）', () => {
+    expect(validatePathScope('')).toBeUndefined();
+    expect(validatePathScope('   ')).toBeUndefined();
+  });
+
+  it('路径 / 裸片段 / 完整网址均通过', () => {
+    expect(validatePathScope('/#/desktop')).toBeUndefined();
+    expect(validatePathScope('desktop')).toBeUndefined();
+    expect(validatePathScope('https://a.com/#/desktop')).toBeUndefined();
+    // 无路径的完整网址归一成 `/`（只匹配站点根页），属合法输入
+    expect(validatePathScope('https://a.com')).toBeUndefined();
+  });
+
+  it('非空但无法归一化的输入报错（否则会静默变成「不限路径」）', () => {
+    expect(validatePathScope('https://')).toBe('form.pathScopeInvalid');
   });
 });
 

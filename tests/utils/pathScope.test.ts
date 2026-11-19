@@ -9,8 +9,13 @@ import {
   type PortScope,
   type SitePolicy,
 } from '@/utils/domain';
-import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT } from '@/utils/passwordSort';
-import { matchesSiteScope, type ScopeContext } from '@/utils/passwordFilter';
+import {
+  filterAndSortEntriesForDomain,
+  sortPasswordEntries,
+  domainPriorityWithPath,
+  DEFAULT_SIDEPANEL_SORT,
+} from '@/utils/passwordSort';
+import { filterEntriesByScope, matchesSiteScope, type ScopeContext } from '@/utils/passwordFilter';
 import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
 
 /**
@@ -71,6 +76,24 @@ describe('normalizePathScope 归一化', () => {
 
   it('剥掉 query', () => {
     expect(normalizePathScope('/desktop?q=1')).toBe('/desktop');
+  });
+
+  /**
+   * 回归背景：保留尾斜杠时前缀判据会拼成 `/desktop//`，除「完全等于 /desktop/」的页面外
+   * 谁也不命中——用户填了作用域却一条都看不到。
+   */
+  it('尾斜杠折叠成同一作用域', () => {
+    expect(normalizePathScope('/desktop/')).toBe('/desktop');
+    expect(normalizePathScope('https://a.com/#/desktop/')).toBe('/#/desktop');
+    expect(normalizePathScope('/desktop///')).toBe('/desktop');
+  });
+
+  it('hash 根 /#/ 与站点根 / 不折叠（折叠会把「精确」放宽成「全部」）', () => {
+    expect(normalizePathScope('/#/')).toBe('/#/');
+    expect(normalizePathScope('https://a.com/#/')).toBe('/#/');
+    expect(normalizePathScope('/')).toBe('/');
+    // 站点根仍然只匹配首页：`/` 不会前缀命中 `/desktop`
+    expect(matchesPathScope(normalizePathScope('/'), '/desktop')).toBe(false);
   });
 });
 
@@ -153,6 +176,45 @@ describe('filterAndSortEntriesForDomain 路径门与排序', () => {
       null,
     );
     expect(list.map(p => p.id).sort()).toEqual(['desktop', 'general']);
+  });
+});
+
+describe('侧边栏与内联下拉/一键填充的首条一致性', () => {
+  /**
+   * 回归背景：路径档位只加进了 `filterAndSortEntriesForDomain`，侧边栏的 `domainPriorityOf`
+   * 仍只算站点档位。结果是「通用条目最近用过、路径条目很久没用」时，下拉与快捷键填的是
+   * 路径账号，侧边栏第一行却是通用账号。这里同时钉住顺序相同，而不只是集合相同。
+   */
+  it('两入口对同一页面给出相同的条目顺序', () => {
+    const general = entry({ id: 'general', url: 'https://example.com', lastUsedAt: 100 });
+    const scoped = entry({ id: 'scoped', url: 'https://example.com', pathScope: '/#/desktop', lastUsedAt: 1 });
+    const pageCtx = page('https://example.com/#/desktop');
+    const pagePath = '/#/desktop';
+    const sitePolicy = policy();
+
+    const dropdown = filterAndSortEntriesForDomain(
+      [general, scoped],
+      'example.com',
+      DEFAULT_SIDEPANEL_SORT,
+      pageCtx,
+      sitePolicy,
+      null,
+      pagePath,
+    );
+
+    // 侧边栏链路：范围过滤 + 同一个权重函数（App.vue 的 domainPriorityOf 直接委托它）
+    const sidebar = filterEntriesByScope(
+      [general, scoped],
+      'site',
+      { domain: 'example.com', page: pageCtx, envHost: null, path: pagePath },
+      sitePolicy,
+    );
+    sortPasswordEntries(sidebar, DEFAULT_SIDEPANEL_SORT, e =>
+      domainPriorityWithPath(e, 'example.com', pageCtx, sitePolicy, null, pagePath),
+    );
+
+    expect(dropdown.map(e => e.id)).toEqual(['scoped', 'general']);
+    expect(sidebar.map(e => e.id)).toEqual(dropdown.map(e => e.id));
   });
 });
 

@@ -39,6 +39,15 @@ export const PASSWORD_FIELD_LIMITS = {
   url: 100,
   tag: 50,
   remark: 1000,
+  /**
+   * 路径作用域（`PasswordEntry.pathScope`）
+   *
+   * 只承载「路由前缀」，不是完整网址：200 足以覆盖常见 SPA 的 `pathname + hash` 前缀。
+   * 刻意不复用 `url`（100）——深层 hash 路由会被输入框静默截断，截断后的前缀要么不再命中、
+   * 要么命中到相邻路由，两种都难排查。导入侧仍按 `MAX_URL_LEN`（2048）收口，
+   * 以保证任何自导出文件都能回灌。
+   */
+  pathScope: 200,
 } as const;
 
 /**

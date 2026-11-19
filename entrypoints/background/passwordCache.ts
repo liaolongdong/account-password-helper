@@ -757,7 +757,9 @@ export async function getMatchingAccounts(
 
   // 计数只服务空态那一行提示（「本站无账号、同主域还有 N 条」），描述的是本站而非关键词：
   // 因此按过滤前的 matched 判定，避免带关键词的检索把提示计数改口径。
-  const crossDomainCount = matched.length ? 0 : countSameMainDomainCandidates(cache.passwords, domain, policy, page);
+  const crossDomainCount = matched.length
+    ? 0
+    : countSameMainDomainCandidates(cache.passwords, domain, policy, page, path);
 
   return { locked: false, accounts, crossDomainCount, totalMatched };
 }

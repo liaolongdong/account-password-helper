@@ -1181,17 +1181,22 @@ export function isHiddenByPortOnly(
  *
  * 侧边栏与内联下拉共用本函数，避免两处各自演化出分歧的引导计数。
  *
- * @param entries - 仅需携带 `url` 字段的条目集合（全库，非过滤后的子集）
+ * 路径作用域同样参与：被 `pathScope` 挡住的条目放宽档位后依然看不到，
+ * 计入就会让提示说「还有 N 条」、点进去却一条不出（与端口轴同一条口径）。
+ *
+ * @param entries - 仅需携带 `url` / `pathScope` 的条目集合（全库，非过滤后的子集）
  * @param currentHost - 当前页面 hostname，空串表示无域名场景
  * @param policy - 站点匹配策略（档位 + 端口范围）
  * @param page - 页面端口上下文，null 表示不可得
+ * @param path - 当前页面路径（见 `pagePathOf`）；缺省表示取不到，路径门放行
  * @returns 可被放宽带出且真能显示的条目数
  */
 export function countSameMainDomainCandidates(
-  entries: readonly { url?: string }[],
+  entries: readonly ScopedEntryRef[],
   currentHost: string,
   policy: SitePolicy,
   page: PagePortContext | null,
+  path?: string,
 ): number {
   if (!currentHost || policy.mode === 'sameMainDomain' || isLoopbackHost(currentHost)) return 0;
   let count = 0;
@@ -1201,6 +1206,7 @@ export function countSameMainDomainCandidates(
     // 「当前档位下看不到、放宽后才看得到」才是这句提示要数的条目：当前已匹配的条目不计（它本来就显示着）
     if (resolveMatchTier(currentHost, entry.url, policy.mode) !== -1) continue;
     if (!matchesPortScope(entry.url, page, policy.portScope)) continue;
+    if (!matchesPathScope(entry.pathScope, path)) continue;
     count += 1;
   }
   return count;
@@ -1216,23 +1222,29 @@ export function countSameMainDomainCandidates(
  * 公网主机在 `loose` / `relaxed` 下恒为 0：那两档不比端口，默认路径因此零额外遍历。
  * 环回主机在 `loose` 下仍按端点过滤，那里恰恰是「悄悄少了几条」的高发场景，必须数。
  *
- * @param entries - 仅需携带 `url` 字段的条目集合（全库，非过滤后的子集）
+ * 路径作用域参与「点进去之后到底看不看得到」的同一判据：放宽端口后仍被 `pathScope`
+ * 挡住的条目不计，否则芯片会出现「说有几条、放宽后一条不出」的自相矛盾。
+ *
+ * @param entries - 仅需携带 `url` / `pathScope` 的条目集合（全库，非过滤后的子集）
  * @param currentHost - 当前页面 hostname，空串表示无域名场景
  * @param policy - 站点匹配策略（档位 + 端口范围）
  * @param page - 页面端口上下文，null 表示不可得
+ * @param path - 当前页面路径（见 `pagePathOf`）；缺省表示取不到，路径门放行
  * @returns 因端口不一致而未显示的条目数
  */
 export function countPortHiddenCandidates(
-  entries: readonly { url?: string }[],
+  entries: readonly ScopedEntryRef[],
   currentHost: string,
   policy: EffectiveSitePolicy,
   page: PagePortContext | null,
+  path?: string,
 ): number {
   // 公网 + `loose` 结构上不存在被端口挡住的条目，省掉一整轮遍历；
   // 环回主机在 `loose` 下仍按端点过滤，那里恰恰是「悄悄少了几条」的高发场景，必须数
   if (!currentHost || (policy.portScope === 'loose' && !isLoopbackHost(currentHost))) return 0;
   let count = 0;
   for (const entry of entries) {
+    if (!matchesPathScope(entry.pathScope, path)) continue;
     if (isHiddenByPortOnly(entry.url, currentHost, page, policy)) count += 1;
   }
   return count;
@@ -1251,6 +1263,14 @@ export function countPortHiddenCandidates(
  * - `https://a.com/login`      → `/login`
  * - `https://a.com/`           → `/`
  */
+
+/**
+ * 计数类函数所需的最小条目形状
+ *
+ * 只声明显示判据真正读到的两个字段（`url` 决定主机/端口档，`pathScope` 决定路径门），
+ * 于是调用方可以直接传全量 `PasswordEntry[]`，也可以在基准测试里传最小夹具。
+ */
+export type ScopedEntryRef = { url?: string; pathScope?: string };
 
 /**
  * 由 pathname 与 hash 合成规范化页面路径
@@ -1273,6 +1293,13 @@ export function pagePathOf(pathname: string | undefined, hash: string | undefine
  * 接受完整 URL、绝对路径（`/desktop`、`/#/desktop`）或裸片段（`desktop`、`#/desktop`），
  * 统一成 `pathname + hash` 口径、剥掉 query。空串表示「不限路径」。
  *
+ * 尾斜杠会被剥掉（`/desktop/` 与 `/desktop` 视为同一作用域）：保留尾斜杠时
+ * {@link matchesPathScope} 的前缀判据会变成 `${scope}/` = `/desktop//`，
+ * 结果是「除了完全等于 `/desktop/` 的页面谁也不命中」——用户填了却看不到任何条目。
+ *
+ * 唯一的例外是 hash 根 `/#/`：它表达的是「只要 hash 路由的根页」，剥成 `/#`
+ * 反而会前缀命中所有 `/#/*` 子路由，属于把「精确」放宽成「全部」。
+ *
  * @param value - 用户录入或自动保存的路径作用域
  * @returns 归一化路径；无法归一化时返回空串（等同不限路径）
  *
@@ -1281,6 +1308,7 @@ export function pagePathOf(pathname: string | undefined, hash: string | undefine
  * normalizePathScope('/desktop')                 // → '/desktop'
  * normalizePathScope('desktop')                  // → '/desktop'
  * normalizePathScope('#/desktop')                // → '/#/desktop'
+ * normalizePathScope('/desktop/')                // → '/desktop'
  * normalizePathScope('')                         // → ''
  */
 export function normalizePathScope(value: string | undefined | null): string {
@@ -1302,7 +1330,10 @@ export function normalizePathScope(value: string | undefined | null): string {
     path = `/${raw}`;
   }
   const withoutQuery = path.split('?')[0];
-  return withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+  const rooted = withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+  // 尾斜杠折叠成同一作用域；`/#/`（hash 根）例外，见函数注释
+  const isRoot = rooted === '/' || rooted.endsWith('#/');
+  return isRoot ? rooted : rooted.replace(/\/+$/, '');
 }
 
 /**

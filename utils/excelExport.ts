@@ -109,6 +109,10 @@ export function downloadTemplate(): void {
  * 导出密码数据为 JSON 文件
  * 导出结构：`{ version, exportedAt, count, entries }`
  *
+ * `pathScope` 一并导出：JSON 是本扩展自有格式且可回导（`parsePasswordJSON` 读同一字段），
+ * 漏掉它会让「导出再导入」把「只在某个路由出现的条目」静默放宽成「全站可见」。
+ * 反方向（CSV）没有该列，属既有的列格式约定，不在此处改动。
+ *
  * @param passwords 待导出的密码列表
  * @param filename  导出文件名，默认 `passwords.json`
  */
@@ -125,6 +129,7 @@ export function exportToJSON(passwords: PasswordEntry[], filename: string = 'pas
         tag: p.tag,
         remark: p.remark,
         totp: p.totp,
+        pathScope: p.pathScope ?? '',
         createTime: p.createTime,
         updateTime: p.updateTime,
       })),

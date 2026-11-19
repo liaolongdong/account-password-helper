@@ -180,7 +180,12 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { getSiteRules, resolveSiteRuleForHosts, type SiteRule } from '@/utils/storage/siteRules';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
-import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import {
+  sortPasswordEntries,
+  DEFAULT_SIDEPANEL_SORT,
+  domainPriorityWithPath,
+  type SortState,
+} from '@/utils/passwordSort';
 import {
   applyListFilters,
   filterEntriesByScope,
@@ -211,7 +216,6 @@ import {
   isHiddenByPortOnly,
   effectiveEnvHost,
   isAdmittedByEnvOnly,
-  siteRankWithEnv,
   rawPortOf,
   countSameMainDomainCandidates,
   countPortHiddenCandidates,
@@ -707,11 +711,22 @@ const availableTags = computed(() => {
  *
  * 环境绑定参与排序但不越权：绑定轴上「精确命中环境主机」同样是 0，与本机当前端点并列，
  * 谁先谁后仍由「收藏置顶 → 排序字段」决定，避免再发明一层「绑了就永远第一」的隐式权重。
+ *
+ * 路径档位（命中 `pathScope` 的条目排在同档位最前）**必须**由 `domainPriorityWithPath` 一并给出：
+ * 内联下拉与一键填充用的是同一个函数，任何一处自行拼权重都会让「快捷键填到的账号」与
+ * 「侧边栏第一行」不是同一条，而这条一致性是既有产品不变量。
  */
 const domainPriorityOf = (entry: PasswordEntry): number => {
   const domain = currentDomain.value;
   if (!domain) return getDomainPriority(entry);
-  return siteRankWithEnv(entry.url, domain, scopeContext.value.page, sitePolicy.value, boundEnvHost.value);
+  return domainPriorityWithPath(
+    entry,
+    domain,
+    scopeContext.value.page,
+    sitePolicy.value,
+    boundEnvHost.value,
+    scopeContext.value.path,
+  );
 };
 
 /** 搜索 + 范围过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
@@ -746,7 +761,13 @@ const globalMatchCount = computed(() => {
  */
 const crossDomainHintCount = computed(() => {
   if (searchScope.value === 'all' || globalMatchCount.value === 0) return 0;
-  return countSameMainDomainCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
+  return countSameMainDomainCandidates(
+    passwords.value,
+    currentDomain.value,
+    sitePolicy.value,
+    currentPagePort.value,
+    currentPath.value,
+  );
 });
 
 /**
@@ -759,7 +780,13 @@ const crossDomainHintCount = computed(() => {
 const portHiddenHintCount = computed(() => {
   if (searchScope.value === 'all' || globalMatchCount.value === 0) return 0;
   if (portRelaxedTemporarily.value) return 0;
-  return countPortHiddenCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
+  return countPortHiddenCandidates(
+    passwords.value,
+    currentDomain.value,
+    sitePolicy.value,
+    currentPagePort.value,
+    currentPath.value,
+  );
 });
 
 /**
@@ -773,7 +800,13 @@ const portHiddenHintCount = computed(() => {
  */
 const portHiddenTotal = computed(() => {
   if (portRelaxedTemporarily.value || searchScope.value === 'all') return 0;
-  return countPortHiddenCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
+  return countPortHiddenCandidates(
+    passwords.value,
+    currentDomain.value,
+    sitePolicy.value,
+    currentPagePort.value,
+    currentPath.value,
+  );
 });
 
 /**

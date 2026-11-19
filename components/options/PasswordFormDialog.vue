@@ -186,7 +186,10 @@
         </el-form-item>
 
         <!-- 高级选项折叠区：路径作用域是进阶字段，默认收起避免主表单噪音 -->
-        <el-collapse v-model="activePanels">
+        <el-collapse
+          v-model="activePanels"
+          class="advanced-options"
+        >
           <el-collapse-item
             :title="t('options.form.advancedOptions')"
             name="advanced"
@@ -200,7 +203,8 @@
                 :placeholder="t('options.form.pathScopePlaceholder')"
                 :disabled="loading"
                 clearable
-                :maxlength="PASSWORD_FIELD_LIMITS.url"
+                :maxlength="PASSWORD_FIELD_LIMITS.pathScope"
+                @blur="handlePathScopeBlur"
               />
               <div class="form-tip">
                 {{ t('options.form.pathScopeTip') }}
@@ -278,6 +282,7 @@ import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopo
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
 import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH, MAX_TAG_COUNT } from '@/utils/constants';
+import { normalizePathScope } from '@/utils/domain';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { copySecretToClipboard } from '@/utils/clipboard';
@@ -392,6 +397,21 @@ watch(
     if (visible) activePanels.value = props.form.pathScope.trim() ? ['advanced'] : [];
   },
 );
+
+/**
+ * 路径作用域失焦归一化
+ *
+ * 把用户输入折叠成匹配层真正使用的形态并回填输入框，让「填了什么」与「会怎么匹配」
+ * 在提交前就一致：`/desktop/` 变 `/desktop`（尾斜杠会让前缀判据变成 `//`，几乎谁都不命中），
+ * 粘贴完整网址时只剩 `pathname + hash`（否则它会当成字面量路径，一条都匹配不上）。
+ * 无法归一化的输入保持原样，交由 `createPathScopeValidator` 在提交时报错。
+ */
+const handlePathScopeBlur = () => {
+  const raw = localForm.pathScope.trim();
+  if (!raw) return;
+  const normalized = normalizePathScope(raw);
+  if (normalized) localForm.pathScope = normalized;
+};
 
 /** 密码输入框焦点状态 */
 const formPasswordInputFocused = ref(false);
@@ -636,6 +656,31 @@ defineExpose({ formRef: localFormRef });
   font-size: 12px;
   line-height: 1.5;
   color: var(--aph-text-muted);
+}
+
+/* 高级选项：弱化为「轻量章节标题」——去掉 Element Plus 折叠面板的上下边框，
+   只留标题行与箭头，避免在表单里看起来像另一张独立卡片 */
+.advanced-options {
+  margin-top: 4px;
+}
+
+.advanced-options :deep(.el-collapse),
+.advanced-options :deep(.el-collapse-item__header),
+.advanced-options :deep(.el-collapse-item__wrap) {
+  border-top: none;
+  border-bottom: none;
+}
+
+.advanced-options :deep(.el-collapse-item__header) {
+  height: auto;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aph-text-primary);
+}
+
+.advanced-options :deep(.el-collapse-item__content) {
+  padding: 4px 0 0;
 }
 
 .password-history-section {
