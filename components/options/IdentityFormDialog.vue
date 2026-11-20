@@ -64,30 +64,7 @@
           </div>
         </el-form-item>
 
-        <!-- 更多字段折叠区：所有类别都能看到全部字段 -->
-        <el-collapse v-model="activePanels">
-          <el-collapse-item
-            :title="t('identity.form.moreFields')"
-            name="more"
-          >
-            <el-form-item
-              v-for="fieldKey in collapseFieldKeys"
-              :key="fieldKey"
-              :label="t(`identity.field.${fieldKey}`)"
-              :prop="fieldKey"
-            >
-              <el-input
-                v-model="localForm[fieldKey]"
-                :placeholder="t(`identity.form.placeholder.${fieldKey}`)"
-                :maxlength="fieldMaxlength(fieldKey)"
-                clearable
-                show-word-limit
-              />
-            </el-form-item>
-          </el-collapse-item>
-        </el-collapse>
-
-        <!-- 备注：所有类别恒定可见 -->
+        <!-- 备注：恒常可见的常用字段，留在核心区；分隔线只划分「扩展字段」 -->
         <el-form-item :label="t('identity.field.remark')">
           <el-input
             v-model="localForm.remark"
@@ -99,51 +76,111 @@
           />
         </el-form-item>
 
-        <!-- 自定义字段：所有类别恒定可见 -->
-        <div class="identity-form__custom">
-          <div class="identity-form__custom-header">
-            <span>{{ t('identity.form.customFieldsTitle') }}</span>
+        <!-- 扩展信息组：更多字段 / 自定义字段共用一条分隔线与标题节奏 -->
+        <div class="identity-form__extra">
+          <!-- 更多字段折叠区：所有类别都能看到全部字段 -->
+          <el-collapse
+            v-model="activePanels"
+            class="identity-form__more"
+          >
+            <el-collapse-item name="more">
+              <template #title>
+                <span class="identity-form__section-title">{{ t('identity.form.moreFields') }}</span>
+                <span
+                  v-if="filledMoreCount > 0"
+                  class="identity-form__badge"
+                >
+                  {{ t('identity.form.filledCount', { count: filledMoreCount }) }}
+                </span>
+              </template>
+              <el-form-item
+                v-for="fieldKey in collapseFieldKeys"
+                :key="fieldKey"
+                :label="t(`identity.field.${fieldKey}`)"
+                :prop="fieldKey"
+              >
+                <el-input
+                  v-model="localForm[fieldKey]"
+                  :placeholder="t(`identity.form.placeholder.${fieldKey}`)"
+                  :maxlength="fieldMaxlength(fieldKey)"
+                  clearable
+                  show-word-limit
+                />
+              </el-form-item>
+            </el-collapse-item>
+          </el-collapse>
+
+          <!-- 自定义字段：所有类别恒定可见 -->
+          <div class="identity-form__custom">
+            <div class="identity-form__custom-header">
+              <span class="identity-form__section-title">{{ t('identity.form.customFieldsTitle') }}</span>
+            </div>
+            <TransitionGroup
+              name="identity-custom-row"
+              tag="div"
+              class="identity-form__custom-rows"
+            >
+              <div
+                v-for="field in localForm.customFields"
+                :key="field.id"
+                class="identity-form__custom-row"
+              >
+                <el-input
+                  :ref="el => setLabelRef(field.id, el)"
+                  v-model="field.label"
+                  :placeholder="t('identity.form.customLabelPlaceholder')"
+                  :maxlength="MAX_LABEL_LEN"
+                  clearable
+                  class="identity-form__custom-label"
+                />
+                <el-input
+                  v-model="field.value"
+                  :placeholder="t('identity.form.customValuePlaceholder')"
+                  :maxlength="MAX_FIELD_VALUE_LEN"
+                  clearable
+                  class="identity-form__custom-value"
+                />
+                <el-tooltip
+                  :content="t('identity.form.secret')"
+                  placement="top"
+                >
+                  <span class="identity-form__custom-secret">
+                    <el-switch
+                      v-model="field.secret"
+                      size="default"
+                      :aria-label="t('identity.form.secret')"
+                    />
+                    <span class="identity-form__custom-secret-label">{{ t('identity.form.secretShort') }}</span>
+                  </span>
+                </el-tooltip>
+                <el-button
+                  :icon="Delete"
+                  :aria-label="t('common.delete')"
+                  link
+                  @click="removeCustomField(field.id)"
+                />
+              </div>
+            </TransitionGroup>
             <el-button
+              v-if="localForm.customFields.length < MAX_CUSTOM_FIELDS"
+              class="identity-form__custom-add"
               :icon="Plus"
-              link
-              type="primary"
-              size="small"
-              :disabled="localForm.customFields.length >= MAX_CUSTOM_FIELDS"
               @click="addCustomField"
             >
               {{ t('identity.form.addCustomField') }}
             </el-button>
-          </div>
-          <div
-            v-for="field in localForm.customFields"
-            :key="field.id"
-            class="identity-form__custom-row"
-          >
-            <el-input
-              v-model="field.label"
-              :placeholder="t('identity.form.customLabelPlaceholder')"
-              :maxlength="MAX_LABEL_LEN"
-              clearable
-              class="identity-form__custom-label"
-            />
-            <el-input
-              v-model="field.value"
-              :placeholder="t('identity.form.customValuePlaceholder')"
-              :maxlength="MAX_FIELD_VALUE_LEN"
-              clearable
-              class="identity-form__custom-value"
-            />
-            <el-switch
-              v-model="field.secret"
-              :active-text="t('identity.form.secret')"
-              class="identity-form__custom-secret"
-            />
-            <el-button
-              :icon="Delete"
-              :aria-label="t('common.delete')"
-              link
-              @click="removeCustomField(field.id)"
-            />
+            <div
+              v-else
+              class="identity-form__custom-limit"
+            >
+              {{ t('identity.form.customLimit', { max: MAX_CUSTOM_FIELDS }) }}
+            </div>
+            <div
+              v-if="localForm.customFields.length === 0"
+              class="identity-form__custom-empty"
+            >
+              {{ t('identity.form.customEmptyHint') }}
+            </div>
           </div>
         </div>
       </el-form>
@@ -182,6 +219,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import type { FormInstance } from 'element-plus';
 import { Delete, Plus } from '@element-plus/icons-vue';
 import type { IdentityCategory, IdentityCustomField, IdentityEntry, IdentityPayload } from '@/utils/identity/types';
@@ -310,6 +348,11 @@ const collapseFieldKeys = computed<IdentityFieldKey[]>(() =>
   ALL_FIELDS.filter(key => !defaultFieldKeys.value.includes(key)),
 );
 
+/** 折叠区已填字段数（>0 时折叠头显示徽章，避免隐藏数据不可见） */
+const filledMoreCount = computed<number>(
+  () => collapseFieldKeys.value.filter(key => localForm[key].trim() !== '').length,
+);
+
 /** 字段长度上限查询（模板用） */
 const fieldMaxlength = (key: IdentityFieldKey): number => FIELD_MAXLENGTH[key];
 
@@ -329,18 +372,34 @@ function applyPayload(src?: IdentityPayload): void {
   localForm.remark = src?.remark ?? '';
   localForm.customFields = (src?.customFields ?? []).map(field => ({ ...field }));
   warnings.value = [];
-  activePanels.value = [];
+  // 编辑回填时折叠区已有值则默认展开，隐藏数据不静默；新增仍收起
+  const collapsedKeys = ALL_FIELDS.filter(key => !DEFAULT_FIELDS[localForm.category].includes(key));
+  activePanels.value = src && collapsedKeys.some(key => (src[key] ?? '').trim() !== '') ? ['more'] : [];
   void nextTick(() => formRef.value?.clearValidate());
 }
 
-/** 添加自定义字段（达到上限时按钮禁用，此处不再重复判断） */
+/** 添加自定义字段并聚焦新行的字段名输入框（达到上限时按钮已不可见，此处不再重复判断） */
 function addCustomField(): void {
-  localForm.customFields.push({ id: generateId(), label: '', value: '', secret: false });
+  const id = generateId();
+  localForm.customFields.push({ id, label: '', value: '', secret: false });
+  void nextTick(() => labelRefs.get(id)?.focus());
 }
 
 /** 删除自定义字段 */
 function removeCustomField(id: string): void {
   localForm.customFields = localForm.customFields.filter(field => field.id !== id);
+}
+
+/** 新行字段名输入框实例表：函数 ref 在挂载/卸载时登记与清理，供新增后聚焦 */
+const labelRefs = new Map<string, { focus: () => void }>();
+
+/** 登记/注销自定义字段名输入框（TransitionGroup 卸载时回调传 null） */
+function setLabelRef(id: string, el: Element | ComponentPublicInstance | null): void {
+  if (el && 'focus' in el && typeof el.focus === 'function') {
+    labelRefs.set(id, el as { focus: () => void });
+    return;
+  }
+  labelRefs.delete(id);
 }
 
 /** 是否至少填写了一个字段（name/各字段/自定义字段） */
@@ -421,17 +480,99 @@ function handleClosed(): void {
   color: var(--el-text-color-secondary);
 }
 
+/* 扩展信息组：与默认字段区一条分隔线之隔，组内标题共用同一节奏 */
+.identity-form__extra {
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.identity-form__section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.identity-form__badge {
+  padding: 0 8px;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 10px;
+}
+
+/* 接管 EP collapse 默认外观：去掉三线边框与 13px 小字头，改为组内 section header */
+.identity-form__more {
+  border-top: none;
+  border-bottom: none;
+}
+
+.identity-form__more :deep(.el-collapse-item__header) {
+  height: 40px;
+  font-size: 14px;
+  line-height: 40px;
+  color: var(--el-text-color-regular);
+  border-bottom: none;
+}
+
+.identity-form__more :deep(.el-collapse-item__header:hover),
+.identity-form__more :deep(.el-collapse-item__header:focus-visible) {
+  color: var(--el-color-primary);
+}
+
+.identity-form__more :deep(.el-collapse-item__arrow) {
+  color: var(--el-text-color-secondary);
+}
+
+.identity-form__more :deep(.el-collapse-item__header:hover .el-collapse-item__arrow) {
+  color: var(--el-color-primary);
+}
+
+.identity-form__more :deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+}
+
+.identity-form__more :deep(.el-collapse-item__content) {
+  padding-bottom: 0;
+}
+
 .identity-form__custom {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .identity-form__custom-header {
   display: flex;
+  gap: 8px;
   align-items: center;
-  justify-content: space-between;
+  margin-top: 8px;
   margin-bottom: 8px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
+}
+
+.identity-form__custom-add {
+  width: 100%;
+  height: 36px;
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  background: transparent;
+  border-style: dashed;
+}
+
+.identity-form__custom-add:hover,
+.identity-form__custom-add:focus-visible {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary);
+}
+
+.identity-form__custom-limit,
+.identity-form__custom-empty {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
 }
 
 /* link 型按钮（添加字段 / 删除）：透明底 + 主色文字。
@@ -444,6 +585,10 @@ function handleClosed(): void {
   border-color: transparent;
 }
 
+.identity-form__custom-rows {
+  position: relative;
+}
+
 .identity-form__custom-row {
   display: flex;
   gap: 8px;
@@ -451,8 +596,9 @@ function handleClosed(): void {
   margin-bottom: 8px;
 }
 
+/* 字段名列加宽到 160px：容纳中英字段名占位符，避免截断 */
 .identity-form__custom-label {
-  flex: 0 0 140px;
+  flex: 0 0 160px;
 }
 
 .identity-form__custom-value {
@@ -460,8 +606,52 @@ function handleClosed(): void {
   min-width: 0;
 }
 
+/* 机密列定宽：开关文案常驻展示（不再用 active-text 随开关显隐），开关切换不引起整行宽度跳变 */
 .identity-form__custom-secret {
-  flex-shrink: 0;
+  display: inline-flex;
+  flex: 0 0 88px;
+  gap: 6px;
+  align-items: center;
+}
+
+.identity-form__custom-secret-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.identity-custom-row-enter-active,
+.identity-custom-row-leave-active {
+  transition:
+    opacity var(--el-transition-duration-fast) ease,
+    transform var(--el-transition-duration-fast) ease;
+}
+
+.identity-custom-row-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.identity-custom-row-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.identity-custom-row-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
+.identity-custom-row-move {
+  transition: transform var(--el-transition-duration) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .identity-custom-row-enter-active,
+  .identity-custom-row-leave-active,
+  .identity-custom-row-move {
+    transition: none;
+  }
 }
 
 .identity-form__warnings {
