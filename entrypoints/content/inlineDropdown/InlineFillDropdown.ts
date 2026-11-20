@@ -422,35 +422,110 @@ const inlineStyles = `
   text-align: center;
 }
 
-/* 首帧加载骨架：数据回来前先把面板亮出来，避免快捷键按下后"没反应" */
-.aph-loading {
+/* 首帧骨架屏：按真实「搜索栏 + 3 行账号」的比例占位。
+   行高固定 53px（与 .aph-row 实测一致），数据回来时面板高度基本不跳，
+   避免慢回包下「spinner 小条 → 列表」造成的高度闪烁。 */
+.aph-skeleton {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.aph-skeleton-search {
+  display: flex;
+  flex-shrink: 0;
   align-items: center;
-  padding: 16px 14px;
-  font-size: 13px;
-  color: var(--aph-text-muted, #9aa3af);
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f2f5;
 }
 
-.aph-loading-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--aph-primary-border, rgba(148, 163, 184, 0.35));
-  border-top-color: var(--aph-primary, #409eff);
+.aph-skeleton-list {
+  padding: 6px 0;
+}
+
+.aph-skeleton-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  height: 53px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+
+.aph-skeleton-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  animation: aphSpin 0.8s linear infinite;
 }
 
-@keyframes aphSpin {
+.aph-skeleton-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.aph-skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.aph-skeleton-line--primary {
+  width: 42%;
+}
+
+.aph-skeleton-line--secondary {
+  width: 64%;
+  height: 8px;
+}
+
+.aph-skeleton-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+}
+
+.aph-skeleton-icon,
+.aph-skeleton-line,
+.aph-skeleton-bar {
+  background: linear-gradient(
+    90deg,
+    var(--aph-surface-2, rgba(148, 163, 184, 0.12)) 25%,
+    var(--aph-primary-bg, rgba(64, 158, 255, 0.1)) 37%,
+    var(--aph-surface-2, rgba(148, 163, 184, 0.12)) 63%
+  );
+  background-size: 400% 100%;
+  animation: aphShimmer 1.4s ease infinite;
+}
+
+@keyframes aphShimmer {
+  from {
+    background-position: 100% 0;
+  }
+
   to {
-    transform: rotate(360deg);
+    background-position: 0 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aph-loading-spinner {
+  .aph-skeleton-icon,
+  .aph-skeleton-line,
+  .aph-skeleton-bar {
     animation: none;
   }
+}
+
+/* 骨架屏的无障碍替代文本：视觉隐藏但保持读屏可播报 */
+.aph-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .aph-empty-add-btn {
@@ -1214,25 +1289,51 @@ export class InlineFillDropdown {
   // ==================== 面板 ====================
 
   /**
-   * 首帧加载骨架
+   * 首帧骨架屏
    *
-   * 只是把面板壳亮出来：数据回来前不渲染任何账号文本，避免旧结果闪现；
-   * 骨架阶段也已绑定 Esc / 外部点击，用户随时可以收起。
+   * 按真实「搜索栏 + 3 行账号」的比例占位（行高 53px 与 .aph-row 一致），
+   * 数据回来时面板高度基本不变；不渲染任何账号文本，避免旧结果闪现。
+   * 读屏通过视觉隐藏的 loading 文案获知状态；骨架阶段已绑定 Esc / 外部点击。
    */
   private renderLoadingPanel(): void {
     if (!this.panelEl) return;
-    // 文案来自内置语言包（非用户数据），仍用 DOM 构造而非 innerHTML，避免模板字符串成为注入面
-    const row = document.createElement('div');
-    row.className = 'aph-loading';
-    row.setAttribute('role', 'status');
-    row.setAttribute('aria-live', 'polite');
-    const spinner = document.createElement('span');
-    spinner.className = 'aph-loading-spinner';
-    spinner.setAttribute('aria-hidden', 'true');
-    const text = document.createElement('span');
-    text.textContent = tl('cs.inline.loading');
-    row.append(spinner, text);
-    this.panelEl.replaceChildren(row);
+    const root = document.createElement('div');
+    root.className = 'aph-skeleton';
+    root.setAttribute('role', 'status');
+    root.setAttribute('aria-live', 'polite');
+
+    const srText = document.createElement('span');
+    srText.className = 'aph-sr-only';
+    srText.textContent = tl('cs.inline.loading');
+    root.append(srText);
+
+    const search = document.createElement('div');
+    search.className = 'aph-skeleton-search';
+    const bar = document.createElement('div');
+    bar.className = 'aph-skeleton-bar';
+    search.append(bar);
+    root.append(search);
+
+    const list = document.createElement('div');
+    list.className = 'aph-skeleton-list';
+    for (let index = 0; index < 3; index += 1) {
+      const row = document.createElement('div');
+      row.className = 'aph-skeleton-row';
+      const icon = document.createElement('div');
+      icon.className = 'aph-skeleton-icon';
+      const main = document.createElement('div');
+      main.className = 'aph-skeleton-main';
+      const primary = document.createElement('div');
+      primary.className = 'aph-skeleton-line aph-skeleton-line--primary';
+      const secondary = document.createElement('div');
+      secondary.className = 'aph-skeleton-line aph-skeleton-line--secondary';
+      main.append(primary, secondary);
+      row.append(icon, main);
+      list.append(row);
+    }
+    root.append(list);
+
+    this.panelEl.replaceChildren(root);
   }
 
   /**

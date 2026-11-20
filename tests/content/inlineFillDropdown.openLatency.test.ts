@@ -84,18 +84,21 @@ describe('InlineFillDropdown 首帧骨架与收起语义', () => {
     document.body.innerHTML = '';
   });
 
-  it('取数未回包时面板已可见并展示骨架，数据回来后再渲染列表', async () => {
+  it('取数未回包时面板已可见并展示骨架屏，数据回来后再渲染列表', async () => {
     const opening = dropdown.openPanelFor(input);
 
-    // 数据尚未返回：面板必须已经可见，且展示加载骨架而非空白/旧行
+    // 数据尚未返回：面板必须已经可见，且展示骨架屏（搜索栏 + 3 行占位）而非空白/旧行
     expect(panel()?.classList.contains('visible')).toBe(true);
-    expect(root!.querySelector('.aph-loading')).not.toBeNull();
+    expect(root!.querySelector('.aph-skeleton')).not.toBeNull();
+    expect(root!.querySelectorAll('.aph-skeleton-row')).toHaveLength(3);
+    // 读屏占位文案仍在（视觉隐藏）；语言随当前语言包，断言非空即可
+    expect(root!.querySelector('.aph-sr-only')?.textContent?.trim()).not.toBe('');
     expect(root!.querySelectorAll('.aph-row')).toHaveLength(0);
 
     resolveMessage?.({ success: true, data: { locked: false, accounts: [healthy()] } });
     await expect(opening).resolves.toBe('opened');
 
-    expect(root!.querySelector('.aph-loading')).toBeNull();
+    expect(root!.querySelector('.aph-skeleton')).toBeNull();
     expect(root!.querySelectorAll('.aph-row')).toHaveLength(1);
   });
 
