@@ -551,6 +551,10 @@ function handleClosed(): void {
   padding-bottom: 0;
 }
 
+.identity-form__more :deep(.el-collapse-item:last-child) {
+  margin-bottom: 0;
+}
+
 .identity-form__custom {
   margin-bottom: 0;
 }
