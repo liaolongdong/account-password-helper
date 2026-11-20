@@ -42,7 +42,7 @@ describe('InlineFillDropdown 跨子域呈现', () => {
     // as never：@types/chrome 把无回调的 sendMessage 推成 `Promise<void>`，
     // 而这里要下发的正是响应信封，只能在 mock 边界一次性收窄
     sendMessage.mockResolvedValue({ success: true, data } as never);
-    expect(await dropdown.openPanelFor(input)).toBe(true);
+    expect(await dropdown.openPanelFor(input)).toBe('opened');
   };
 
   /** 第 index 行的来源 chip 文本；无 chip 返回 null */

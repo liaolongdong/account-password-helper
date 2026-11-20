@@ -92,7 +92,7 @@ describe('InlineFillDropdown 的后台代跑检索', () => {
       }
       return Promise.resolve(undefined as never);
     });
-    expect(await dropdown.openPanelFor(input)).toBe(true);
+    expect(await dropdown.openPanelFor(input)).toBe('opened');
   };
 
   /** 已渲染行的 data-index 列表（空态时无行） */
@@ -519,7 +519,7 @@ describe('InlineFillDropdown 的后台代跑检索', () => {
     const reopen = async (): Promise<void> => {
       document.dispatchEvent(keydown('Escape'));
       vi.useRealTimers();
-      expect(await dropdown.openPanelFor(input)).toBe(true);
+      expect(await dropdown.openPanelFor(input)).toBe('opened');
       vi.useFakeTimers();
     };
 

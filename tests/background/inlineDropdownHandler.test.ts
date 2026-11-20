@@ -36,6 +36,7 @@ interface OpenCall {
   frameId: number | undefined;
   useContextMenuTarget?: boolean;
   focusedOnly?: boolean;
+  toggleCloseOnly?: boolean;
 }
 
 let sendSpy: ReturnType<typeof vi.spyOn>;
@@ -43,11 +44,17 @@ let sendSpy: ReturnType<typeof vi.spyOn>;
 let openCalls: OpenCall[];
 /** 哪些 frame 应答「已展开」（缺省全部应答 false，模拟未命中） */
 let handledFrames: Set<number>;
+/** 哪些 frame 应答「已收起一个打开的面板」（仅 toggle 首轮探测使用） */
+let closeHandledFrames: Set<number>;
+/** 哪些 frame 应答「取数期间被用户主动收起」（dismissed） */
+let dismissedFrames: Set<number>;
 
 beforeEach(() => {
   vi.clearAllMocks();
   openCalls = [];
   handledFrames = new Set<number>();
+  closeHandledFrames = new Set<number>();
+  dismissedFrames = new Set<number>();
   mockedFillable.mockResolvedValue([0]);
 
   // fakeBrowser 的 tabs.sendMessage 桩非 vi.fn，需 spy 包装；默认值统一放 beforeEach
@@ -60,6 +67,12 @@ beforeEach(() => {
     if (message?.type === MessageType.OPEN_INLINE_DROPDOWN) {
       const frameId = options?.frameId;
       openCalls.push({ frameId, ...message.data });
+      if (message.data?.toggleCloseOnly === true) {
+        return Promise.resolve({ handled: frameId !== undefined && closeHandledFrames.has(frameId) });
+      }
+      if (frameId !== undefined && dismissedFrames.has(frameId)) {
+        return Promise.resolve({ handled: true, dismissed: true });
+      }
       return Promise.resolve({ handled: frameId !== undefined && handledFrames.has(frameId) });
     }
     return Promise.resolve(undefined);
@@ -125,5 +138,69 @@ describe('tryOpenInlineDropdown 的右键锚定轮次', () => {
 
     expect(result).toBe('pageNotReady');
     expect(openCalls).toHaveLength(0);
+  });
+});
+
+describe('tryOpenInlineDropdown 的快捷键收起语义（toggle）', () => {
+  it('任一 frame 收起成功即返回 closed，且不再下发展开轮次', async () => {
+    mockedFillable.mockResolvedValue([0, 2]);
+    closeHandledFrames.add(2);
+
+    const result = await tryOpenInlineDropdown(1, { toggle: true });
+
+    expect(result).toBe('closed');
+    // 只发 close-only 探测，且命中后立即停止
+    expect(openCalls).toEqual([
+      { frameId: 0, toggleCloseOnly: true },
+      { frameId: 2, toggleCloseOnly: true },
+    ]);
+  });
+
+  it('没有任何打开的面板时回落到常规展开（快捷键仍能打开）', async () => {
+    mockedFillable.mockResolvedValue([0]);
+    handledFrames.add(0);
+
+    const result = await tryOpenInlineDropdown(1, { toggle: true });
+
+    expect(result).toBe('opened');
+    expect(openCalls).toEqual([
+      { frameId: 0, toggleCloseOnly: true },
+      { frameId: 0, focusedOnly: true },
+    ]);
+  });
+
+  it('未传 toggle 的调用方（popup / 右键菜单）不会被收起语义影响', async () => {
+    mockedFillable.mockResolvedValue([0]);
+    closeHandledFrames.add(0); // 即使内容端有面板可收，也不该走 close-only 探测
+    handledFrames.add(0);
+
+    const result = await tryOpenInlineDropdown(1);
+
+    expect(result).toBe('opened');
+    expect(openCalls.length).toBeGreaterThan(0);
+    expect(openCalls.every(call => call.toggleCloseOnly !== true)).toBe(true);
+  });
+});
+
+describe('tryOpenInlineDropdown 的 dismissed 终态', () => {
+  it('取数期间被用户收起时立即终止回落轮次，不再尝试其它 frame / 第二轮', async () => {
+    mockedFillable.mockResolvedValue([0, 2]);
+    dismissedFrames.add(0);
+
+    const result = await tryOpenInlineDropdown(1);
+
+    expect(result).toBe('dismissed');
+    // 只尝试了第一个 frame 的聚焦轮，未继续 frame 2、也未进入第二轮
+    expect(openCalls).toEqual([{ frameId: 0, focusedOnly: true }]);
+  });
+
+  it('右键锚定轮命中 dismissed 同样终止（用户收起优先于其它轮次）', async () => {
+    mockedFillable.mockResolvedValue([0, 2]);
+    dismissedFrames.add(2);
+
+    const result = await tryOpenInlineDropdown(1, { useContextMenuTarget: true, frameId: 2 });
+
+    expect(result).toBe('dismissed');
+    expect(openCalls).toEqual([{ frameId: 2, useContextMenuTarget: true }]);
   });
 });

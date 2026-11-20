@@ -280,6 +280,8 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
       // getActiveTab/notifyFailure）形成循环依赖
       const { tryOpenInlineDropdown } = await import('./inlineDropdownHandler');
       const opened = await tryOpenInlineDropdown(tabId);
+      // 用户在取数期间主动收起面板：不是失败，不该再弹「会话失效」通知
+      if (opened === 'dismissed') return;
       if (opened !== 'opened') {
         // 页面不可达 / 无登录字段时回退通知链路（可点击直达验证页），确保用户有感知
         await notifyFailure(tl('bg.quickFill.sessionExpiredUnlock'), undefined, UNLOCK_NOTIFICATION_ID);

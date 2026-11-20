@@ -220,6 +220,8 @@ async function handleSessionLocked(tabId: number | undefined, frameId: number | 
   if (tabId) {
     const opened = await tryOpenInlineDropdown(tabId, { useContextMenuTarget: true, frameId });
     if (opened === 'opened') return;
+    // 用户在取数期间主动收起面板：不是失败，不再弹「去解锁」提示
+    if (opened === 'dismissed') return;
     // 旧标签页未注入 content script（扩展更新/重载后）：去验证主密码也解决不了问题，
     // 按「刷新页面」指引反馈（不带可点击解锁的专用通知 ID）
     if (opened === 'pageNotReady') {

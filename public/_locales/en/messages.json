@@ -20,7 +20,7 @@
     "description": "Keyboard shortcut description for one-click quick fill"
   },
   "commandOpenInlineDropdown": {
-    "message": "Open the inline fill dropdown",
-    "description": "Keyboard shortcut description for opening the inline fill dropdown (same as clicking the key icon in the field)"
+    "message": "Open/close the inline fill dropdown",
+    "description": "Keyboard shortcut description for opening or collapsing the inline fill dropdown (same as clicking the key icon in the field)"
   }
 }

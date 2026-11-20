@@ -50,7 +50,7 @@ describe('InlineFillDropdown 空态的「到全库找」深链', () => {
   /** 打开面板（mock GET_MATCHING_ACCOUNTS 的下发数据） */
   const openWith = async (accounts: MatchingAccountMeta[]): Promise<void> => {
     sendSpy.mockResolvedValue({ success: true, data: { locked: false, accounts } } as never);
-    expect(await dropdown.openPanelFor(input)).toBe(true);
+    expect(await dropdown.openPanelFor(input)).toBe('opened');
   };
 
   /** 在搜索框输入关键词 */

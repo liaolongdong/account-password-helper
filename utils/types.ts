@@ -500,7 +500,16 @@ export type RuntimeMessage =
   | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
   | { type: MessageType.GET_PENDING_CIPHER_KEY }
   | { type: MessageType.QUICK_FILL }
-  | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean; useContextMenuTarget?: boolean } }
+  | {
+      type: MessageType.OPEN_INLINE_DROPDOWN;
+      /**
+       * 展开指令参数
+       *
+       * `toggleCloseOnly` 只由 background 在快捷键"再按一次收起"的首轮探测中下发，
+       * 命中已打开的面板即收起；不携带时按常规展开流程处理。
+       */
+      data?: { focusedOnly?: boolean; useContextMenuTarget?: boolean; toggleCloseOnly?: boolean };
+    }
   | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData }
   | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
   | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData }

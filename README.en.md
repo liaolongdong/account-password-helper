@@ -336,7 +336,7 @@ Your vault travels in one encrypted file — no sync service, and no third-party
 | Open the password manager | `Ctrl+Shift+P`  | `Cmd+Shift+P` | Opens the options page                                                                                                                        |
 | Toggle the side panel     | `Ctrl+Shift+L`  | `Cmd+Shift+L` | Opens / closes the side panel                                                                                                                 |
 | Quick fill                | `Ctrl+Shift+F`  | `Cmd+Shift+F` | Fills the best-matching account + ticks consent; with "Auto-submit login" on, it clicks the login button too                                  |
-| Open inline dropdown      | `Ctrl+Shift+K`  | `Cmd+Shift+K` | Expands the account dropdown on the focused input                                                                                             |
+| Open inline dropdown      | `Ctrl+Shift+K`  | `Cmd+Shift+K` | Expands the account dropdown on the focused input (press again to collapse)                                                                   |
 | Command palette           | `Ctrl+K`        | `Cmd+K`       | Manager page only — filters and opens any of its 30 commands; not an extension shortcut, so it is absent from `chrome://extensions/shortcuts` |
 
 > Keys cannot be rebound inside the extension (Chrome exposes no `commands.update()`) — change them at `chrome://extensions/shortcuts`. The read-only overviews on the manager page ("Help → Keyboard Shortcuts") and in the side panel's Help dialog flag any key that is currently not active. Command IDs and constraints are in the [Contributing Guide — Keyboard Shortcuts](./docs/CONTRIBUTING.md#keyboard-shortcuts).

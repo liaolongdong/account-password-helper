@@ -23,12 +23,17 @@ import { getActiveTab, notifyFailure } from './quickFillHandler';
 
 /** content 端 OPEN_INLINE_DROPDOWN 的响应形状 */
 interface OpenInlineDropdownResponse {
-  /** 该 frame 是否已定位到登录字段并展开面板 */
+  /** 该 frame 是否已定位到登录字段并展开面板（或已收起一个打开的面板） */
   handled?: boolean;
+  /** 面板在取数期间被用户主动收起：异常分支，必须终止回落轮次且不弹失败提示 */
+  dismissed?: boolean;
 }
 
+/** 单次 frame 委派的结果 */
+type FrameDispatchResult = 'opened' | 'closed' | 'dismissed' | 'failed';
+
 /** tryOpenInlineDropdown 的展开结果 */
-export type InlineDropdownOpenResult = 'opened' | 'pageNotReady' | 'noLoginField';
+export type InlineDropdownOpenResult = 'opened' | 'closed' | 'dismissed' | 'pageNotReady' | 'noLoginField';
 
 /** tryOpenInlineDropdown 的可选锚定参数 */
 export interface InlineDropdownOpenOptions {
@@ -41,6 +46,14 @@ export interface InlineDropdownOpenOptions {
   useContextMenuTarget?: boolean;
   /** 优先锚定的 frame（右键菜单传右键发生的 frameId） */
   frameId?: number;
+  /**
+   * 快捷键的「再按一次收起」语义（仅 open_inline_dropdown 命令传 true）
+   *
+   * 先向可信 frame 发一轮 close-only 探测，命中已打开的面板即收起；
+   * 没有任何面板可收时回落到常规展开流程。popup / 右键菜单 / 一键填充兜底不传，
+   * 它们的目标是"展开"，不能被一次意外的切换变成"关闭"。
+   */
+  toggle?: boolean;
 }
 
 /**
@@ -53,18 +66,19 @@ export interface InlineDropdownOpenOptions {
 async function dispatchToFrame(
   tabId: number,
   frameId: number,
-  data: { focusedOnly?: boolean; useContextMenuTarget?: boolean },
-): Promise<boolean> {
+  data: { focusedOnly?: boolean; useContextMenuTarget?: boolean; toggleCloseOnly?: boolean },
+): Promise<FrameDispatchResult> {
   try {
     const res: OpenInlineDropdownResponse | undefined = await chrome.tabs.sendMessage(
       tabId,
       { type: MessageType.OPEN_INLINE_DROPDOWN, data },
       { frameId },
     );
-    return res?.handled === true;
+    if (res?.dismissed === true) return 'dismissed';
+    return res?.handled === true ? 'opened' : 'failed';
   } catch {
     // frame 未注入 content script 或已销毁，跳过
-    return false;
+    return 'failed';
   }
 }
 
@@ -94,24 +108,34 @@ export async function tryOpenInlineDropdown(
 
   const frameIds = await getFillableFrameIds(tabId);
 
+  // 快捷键「再按一次收起」：先并行发一轮 close-only 探测，命中已打开的面板即收。
+  // 先于展开轮次执行，保证「面板在 A frame、焦点在 B frame」时不会被 B 先展开成第二个面板；
+  // 探测本身幂等（没有面板可收的 frame 只回 false），并行下发避免多 frame 页面叠加 N 次往返。
+  if (options.toggle) {
+    const closeOutcomes = await Promise.all(
+      frameIds.map(frameId => dispatchToFrame(tabId, frameId, { toggleCloseOnly: true })),
+    );
+    if (closeOutcomes.includes('opened')) return 'closed';
+  }
+
   // 右键菜单优先轮：锁定在用户右键的那个输入框上（仅限安全 frame 集合内的 frame，
   // 与常规轮次同一道跨域防线）；目标失效时继续回落到下方两轮
   if (options.useContextMenuTarget) {
     const originFrameId = options.frameId ?? 0;
-    if (
-      frameIds.includes(originFrameId) &&
-      (await dispatchToFrame(tabId, originFrameId, { useContextMenuTarget: true }))
-    ) {
-      return 'opened';
+    if (frameIds.includes(originFrameId)) {
+      const outcome = await dispatchToFrame(tabId, originFrameId, { useContextMenuTarget: true });
+      if (outcome === 'opened') return 'opened';
+      // 用户在取数期间已收起：终止全部回落轮次，避免把刚关掉的面板重新打开
+      if (outcome === 'dismissed') return 'dismissed';
     }
   }
 
   // 两轮委派：第一轮聚焦字段优先（跨域 iframe 登录场景不被顶层抢占），第二轮回退检测字段
   for (const focusedOnly of [true, false]) {
     for (const frameId of frameIds) {
-      if (await dispatchToFrame(tabId, frameId, { focusedOnly })) {
-        return 'opened';
-      }
+      const outcome = await dispatchToFrame(tabId, frameId, { focusedOnly });
+      if (outcome === 'opened') return 'opened';
+      if (outcome === 'dismissed') return 'dismissed';
     }
   }
 
@@ -127,8 +151,12 @@ export async function tryOpenInlineDropdown(
  * 3. 页面未就绪 / 无登录字段时通知用户（通知 + badge 双通道）
  *
  * @param commandTab 快捷键命令回调提供的标签页（可选，popup 消息路径无此参数）
+ * @param options 触发选项（快捷键路径传 `toggle: true` 获得"再按一次收起"语义）
  */
-export async function handleOpenInlineDropdown(commandTab?: chrome.tabs.Tab): Promise<void> {
+export async function handleOpenInlineDropdown(
+  commandTab?: chrome.tabs.Tab,
+  options: { toggle?: boolean } = {},
+): Promise<void> {
   // 优先复用 onCommand 回调提供的 tab，避免冗余查询与窗口焦点竞态
   const tab = commandTab?.id ? commandTab : await getActiveTab();
   if (!tab?.id) {
@@ -138,7 +166,7 @@ export async function handleOpenInlineDropdown(commandTab?: chrome.tabs.Tab): Pr
     return;
   }
 
-  const result = await tryOpenInlineDropdown(tab.id);
+  const result = await tryOpenInlineDropdown(tab.id, { toggle: options.toggle });
   if (result === 'pageNotReady') {
     await notifyFailure(tl('bg.quickFill.pageNotReady'), tl('bg.inline.title'));
   } else if (result === 'noLoginField') {

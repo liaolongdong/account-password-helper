@@ -85,7 +85,7 @@ describe('InlineFillDropdown 键盘导航', () => {
   /** 打开面板（mock GET_MATCHING_ACCOUNTS 的下发数据；`totalMatched` 大于条数时渲染尾部读数） */
   const openWith = async (accounts: MatchingAccountMeta[], totalMatched?: number): Promise<void> => {
     sendSpy.mockResolvedValue({ success: true, data: { locked: false, accounts, totalMatched } } as never);
-    expect(await dropdown.openPanelFor(input)).toBe(true);
+    expect(await dropdown.openPanelFor(input)).toBe('opened');
   };
 
   /** 已渲染行的 data-index 列表 */
@@ -266,7 +266,7 @@ describe('InlineFillDropdown 键盘导航', () => {
 
     it('焦点还在页面登录框时（锁定卡片无检索框）Esc 依然关得掉面板', async () => {
       sendSpy.mockResolvedValue({ success: true, data: { locked: true, accounts: [] } } as never);
-      expect(await dropdown.openPanelFor(input)).toBe(true);
+      expect(await dropdown.openPanelFor(input)).toBe('opened');
       expect(root!.querySelector('.aph-locked')).not.toBeNull();
 
       const event = keydown('Escape');

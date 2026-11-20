@@ -307,7 +307,7 @@
 | 打开密码管理页 | `Ctrl+Shift+P`  | `Cmd+Shift+P` | 打开选项页                                                                                        |
 | 开关侧边栏     | `Ctrl+Shift+L`  | `Cmd+Shift+L` | 开 / 关侧边栏                                                                                     |
 | 快速填充       | `Ctrl+Shift+F`  | `Cmd+Shift+F` | 填充当前站点最匹配账号 + 勾选协议；开启「自动触发登录」后连登录按钮一起点                         |
-| 展开内联下拉   | `Ctrl+Shift+K`  | `Cmd+Shift+K` | 在聚焦的输入框上展开账号下拉列表                                                                  |
+| 展开内联下拉   | `Ctrl+Shift+K`  | `Cmd+Shift+K` | 在聚焦的输入框上展开账号下拉列表（面板已打开时再按一次收起）                                      |
 | 命令面板       | `Ctrl+K`        | `Cmd+K`       | 仅在密码管理页内生效，检索并直达 30 条命令；非扩展快捷键，不在 `chrome://extensions/shortcuts` 中 |
 
 > 扩展内不支持改键（Chrome 未提供 `commands.update()`），请到 `chrome://extensions/shortcuts` 修改；管理页「帮助 → 快捷键」与侧边栏「帮助」提供只读一览并会标注当前未生效的按键。命令 ID 与限制说明见[贡献指南 — 快捷键](./docs/CONTRIBUTING.md#快捷键)。

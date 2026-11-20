@@ -43,6 +43,7 @@ import {
   getInlineFillDropdown,
   destroyInlineFillDropdown,
 } from '@/entrypoints/content/inlineDropdown/InlineFillDropdown';
+import type { InlinePanelOpenResult } from '@/entrypoints/content/inlineDropdown/InlineFillDropdown';
 import {
   getTotpHandoffCapsule,
   destroyTotpHandoffCapsule,
@@ -1635,10 +1636,23 @@ export class FormDetector {
       //    导致 popup 等发起方收到错误结果（如误报打开失败）。
       // 因此不处理、不响应，交由 Background 消息路由统一处理。
       case MessageType.OPEN_INLINE_DROPDOWN: {
+        // 快捷键"再按一次收起"的首轮探测：只关闭、不展开。
+        // 由 background 先向所有可信 frame 发这一轮，命中已打开的面板即收，
+        // 避免"面板开在 A frame、焦点在 B frame"时先被 B 展开成第二个面板。
+        if (message.data?.toggleCloseOnly === true) {
+          sendResponse({ success: true, handled: this.inlineDropdown.closePanelIfOpen() });
+          return true;
+        }
         // 面板渲染需等 GET_MATCHING_ACCOUNTS 回包，因此异步回传「是否真的展开」，
-        // 让 background 的会话失效引导能在面板未出现时回退到通知/提示条
+        // 让 background 的会话失效引导能在面板未出现时回退到通知/提示条；
+        // dismissed（取数期间被用户收起）按 handled 上报，阻止回落轮次把面板重新打开
         this.openInlineDropdown(message.data?.focusedOnly === true, message.data?.useContextMenuTarget === true).then(
-          handled => sendResponse({ success: handled, handled }),
+          result =>
+            sendResponse({
+              success: result === 'opened',
+              handled: result !== 'failed',
+              dismissed: result === 'dismissed',
+            }),
         );
         return true;
       }
@@ -1671,14 +1685,14 @@ export class FormDetector {
    *
    * @param focusedOnly 是否仅允许锚定当前聚焦的登录字段（background 两轮委派的第一轮）
    * @param useContextMenuTarget 是否优先锚定「用户右键的那个输入框」
-   * @returns 本 frame 是否已定位到目标并真正展开面板
+   * @returns 打开结果（opened / failed / dismissed——取数期间被用户收起）
    */
-  private async openInlineDropdown(focusedOnly: boolean, useContextMenuTarget = false): Promise<boolean> {
+  private async openInlineDropdown(focusedOnly: boolean, useContextMenuTarget = false): Promise<InlinePanelOpenResult> {
     // 右键菜单优先锚定被右键的框；目标已失效（移除 / 只读 / textarea）时回落到常规选取
     const target = useContextMenuTarget
       ? (resolveContextMenuInputTarget() ?? this.resolveInlineDropdownTarget(focusedOnly))
       : this.resolveInlineDropdownTarget(focusedOnly);
-    if (!target) return false;
+    if (!target) return 'failed';
     return this.inlineDropdown.openPanelFor(target);
   }
 

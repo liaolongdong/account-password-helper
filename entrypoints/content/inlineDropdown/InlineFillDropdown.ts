@@ -422,6 +422,37 @@ const inlineStyles = `
   text-align: center;
 }
 
+/* 首帧加载骨架：数据回来前先把面板亮出来，避免快捷键按下后"没反应" */
+.aph-loading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 16px 14px;
+  font-size: 13px;
+  color: var(--aph-text-muted, #9aa3af);
+}
+
+.aph-loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--aph-primary-border, rgba(148, 163, 184, 0.35));
+  border-top-color: var(--aph-primary, #409eff);
+  border-radius: 50%;
+  animation: aphSpin 0.8s linear infinite;
+}
+
+@keyframes aphSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aph-loading-spinner {
+    animation: none;
+  }
+}
+
 .aph-empty-add-btn {
   display: inline-flex;
   align-items: center;
@@ -650,6 +681,9 @@ interface TriggerOptions {
 /**
  * 内联填充管理器（每个内容脚本 frame 一个实例）
  */
+/** 面板打开结果：'dismissed' 表示用户在取数返回前主动收起，调用方必须终止回落轮次 */
+export type InlinePanelOpenResult = 'opened' | 'failed' | 'dismissed';
+
 export class InlineFillDropdown {
   private shadowHost: HTMLElement | null = null;
   private shadowRoot: ShadowRoot | null = null;
@@ -725,6 +759,13 @@ export class InlineFillDropdown {
   private panelOpen = false;
   /** 请求序号，用于丢弃过期响应 */
   private requestSeq = 0;
+  /**
+   * 用户主动收起次数（Esc / 外部点击 / 快捷键 toggle）
+   *
+   * openPanel 在等待取数期间若观察到该计数变化，说明用户已经主动关掉了骨架，
+   * 必须返回 dismissed 让 background 终止回落轮次——否则慢回包会把面板重新打开。
+   */
+  private userDismissCount = 0;
   /** 布局跟随 rAF 句柄（图标/面板可见期间逐帧跟踪输入框 rect） */
   private followRaf: number | null = null;
   /** 布局跟随上一帧的输入框 rect 指纹 */
@@ -790,11 +831,11 @@ export class InlineFillDropdown {
    * 回传「面板是否真的可见」而非「是否发起了打开」：调用方（background 的会话失效引导）
    * 据此决定要不要回退到通知/提示条反馈，否则取数失败时会出现「点了什么都没发生」的静默窗口。
    * @param input 目标输入框（面板锚定其下方）
-   * @returns 面板最终是否处于打开状态
+   * @returns 面板最终状态：已打开 / 失败 / 取数期间被用户主动收起
    */
-  openPanelFor(input: HTMLInputElement): Promise<boolean> {
+  openPanelFor(input: HTMLInputElement): Promise<InlinePanelOpenResult> {
     // 面板已针对同一输入框打开时，无需重复处理
-    if (this.panelOpen && this.currentInput === input) return Promise.resolve(true);
+    if (this.panelOpen && this.currentInput === input) return Promise.resolve('opened');
 
     // 清除上一字段遗留的隐藏计时器，避免其在面板打开后误触发图标态清理
     if (this.hideIconTimer) {
@@ -858,6 +899,20 @@ export class InlineFillDropdown {
   hide(): void {
     this.closePanel();
     this.hideIcon();
+  }
+
+  /**
+   * 面板已打开时收起它（快捷键"再按一次隐藏"的语义）
+   *
+   * 与 Esc 收起保持同一终态：不恢复钥匙图标，用户重新聚焦输入框后图标才会出现。
+   *
+   * @returns 是否真的收起了一个已打开的面板
+   */
+  closePanelIfOpen(): boolean {
+    if (!this.panelOpen) return false;
+    this.userDismissCount += 1;
+    this.closePanel();
+    return true;
   }
 
   /**
@@ -1159,12 +1214,37 @@ export class InlineFillDropdown {
   // ==================== 面板 ====================
 
   /**
-   * 打开面板：失焦登录框（关闭 Chrome 原生下拉）→ 拉取匹配账号 → 渲染
+   * 首帧加载骨架
    *
-   * @returns 面板是否真的进入可见状态（取数失败、被新请求取代、锚点滚出视口均为 false）
+   * 只是把面板壳亮出来：数据回来前不渲染任何账号文本，避免旧结果闪现；
+   * 骨架阶段也已绑定 Esc / 外部点击，用户随时可以收起。
    */
-  private async openPanel(): Promise<boolean> {
-    if (!this.currentInput) return false;
+  private renderLoadingPanel(): void {
+    if (!this.panelEl) return;
+    // 文案来自内置语言包（非用户数据），仍用 DOM 构造而非 innerHTML，避免模板字符串成为注入面
+    const row = document.createElement('div');
+    row.className = 'aph-loading';
+    row.setAttribute('role', 'status');
+    row.setAttribute('aria-live', 'polite');
+    const spinner = document.createElement('span');
+    spinner.className = 'aph-loading-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.textContent = tl('cs.inline.loading');
+    row.append(spinner, text);
+    this.panelEl.replaceChildren(row);
+  }
+
+  /**
+   * 打开面板：失焦登录框（关闭 Chrome 原生下拉）→ 首帧骨架 → 拉取匹配账号 → 渲染
+   *
+   * 骨架先于取数可见，因此快捷键与图标点击的"按下到见面板"不再包含 SW 往返；
+   * 取数完成后的渲染仍在同一请求序号保护下，不会覆盖期间的新打开/已关闭状态。
+   *
+   * @returns 打开结果：opened / failed（取数或定位失败）/ dismissed（取数期间被用户收起）
+   */
+  private async openPanel(): Promise<InlinePanelOpenResult> {
+    if (!this.currentInput) return 'failed';
     const input = this.currentInput;
 
     this.panelOpen = true;
@@ -1178,6 +1258,17 @@ export class InlineFillDropdown {
     }
 
     const seq = ++this.requestSeq;
+    const dismissMark = this.userDismissCount;
+
+    // 首帧先亮骨架：唤起延迟不再包含 SW 往返（缓存解密 + 排序 + 站点图标），
+    // 数据回来前用户也能看到面板已经打开，且此时就能用 Esc / 外部点击收起
+    this.renderLoadingPanel();
+    this.panelEl?.classList.add('visible');
+    this.positionPanel();
+    if (!this.panelOpen) return 'failed';
+    this.syncFollow();
+    this.attachPanelInteractions();
+
     let response: { success?: boolean; data?: MatchingAccountsResponse } | undefined;
     try {
       response = await chrome.runtime.sendMessage({ type: MessageType.GET_MATCHING_ACCOUNTS });
@@ -1186,16 +1277,20 @@ export class InlineFillDropdown {
       // 只有结果仍归属本次请求才收尾：旧请求的失败不能把 `panelOpen` 置回 false，
       // 否则同期在途的新请求即便取数成功，也会在下面的守卫处被判定为「已被关闭」而丢弃
       if (seq === this.requestSeq) {
-        this.panelOpen = false;
+        if (this.userDismissCount !== dismissMark || !this.panelOpen) return 'dismissed';
+        this.closePanel();
         this.restoreIconAfterFailedOpen(seq, hadIcon);
       }
-      return false;
+      return 'failed';
     }
-    if (seq !== this.requestSeq || !this.panelOpen) return false;
+    // 期间用户已收起（Esc / 外部点击 / 快捷键 toggle）：报告 dismissed，
+    // 让 background 终止后续回落轮次，绝不把用户刚关掉的面板再打开
+    if (seq !== this.requestSeq) return 'dismissed';
+    if (this.userDismissCount !== dismissMark || !this.panelOpen) return 'dismissed';
     if (!response || !response.success || !response.data) {
-      this.panelOpen = false;
+      this.closePanel();
       this.restoreIconAfterFailedOpen(seq, hadIcon);
-      return false;
+      return 'failed';
     }
 
     this.locked = response.data.locked;
@@ -1213,11 +1308,11 @@ export class InlineFillDropdown {
     this.panelEl?.classList.add('visible');
     this.positionPanel();
     // positionPanel 可能因输入框滚出视口而关闭面板，此时不再继续绑定与聚焦
-    if (!this.panelOpen) return false;
+    if (!this.panelOpen) return 'failed';
     this.syncFollow();
     this.attachPanelInteractions();
     if (!this.locked) this.focusSearch();
-    return true;
+    return 'opened';
   }
 
   /**
@@ -2136,8 +2231,19 @@ export class InlineFillDropdown {
     if (e.isComposing) return;
     if (e.key !== 'Escape') return;
     e.preventDefault();
-    this.hide();
+    this.dismissByUser();
   };
+
+  /**
+   * 用户主动收起（Esc / 外部点击）
+   *
+   * 记一次 dismiss 再隐藏：openPanel 若仍在等取数，据此返回 dismissed，
+   * 避免 background 的回落轮次把面板重新打开。
+   */
+  private dismissByUser(): void {
+    this.userDismissCount += 1;
+    this.hide();
+  }
 
   /**
    * 面板键盘导航：↑/↓ 遍历、Enter 填充高亮项
@@ -2192,7 +2298,7 @@ export class InlineFillDropdown {
     const target = e.target as Node | null;
     if (!target) return;
     if (this.shadowHost && (target === this.shadowHost || this.shadowHost.contains(target))) return;
-    this.hide();
+    this.dismissByUser();
   };
 }
 
