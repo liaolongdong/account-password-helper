@@ -256,7 +256,7 @@
   "options.form.advancedOptions": "高级选项",
   "options.form.pathScope": "限定路径",
   "options.form.pathScopePlaceholder": "选填，如 /#/desktop（留空匹配任意路径）",
-  "options.form.pathScopeTip": "同一域名下不同路由需存不同账号时才填写；填写后该条目只在其路径下出现。支持 /#/desktop 这类 hash 路由；填 / 表示只匹配站点首页",
+  "options.form.pathScopeTip": "同一域名下不同路由需存不同账号时才填写；按路径前缀匹配，填写的路径及其子路径都会命中（支持 /#/desktop 这类 hash 路由，也匹配 /#/desktop/list）；填 / 只匹配站点首页",
   "options.form.pathScopePeerTip": "同一账号在「{scope}」下已有条目；如需同域不同路径分开保存，请在「高级选项 → 限定路径」填写当前页面的路径。",
   "options.form.totpPlaceholder": "选填，粘贴 otpauth:// 链接或密钥（TOTP 两步验证）",
   "options.form.totpInvalid": "密钥无法识别，请粘贴 otpauth:// 链接或 Base32 密钥",
