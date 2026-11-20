@@ -17,6 +17,7 @@ vi.mock('@/entrypoints/background/sidePanelManager', () => ({
 vi.mock('@/entrypoints/background/passwordCache', () => ({
   ensureCredentialAccessAfterStartupRelock: vi.fn(async () => true),
   invalidatePasswordCache: vi.fn(),
+  patchCachedEntryUsage: vi.fn(),
 }));
 
 vi.mock('@/utils/storage', () => ({

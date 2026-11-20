@@ -56,6 +56,8 @@ vi.mock('@/entrypoints/background/passwordCache', () => ({
   sortMatchesForDomain: vi.fn(async () => []),
   recordPendingTotpIfEligible: vi.fn(async () => {}),
   getInlineTotpCode: vi.fn(async () => null),
+  // 使用痕迹的内存修补：真实实现只改缓存、不落盘；这里只需证明调用链先经过它
+  patchCachedEntryUsage: vi.fn(),
 }));
 
 // fakeBrowser 桩非 vi.fn，需 spy 包装；默认值统一放 beforeEach（见项目测试经验）

@@ -30,6 +30,7 @@ import {
   getOrWarmCache,
   sortMatchesForDomain,
   recordPendingTotpIfEligible,
+  patchCachedEntryUsage,
 } from './passwordCache';
 
 /** 通知 ID 前缀 */
@@ -349,9 +350,13 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
       await showNotification(tl('bg.quickFill.fillSuccess'));
     }
 
-    // 静默更新最近使用时间
+    // 静默更新最近使用时间；先就地修补内存缓存，让排序立即生效（落盘仍走防抖队列）
     const { updatePasswordInSession } = await import('@/utils/storage/passwordCrud');
     const now = Date.now();
+    patchCachedEntryUsage(entry.id, {
+      lastUsedAt: now,
+      ...(entry.favorite ? { favoriteUsedAt: now } : {}),
+    });
     void updatePasswordInSession(entry.id, {
       lastUsedAt: now,
       ...(entry.favorite ? { favoriteUsedAt: now } : {}),

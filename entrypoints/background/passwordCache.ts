@@ -270,6 +270,28 @@ export async function applyMetadataOnlyUpdate(changedEntries: unknown): Promise<
 }
 
 /**
+ * 填充后的使用痕迹就地修补（仅内存缓存，不落盘、不重写快照）
+ *
+ * FILL_BY_ID / 一键填充 / 右键菜单的 lastUsedAt 走 1.5s 防抖队列落盘，
+ * 而内联下拉 / 一键填充的排序读的正是本缓存：不即时修补就会出现
+ * 「填完立刻重开，最近使用的条目仍排在后面；过一会儿再开又正常」的时序抖动。
+ * 落盘仍由原防抖队列负责，本函数只把同样的值提前写进内存。
+ *
+ * 幂等且零 IO：缓存缺失或会话锁定时静默 no-op；不触碰 storage 与会话快照
+ * （快照由后续 flush 的 applyMetadataOnlyUpdate 统一重写，侧边栏顶多多等一个防抖窗口）。
+ *
+ * @param id 条目 ID
+ * @param usage 本次填充产生的使用痕迹（favoriteUsedAt 仅在收藏条目上刷新）
+ */
+export function patchCachedEntryUsage(id: string, usage: { lastUsedAt?: number; favoriteUsedAt?: number }): void {
+  if (!passwordCache?.isAuthenticated) return;
+  const entry = passwordCache.passwords.find(p => p.id === id);
+  if (!entry) return;
+  if (usage.lastUsedAt !== undefined) entry.lastUsedAt = usage.lastUsedAt;
+  if (usage.favoriteUsedAt !== undefined) entry.favoriteUsedAt = usage.favoriteUsedAt;
+}
+
+/**
  * 消费元数据 flush 打标（storage.session，短 TTL）
  *
  * flushMetadataUpdates 写入 account_passwords 前打标，本函数在 storage.onChanged

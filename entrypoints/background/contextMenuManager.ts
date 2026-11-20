@@ -56,6 +56,7 @@ import {
   sortMatchesForDomain,
   getInlineTotpCode,
   recordPendingTotpIfEligible,
+  patchCachedEntryUsage,
 } from './passwordCache';
 
 /** 菜单项 ID 与填充动作的映射（open* / parent* 无填充动作） */
@@ -389,12 +390,17 @@ async function handleContextMenuFill(
     if (action !== 'totp' && entry.totp && entry.totp.trim()) {
       void recordPendingTotpIfEligible(tabId, entry.id);
     }
-    // 静默更新最近使用时间（与侧边栏/一键填充路径一致，保持排序与 LRU 依据）
+    // 静默更新最近使用时间（与侧边栏/一键填充路径一致，保持排序与 LRU 依据）；
+    // 先就地修补内存缓存，让下一次打开下拉/一键填充的排序立即生效（落盘仍走防抖队列）
     const entryId = entry.id;
     const entryFavorite = entry.favorite;
     void import('@/utils/storage/passwordCrud')
       .then(({ updatePasswordInSession }) => {
         const now = Date.now();
+        patchCachedEntryUsage(entryId, {
+          lastUsedAt: now,
+          ...(entryFavorite ? { favoriteUsedAt: now } : {}),
+        });
         return updatePasswordInSession(entryId, {
           lastUsedAt: now,
           ...(entryFavorite ? { favoriteUsedAt: now } : {}),

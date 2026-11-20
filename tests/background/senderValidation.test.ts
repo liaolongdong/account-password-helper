@@ -63,6 +63,7 @@ vi.mock('@/entrypoints/background/passwordCache', () => ({
   consumePendingTotp: vi.fn(),
   clearPendingTotp: vi.fn(),
   grantCredentialAccessAfterStartupRelock: vi.fn(),
+  patchCachedEntryUsage: vi.fn(),
 }));
 
 vi.mock('@/entrypoints/background/autoSaveHandler', () => ({

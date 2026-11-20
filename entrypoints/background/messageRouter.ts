@@ -27,6 +27,7 @@ import {
   consumePendingTotp,
   clearPendingTotp,
   grantCredentialAccessAfterStartupRelock,
+  patchCachedEntryUsage,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { issuePendingCipherKey } from './pendingCipherKeyStore';
@@ -234,15 +235,21 @@ async function handleFillById(
     void showPageNotice(tabId, tl(fillFailureNoticeKey(result?.reason)));
   }
 
-  // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致
+  // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致。
+  // 先就地修补内存缓存：排序读缓存，而落盘走 1.5s 防抖队列，等 onChanged 再修补会出现
+  // 「填完立刻重开，最近使用的条目没排到最前」的时序抖动；落盘仍由防抖队列负责。
+  const usageAt = Date.now();
+  patchCachedEntryUsage(entry.id, {
+    lastUsedAt: usageAt,
+    ...(entry.favorite ? { favoriteUsedAt: usageAt } : {}),
+  });
   void _getCrudModule()
-    .then(({ updatePasswordInSession }) => {
-      const now = Date.now();
-      return updatePasswordInSession(entry.id, {
-        lastUsedAt: now,
-        ...(entry.favorite ? { favoriteUsedAt: now } : {}),
-      });
-    })
+    .then(({ updatePasswordInSession }) =>
+      updatePasswordInSession(entry.id, {
+        lastUsedAt: usageAt,
+        ...(entry.favorite ? { favoriteUsedAt: usageAt } : {}),
+      }),
+    )
     .catch(error => logger.error('Background: FILL_BY_ID 更新最近使用时间失败:', error));
 
   // 两步接力：填充成功且条目开启了两步验证时记录待接力标记，

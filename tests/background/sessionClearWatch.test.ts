@@ -35,6 +35,7 @@ vi.mock('@/entrypoints/background/passwordCache', async importOriginal => {
     // 固定为「原地修补成功」，用于复现「锁定事件与元数据 flush 合并进同一 onChanged」
     // 时 hasRelevantChange 块提前 return、不产生任何失效的窗口
     applyMetadataOnlyUpdate: vi.fn(async () => true),
+    patchCachedEntryUsage: vi.fn(),
   };
 });
 
