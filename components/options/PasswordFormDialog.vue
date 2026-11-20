@@ -695,6 +695,11 @@ defineExpose({ formRef: localFormRef });
   color: var(--aph-text-primary);
 }
 
+/* 高级选项折叠内容：EP 默认底部留白 25px，路径字段下方会空出一截 */
+.advanced-options :deep(.el-collapse-item__content) {
+  padding-bottom: 0;
+}
+
 .password-history-section {
   margin-top: 8px;
 }

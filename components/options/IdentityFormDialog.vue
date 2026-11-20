@@ -65,7 +65,10 @@
         </el-form-item>
 
         <!-- 备注：恒常可见的常用字段，留在核心区；分隔线只划分「扩展字段」 -->
-        <el-form-item :label="t('identity.field.remark')">
+        <el-form-item
+          :label="t('identity.field.remark')"
+          class="identity-form__remark"
+        >
           <el-input
             v-model="localForm.remark"
             type="textarea"
@@ -109,6 +112,11 @@
               </el-form-item>
             </el-collapse-item>
           </el-collapse>
+          <!-- 下分隔线：用独立元素而不是容器的 border——EP 折叠内部会溢出 1px 把容器边框盖住 -->
+          <div
+            class="identity-form__divider"
+            aria-hidden="true"
+          ></div>
 
           <!-- 自定义字段：所有类别恒定可见 -->
           <div class="identity-form__custom">
@@ -481,10 +489,14 @@ function handleClosed(): void {
 }
 
 /* 扩展信息组：与默认字段区一条分隔线之隔，组内标题共用同一节奏 */
+
+/* 备注是扩展组的上一块：底部间距收紧，让分隔线贴近字段而不是悬在中间 */
+.identity-form__remark {
+  margin-bottom: 22px;
+}
+
 .identity-form__extra {
-  padding-top: 12px;
-  margin-top: 4px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  margin-top: 0;
 }
 
 .identity-form__section-title {
@@ -504,10 +516,10 @@ function handleClosed(): void {
   border-radius: 10px;
 }
 
-/* 接管 EP collapse 默认外观：去掉三线边框与 13px 小字头，改为组内 section header */
-.identity-form__more {
-  border-top: none;
-  border-bottom: none;
+/* 更多字段块的下分隔线：0 高 + 上边框，避免再被折叠内部溢出盖掉 */
+.identity-form__divider {
+  height: 0;
+  margin: 0 0 12px;
 }
 
 .identity-form__more :deep(.el-collapse-item__header) {
@@ -547,7 +559,6 @@ function handleClosed(): void {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 8px;
   margin-bottom: 8px;
 }
 
