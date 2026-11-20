@@ -661,6 +661,14 @@ export interface MatchingAccountMeta {
   remark: string;
   /** 网址 */
   url: string;
+  /**
+   * 路径作用域（空串/缺省 = 不限路径）
+   *
+   * 与 `url` 同级属于可展示元数据：内容脚本按与本侧同一份字段清单参与关键词检索
+   * （`utils/keywordMatch.ts` 的 `keywordFieldsOf`），不下发密码或其它密文。
+   * 允许缺省：历史载荷与测试夹具可能不带该字段，检索侧统一按空串处理。
+   */
+  pathScope?: string;
   /** 是否收藏 */
   favorite: boolean;
   /** 是否配置了两步验证 */

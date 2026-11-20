@@ -82,6 +82,13 @@
           <div class="form-tip">
             {{ t('form.urlWildcardHint') }}
           </div>
+          <!-- 只读冲突提示：同账号在其它路径下已有条目且当前未填路径时，提示补填 -->
+          <div
+            v-if="pathScopePeerTip"
+            class="form-tip path-scope-peer-tip"
+          >
+            {{ t('options.form.pathScopePeerTip', { scope: pathScopePeerTip }) }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -283,6 +290,7 @@ import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
 import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH, MAX_TAG_COUNT } from '@/utils/constants';
 import { normalizePathScope } from '@/utils/domain';
+import { findOtherPathScopePeers, type PathScopePeer } from '@/utils/pathScopePeers';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { copySecretToClipboard } from '@/utils/clipboard';
@@ -318,6 +326,12 @@ const props = defineProps<{
   passwordStrength: PasswordStrengthResult;
   /** 密码规则逐条校验结果 */
   passwordRules: PasswordRuleItem[];
+  /**
+   * 全库条目的脱敏投影（仅用户名 / 网址 / 路径作用域，绝不含密码）
+   *
+   * 供「同一账号在其它路径下已有条目」的只读提示使用；缺省即不提示。
+   */
+  scopePeers?: readonly PathScopePeer[];
 }>();
 
 const emit = defineEmits<{
@@ -397,6 +411,22 @@ watch(
     if (visible) activePanels.value = props.form.pathScope.trim() ? ['advanced'] : [];
   },
 );
+
+/**
+ * 同账号在其它路径下已有条目时引用的路径作用域（null = 不显示提示）
+ *
+ * 只在当前尚未填写路径时提示——用户一旦自己填了，说明已经在做路由区分，无需再劝。
+ * 只读、不阻断保存，也不参与校验。
+ */
+const pathScopePeerTip = computed<string | null>(() => {
+  if (localForm.pathScope.trim()) return null;
+  const [peer] = findOtherPathScopePeers(props.scopePeers ?? [], {
+    username: localForm.username,
+    url: localForm.url,
+    pathScope: '',
+  });
+  return peer?.pathScope ?? null;
+});
 
 /**
  * 路径作用域失焦归一化
@@ -658,29 +688,11 @@ defineExpose({ formRef: localFormRef });
   color: var(--aph-text-muted);
 }
 
-/* 高级选项：弱化为「轻量章节标题」——去掉 Element Plus 折叠面板的上下边框，
-   只留标题行与箭头，避免在表单里看起来像另一张独立卡片 */
-.advanced-options {
-  margin-top: 4px;
-}
-
-.advanced-options :deep(.el-collapse),
-.advanced-options :deep(.el-collapse-item__header),
-.advanced-options :deep(.el-collapse-item__wrap) {
-  border-top: none;
-  border-bottom: none;
-}
-
-.advanced-options :deep(.el-collapse-item__header) {
-  height: auto;
-  padding: 6px 0;
-  font-size: 13px;
-  font-weight: 600;
+/* 路径冲突提示：跟着网址字段走；用正文色 + 加粗做强调，
+   不用主题主色——默认主题主色对白底仅约 2.4:1，12px 文本不满足 WCAG AA */
+.path-scope-peer-tip {
+  font-weight: 500;
   color: var(--aph-text-primary);
-}
-
-.advanced-options :deep(.el-collapse-item__content) {
-  padding: 4px 0 0;
 }
 
 .password-history-section {

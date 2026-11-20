@@ -746,6 +746,7 @@ export async function getMatchingAccounts(
         tag: p.tag || '',
         remark: p.remark || '',
         url: p.url || '',
+        pathScope: p.pathScope || '',
         favorite: !!p.favorite,
         hasTotp: !!(p.totp && p.totp.trim()),
         favicon: p.url ? await fetchFaviconDataUrl(p.url, 32) : '',

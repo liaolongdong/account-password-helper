@@ -148,6 +148,13 @@
           </span>
         </el-descriptions-item>
 
+        <el-descriptions-item
+          v-if="entry.pathScope"
+          :label="t('options.form.pathScope')"
+        >
+          <span class="detail-value__text">{{ entry.pathScope }}</span>
+        </el-descriptions-item>
+
         <el-descriptions-item :label="t('common.totp')">
           <TotpCode
             v-if="entry.totp"

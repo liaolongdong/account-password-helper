@@ -227,6 +227,27 @@ describe('getMatchingAccounts 下发给内容脚本的字段口径', () => {
     expect(accounts[0]!.tag).toBe('');
     expect(accounts[0]!.remark).toBe('');
     expect(accounts[0]!.url).toBe('');
+    expect(accounts[0]!.pathScope).toBe('');
+  });
+
+  it('限定路径随元数据下发，并参与内联检索', async () => {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' },
+    });
+    updatePasswordCache(
+      [
+        makePasswordEntry({ id: 'desktop', url: 'example.com', username: 'u1', pathScope: '/#/desktop' }),
+        makePasswordEntry({ id: 'admin', url: 'example.com', username: 'u2', pathScope: '/#/admin' }),
+      ],
+      '*',
+      true,
+    );
+
+    const all = await getMatchingAccounts('example.com', page('https://example.com'));
+    expect(all.accounts.map(a => a.pathScope)).toEqual(['/#/desktop', '/#/admin']);
+
+    const hits = await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'desktop');
+    expect(hits.accounts.map(a => a.id)).toEqual(['desktop']);
   });
 });
 

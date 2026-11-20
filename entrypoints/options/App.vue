@@ -242,6 +242,7 @@
       :tag-array="tagArray"
       :password-strength="formPasswordStrength"
       :password-rules="formPasswordRules"
+      :scope-peers="pathScopePeers"
       @save="handleSavePasswordWithValidation"
       @closed="handleResetPasswordForm"
       @update:form="applyPasswordFormPatch"
@@ -498,6 +499,7 @@ import {
 } from '@/utils/identity/summonIntent';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { normalizeToHostAndPort } from '@/utils/domain';
+import type { PathScopePeer } from '@/utils/pathScopePeers';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isDev, isFirefox } from '@/utils/env';
 import { markOptionsFirstView, markOptionsReady, rememberOptionsFirstView } from './appReady';
@@ -1071,6 +1073,18 @@ const {
 // 把已在手的条目数交给备份徽标（`immediate` 覆盖「会话有效、列表已解密」的直达场景），
 // 徽标因此不需要为「有没有密码」再整包读一次 PASSWORDS
 watch(() => passwords.value.length, setPasswordCount, { immediate: true });
+
+/**
+ * 路径冲突提示用的脱敏投影：只保留带路径作用域的条目，并排除正在编辑的条目本身
+ *
+ * 投影不含密码等任何敏感字段，仅服务「同一账号在其它路径下已有条目」的只读提示；
+ * 条目本身已在外层内存中解密，这里只是形状收窄，不新增暴露面。
+ */
+const pathScopePeers = computed<PathScopePeer[]>(() =>
+  passwords.value
+    .filter(p => p.id !== editingPasswordId.value && (p.pathScope ?? '').trim() !== '')
+    .map(p => ({ username: p.username || '', url: p.url || '', pathScope: p.pathScope || '' })),
+);
 
 /**
  * 回收站弹窗关闭后，让主表跟上弹窗里改过的档位

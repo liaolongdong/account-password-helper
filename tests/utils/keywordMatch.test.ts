@@ -19,12 +19,13 @@ import {
  * 任一条被破坏，表现都是「同一个词侧边栏搜得到、内联搜不到」这类静默分歧。
  */
 
-/** 构造最小可检索条目（只关心四个检索字段，其余字段与本模块无关） */
+/** 构造最小可检索条目（只关心五个检索字段，其余字段与本模块无关） */
 const entry = (overrides: Partial<KeywordSearchable>): KeywordSearchable => ({
   username: '',
   tag: '',
   remark: '',
   url: '',
+  pathScope: '',
   ...overrides,
 });
 
@@ -63,18 +64,15 @@ describe('normalizeSearchKeyword（外部关键词的边界归一）', () => {
 });
 
 describe('keywordFieldsOf（两侧共同的字段清单）', () => {
-  it('字段顺序为 用户名 / 标签 / 备注 / 网址', () => {
-    expect(keywordFieldsOf(entry({ username: 'u', tag: 't', remark: 'r', url: 'example.com' }))).toEqual([
-      'u',
-      't',
-      'r',
-      'example.com',
-    ]);
+  it('字段顺序为 用户名 / 标签 / 备注 / 网址 / 限定路径', () => {
+    expect(
+      keywordFieldsOf(entry({ username: 'u', tag: 't', remark: 'r', url: 'example.com', pathScope: '/#/admin' })),
+    ).toEqual(['u', 't', 'r', 'example.com', '/#/admin']);
   });
 
   it('缺失或非字符串字段按空串下发，不会把 undefined 带进匹配器', () => {
     const legacy = { username: undefined, tag: 42, remark: null } as unknown as KeywordSearchable;
-    expect(keywordFieldsOf(legacy)).toEqual(['', '', '', '']);
+    expect(keywordFieldsOf(legacy)).toEqual(['', '', '', '', '']);
   });
 
   it('toFieldText 只接受字符串，其余（含字符串对象之外的类型）归空串', () => {
@@ -139,5 +137,17 @@ describe('filterByKeyword（只做减法、不重排）', () => {
     const snapshot = [...list];
     filterByKeyword(list, 'zzz-no-match', substringMatcher);
     expect(list).toEqual(snapshot);
+  });
+
+  it('限定路径参与检索：按路由片段能找到对应条目，且不误伤其它条目', () => {
+    const scoped = [
+      entry({ username: 'desktop-user', pathScope: '/#/desktop' }),
+      entry({ username: 'admin-user', pathScope: '/#/admin' }),
+      entry({ username: 'plain-user' }),
+    ];
+    expect(filterByKeyword(scoped, 'desktop', substringMatcher).map(e => e.username)).toEqual(['desktop-user']);
+    expect(filterByKeyword(scoped, '/#/admin', substringMatcher).map(e => e.username)).toEqual(['admin-user']);
+    // 旧字段的命中集合不受新字段影响
+    expect(filterByKeyword(scoped, 'plain', substringMatcher).map(e => e.username)).toEqual(['plain-user']);
   });
 });
