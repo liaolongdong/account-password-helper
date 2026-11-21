@@ -27,6 +27,7 @@ import {
   consumePendingTotp,
   clearPendingTotp,
   grantCredentialAccessAfterStartupRelock,
+  patchCachedEntryUsage,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { issuePendingCipherKey } from './pendingCipherKeyStore';
@@ -40,7 +41,13 @@ import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { normalizeSiteRuleDomain, SITE_RULE_SELECTOR_MAX_LENGTH } from '@/utils/storage/siteRules';
 import { normalizeEntryId } from '@/utils/generateId';
 import { authorizeSenderDocument, isFrameFillable, sendToAuthorizedDocument } from '@/utils/frameFill';
-import { isSameMainDomain, normalizeToHostname, parsePagePortContext, type PagePortContext } from '@/utils/domain';
+import {
+  isSameMainDomain,
+  normalizeToHostname,
+  pagePathOf,
+  parsePagePortContext,
+  type PagePortContext,
+} from '@/utils/domain';
 import { getEnvBinding, setEnvBinding } from './environmentBinding';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 import { resolveSourceTabId } from '@/utils/sourceTab';
@@ -228,15 +235,21 @@ async function handleFillById(
     void showPageNotice(tabId, tl(fillFailureNoticeKey(result?.reason)));
   }
 
-  // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致
+  // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致。
+  // 先就地修补内存缓存：排序读缓存，而落盘走 1.5s 防抖队列，等 onChanged 再修补会出现
+  // 「填完立刻重开，最近使用的条目没排到最前」的时序抖动；落盘仍由防抖队列负责。
+  const usageAt = Date.now();
+  patchCachedEntryUsage(entry.id, {
+    lastUsedAt: usageAt,
+    ...(entry.favorite ? { favoriteUsedAt: usageAt } : {}),
+  });
   void _getCrudModule()
-    .then(({ updatePasswordInSession }) => {
-      const now = Date.now();
-      return updatePasswordInSession(entry.id, {
-        lastUsedAt: now,
-        ...(entry.favorite ? { favoriteUsedAt: now } : {}),
-      });
-    })
+    .then(({ updatePasswordInSession }) =>
+      updatePasswordInSession(entry.id, {
+        lastUsedAt: usageAt,
+        ...(entry.favorite ? { favoriteUsedAt: usageAt } : {}),
+      }),
+    )
     .catch(error => logger.error('Background: FILL_BY_ID 更新最近使用时间失败:', error));
 
   // 两步接力：填充成功且条目开启了两步验证时记录待接力标记，
@@ -965,10 +978,12 @@ export function setupMessageRouter(): void {
         const rawUrl = sender.tab?.url;
         let domain = message.data?.domain ?? '';
         let page: PagePortContext | null = null;
+        let path: string | undefined;
         if (rawUrl) {
           try {
             const parsedUrl = new URL(rawUrl);
             domain = parsedUrl.hostname;
+            path = pagePathOf(parsedUrl.pathname, parsedUrl.hash);
           } catch {
             // 解析失败时保底使用 message.data.domain，端口上下文按不可得处理
           }
@@ -986,7 +1001,7 @@ export function setupMessageRouter(): void {
             // 关键词是页面侧可伪造的文本：类型/长度在边界处收口（空白等价于不过滤）。
             // 该值参与拼音匹配但不进日志、不出扩展，且仅用于过滤展示元数据。
             const keyword = normalizeSearchKeyword(message.data?.keyword);
-            const data = await getMatchingAccounts(domain, page, keyword);
+            const data = await getMatchingAccounts(domain, page, path, keyword);
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);

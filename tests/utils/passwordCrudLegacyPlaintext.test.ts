@@ -27,11 +27,16 @@ vi.mock('@/utils/storage/masterPassword', () => ({
   verifyMasterPassword: vi.fn(async () => true),
 }));
 
+/** 与 `utils/encryption.ts` 同形的敏感字段清单（漏一个就等于放过一个明文写盘通道）；hoisted 供 vi.mock 工厂引用 */
+const { SENSITIVE_KEYS } = vi.hoisted(() => ({
+  SENSITIVE_KEYS: ['username', 'password', 'url', 'remark', 'totp', 'pathScope'],
+}));
+
 /** 与真实实现同形的桩：`encrypted !== true` 原样返回，否则按 `enc:` 前缀可逆往返 */
 vi.mock('@/utils/encryption', () => ({
   encryptPasswordEntry: vi.fn(async (entry: Record<string, unknown>) => {
     const out = { ...entry, encrypted: true } as Record<string, unknown>;
-    for (const key of ['username', 'password', 'url', 'remark', 'totp']) {
+    for (const key of SENSITIVE_KEYS) {
       if (typeof out[key] === 'string' && out[key]) out[key] = `enc:${out[key]}`;
     }
     return out;
@@ -42,7 +47,7 @@ vi.mock('@/utils/encryption', () => ({
       return rest as Record<string, unknown>;
     }
     const out = { ...entry } as Record<string, unknown>;
-    for (const key of ['username', 'password', 'url', 'remark', 'totp']) {
+    for (const key of SENSITIVE_KEYS) {
       if (typeof out[key] === 'string') out[key] = String(out[key]).replace(/^enc:/, '');
     }
     return out;
@@ -63,6 +68,7 @@ const plainRow = (overrides: Record<string, unknown> = {}) =>
     url: 'https://example.com',
     remark: 'r0',
     totp: '',
+    pathScope: '/#/desktop',
     tag: '',
     createTime: 1,
     updateTime: 1,
@@ -102,7 +108,7 @@ afterEach(() => {
 const rowOf = (): Record<string, unknown> => (store[STORAGE_KEYS.PASSWORDS] as Record<string, unknown>[])[0];
 
 describe('未迁移明文行的敏感编辑', () => {
-  it('落盘的行五个敏感字段全是密文：不许把明文值搬进 encrypted:true 的行', async () => {
+  it('落盘的行六个敏感字段全是密文：不许把明文值搬进 encrypted:true 的行', async () => {
     const { updatePassword } = await import('@/utils/storage/passwordCrud');
 
     // 自动保存的形状：只写 password/tag/remark，其余敏感字段全靠「取最新那一行」
@@ -110,11 +116,37 @@ describe('未迁移明文行的敏感编辑', () => {
 
     const written = rowOf();
     expect(written.encrypted, '本次编辑后这行该自称已加密').toBe(true);
-    // username/url 本次没写到：回填过来的必须是密文，不能是盘上那份明文
+    // username/url/pathScope 本次没写到：回填过来的必须是密文，不能是盘上那份明文
     expect(written.username, '明文值被搬进了自称已加密的行——迁移按 encrypted 跳过，明文从此冻在盘上').toBe('enc:u0');
     expect(written.url, '同上').toBe('enc:https://example.com');
+    expect(written.pathScope, '同上（pathScope 与 url 同级敏感，漏登记就会以明文落盘）').toBe('enc:/#/desktop');
     expect(written.password).toBe('enc:p1');
     expect(written.remark).toBe('enc:r1');
+  });
+
+  it('只改 pathScope 也必须走重加密分支：不许把它当元数据以明文写进 encrypted:true 的行', async () => {
+    // 已加密行：其余敏感字段都是密文。修复前 pathScope 不在 SENSITIVE_FIELDS 里，
+    // 这次更新会命中「仅元数据」快路径，把明文 pathScope 直接盖在密文行上——
+    // 之后 decryptPasswordEntry 解它会抛错，整条条目连带解密失败。
+    store[STORAGE_KEYS.PASSWORDS] = [
+      plainRow({
+        username: 'enc:u0',
+        password: 'enc:p0',
+        url: 'enc:https://example.com',
+        remark: 'enc:r0',
+        pathScope: 'enc:/#/desktop',
+        encrypted: true,
+      }),
+    ];
+    const { updatePassword } = await import('@/utils/storage/passwordCrud');
+
+    await updatePassword('a', { pathScope: '/#/admin' } as Partial<PasswordEntry>);
+
+    const written = rowOf();
+    expect(written.encrypted).toBe(true);
+    expect(written.pathScope, 'pathScope 被当成元数据以明文落盘，整条条目此后无法解密').toBe('enc:/#/admin');
+    expect(written.username, '本次没写的敏感字段必须回填锁内最新密文').toBe('enc:u0');
+    expect(written.password).toBe('enc:p0');
   });
 
   it('明文行也要以锁内重读的那一份为准合并：并发写进去的明文值不许被旧快照回卷', async () => {

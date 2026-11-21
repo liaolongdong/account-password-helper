@@ -6,6 +6,8 @@
   "form.remarkMax": "备注不能超过1000个字符",
   "form.invalidUrl": "请输入有效的网址",
   "form.invalidUrlExample": "请输入有效网址或域名，如 github.com 或 *.qq.com",
+  "form.pathScopeMax": "路径作用域不能超过 {max} 个字符",
+  "form.pathScopeInvalid": "路径作用域无法识别，请填 / 开头的路径（如 /#/desktop）或粘贴完整网址",
   "form.urlWildcardHint": "以 *. 开头可让该账号跨同主域名的子站使用，如 *.qq.com 适用于 mail.qq.com；需先在设置里开启跨子域匹配。",
   "form.invalidTotp": "请输入有效的 otpauth:// 链接或 Base32 密钥",
   "form.tagLengthLimit": "标签长度不能超过 {max} 个字符",

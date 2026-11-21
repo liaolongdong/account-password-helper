@@ -174,7 +174,7 @@ export function findMatchRange(
  *    真正省掉 DP 的正是这一层复用，跨关键词复用本就罕见。
  *
  * 上限取自「整库一轮检索的去重文本数上界」= 条目总量上限（2000，见
- * `utils/storage/vaultCapacity.ts`）× 检索字段数（4，见 `utils/keywordMatch.ts` 的
+ * `utils/storage/vaultCapacity.ts`）× 检索字段数（5，见 `utils/keywordMatch.ts` 的
  * `keywordFieldsOf`），由 `tests/architecture/pinyinCacheCapacity.test.ts` 钉住这个推导。
  * 之所以必须覆盖整库而不是「当前可见的那几十行」：本站范围下候选集常被域名裁到几百条，
  * 旧值 2000 看似够用；而新标签页 / `chrome://`（域名空 → 放行整库）、侧边栏全站范围、
@@ -184,12 +184,12 @@ export function findMatchRange(
  *
  * 上限只兜住体积、不兜住存活时间：键取自解密后的条目字段，属明文在内存中的派生残留，
  * 存活时间由 {@link clearPinyinRangeCache} 在锁定/过期时收口；满键时额外持有的是
- * 8000 个 Map 槽位与指向既有明文字段的引用（不复制字段内容）。
- * 身份库等单条目字段数可超过 4 的调用方仍可能越界，届时按插入顺序淘汰最旧一项。
+ * 10000 个 Map 槽位与指向既有明文字段的引用（不复制字段内容）。
+ * 身份库等单条目字段数可超过 5 的调用方仍可能越界，届时按插入顺序淘汰最旧一项。
  *
  * 导出仅为让边界测试与容量推导守卫引用该上界，业务代码不应依赖它。
  */
-export const PINYIN_RANGE_CACHE_MAX = 8000;
+export const PINYIN_RANGE_CACHE_MAX = 10000;
 
 /** 文本 → 拼音命中区间（只在上层确认拼音模块已就绪后读写，故就绪状态无需参与键值） */
 const pinyinRangeCache = new Map<string, [number, number] | null>();

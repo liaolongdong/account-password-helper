@@ -82,6 +82,13 @@
           <div class="form-tip">
             {{ t('form.urlWildcardHint') }}
           </div>
+          <!-- 只读冲突提示：同账号在其它路径下已有条目且当前未填路径时，提示补填 -->
+          <div
+            v-if="pathScopePeerTip"
+            class="form-tip path-scope-peer-tip"
+          >
+            {{ t('options.form.pathScopePeerTip', { scope: pathScopePeerTip }) }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -184,6 +191,34 @@
             {{ t('options.form.totpTip') }}
           </div>
         </el-form-item>
+
+        <!-- 高级选项折叠区：路径作用域是进阶字段，默认收起避免主表单噪音 -->
+        <el-collapse
+          v-model="activePanels"
+          class="advanced-options"
+        >
+          <el-collapse-item
+            :title="t('options.form.advancedOptions')"
+            name="advanced"
+          >
+            <el-form-item
+              :label="t('options.form.pathScope')"
+              prop="pathScope"
+            >
+              <el-input
+                v-model="localForm.pathScope"
+                :placeholder="t('options.form.pathScopePlaceholder')"
+                :disabled="loading"
+                clearable
+                :maxlength="PASSWORD_FIELD_LIMITS.pathScope"
+                @blur="handlePathScopeBlur"
+              />
+              <div class="form-tip">
+                {{ t('options.form.pathScopeTip') }}
+              </div>
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
       </el-form>
 
       <!-- 密码修改历史（仅编辑模式且有历史记录时展示） -->
@@ -254,6 +289,8 @@ import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopo
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
 import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH, MAX_TAG_COUNT } from '@/utils/constants';
+import { normalizePathScope } from '@/utils/domain';
+import { findOtherPathScopePeers, type PathScopePeer } from '@/utils/pathScopePeers';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { copySecretToClipboard } from '@/utils/clipboard';
@@ -289,6 +326,12 @@ const props = defineProps<{
   passwordStrength: PasswordStrengthResult;
   /** 密码规则逐条校验结果 */
   passwordRules: PasswordRuleItem[];
+  /**
+   * 全库条目的脱敏投影（仅用户名 / 网址 / 路径作用域，绝不含密码）
+   *
+   * 供「同一账号在其它路径下已有条目」的只读提示使用；缺省即不提示。
+   */
+  scopePeers?: readonly PathScopePeer[];
 }>();
 
 const emit = defineEmits<{
@@ -315,6 +358,7 @@ const localForm = reactive({
   url: props.form.url,
   remark: props.form.remark,
   totp: props.form.totp,
+  pathScope: props.form.pathScope,
 });
 
 /**
@@ -338,6 +382,7 @@ watch(
     localForm.url = val.url;
     localForm.remark = val.remark;
     localForm.totp = val.totp;
+    localForm.pathScope = val.pathScope;
   },
 );
 
@@ -349,11 +394,54 @@ watch(localForm, val => {
     url: val.url,
     remark: val.remark,
     totp: val.totp,
+    pathScope: val.pathScope,
   });
 });
 
 /** 本地表单引用 */
 const localFormRef = ref<FormInstance>();
+
+/** 高级选项折叠区激活面板（默认收起，路径作用域为进阶字段） */
+const activePanels = ref<string[]>([]);
+
+/** 打开弹窗时，若正在编辑带路径作用域的条目，自动展开高级选项，避免「填过却看不到」 */
+watch(
+  () => props.modelValue,
+  visible => {
+    if (visible) activePanels.value = props.form.pathScope.trim() ? ['advanced'] : [];
+  },
+);
+
+/**
+ * 同账号在其它路径下已有条目时引用的路径作用域（null = 不显示提示）
+ *
+ * 只在当前尚未填写路径时提示——用户一旦自己填了，说明已经在做路由区分，无需再劝。
+ * 只读、不阻断保存，也不参与校验。
+ */
+const pathScopePeerTip = computed<string | null>(() => {
+  if (localForm.pathScope.trim()) return null;
+  const [peer] = findOtherPathScopePeers(props.scopePeers ?? [], {
+    username: localForm.username,
+    url: localForm.url,
+    pathScope: '',
+  });
+  return peer?.pathScope ?? null;
+});
+
+/**
+ * 路径作用域失焦归一化
+ *
+ * 把用户输入折叠成匹配层真正使用的形态并回填输入框，让「填了什么」与「会怎么匹配」
+ * 在提交前就一致：`/desktop/` 变 `/desktop`（尾斜杠会让前缀判据变成 `//`，几乎谁都不命中），
+ * 粘贴完整网址时只剩 `pathname + hash`（否则它会当成字面量路径，一条都匹配不上）。
+ * 无法归一化的输入保持原样，交由 `createPathScopeValidator` 在提交时报错。
+ */
+const handlePathScopeBlur = () => {
+  const raw = localForm.pathScope.trim();
+  if (!raw) return;
+  const normalized = normalizePathScope(raw);
+  if (normalized) localForm.pathScope = normalized;
+};
 
 /** 密码输入框焦点状态 */
 const formPasswordInputFocused = ref(false);
@@ -598,6 +686,18 @@ defineExpose({ formRef: localFormRef });
   font-size: 12px;
   line-height: 1.5;
   color: var(--aph-text-muted);
+}
+
+/* 路径冲突提示：跟着网址字段走；用正文色 + 加粗做强调，
+   不用主题主色——默认主题主色对白底仅约 2.4:1，12px 文本不满足 WCAG AA */
+.path-scope-peer-tip {
+  font-weight: 500;
+  color: var(--aph-text-primary);
+}
+
+/* 高级选项折叠内容：EP 默认底部留白 25px，路径字段下方会空出一截 */
+.advanced-options :deep(.el-collapse-item__content) {
+  padding-bottom: 0;
 }
 
 .password-history-section {

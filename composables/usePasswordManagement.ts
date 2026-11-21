@@ -18,7 +18,8 @@ import {
 import { collectSiteOptions, matchesSiteFilter, type SiteOption } from '@/utils/siteUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
-import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
+import { DEFAULT_SORT, sortPasswordEntries, type SortState } from '@/utils/passwordSort';
+import { findDuplicatePasswordIds } from '@/utils/passwordDedupe';
 import { isValidTotpInput } from '@/utils/totp';
 import { scrollBehavior } from '@/utils/a11y';
 import { matchesKeyword } from '@/utils/searchMatch';
@@ -30,6 +31,7 @@ import { useVaultListPagination } from '@/composables/useVaultListPagination';
 import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
 import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
+import { normalizePathScope } from '@/utils/domain';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 import { restoreFromTrash } from '@/utils/storage/trashManager';
 
@@ -62,7 +64,15 @@ export const ROW_HIGHLIGHT_MS = 6000;
 export const UNDO_DELETE_WINDOW_MS = 5000;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
-const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
+const EMPTY_PASSWORD_FORM = {
+  username: '',
+  password: '',
+  url: '',
+  tag: '',
+  remark: '',
+  totp: '',
+  pathScope: '',
+} as const;
 
 /**
  * TOTP 密钥自定义校验器
@@ -157,6 +167,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tag: '',
     remark: '',
     totp: '',
+    pathScope: '',
   });
 
   /**
@@ -648,6 +659,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       tag: password.tag,
       remark: password.remark,
       totp: password.totp ?? '',
+      pathScope: password.pathScope ?? '',
     };
     showPasswordDialog.value = true;
   };
@@ -847,6 +859,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           tag: normalizedTag,
           remark: passwordForm.value.remark.trim(),
           totp: passwordForm.value.totp.trim(),
+          pathScope: normalizePathScope(passwordForm.value.pathScope),
           updateTime: Date.now(),
         };
         await runLocalOperation(async () => {
@@ -875,6 +888,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
             tag: normalizedTag,
             remark: passwordForm.value.remark.trim(),
             totp: passwordForm.value.totp.trim(),
+            pathScope: normalizePathScope(passwordForm.value.pathScope),
             createTime: now,
             updateTime: now,
           });
@@ -1313,29 +1327,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   /**
    * 一键去重
-   * 检测 username + url 相同的重复条目，每组优先保留收藏项（多条收藏时保留 updateTime 最新的），
-   * 无收藏时保留 updateTime 最新的一项，其余删除。
+   * 检测 username + url + 路径作用域（归一化后）相同的重复条目，每组优先保留收藏项
+   * （多条收藏时保留 updateTime 最新的），无收藏时保留 updateTime 最新的一项，其余删除。
+   *
+   * 指纹口径由 `utils/passwordDedupe.ts` 单点定义：同域不同路由的两套账号
+   * （`/#/desktop` 与 `/#/admin`）不算重复，绝不能被这里误删。
    */
   const removeDuplicates = async () => {
-    const groups = new Map<string, PasswordEntry[]>();
-    for (const entry of passwords.value) {
-      const key = [entry.username, entry.url].join('|');
-      const group = groups.get(key) ?? [];
-      group.push(entry);
-      groups.set(key, group);
-    }
-
-    const idsToRemove: string[] = [];
-    let duplicateGroupCount = 0;
-    for (const group of groups.values()) {
-      if (group.length <= 1) continue;
-      duplicateGroupCount++;
-      // 收藏优先，其次按 updateTime 降序，保留第一条（复用公共比较器）
-      group.sort((a, b) => comparePasswordEntries(a, b, DEFAULT_SORT));
-      for (let i = 1; i < group.length; i++) {
-        idsToRemove.push(group[i].id);
-      }
-    }
+    const { idsToRemove, groupCount: duplicateGroupCount } = findDuplicatePasswordIds(passwords.value);
 
     if (idsToRemove.length === 0) {
       ElMessage.info(t('form.noDuplicates'));

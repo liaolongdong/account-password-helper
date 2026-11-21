@@ -89,6 +89,7 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
       tag: '',
       remark: '',
       totp: '',
+      pathScope: '',
     });
   });
 
@@ -102,6 +103,7 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
       tag: '',
       remark: '',
       totp: '',
+      pathScope: '',
     });
 
     mgmt.tagArray.value = ['生活'];
@@ -127,7 +129,14 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
   });
 
   it('passwordFormRules 保留其余字段规则并追加 totp', () => {
-    expect(Object.keys(mgmt.passwordFormRules.value).sort()).toEqual(['password', 'remark', 'totp', 'url', 'username']);
+    expect(Object.keys(mgmt.passwordFormRules.value).sort()).toEqual([
+      'password',
+      'pathScope',
+      'remark',
+      'totp',
+      'url',
+      'username',
+    ]);
   });
 });
 

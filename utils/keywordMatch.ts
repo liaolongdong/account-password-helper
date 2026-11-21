@@ -60,6 +60,8 @@ export interface KeywordSearchable {
   remark?: string;
   /** 网址 */
   url?: string;
+  /** 路径作用域（空串/缺省 = 不限路径） */
+  pathScope?: string;
 }
 
 /**
@@ -87,14 +89,20 @@ export function toFieldText(value: unknown): string {
 /**
  * 取出条目的检索字段清单
  *
- * 顺序即语义：用户名 / 标签 / 备注 / 网址。这是两侧共同的闭合清单——新增可搜字段
+ * 顺序即语义：用户名 / 标签 / 备注 / 网址 / 限定路径。这是两侧共同的闭合清单——新增可搜字段
  * 只改这里一处，避免侧边栏与内联各自维护出分歧的字段集。
  *
  * @param entry 携带检索字段的条目（密码条目或下发给内容脚本的元数据）
  * @returns 归一后的字段文本数组
  */
 export function keywordFieldsOf(entry: KeywordSearchable): string[] {
-  return [toFieldText(entry.username), toFieldText(entry.tag), toFieldText(entry.remark), toFieldText(entry.url)];
+  return [
+    toFieldText(entry.username),
+    toFieldText(entry.tag),
+    toFieldText(entry.remark),
+    toFieldText(entry.url),
+    toFieldText(entry.pathScope),
+  ];
 }
 
 /**

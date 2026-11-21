@@ -116,7 +116,7 @@
         </h5>
         <ol>
           <li
-            v-for="(item, idx) in helpItems('help.gb', 21)"
+            v-for="(item, idx) in helpItems('help.gb', 22)"
             :key="idx"
           >
             <RichText :source="item" />

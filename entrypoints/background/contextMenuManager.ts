@@ -44,7 +44,7 @@ import {
   extractHostname,
   UNLOCK_NOTIFICATION_ID,
 } from './quickFillHandler';
-import { parsePagePortContext } from '@/utils/domain';
+import { pagePathFromUrl, parsePagePortContext } from '@/utils/domain';
 import { resolveSourceTabId } from '@/utils/sourceTab';
 import { tryOpenInlineDropdown } from './inlineDropdownHandler';
 import { openOptionsAndSendMessage, openOptionsPage } from './optionsPageManager';
@@ -56,6 +56,7 @@ import {
   sortMatchesForDomain,
   getInlineTotpCode,
   recordPendingTotpIfEligible,
+  patchCachedEntryUsage,
 } from './passwordCache';
 
 /** 菜单项 ID 与填充动作的映射（open* / parent* 无填充动作） */
@@ -220,6 +221,8 @@ async function handleSessionLocked(tabId: number | undefined, frameId: number | 
   if (tabId) {
     const opened = await tryOpenInlineDropdown(tabId, { useContextMenuTarget: true, frameId });
     if (opened === 'opened') return;
+    // 用户在取数期间主动收起面板：不是失败，不再弹「去解锁」提示
+    if (opened === 'dismissed') return;
     // 旧标签页未注入 content script（扩展更新/重载后）：去验证主密码也解决不了问题，
     // 按「刷新页面」指引反馈（不带可点击解锁的专用通知 ID）
     if (opened === 'pageNotReady') {
@@ -314,7 +317,12 @@ async function handleContextMenuFill(
       passwords = (await getOrWarmCache())?.passwords ?? [];
     }
 
-    const matched = await sortMatchesForDomain(passwords, hostname, parsePagePortContext(tab.url));
+    const matched = await sortMatchesForDomain(
+      passwords,
+      hostname,
+      parsePagePortContext(tab.url),
+      pagePathFromUrl(tab.url),
+    );
 
     // 解析明文值：TOTP 单独处理（需异步计算动态码），其余经纯函数解析
     if (action === 'totp') {
@@ -382,12 +390,17 @@ async function handleContextMenuFill(
     if (action !== 'totp' && entry.totp && entry.totp.trim()) {
       void recordPendingTotpIfEligible(tabId, entry.id);
     }
-    // 静默更新最近使用时间（与侧边栏/一键填充路径一致，保持排序与 LRU 依据）
+    // 静默更新最近使用时间（与侧边栏/一键填充路径一致，保持排序与 LRU 依据）；
+    // 先就地修补内存缓存，让下一次打开下拉/一键填充的排序立即生效（落盘仍走防抖队列）
     const entryId = entry.id;
     const entryFavorite = entry.favorite;
     void import('@/utils/storage/passwordCrud')
       .then(({ updatePasswordInSession }) => {
         const now = Date.now();
+        patchCachedEntryUsage(entryId, {
+          lastUsedAt: now,
+          ...(entryFavorite ? { favoriteUsedAt: now } : {}),
+        });
         return updatePasswordInSession(entryId, {
           lastUsedAt: now,
           ...(entryFavorite ? { favoriteUsedAt: now } : {}),

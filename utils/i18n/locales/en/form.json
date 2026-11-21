@@ -6,6 +6,8 @@
   "form.remarkMax": "Notes cannot exceed 1000 characters",
   "form.invalidUrl": "Please enter a valid URL",
   "form.invalidUrlExample": "Enter a valid URL or domain, e.g. github.com or *.qq.com",
+  "form.pathScopeMax": "Path limit cannot exceed {max} characters",
+  "form.pathScopeInvalid": "Unrecognized path limit — use a path starting with / (e.g. /#/desktop) or paste a full URL",
   "form.urlWildcardHint": "Prefix with *. to make this account available across subdomains of the same root domain, e.g. *.qq.com covers mail.qq.com. Requires cross-subdomain matching in settings.",
   "form.invalidTotp": "Please enter a valid otpauth:// URI or Base32 secret",
   "form.tagLengthLimit": "Tag length cannot exceed {max} characters",

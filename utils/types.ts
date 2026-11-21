@@ -59,6 +59,14 @@ export interface PasswordEntry {
    */
   totp?: string;
   /**
+   * 路径作用域（可选，加密存储）
+   *
+   * 把条目绑定到同一域名下的某个路径前缀（含 SPA hash 路由，如 `/#/desktop`），
+   * 用于「同域不同路由存不同账号」的场景。归一化后保留前导 `/`、剥离 query；
+   * 空串或 undefined 表示不限路径（与旧数据一致，匹配任意路径）。
+   */
+  pathScope?: string;
+  /**
    * 创建时间
    */
   createTime: number;
@@ -492,7 +500,16 @@ export type RuntimeMessage =
   | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
   | { type: MessageType.GET_PENDING_CIPHER_KEY }
   | { type: MessageType.QUICK_FILL }
-  | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean; useContextMenuTarget?: boolean } }
+  | {
+      type: MessageType.OPEN_INLINE_DROPDOWN;
+      /**
+       * 展开指令参数
+       *
+       * `toggleCloseOnly` 只由 background 在快捷键"再按一次收起"的首轮探测中下发，
+       * 命中已打开的面板即收起；不携带时按常规展开流程处理。
+       */
+      data?: { focusedOnly?: boolean; useContextMenuTarget?: boolean; toggleCloseOnly?: boolean };
+    }
   | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData }
   | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
   | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData }
@@ -653,6 +670,14 @@ export interface MatchingAccountMeta {
   remark: string;
   /** 网址 */
   url: string;
+  /**
+   * 路径作用域（空串/缺省 = 不限路径）
+   *
+   * 与 `url` 同级属于可展示元数据：内容脚本按与本侧同一份字段清单参与关键词检索
+   * （`utils/keywordMatch.ts` 的 `keywordFieldsOf`），不下发密码或其它密文。
+   * 允许缺省：历史载荷与测试夹具可能不带该字段，检索侧统一按空串处理。
+   */
+  pathScope?: string;
   /** 是否收藏 */
   favorite: boolean;
   /** 是否配置了两步验证 */
@@ -962,6 +987,8 @@ export interface PasswordFormModel {
   remark: string;
   /** TOTP 密钥 */
   totp: string;
+  /** 路径作用域（可选，空串 = 不限路径，见 `PasswordEntry.pathScope`） */
+  pathScope: string;
 }
 
 /**

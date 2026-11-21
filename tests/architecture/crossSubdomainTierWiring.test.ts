@@ -19,6 +19,8 @@ import path from 'path';
 
 const ROOT = path.resolve(__dirname, '../..');
 const SIDEPANEL_SRC = readFileSync(path.join(ROOT, 'entrypoints/sidepanel/App.vue'), 'utf8');
+/** 排序权重的唯一真源：侧边栏与内联下拉/一键填充共用它 */
+const SORT_SRC = readFileSync(path.join(ROOT, 'utils/passwordSort.ts'), 'utf8');
 const BACKGROUND_SRC = readFileSync(path.join(ROOT, 'entrypoints/background/backgroundServices.ts'), 'utf8');
 
 /** 需要显式传档位的站点范围谓词：签名末位是 `mode` 且带默认值 */
@@ -206,12 +208,21 @@ describe('端口范围接线', () => {
     }
   });
 
-  it('排序权重的唯一真源是 siteRankOf，侧边栏不再自行分层', () => {
+  it('排序权重的唯一真源是 domainPriorityWithPath，侧边栏不再自行分层', () => {
     const priorityFn = SIDEPANEL_SRC.match(/const domainPriorityOf =[\s\S]*?\n};/)?.[0] ?? '';
     expect(priorityFn, '未从侧边栏抽到 domainPriorityOf，本条判据成了空转').not.toBe('');
-    expect(priorityFn, '侧边栏排序不再经 siteRankWithEnv，关联度会与内联下拉及各入口分叉').toContain(
+    expect(priorityFn, '侧边栏排序不再经共享权重函数，关联度会与内联下拉及各入口分叉').toContain(
+      'domainPriorityWithPath(',
+    );
+    expect(priorityFn, '侧边栏自己拼档位（含路径档位）就会与下拉分叉，两头各留一份真源').not.toContain(
       'siteRankWithEnv(',
     );
+
+    // 共享权重函数本身必须仍然经 `siteRankWithEnv` 取档位：否则「唯一真源」只是一句注释
+    const sharedWeightFn = SORT_SRC.match(/export function domainPriorityWithPath\([\s\S]*?\n\}/)?.[0] ?? '';
+    expect(sharedWeightFn, '未从 passwordSort 抽到 domainPriorityWithPath，本条判据成了空转').not.toBe('');
+    expect(sharedWeightFn, '共享权重函数不再经 siteRankWithEnv 取档位').toContain('siteRankWithEnv(');
+
     expect(
       SIDEPANEL_SRC,
       '侧边栏里还留着写死的排序权重常量，等于第二个排序真源（关联度层级只在 domain.ts 定义一次）',

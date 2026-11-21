@@ -48,6 +48,8 @@ vi.mock('@/entrypoints/background/passwordCache', () => ({
   sortMatchesForDomain: vi.fn(async (passwords: unknown[]) => passwords),
   getInlineTotpCode: vi.fn(),
   recordPendingTotpIfEligible: vi.fn(async () => {}),
+  // 使用痕迹的内存修补：只证明填充后先经过它，再交给防抖落盘入口
+  patchCachedEntryUsage: vi.fn(),
 }));
 
 vi.mock('@/utils/sessionManager-storage', () => ({

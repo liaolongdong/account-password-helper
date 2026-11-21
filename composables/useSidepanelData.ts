@@ -15,6 +15,7 @@ import { t } from '@/utils/i18n';
 import {
   isExactHostMatch,
   isSamePagePort,
+  pagePathFromUrl,
   parsePagePortContext,
   rawPortOf,
   type PagePortContext,
@@ -264,6 +265,8 @@ export function useSidepanelData() {
    * 只做派生值——两个字段并列存放就会出现两个事实来源。
    */
   const currentPagePort = ref<PagePortContext | null>(null);
+  /** 当前标签页路径（pathname + hash，见 `pagePathOf`）；无域名页面为 undefined，路径门放行 */
+  const currentPath = ref<string | undefined>(undefined);
   /** 当前标签页端口（原始 `URL.port` 口径，处于默认端口时为空串）；派生值，供切页比较与既有本地开发规则使用 */
   const currentPort = computed(() => rawPortOf(currentPagePort.value));
   const showSidepanel = ref(true);
@@ -389,6 +392,7 @@ export function useSidepanelData() {
         const url = new URL(tab.url);
         const page = parsePagePortContext(tab.url);
         currentDomain.value = url.hostname;
+        currentPath.value = pagePathFromUrl(tab.url);
         // 同值不赋值：端口上下文是对象，每次新建都会让监听 `currentPagePort` 的
         // 「切页回到本站范围」误触发一次，把用户正在用的全站搜索打回本站
         if (!isSamePagePort(currentPagePort.value, page)) currentPagePort.value = page;
@@ -695,6 +699,8 @@ export function useSidepanelData() {
         const url = new URL(tab.url);
         const newDomain = url.hostname;
         const newPage = parsePagePortContext(tab.url);
+        // 路径独立更新：SPA hash 路由变化时域名与端口都不变，仍要让路径门与排序随之刷新
+        currentPath.value = pagePathFromUrl(tab.url);
 
         // 比较的是「有效端口 + 是否在默认端口」这对信息量，而不是原始 URL.port 字符串：
         // `https://a.com` 与 `http://a.com` 的原始端口都是空串，只比它会漏掉协议切换，
@@ -1197,6 +1203,7 @@ export function useSidepanelData() {
     currentDomain,
     currentPort,
     currentPagePort,
+    currentPath,
     showSidepanel,
     sortConfig,
     loadFailed,

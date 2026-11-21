@@ -86,6 +86,7 @@ describe('validateAndBoundEntries（条目级边界）', () => {
         tag: 'work',
         remark: 'note',
         totp: 'JBSWY3DP',
+        pathScope: '',
         createTime: 100,
         updateTime: 200,
       },

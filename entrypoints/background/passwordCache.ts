@@ -270,6 +270,28 @@ export async function applyMetadataOnlyUpdate(changedEntries: unknown): Promise<
 }
 
 /**
+ * 填充后的使用痕迹就地修补（仅内存缓存，不落盘、不重写快照）
+ *
+ * FILL_BY_ID / 一键填充 / 右键菜单的 lastUsedAt 走 1.5s 防抖队列落盘，
+ * 而内联下拉 / 一键填充的排序读的正是本缓存：不即时修补就会出现
+ * 「填完立刻重开，最近使用的条目仍排在后面；过一会儿再开又正常」的时序抖动。
+ * 落盘仍由原防抖队列负责，本函数只把同样的值提前写进内存。
+ *
+ * 幂等且零 IO：缓存缺失或会话锁定时静默 no-op；不触碰 storage 与会话快照
+ * （快照由后续 flush 的 applyMetadataOnlyUpdate 统一重写，侧边栏顶多多等一个防抖窗口）。
+ *
+ * @param id 条目 ID
+ * @param usage 本次填充产生的使用痕迹（favoriteUsedAt 仅在收藏条目上刷新）
+ */
+export function patchCachedEntryUsage(id: string, usage: { lastUsedAt?: number; favoriteUsedAt?: number }): void {
+  if (!passwordCache?.isAuthenticated) return;
+  const entry = passwordCache.passwords.find(p => p.id === id);
+  if (!entry) return;
+  if (usage.lastUsedAt !== undefined) entry.lastUsedAt = usage.lastUsedAt;
+  if (usage.favoriteUsedAt !== undefined) entry.favoriteUsedAt = usage.favoriteUsedAt;
+}
+
+/**
  * 消费元数据 flush 打标（storage.session，短 TTL）
  *
  * flushMetadataUpdates 写入 account_passwords 前打标，本函数在 storage.onChanged
@@ -585,12 +607,14 @@ export async function getEffectiveSitePolicy(domain: string, page: PagePortConte
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
  * @param page 当前页面端口上下文（null 表示取不到，端口门自动放行，与迁移前一致）
+ * @param path 当前页面路径（pathname + hash，见 `pagePathOf`），缺省表示取不到，路径门放行
  * @returns 过滤并排序后的新数组（首条即侧边栏展示第一条）
  */
 export async function sortMatchesForDomain(
   passwords: PasswordEntry[],
   domain: string,
   page: PagePortContext | null,
+  path?: string,
 ): Promise<PasswordEntry[]> {
   const [sortConfig, policy, envHost] = await Promise.all([
     getCachedSortConfig(),
@@ -600,7 +624,7 @@ export async function sortMatchesForDomain(
   const sortState: SortState = sortConfig
     ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  return filterAndSortEntriesForDomain(passwords, domain, sortState, page, policy, envHost);
+  return filterAndSortEntriesForDomain(passwords, domain, sortState, page, policy, envHost, path);
 }
 
 /**
@@ -679,12 +703,14 @@ async function buildLockedResponse(): Promise<MatchingAccountsResponse> {
  *
  * @param domain 当前页面顶层域名（hostname）
  * @param page 当前页面端口上下文（null 表示取不到，端口门放行）
+ * @param path 当前页面路径（pathname + hash），缺省表示取不到，路径门放行
  * @param keyword 检索关键词（可选，拼音/首字母缩写，保序过滤，空串等价不过滤）
  * @returns 锁定标记、匹配账号元数据列表（最多 `INLINE_MAX_RESULT_ROWS` 条）与命中总数
  */
 export async function getMatchingAccounts(
   domain: string,
   page: PagePortContext | null,
+  path?: string,
   keyword?: string,
 ): Promise<MatchingAccountsResponse> {
   // 启动重锁窗口：只报「锁定」，不据此推断主密码是否存在（此刻会话状态本就不可信）
@@ -704,7 +730,7 @@ export async function getMatchingAccounts(
   // 唯一的例外是本地页的环境绑定（用户在侧边栏芯片上点选，会话级、只对这一个端点有效）。
   // 复用 sortMatchesForDomain（侧边栏排序配置 + 匹配层级 + 收藏置顶）
   const [matched, policy, envHost] = await Promise.all([
-    sortMatchesForDomain(cache.passwords, domain, page),
+    sortMatchesForDomain(cache.passwords, domain, page, path),
     getEffectiveSitePolicy(domain, page),
     getEnvBinding(domain, page?.port ?? null),
   ]);
@@ -742,6 +768,7 @@ export async function getMatchingAccounts(
         tag: p.tag || '',
         remark: p.remark || '',
         url: p.url || '',
+        pathScope: p.pathScope || '',
         favorite: !!p.favorite,
         hasTotp: !!(p.totp && p.totp.trim()),
         favicon: p.url ? await fetchFaviconDataUrl(p.url, 32) : '',
@@ -753,7 +780,9 @@ export async function getMatchingAccounts(
 
   // 计数只服务空态那一行提示（「本站无账号、同主域还有 N 条」），描述的是本站而非关键词：
   // 因此按过滤前的 matched 判定，避免带关键词的检索把提示计数改口径。
-  const crossDomainCount = matched.length ? 0 : countSameMainDomainCandidates(cache.passwords, domain, policy, page);
+  const crossDomainCount = matched.length
+    ? 0
+    : countSameMainDomainCandidates(cache.passwords, domain, policy, page, path);
 
   return { locked: false, accounts, crossDomainCount, totalMatched };
 }

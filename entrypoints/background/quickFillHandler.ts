@@ -23,13 +23,14 @@ import { tl } from '@/utils/i18n-lite';
 import { MessageType } from '@/utils/types';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getFillableDocuments, fillPasswordInFrames } from '@/utils/frameFill';
-import { parsePagePortContext } from '@/utils/domain';
+import { pagePathFromUrl, parsePagePortContext } from '@/utils/domain';
 import {
   ensureCredentialAccessAfterStartupRelock,
   getCachedPasswords,
   getOrWarmCache,
   sortMatchesForDomain,
   recordPendingTotpIfEligible,
+  patchCachedEntryUsage,
 } from './passwordCache';
 
 /** 通知 ID 前缀 */
@@ -267,6 +268,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
     return;
   }
   const page = parsePagePortContext(tab.url);
+  const path = pagePathFromUrl(tab.url);
 
   // 检查会话有效性：优先同步快路径，SW 冷启动后模块状态为空时
   // 才回退到异步 isSessionValid() 从 storage 恢复会话
@@ -279,6 +281,8 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
       // getActiveTab/notifyFailure）形成循环依赖
       const { tryOpenInlineDropdown } = await import('./inlineDropdownHandler');
       const opened = await tryOpenInlineDropdown(tabId);
+      // 用户在取数期间主动收起面板：不是失败，不该再弹「会话失效」通知
+      if (opened === 'dismissed') return;
       if (opened !== 'opened') {
         // 页面不可达 / 无登录字段时回退通知链路（可点击直达验证页），确保用户有感知
         await notifyFailure(tl('bg.quickFill.sessionExpiredUnlock'), undefined, UNLOCK_NOTIFICATION_ID);
@@ -299,7 +303,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
 
   // 按域名过滤并按侧边栏展示顺序排序（域名匹配优先 + 收藏置顶 + 排序配置），
   // 首条即侧边栏列表第一条
-  const matched = await sortMatchesForDomain(passwords, hostname, page);
+  const matched = await sortMatchesForDomain(passwords, hostname, page, path);
 
   if (matched.length === 0) {
     await notifyFailure(tl('bg.quickFill.noMatch'));
@@ -346,9 +350,13 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
       await showNotification(tl('bg.quickFill.fillSuccess'));
     }
 
-    // 静默更新最近使用时间
+    // 静默更新最近使用时间；先就地修补内存缓存，让排序立即生效（落盘仍走防抖队列）
     const { updatePasswordInSession } = await import('@/utils/storage/passwordCrud');
     const now = Date.now();
+    patchCachedEntryUsage(entry.id, {
+      lastUsedAt: now,
+      ...(entry.favorite ? { favoriteUsedAt: now } : {}),
+    });
     void updatePasswordInSession(entry.id, {
       lastUsedAt: now,
       ...(entry.favorite ? { favoriteUsedAt: now } : {}),

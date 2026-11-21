@@ -20,6 +20,7 @@
  * 面向用户的 i18n 文案。
  */
 import type { PasswordEntry } from '@/utils/types';
+import { normalizePathScope } from '@/utils/domain';
 import {
   MAX_PASSWORD_IMPORT_ENTRIES,
   MAX_REMARK_LEN,
@@ -136,6 +137,10 @@ export function validateAndBoundEntries(rows: unknown): ImportedPasswordEntry[] 
       tag: readBoundedText(row.tag, MAX_TAG_LEN),
       remark: readBoundedText(row.remark, MAX_REMARK_LEN),
       totp: readBoundedText(row.totp, MAX_TOTP_LEN),
+      // 路径作用域是不可信输入且参与「硬过滤」：不归一化的话，`desktop` / 完整 URL 这类
+      // 写法会永远不命中，条目在侧边栏与所有填充入口永久隐身且没有任何提示。
+      // 归一化失败（返回空串）即退化为「不限路径」，与存量条目同一语义。
+      pathScope: normalizePathScope(readBoundedText(row.pathScope, MAX_URL_LEN)),
       createTime: readTimestamp(row.createTime, now),
       updateTime: readTimestamp(row.updateTime, now),
     };

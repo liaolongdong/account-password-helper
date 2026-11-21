@@ -35,6 +35,7 @@ vi.mock('@/entrypoints/content/SavePasswordPrompt', () => ({
 vi.mock('@/entrypoints/background/passwordCache', () => ({
   ensureCredentialAccessAfterStartupRelock: vi.fn(async () => true),
   invalidatePasswordCache: vi.fn(),
+  patchCachedEntryUsage: vi.fn(),
 }));
 
 vi.mock('@/utils/storage', () => ({

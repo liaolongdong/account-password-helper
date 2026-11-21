@@ -55,7 +55,7 @@ describe('InlineFillDropdown 搜索筛选的不可信数据兜底', () => {
       success: true,
       data: { locked: false, accounts },
     } as never);
-    expect(await dropdown.openPanelFor(input)).toBe(true);
+    expect(await dropdown.openPanelFor(input)).toBe('opened');
   };
 
   /** 在搜索框输入关键字，返回渲染出的行索引 */

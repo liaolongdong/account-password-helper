@@ -54,7 +54,7 @@ describe('InlineFillDropdown 的 combobox 语义与默认选中', () => {
   /** 打开面板（mock GET_MATCHING_ACCOUNTS 的下发数据） */
   const openWith = async (accounts: MatchingAccountMeta[]): Promise<void> => {
     sendSpy.mockResolvedValue({ success: true, data: { locked: false, accounts } } as never);
-    expect(await dropdown.openPanelFor(input)).toBe(true);
+    expect(await dropdown.openPanelFor(input)).toBe('opened');
   };
 
   const searchInput = (): HTMLInputElement => root!.querySelector<HTMLInputElement>('.aph-search input')!;

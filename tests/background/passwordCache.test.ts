@@ -94,6 +94,7 @@ import {
   INLINE_MAX_RESULT_ROWS,
   getCachedSortConfig,
   invalidatePasswordCache,
+  patchCachedEntryUsage,
   refreshSidepanelSortCache,
   resetCredentialAccessBarrierForStartup,
   resetDomainMatchModeMirror,
@@ -227,6 +228,27 @@ describe('getMatchingAccounts 下发给内容脚本的字段口径', () => {
     expect(accounts[0]!.tag).toBe('');
     expect(accounts[0]!.remark).toBe('');
     expect(accounts[0]!.url).toBe('');
+    expect(accounts[0]!.pathScope).toBe('');
+  });
+
+  it('限定路径随元数据下发，并参与内联检索', async () => {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' },
+    });
+    updatePasswordCache(
+      [
+        makePasswordEntry({ id: 'desktop', url: 'example.com', username: 'u1', pathScope: '/#/desktop' }),
+        makePasswordEntry({ id: 'admin', url: 'example.com', username: 'u2', pathScope: '/#/admin' }),
+      ],
+      '*',
+      true,
+    );
+
+    const all = await getMatchingAccounts('example.com', page('https://example.com'));
+    expect(all.accounts.map(a => a.pathScope)).toEqual(['/#/desktop', '/#/admin']);
+
+    const hits = await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'desktop');
+    expect(hits.accounts.map(a => a.id)).toEqual(['desktop']);
   });
 });
 
@@ -328,7 +350,7 @@ describe('getMatchingAccounts 的关键词检索（内联下拉的拼音档）',
 
   /** 取某个关键词下的命中 id 序列（省略关键词即全量口径） */
   const idsOf = async (keyword?: string): Promise<string[]> => {
-    const { accounts } = await getMatchingAccounts('example.com', page('https://example.com'), keyword);
+    const { accounts } = await getMatchingAccounts('example.com', page('https://example.com'), undefined, keyword);
     return accounts.map(a => a.id);
   };
 
@@ -370,7 +392,12 @@ describe('getMatchingAccounts 的关键词检索（内联下拉的拼音档）',
   });
 
   it('检索不改变 crossDomainCount 的口径：本站有账号时恒为 0', async () => {
-    const { crossDomainCount } = await getMatchingAccounts('example.com', page('https://example.com'), 'zzzz-无匹配');
+    const { crossDomainCount } = await getMatchingAccounts(
+      'example.com',
+      page('https://example.com'),
+      undefined,
+      'zzzz-无匹配',
+    );
     expect(crossDomainCount).toBe(0);
   });
 });
@@ -739,7 +766,7 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
     const hitCount = INLINE_MAX_RESULT_ROWS + 10;
     updatePasswordCache(buildEntries(OVER_CAP_TOTAL, hitCount), '*', true);
 
-    const response = await getMatchingAccounts('example.com', page('https://example.com'), 'alp');
+    const response = await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'alp');
 
     // 未命中的 10 条不该被算进 totalMatched，否则尾部的「还有 N 条」读数会虚高
     expect(response.totalMatched).toBe(hitCount);
@@ -756,7 +783,7 @@ describe('getMatchingAccounts 的条目上界与命中总数', () => {
     expect(all.totalMatched).toBe(3);
 
     // 检索后一条不剩：总数与列表同为 0，而不是留下「还有 3 条」的错误读数
-    const none = await getMatchingAccounts('example.com', page('https://example.com'), 'zzzz-无匹配');
+    const none = await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'zzzz-无匹配');
     expect(none.accounts).toEqual([]);
     expect(none.totalMatched).toBe(0);
   });
@@ -780,7 +807,7 @@ describe('getMatchingAccounts 读取主密码配置的时机', () => {
 
     const response = await getMatchingAccounts('example.com', page('https://example.com'));
     expect(response.locked).toBe(false);
-    await getMatchingAccounts('example.com', page('https://example.com'), 'a');
+    await getMatchingAccounts('example.com', page('https://example.com'), undefined, 'a');
 
     expect(masterPasswordMocks.hasMasterPassword).not.toHaveBeenCalled();
   });
@@ -807,5 +834,45 @@ describe('getMatchingAccounts 读取主密码配置的时机', () => {
       noMasterPassword: true,
       accounts: [],
     });
+  });
+});
+
+describe('patchCachedEntryUsage（填充后的排序即时生效）', () => {
+  beforeEach(async () => {
+    // 复位镜像与排序配置：本文件其它用例会留下自定义排序配置（updateTime 等），
+    // 默认排序（lastUsedAt）才是本用例的判据
+    configMocks.getSidepanelSortConfig.mockResolvedValue(null as never);
+    invalidatePasswordCache();
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' },
+    });
+  });
+
+  it('就地修补内存缓存：刚用过的条目立刻排到前面', async () => {
+    updatePasswordCache(
+      [
+        makePasswordEntry({ id: 'older', url: 'example.com', username: 'a', lastUsedAt: 100 }),
+        makePasswordEntry({ id: 'newer', url: 'example.com', username: 'b', lastUsedAt: 200 }),
+      ],
+      '*',
+      true,
+    );
+
+    const before = await getMatchingAccounts('example.com', page('https://example.com'));
+    expect(before.accounts.map(a => a.id)).toEqual(['newer', 'older']);
+
+    // 模拟刚填充 older：只修补内存缓存，不等待 1.5s 防抖落盘
+    patchCachedEntryUsage('older', { lastUsedAt: 300 });
+
+    const after = await getMatchingAccounts('example.com', page('https://example.com'));
+    expect(after.accounts.map(a => a.id)).toEqual(['older', 'newer']);
+  });
+
+  it('不写 storage、不重写快照；缓存缺失时安全 no-op', async () => {
+    const setSpy = vi.spyOn(chrome.storage.local, 'set');
+    invalidatePasswordCache();
+
+    expect(() => patchCachedEntryUsage('missing', { lastUsedAt: Date.now() })).not.toThrow();
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });

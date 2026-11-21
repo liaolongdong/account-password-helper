@@ -5,7 +5,7 @@
  */
 import type { FormRules } from 'element-plus';
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
-import { splitHostAndPortDecl, splitWildcardHost } from '@/utils/domain';
+import { normalizePathScope, splitHostAndPortDecl, splitWildcardHost } from '@/utils/domain';
 
 /**
  * 创建 URL/域名格式校验器
@@ -67,6 +67,35 @@ export function createUrlValidator(t: (key: string) => string) {
 export type BoundedPasswordField = 'username' | 'password' | 'url' | 'remark';
 
 /**
+ * 创建路径作用域校验器
+ *
+ * 只拦「非空但归一化后为空」这一类：`normalizePathScope` 对 `https://` 这类无法解析的
+ * 输入返回空串，而空串在匹配层等于「不限路径」——若放它过去，用户以为限定了路径，
+ * 实际把条目放开到全站，且保存成功后没有任何提示。
+ *
+ * 空值本身通过（选填字段）。归一化成功但语义可能出乎意料的两类输入**不在这里拦**：
+ * - 完整网址且无路径（`https://a.com` → `/`，只匹配站点根页）；
+ * - 尾斜杠（`/desktop/` → `/desktop`，由归一化折叠）。
+ * 前者由输入框失焦回填 + 提示文案说明，后者已被归一化消解。
+ *
+ * @param t 国际化翻译函数
+ * @returns Element Plus 表单校验器函数
+ */
+export function createPathScopeValidator(t: (key: string) => string) {
+  return (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+    if (!value || !value.trim()) {
+      callback();
+      return;
+    }
+    if (normalizePathScope(value) === '') {
+      callback(new Error(t('form.pathScopeInvalid')));
+      return;
+    }
+    callback();
+  };
+}
+
+/**
  * 编辑态的「条目原有长度」，单位：字符
  *
  * 只用于把某字段的校验上限放宽到不小于原值，缺省（或传 undefined）即按标准容量校验。
@@ -101,6 +130,7 @@ export function createPasswordFormRules(
   initialLengths: InitialFieldLengths = {},
 ): FormRules {
   const urlValidator = createUrlValidator(t);
+  const pathScopeValidator = createPathScopeValidator(t);
   /** 字段校验上限：标准容量恒为下限，编辑态按条目原长度放宽（负数等非法原长回落到容量） */
   const capacityOf = (field: BoundedPasswordField): number =>
     Math.max(PASSWORD_FIELD_LIMITS[field], initialLengths[field] ?? 0);
@@ -122,5 +152,10 @@ export function createPasswordFormRules(
       { validator: urlValidator, trigger: 'blur' },
     ],
     remark: [{ max: capacityOf('remark'), message: t('form.remarkMax'), trigger: 'blur' }],
+    // 仅 Options 表单渲染该字段；SidePanel 快速添加没有它，规则存在也不参与校验
+    pathScope: [
+      { max: PASSWORD_FIELD_LIMITS.pathScope, message: t('form.pathScopeMax'), trigger: 'blur' },
+      { validator: pathScopeValidator, trigger: 'blur' },
+    ],
   };
 }

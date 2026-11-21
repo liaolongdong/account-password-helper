@@ -9,6 +9,7 @@ vi.mock('@/utils/sessionManager-storage', async importOriginal => ({
 }));
 vi.mock('@/entrypoints/background/passwordCache', () => ({
   ensureCredentialAccessAfterStartupRelock: vi.fn(async () => true),
+  patchCachedEntryUsage: vi.fn(),
 }));
 
 const top = { frameId: 0, parentFrameId: -1, url: 'https://app.example.com/', documentId: 'top-doc' };

@@ -495,6 +495,16 @@ describe('countSameMainDomainCandidates：空态引导计数', () => {
     // 端口门放行时（loose）计数回到 4，证明这一支只因端口而收缩
     expect(countSameMainDomainCandidates(ENTRIES, CUR, policy('off', 'loose'), offDefault)).toBe(4);
   });
+
+  /** 路径门与端口门同口径：放宽档依然看不到的条目，不能计入引导数字 */
+  it('路径门挡住的条目不计入', () => {
+    const scoped = [
+      { url: 'music.qq.com' }, // 放宽后可见 → 计入
+      { url: 'music.qq.com', pathScope: '/#/other' }, // 放宽后仍被路径门挡住 → 不计
+      { url: 'music.qq.com', pathScope: '/#/this' }, // 两项都放行 → 计入
+    ];
+    expect(countSameMainDomainCandidates(scoped, CUR, policy('off'), PAGE, '/#/this')).toBe(2);
+  });
 });
 
 describe('parsePagePortContext：页面端口上下文', () => {
@@ -677,6 +687,21 @@ describe('countPortHiddenCandidates：被端口隔离挡住的条数', () => {
     expect(
       countPortHiddenCandidates([{ url: 'example.com' }], CUR, policy(), parsePagePortContext('https://example.com')),
     ).toBe(0);
+  });
+
+  /**
+   * 放宽端口后仍被 `pathScope` 挡住的条目不该计入：否则芯片会出现
+   * 「说有几条、点放宽后一条不出」的自相矛盾（与端口轴同一口径）。
+   */
+  it('被路径门挡住的条目不计入（放宽端口后依然看不到）', () => {
+    const mixed = [
+      { url: 'example.com:9090' }, // 端口挡住、路径放行 → 计入
+      { url: 'example.com:9090', pathScope: '/#/other' }, // 端口挡住，但路径也不命中 → 不计
+      { url: 'example.com:9090', pathScope: '/#/this' }, // 两项都命中当前页 → 计入
+    ];
+    expect(countPortHiddenCandidates(mixed, CUR, policy(), at8443, '/#/this')).toBe(2);
+    // 不传路径（取不到）时维持旧口径：路径门放行，三条都只看端口
+    expect(countPortHiddenCandidates(mixed, CUR, policy(), at8443)).toBe(3);
   });
 });
 

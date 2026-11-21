@@ -286,7 +286,17 @@ describe('parseJSON', () => {
       { username: 'a', password: 'p', url: 'u', tag: 't', remark: 'r', totp: 'x', createTime: 100, updateTime: 200 },
     ]);
     expect(ExcelUtils.parseJSON(text)).toEqual([
-      { username: 'a', password: 'p', url: 'u', tag: 't', remark: 'r', totp: 'x', createTime: 100, updateTime: 200 },
+      {
+        username: 'a',
+        password: 'p',
+        url: 'u',
+        tag: 't',
+        remark: 'r',
+        totp: 'x',
+        pathScope: '',
+        createTime: 100,
+        updateTime: 200,
+      },
     ]);
   });
 
@@ -310,6 +320,15 @@ describe('parseJSON', () => {
     const text = JSON.stringify([{ username: 't', createTime: '2020-01-01T00:00:00Z' }]);
     const ts = Date.parse('2020-01-01T00:00:00Z');
     expect(ExcelUtils.parseJSON(text)[0]).toMatchObject({ createTime: ts, updateTime: ts });
+  });
+
+  it('pathScope 按边界口径归一化（裸片段 → 绝对路径，尾斜杠折叠）', () => {
+    const text = JSON.stringify([
+      { username: 'a', pathScope: 'desktop' },
+      { username: 'b', pathScope: '/#/desktop/' },
+      { username: 'c', pathScope: 'https://example.com/#/admin' },
+    ]);
+    expect(ExcelUtils.parseJSON(text).map(e => e.pathScope)).toEqual(['/desktop', '/#/desktop', '/#/admin']);
   });
 
   it('过滤用户名为空的条目', () => {
@@ -415,6 +434,25 @@ describe('导出序列化（经 Blob/document/URL 打桩捕获生成内容）', 
     expect(parsed.version).toBe(1);
     expect(parsed.count).toBe(1);
     expect(parsed.entries[0]).toMatchObject({ username: 'alice', password: 'secret' });
+  });
+
+  /**
+   * JSON 是本扩展自有且可回导的格式：漏掉 pathScope 会让「导出再导入」把
+   * 「只在某路由出现的条目」静默放宽成「全站可见」。
+   */
+  it('exportToJSON → parseJSON 往返保留 pathScope（并归一化）', () => {
+    const entry = makePasswordEntry({
+      username: 'alice',
+      password: 'secret',
+      url: 'https://example.com',
+      pathScope: '/#/desktop',
+    });
+    ExcelUtils.exportToJSON([entry], 'f.json');
+    expect(JSON.parse(blobContent).entries[0].pathScope).toBe('/#/desktop');
+
+    const roundTrip = ExcelUtils.parseJSON(blobContent);
+    expect(roundTrip).toHaveLength(1);
+    expect(roundTrip[0].pathScope).toBe('/#/desktop');
   });
 
   it('downloadTemplate：包含中文模板表头与示例行', () => {

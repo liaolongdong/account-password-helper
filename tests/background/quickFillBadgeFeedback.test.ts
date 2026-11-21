@@ -37,6 +37,7 @@ vi.mock('@/entrypoints/background/passwordCache', () => ({
   sortMatchesForDomain: vi.fn(async () => []),
   recordPendingTotpIfEligible: vi.fn(async () => {}),
   getInlineTotpCode: vi.fn(async () => null),
+  patchCachedEntryUsage: vi.fn(),
 }));
 
 /** 与实现中的 BADGE_CLEAR_DELAY_MS 一致 */

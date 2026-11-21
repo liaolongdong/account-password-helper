@@ -24,15 +24,15 @@ import { PINYIN_RANGE_CACHE_MAX } from '@/utils/searchMatch/core';
 import { MAIN_DOMAIN_CACHE_MAX } from '@/utils/domain';
 import { keywordFieldsOf } from '@/utils/keywordMatch';
 
-/** 一条四字段全填的条目，用来量出「一轮检索最多写入几个不同键」的真实字段数 */
-const FULL_ENTRY = { username: 'u', tag: 't', remark: 'r', url: 'https://example.com' };
+/** 一条五字段全填的条目，用来量出「一轮检索最多写入几个不同键」的真实字段数 */
+const FULL_ENTRY = { username: 'u', tag: 't', remark: 'r', url: 'https://example.com', pathScope: '/#/desktop' };
 
 describe('检索链路记忆缓存的容量推导', () => {
-  it('字段数取自 keywordFieldsOf 本身，而不是测试里另写一个 4', () => {
+  it('字段数取自 keywordFieldsOf 本身，而不是测试里另写一个 5', () => {
     const fields = keywordFieldsOf(FULL_ENTRY);
-    // 抽取非空守卫：四个字段都被读出来才算数，漏字段会让下面的乘积假绿
-    expect(fields.filter(Boolean)).toHaveLength(4);
-    expect(fields).toEqual(['u', 't', 'r', 'https://example.com']);
+    // 抽取非空守卫：五个字段都被读出来才算数，漏字段会让下面的乘积假绿
+    expect(fields.filter(Boolean)).toHaveLength(5);
+    expect(fields).toEqual(['u', 't', 'r', 'https://example.com', '/#/desktop']);
   });
 
   it('拼音区间缓存 = 条目上限 × 检索字段数（整库一轮的去重文本数上界）', () => {

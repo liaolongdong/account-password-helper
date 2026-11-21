@@ -182,7 +182,7 @@ describe('InlineFillDropdown 取数失败后回滚触发图标', () => {
     dropdown.hide();
     expect(iconShown()).toBe(false);
 
-    expect(await dropdown.openPanelFor(input)).toBe(false);
+    expect(await dropdown.openPanelFor(input)).toBe('failed');
 
     expect(panelShown()).toBe(false);
     expect(iconShown()).toBe(false);

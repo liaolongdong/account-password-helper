@@ -339,8 +339,11 @@ export function setupSidePanelListeners(): void {
       // 透传 onCommand 回调提供的 tab，避免处理器内冗余查询与窗口焦点竞态
       handleQuickFill(tab).catch(error => logger.error('Background: 一键填充快捷键处理失败:', error));
     } else if (command === 'open_inline_dropdown') {
-      // 与点击输入框内钥匙图标一致：在当前页面展开内联填充下拉面板
-      handleOpenInlineDropdown(tab).catch(error => logger.error('Background: 内联下拉快捷键处理失败:', error));
+      // 与点击输入框内钥匙图标一致：在当前页面展开内联填充下拉面板；
+      // toggle：面板已打开时再按一次直接收起（仅快捷键路径，popup 仍只展开）
+      handleOpenInlineDropdown(tab, { toggle: true }).catch(error =>
+        logger.error('Background: 内联下拉快捷键处理失败:', error),
+      );
     } else if (command === 'toggle_sidepanel') {
       if (!chrome.sidePanel) {
         logger.error('Background: 当前Chrome版本不支持sidePanel API');
